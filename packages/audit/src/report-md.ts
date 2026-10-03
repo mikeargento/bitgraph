@@ -876,6 +876,10 @@ function boundLine(bound: SegmentBound): string {
 
 /** One summary line for an export: its verdict, path, kind and covered files. */
 function exportSummaryLine(e: ExportCheck): string {
+  if (e.status === "malformed") {
+    // It says bitgraph-export/1 and is not one: a failed check, not an unknown format.
+    return `FALSE ${inlineCode(e.path)}: malformed, ${e.reason ?? e.status}. Fails the audit (exit bit 1).`;
+  }
   if (e.status !== "checked") {
     return `NOT CHECKED ${inlineCode(e.path)}: ${e.reason ?? e.status}. Fails the audit (exit bit 1).`;
   }
@@ -930,7 +934,7 @@ function exportDetails(lines: string[], report: AuditJsonReport): void {
 }
 
 function exportDetail(lines: string[], e: ExportCheck): void {
-  lines.push(`#### Export ${inlineCode(e.path)}: ${e.status === "checked" ? e.verdict : "NOT CHECKED"}`);
+  lines.push(`#### Export ${inlineCode(e.path)}: ${e.status === "checked" ? e.verdict : e.status === "malformed" ? "FALSE (malformed)" : "NOT CHECKED"}`);
   lines.push("");
   if (e.status !== "checked") {
     lines.push(

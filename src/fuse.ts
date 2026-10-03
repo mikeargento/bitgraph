@@ -392,7 +392,12 @@ function requireCommitment(placement: Placement, fused: Uint8Array, commitment: 
   const located = placement.locate(fused);
   if (located === null || bytesToHex(located.commitment) !== bytesToHex(commitment)) {
     const label = member !== null ? `member ${member}: ` : "";
-    throw new FuseError("commitment-missing", `${label}the fused bytes do not carry the ${placement.id} commitment; nothing was committed and the slot will expire`, null, member);
+    // A container is located only when its archive, the original inside it
+    // (hashed against the origin it declares) and the commitment all hold.
+    const what = placement.form === "B"
+      ? `are not a valid ${placement.id} carrying this position's commitment: the archive, the original inside it or the commitment does not hold`
+      : `do not carry the ${placement.id} commitment`;
+    throw new FuseError("commitment-missing", `${label}the fused bytes ${what}; nothing was committed and the slot will expire`, null, member);
   }
   return located;
 }

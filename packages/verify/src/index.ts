@@ -159,8 +159,12 @@ export {
   OUTPUT_ROOT_VERSION, HISTORY_STORAGE_ADDRESS, HISTORY_SERVE_WINDOW, BASE_DISPUTE_GAME_FACTORY,
   computeOutputRoot, historySlot, verifyOutputRootSettlement,
 } from "./output-root.js";
-export type { OutputRootSettlement, OutputRootCheck, OutputRootVerifyResult } from "./output-root.js";
+export type { OutputRootSettlement, OutputRootCheck, OutputRootVerifyResult, OutputRootVerifyOptions } from "./output-root.js";
 
 /* bitgraph-export/1: one JSON file that, with the file, checks a tree/1 BitGraph with nothing of BitGraph's required. */
 export { EXPORT_FORMAT, parseExport, verifyExport, buildExport } from "./export.js";
+export { baseTimeIsBound, BASE_STAMP_TOLERANCE_SECONDS } from "./ceiling.js";
+/* The enclave images BitGraph has published: the default measurement policy (SPEC section 16). */
+export { PUBLISHED_ENCLAVE_MEASUREMENTS, PUBLISHED_PCR0S, publishedMeasurement } from "./measurements.js";
+export type { PublishedMeasurement } from "./measurements.js";
 export type { BitGraphExport, ExportClaim, ExportClaimResult, ExportLookups, ExportVerifyOptions, ExportVerifyResult } from "./export.js";

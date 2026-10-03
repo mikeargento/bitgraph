@@ -40,7 +40,8 @@ import { verifyFuse } from "./fuse-verify.js";
 import { readFuseAttribution } from "./fuse.js";
 import { computeProofHash, computeSignedBodyHash } from "./proof-hash.js";
 import { verifyNitroAttestation, witnessMatchesAttestation, awsNitroRootSha256, type AttestationWitness } from "./nitro.js";
-import { verifyCeiling, checkCeilingOnline, type CeilingSidecar } from "./ceiling.js";
+import { baseTimeIsBound, verifyCeiling, checkCeilingOnline, type CeilingSidecar } from "./ceiling.js";
+import { PUBLISHED_PCR0S, publishedMeasurement } from "./measurements.js";
 import { verifySettlementPointer, checkSettlementOnline, BASE_MAINNET_SETTLEMENT_PINS, type SettlementPointer, type SettlementPins } from "./settlement.js";
 import type { BitGraphProof } from "./types.js";
 import { sha256 } from "@noble/hashes/sha256";
@@ -80,8 +81,12 @@ export interface CarrierVerifyOptions {
   lookups?: CarrierLookups;
   /** The verifier's own pins. The file's declared pins are compared with these, never used as these. */
   pins?: {
-    /** PCR0 values the verifier accepts. Without a list, the attestation's PCR0 is reported, not judged. */
-    pcr0?: string[];
+    /**
+     * PCR0 values the verifier accepts. Default: BitGraph's published images
+     * (SPEC section 16). An empty list accepts nothing and leaves the claim,
+     * and so the verdict, undetermined.
+     */
+    pcr0?: readonly string[];
     ceilingWriter?: string;
     baseChainId?: number;
     settlement?: SettlementPins;
@@ -90,6 +95,8 @@ export interface CarrierVerifyOptions {
 
 export interface CarrierVerifyResult {
   verdict: "TRUE" | "FALSE" | "UNDETERMINED";
+  /** Why the Base block's time is not stated as a bound, when it is not (see baseTimeIsBound). */
+  baseTimeWithheld?: string | null;
   /** "ok" | "none" | "corrupt" — whether the bytes carried a readable block at all. */
   carrier: "ok" | "none" | "corrupt";
   version: 1 | 2 | null;
@@ -187,9 +194,12 @@ export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8
   }
 
   // 4. The attestation: the hardware's word on which image signed, bound to this proof.
-  const att = proof.environment?.attestation;
+  const env = (proof as { environment?: { measurement?: unknown; attestation?: { format?: unknown; reportB64?: unknown } } }).environment;
+  const measurement = typeof env?.measurement === "string" && /^[0-9a-fA-F]+$/.test(env.measurement) ? env.measurement.toLowerCase() : null;
+  let attestedAtMs: number | null = null;
+  const att = env?.attestation;
   if (att && att.format === "aws-nitro" && typeof att.reportB64 === "string") {
-    const n = verifyNitroAttestation(att.reportB64, { expectedPcr0: proof.environment.measurement, expectedUserDataB64: computeSignedBodyHash(proof) });
+    const n = verifyNitroAttestation(att.reportB64, { ...(measurement !== null ? { expectedPcr0: measurement } : {}), expectedUserDataB64: computeSignedBodyHash(proof) });
     const byName = (prefix: string) => n.checks.find((c) => c.name.startsWith(prefix));
     const sig = byName("AWS signature"), chain = byName("Certificate chain"), root = byName("Chains to") ?? byName("Trust root"), validity = byName("Certificate validity"), pcr0 = byName("PCR0"), bound = byName("Bound to this proof");
     const r = (c: { pass: boolean } | undefined): ClaimResult => (c === undefined ? "UNDETERMINED" : c.pass ? "TRUE" : "FALSE");
@@ -197,14 +207,26 @@ export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8
     add("attestation.chain", "The certificate chain holds together", r(chain), "ES384 (P-384)", chain?.detail ?? "not reached");
     add("attestation.root", "The chain reaches the AWS Nitro root", r(root), `the AWS Nitro Enclaves Root CA G1 (${n.rootSha256.slice(0, 8)}…)`, root?.detail ?? "not reached");
     add("attestation.validity", "Every certificate was valid at the document's own instant", r(validity), "the document's signed timestamp", validity?.detail ?? "not reached");
-    add("attestation.pcr0", "The attested image is the one the proof names", r(pcr0), "PCR0 inside the signed document", pcr0?.detail ?? "not reached");
+    if (measurement === null) add("attestation.pcr0", "The attested image is the one the proof names", "FALSE", "", "the proof's environment.measurement is not a hex string, so it names no image");
+    else add("attestation.pcr0", "The attested image is the one the proof names", r(pcr0), "PCR0 inside the signed document", pcr0?.detail ?? "not reached");
     add("attestation.binding", "The attestation is bound to this proof", r(bound), "user_data inside the signed document", bound?.detail ?? "not reached");
-    const measured = n.doc?.pcrs[0] ?? proof.environment.measurement;
-    if (opts.pins?.pcr0 && opts.pins.pcr0.length > 0) {
-      const ok = opts.pins.pcr0.map((x) => x.toLowerCase()).includes(measured.toLowerCase());
-      add("attestation.pins", "The image is one the verifier accepts", ok ? "TRUE" : "FALSE", "the verifier's own allowlist", ok ? `PCR0 ${measured.slice(0, 16)}… is on the verifier's list` : `PCR0 ${measured.slice(0, 16)}… is not on the verifier's list`);
+    if (sig?.pass && chain?.pass && root?.pass && typeof n.doc?.timestampMs === "number") attestedAtMs = n.doc.timestampMs;
+    const docPcr0 = (n.doc?.pcrs as Record<number, unknown> | undefined)?.[0];
+    const measured = typeof docPcr0 === "string" ? docPcr0.toLowerCase() : measurement;
+    const usingDefault = opts.pins?.pcr0 === undefined;
+    const policy = (opts.pins?.pcr0 ?? PUBLISHED_PCR0S).map((x) => String(x).toLowerCase());
+    if (measured === null) {
+      add("attestation.pins", "The image is one the verifier accepts", "FALSE", "", "there is no PCR0 to judge: the document carries none and the proof names none");
+    } else if (policy.length === 0) {
+      add("attestation.pins", "The image is one the verifier accepts", "UNDETERMINED", "", `no accepted images were given: PCR0 is ${measured}; any AWS Nitro enclave can produce a valid attestation, and only a measurement policy says whose this is`);
     } else {
-      add("attestation.pins", "The image is one the verifier accepts", "UNDETERMINED", "", `no allowlist given: PCR0 is ${measured}; compare it with the measurements BitGraph publishes and rebuild it from source to check`);
+      const ok = policy.includes(measured);
+      const pub = publishedMeasurement(measured);
+      add("attestation.pins", "The image is one the verifier accepts", ok ? "TRUE" : "FALSE",
+        usingDefault ? "BitGraph's published enclave images (SPEC section 16)" : "the verifier's own list",
+        ok
+          ? usingDefault && pub ? `PCR0 ${measured.slice(0, 16)}… is BitGraph's published ${pub.version} image (since ${pub.since})` : `PCR0 ${measured.slice(0, 16)}… is on the verifier's list`
+          : usingDefault ? `PCR0 ${measured.slice(0, 16)}… is not an image BitGraph published, so this proof is not BitGraph's` : `PCR0 ${measured.slice(0, 16)}… is not on the verifier's list`);
     }
     if (version === 2 && payload.attestation) {
       const w = witnessMatchesAttestation(payload.attestation as unknown as AttestationWitness, att.reportB64);
@@ -245,6 +267,7 @@ export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8
 
   // 7. v2: the ceiling in time, the Base block the record existed by.
   let ceilingTime: { blockNumber: number; blockHash: string; blockTimestamp: number; status: string } | null = null;
+  let baseTimeWithheld: string | null = null;
   let sidecar: CeilingSidecar | null = null;
   if (version === 2) {
     const ct = payload.ceilingInTime;
@@ -259,7 +282,12 @@ export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8
       add("ceiling.time.inclusion", "The transaction is in the Base block", r(byName("inclusion")), `Merkle-Patricia proof; Base block ${sidecar.anchor?.blockNumber ?? "?"}, header as given`, byName("inclusion")?.detail ?? c.reason ?? "not reached");
       add("ceiling.time.floor", "The floor header the ceiling carries is the signed floor", r(byName("floor")), "the proof's signed commit.slotAnchor", byName("floor")?.detail ?? "the sidecar carries no floor header");
       const win = c.ok ? c.window?.ceiling : undefined;
-      if (win) ceilingTime = { blockNumber: win.blockNumber, blockHash: win.blockHash, blockTimestamp: win.blockTimestamp, status: c.status ?? "included" };
+      if (win) {
+        // The inclusion holds either way; a stamp that cannot be a bound is withheld as a time.
+        const stamp = baseTimeIsBound(win.blockTimestamp, { floorTimestampSec: floorWitness.timestamp ?? null, attestedAtMs });
+        if (stamp.ok) ceilingTime = { blockNumber: win.blockNumber, blockHash: win.blockHash, blockTimestamp: win.blockTimestamp, status: c.status ?? "included" };
+        else baseTimeWithheld = stamp.reason;
+      }
       if (!c.ok && c.reason) add("ceiling.time", "The ceiling in time holds together", "FALSE", "", c.reason);
       add("ceiling.time.status", "How far Base had settled the block", "UNDETERMINED", "", `the sidecar says "${sidecar.status}", as BitGraph's Base node reported when the file was written; not proven by the file. Settlement below is the proof, when carried.`);
     } else {
@@ -287,7 +315,7 @@ export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8
     // 9. The declared pins, compared with the verifier's.
     if (payload.pins) {
       const notes: string[] = [];
-      if (payload.pins.pcr0 && payload.pins.pcr0.toLowerCase() !== proof.environment.measurement.toLowerCase()) notes.push("the declared PCR0 is not the proof's measurement");
+      if (payload.pins.pcr0 && String(payload.pins.pcr0).toLowerCase() !== String(proof.environment?.measurement).toLowerCase()) notes.push("the declared PCR0 is not the proof's measurement");
       if (payload.pins.ceilingWriter && payload.pins.ceilingWriter.toLowerCase() !== pinnedWriter.toLowerCase()) notes.push(`the declared ceiling writer ${payload.pins.ceilingWriter} is not the verifier's pin`);
       if (payload.pins.chains?.base !== undefined && payload.pins.chains.base !== baseChainId) notes.push(`the declared Base chain ${payload.pins.chains.base} is not the verifier's`);
       add("pins", "What the file says it was made under agrees with this verifier's pins", notes.length === 0 ? "TRUE" : "FALSE", "the verifier's own pins", notes.length === 0 ? "declared pins match; they were never used as authority" : notes.join("; "));
@@ -324,17 +352,22 @@ export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8
   }
 
   const reasons = claims.filter((c) => c.result === "FALSE").map((c) => `${c.name}: ${c.detail}`);
-  const verdict: CarrierVerifyResult["verdict"] = reasons.length > 0 ? "FALSE" : "TRUE";
+  // TRUE needs the image to be one the verifier accepts: an attestation alone
+  // says only that some AWS Nitro enclave signed.
+  const pins = claims.find((c) => c.id === "attestation.pins");
+  if (reasons.length === 0 && pins?.result !== "TRUE") reasons.push(pins ? `${pins.name}: ${pins.detail}` : "The image is one the verifier accepts: the proof carries no attestation, so no image was established");
+  const verdict: CarrierVerifyResult["verdict"] = claims.some((c) => c.result === "FALSE") ? "FALSE" : pins?.result === "TRUE" ? "TRUE" : "UNDETERMINED";
   const bounds = carrierBounds(payload);
   return {
     verdict,
+    baseTimeWithheld,
     carrier: "ok",
     version,
     reasons,
     bounds,
     ceiling: payload.ceiling.status,
     claims,
-    reading: writeReading(verdict, claims, bounds, proof, ceilingTime, floorWitness.timestamp),
+    reading: writeReading(verdict, claims, bounds, proof, ceilingTime, floorWitness.timestamp, baseTimeWithheld),
     payload,
     inner,
   };
@@ -359,6 +392,7 @@ function writeReading(
   proof: BitGraphProof,
   ceilingTime: { blockNumber: number; blockHash: string; blockTimestamp: number } | null,
   floorTs: number | null,
+  baseTimeWithheld: string | null = null,
 ): string {
   const get = (id: string) => claims.find((c) => c.id === id);
   if (verdict === "FALSE") {
@@ -390,6 +424,8 @@ function writeReading(
     ? "Every block was confirmed against a node, so nothing here rests on a header taken as given."
     : "Offline, the blocks are taken from their headers, each of which hashes to the hash the evidence names; confirm them against any node or explorer to remove that reliance.";
   const pins = get("attestation.pins");
-  const pinLine = pins?.result === "TRUE" ? " The enclave image is one this verifier accepts." : pins?.result === "UNDETERMINED" ? ` The enclave image's PCR0 is ${proof.environment.measurement.slice(0, 16)}…; compare it with BitGraph's published measurements.` : "";
-  return `${subject}: ${after}${by}${settled}${before}. Position ${position} of epoch ${epoch}…. Rests on: ${rests.join(", ")}. ${tail}${pinLine}`;
+  const pinLine = pins?.result === "TRUE" ? ` ${pins.detail.replace(/^PCR0 [0-9a-f]+… is /, "The enclave image is ")}.` : pins?.result === "UNDETERMINED" ? ` ${pins.detail}.` : !pins ? " The proof carries no attestation, so which enclave image signed it is not established." : "";
+  const withheld = baseTimeWithheld ? ` The record is in a Base block, but its time is not used as a bound: ${baseTimeWithheld}.` : "";
+  const lead = verdict === "UNDETERMINED" ? "Not judged in full. " : "";
+  return `${lead}${subject}: ${after}${by}${settled}${before}. Position ${position} of epoch ${epoch}…. Rests on: ${rests.join(", ")}. ${tail}${withheld}${pinLine}`;
 }

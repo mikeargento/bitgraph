@@ -80,7 +80,7 @@ export const TREE_METADATA_KEY = TREE_PROFILE;
  */
 export const KNOWN_TREE_SPEC_HASHES: readonly string[] = Object.freeze([
   // SPEC.md v1 (spec/SPEC.md). Written by spec/pin-hash.mjs. Once a proof pins it, it never changes: a later spec is added beside it.
-  "nNveUTn1ddI/HzA94PfbQWm9W8lQIXBfHmMxjiE+16w=",
+  "eGk7DAW++juG09vWCFBZPoLCihY4EIFde1r8QfNwlKc=",
 ]);
 
 /** Placement codes: the first byte of a leaf. */
@@ -478,7 +478,7 @@ export async function verifyTreeMember(opts: TreeVerifyOptions): Promise<TreeVer
     }
     const located = getPlacement(placementId)!.locate(opts.bytes);
     if (located === null || !bytesEqual(located.commitment, commitment)) {
-      return base("INVALID_SLOT_COMMITMENT", `the bytes match leaf ${ev.index} but carry no ${placementId} commitment to this position`, ok);
+      return base("INVALID_SLOT_COMMITMENT", `the bytes match leaf ${ev.index} but are not a valid ${placementId} carrying this position's commitment (its structure, the original's digest or the commitment does not hold)`, ok);
     }
     const embedded = located.originDigest ?? (located.originalBytes !== undefined ? sha256(located.originalBytes) : undefined);
     if (embedded !== undefined && !bytesEqual(embedded, ev.leaf.origin)) {

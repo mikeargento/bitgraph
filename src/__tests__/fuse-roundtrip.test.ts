@@ -95,11 +95,12 @@ describe("container/1", () => {
     const proof = proofOf("container.proof.json");
     const c = computeSlotCommitment(proof.slotAllocation!);
     const lying = p.build({ original: bytes("image.png"), originDigest: sha256(bytes("original.txt")), commitment: c });
-    // build accepts a caller-supplied origin digest; locate returns what is written,
-    // and the verifier compares it against the marker and the original's hash.
-    const l = p.locate(lying)!;
-    assert.deepEqual(l.originDigest, sha256(bytes("original.txt")));
-    assert.notDeepEqual(l.originDigest, sha256(l.originalBytes!));
+    // build accepts a caller-supplied origin digest; locate refuses an archive
+    // whose original does not hash to the origin it declares, so no path that
+    // reads a container can take the declared digest on the archive's word.
+    assert.equal(p.locate(lying), null);
+    const honest = p.build({ original: bytes("image.png"), commitment: c });
+    assert.deepEqual(p.locate(honest)!.originDigest, sha256(bytes("image.png")));
   });
 });
 
@@ -177,6 +178,13 @@ describe("container/2: the original first, then the manifest", () => {
   const p = getPlacement("container/2")!;
   const commitment = new Uint8Array(32).fill(0x5a);
   const other = new Uint8Array(32).fill(0xa5);
+
+  test("an archive whose original does not hash to the origin it declares does not locate", () => {
+    const original = new TextEncoder().encode("the bytes inside");
+    const lying = p.build({ original, originDigest: sha256(new TextEncoder().encode("the bytes named")), commitment });
+    assert.equal(p.locate(lying), null, "the declared digest is never taken on the archive's word");
+    assert.deepEqual(p.locate(p.build({ original, commitment }))!.originDigest, sha256(original));
+  });
   const sizes = [0, 1, 511, 512, 513, 1023, 1024, 1025, 100_000, 1_048_579];
   const filled = (n: number) => { const b = new Uint8Array(n); for (let i = 0; i < n; i++) b[i] = (i * 13 + 7) & 0xff; return b; };
 

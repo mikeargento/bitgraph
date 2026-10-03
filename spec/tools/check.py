@@ -549,10 +549,27 @@ def _tar_entries(b):
 HISTORY = "0x0000f90827f1c53a10cb7a02335b175320002935"
 
 
-def check_output_root(s):
+def _tx_chain_id(raw: bytes):
+    """The chain a raw transaction is signed for: field 0 of a typed one, EIP-155's v for a legacy one; None when it names none."""
+    try:
+        if raw[0] <= 0x7f:
+            f = rlp_decode(raw[1:])
+            return int.from_bytes(f[0], "big") if isinstance(f, list) and isinstance(f[0], bytes) else None
+        f = rlp_decode(raw)
+        if not isinstance(f, list) or len(f) != 9:
+            return None
+        v = int.from_bytes(f[6], "big")
+        return (v - 35) // 2 if v >= 35 else None
+    except Exception:
+        return None
+
+
+def check_output_root(s, base_chain=8453, l1_chain=1):
     o = s["outputRoot"]
     if s["version"] != "bitgraph-output-root/1" or hx(o["version"]) != b"\x00" * 32:
         return False, "format"
+    if s["base"].get("chainId") != base_chain or s["ethereum"].get("chainId") != l1_chain:
+        return False, "chain"
     out_root = keccak256(hx(o["version"]) + hx(o["stateRoot"]) + hx(o["messagePasserStorageRoot"]) + hx(o["blockHash"]))
     B, P = s["base"]["blockNumber"], o["blockNumber"]
     bhash = hx(s["base"]["blockHash"])
@@ -579,6 +596,8 @@ def check_output_root(s):
     raw_tx = hx(e["rawTx"])
     if keccak256(raw_tx) != hx(e["txHash"]):
         return False, "tx hash"
+    if _tx_chain_id(raw_tx) != l1_chain:
+        return False, "tx chain"
     if mpt_get(hd["transactionsRoot"], tx_trie_key(e["txIndex"]), [hx(x) for x in e["txInclusionProof"]]) != raw_tx:
         return False, "tx inclusion"
     if out_root not in raw_tx:
@@ -866,6 +885,14 @@ def main():
         expect(f"export: {f['name']} via the owner's list", check_tree_member(p, hx(ow["tree"]["rootDocument"]), f["evidence"], hx(f["originalHex"]))[0], want)
         expect(f"export: {f['name']} committed bytes", check_tree_member(p, hx(ow["tree"]["rootDocument"]), f["evidence"], hx(f["committedHex"]))[0], "TREE_MEMBER_AS_IS" if f["placementCode"] == 0 else "TREE_MEMBER_DIRECT")
 
+    # tree/1 negative cases: containers that name one original and hold another
+    ng = vec("tree-1-negative.json")
+    np_ = ng["proof"]
+    expect("negative: the tree's proof verifies", check_proof(np_), None)
+    for c in ng["cases"]:
+        got = check_tree_member(np_, hx(ng["rootDocumentHex"]), c["evidence"], hx(c["bytesHex"]))[0]
+        expect(f"negative: {c['placement']}, {c['file']}", got, c["expect"])
+
     # output-root/1 (live chains)
     o = vec("output-root-1.json")
     ok, out = check_output_root(o["settlement"])
@@ -881,6 +908,8 @@ def main():
         ("B's hash", lambda s: s["base"].update(blockHash="0x" + "11" * 32)),
         ("P - B = 8192", lambda s: s["base"].update(blockNumber=s["outputRoot"]["blockNumber"] - 8192)),
         ("claim tx", lambda s: s["ethereum"].update(rawTx=s["ethereum"]["rawTx"][:-4] + "0000")),
+        ("the Base chain label", lambda s: s["base"].update(chainId=999999)),
+        ("the Ethereum chain label", lambda s: s["ethereum"].update(chainId=999999)),
     ]:
         s = json.loads(json.dumps(o["settlement"]))
         mut(s)
@@ -889,6 +918,7 @@ def main():
     s["base"] = {"chainId": 8453, "blockNumber": s["outputRoot"]["blockNumber"], "blockHash": s["outputRoot"]["blockHash"]}
     s["history"] = None
     expect("output-root: B = P passes without a history proof", check_output_root(s)[0], True)
+    expect("output-root: the claim transaction is signed for Ethereum (chain 1)", _tx_chain_id(hx(o["settlement"]["ethereum"]["rawTx"])), 1)
 
     # Legacy: the production proof #4,546 with its real attestation and Base ceiling.
     fx = os.path.join(ROOT, "packages", "verify", "src", "__tests__", "fixtures", "carrier2")

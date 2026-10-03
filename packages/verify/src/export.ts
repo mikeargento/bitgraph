@@ -32,11 +32,12 @@ import { sha256 } from "@noble/hashes/sha256";
 import { verifyProofIntegrity, createVerificationContext } from "./verifier.js";
 import { computeSignedBodyHash } from "./proof-hash.js";
 import { verifyNitroAttestation } from "./nitro.js";
-import { CEILING_VERSION, verifyCeiling, type CeilingSidecar } from "./ceiling.js";
+import { CEILING_VERSION, baseTimeIsBound, verifyCeiling, type CeilingSidecar } from "./ceiling.js";
 import { decodeHeader, hexToBytes as evmHex } from "./ceiling-evm.js";
 import { base64ToBytes, bytesEqual, hexToBytes } from "./fuse.js";
 import { OUTPUT_ROOT_VERSION, verifyOutputRootSettlement, type OutputRootSettlement } from "./output-root.js";
 import { MerkleTree } from "./fuse-merkle.js";
+import { PUBLISHED_PCR0S, publishedMeasurement } from "./measurements.js";
 import {
   buildTreeMemberEvidence,
   decodeTreeLeaves,
@@ -89,10 +90,17 @@ export interface ExportVerifyOptions {
   bytes?: Uint8Array;
   lookups?: ExportLookups;
   pins?: {
-    /** PCR0 values the verifier accepts. Without a list, PCR0 is reported, not judged. */
-    pcr0?: string[];
+    /**
+     * PCR0 values the verifier accepts. Default: BitGraph's published images
+     * (SPEC section 16, PUBLISHED_PCR0S), so a proof from any other enclave
+     * image is not a BitGraph. An empty list accepts nothing and leaves the
+     * claim, and so the verdict, undetermined.
+     */
+    pcr0?: readonly string[];
     ceilingWriter?: string;
     baseChainId?: number;
+    /** The chain the settlement is on. Default Ethereum mainnet, 1. */
+    ethereumChainId?: number;
     /** Another attestation trust root, DER, for a verifier that pins its own (tests use this). Default: the embedded AWS Nitro root. */
     rootDer?: Uint8Array;
   };
@@ -114,6 +122,12 @@ export interface ExportVerifyResult {
     ceilingBase: { chainId: number; blockNumber: number; blockHash: string; blockTimestamp: number; provisional: boolean } | null;
     ceilingEthereum: { chainId: number; blockNumber: number; blockHash: string; blockTimestamp: number } | null;
   };
+  /**
+   * Why the Base block's time is not stated as a bound, when it is not: the
+   * block was stamped earlier than the floor block or the attestation
+   * document (see baseTimeIsBound). The inclusion itself still holds.
+   */
+  baseTimeWithheld: string | null;
   /** Plain language, written from the claims. */
   reading: string;
 }
@@ -138,7 +152,6 @@ export function parseExport(input: unknown): BitGraphExport | null {
 }
 
 const iso = (unix: number) => new Date(unix * 1000).toISOString().replace(".000Z", "Z");
-
 export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {}): Promise<ExportVerifyResult> {
   const claims: ExportClaim[] = [];
   const add = (id: string, name: string, result: ExportClaimResult, restsOn: string, detail: string, level: "offline" | "confirmed" = "offline") =>
@@ -146,21 +159,48 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   const times: ExportVerifyResult["times"] = { floor: null, ceilingBase: null, ceilingEthereum: null };
   let member: TreeVerifyResult["member"] = null;
 
+  let baseTimeWithheld: string | null = null;
+
   const exp = parseExport(input);
   if (exp === null) {
-    add("format", "This is a bitgraph-export/1 file", "UNDETERMINED", "", "not a bitgraph-export/1 document");
-    return finish(claims, null, times, member);
+    // A document that says it is export/1 and lacks its parts is broken; one
+    // in another format is not judged here.
+    let declared: unknown;
+    try {
+      declared = ((typeof input === "string" ? JSON.parse(input) : input) as { format?: unknown } | null)?.format;
+    } catch {
+      declared = undefined;
+    }
+    if (declared === EXPORT_FORMAT) add("format", "This is a bitgraph-export/1 file", "FALSE", "its structure", "it says bitgraph-export/1 but lacks the parts that format requires (proof, tree.rootDocument)");
+    else if (typeof declared === "string" && declared.startsWith("bitgraph-export/")) add("format", "This is a bitgraph-export/1 file", "UNDETERMINED", "", `not judged: a format this verifier does not know (${declared})`);
+    else add("format", "This is a bitgraph-export/1 file", "UNDETERMINED", "", "not a bitgraph-export/1 document");
+    return finish(claims, null, times, member, null, null);
   }
   add("format", "This is a bitgraph-export/1 file", "TRUE", "its structure", "format, proof and tree present");
   const proof = exp.proof;
+
+  // An optional part is absent (null or missing) or an object of its format;
+  // anything else is a malformed part, never read as "not carried".
+  const isAbsent = (v: unknown) => v === null || v === undefined;
+  const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+  // Every part below is read defensively, and anything that still throws on
+  // a malformed part of a known format becomes a FALSE claim, never an
+  // exception (formats it does not know are UNDETERMINED, above and below).
+  const run = async (): Promise<ExportVerifyResult> => {
 
   // 1. The proof, and the attestation bound to it.
   const integrity = await verifyProofIntegrity({ proof, context: createVerificationContext() });
   add("proof.signature", "The proof is signed and its position record is bound to it", integrity.valid ? "TRUE" : "FALSE", "Ed25519",
     integrity.valid ? "the enclave's signature over the canonical signed body verifies, and the position record's checks pass" : `the proof does not verify: ${integrity.reason ?? "unspecified"}`);
-  const att = proof.environment?.attestation;
+  // The measurement is signed; a proof whose measurement is not hex is broken, not unknown.
+  const env = (proof as { environment?: { measurement?: unknown; attestation?: { format?: unknown; reportB64?: unknown } } }).environment;
+  const measurement = typeof env?.measurement === "string" && /^[0-9a-fA-F]+$/.test(env.measurement) ? env.measurement.toLowerCase() : null;
+  // The attestation document's own time, kept only when the document is AWS's (signature, chain and root all hold).
+  let attestedAtMs: number | null = null;
+  const att = env?.attestation;
   if (att && att.format === "aws-nitro" && typeof att.reportB64 === "string") {
-    const n = verifyNitroAttestation(att.reportB64, { expectedPcr0: proof.environment.measurement, expectedUserDataB64: computeSignedBodyHash(proof), ...(opts.pins?.rootDer ? { rootDer: opts.pins.rootDer } : {}) });
+    const n = verifyNitroAttestation(att.reportB64, { ...(measurement !== null ? { expectedPcr0: measurement } : {}), expectedUserDataB64: computeSignedBodyHash(proof), ...(opts.pins?.rootDer ? { rootDer: opts.pins.rootDer } : {}) });
     if (n.doc === null) {
       // Not a Nitro document at all: that contradicts the proof's own claim to carry one.
       add("attestation.signature", "AWS hardware signed the attestation", "FALSE", "", `the attestation does not decode as an AWS Nitro document (${n.checks[0]?.detail ?? "unreadable"})`);
@@ -172,14 +212,28 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     add("attestation.chain", "The certificate chain holds together", r(chain), "ES384 (P-384)", chain?.detail ?? "not reached");
     add("attestation.root", "The chain reaches the AWS Nitro root", r(root), `the AWS Nitro Enclaves Root CA G1 (${n.rootSha256.slice(0, 8)}…)`, root?.detail ?? "not reached");
     add("attestation.validity", "Every certificate was valid at the document's own instant (archival policy, not freshness)", r(validity), "the document's signed timestamp", validity?.detail ?? "not reached");
-    add("attestation.pcr0", "The attested image is the one the proof names", r(pcr0), "PCR0 inside the signed document", pcr0?.detail ?? "not reached");
+    if (measurement === null) add("attestation.pcr0", "The attested image is the one the proof names", "FALSE", "", "the proof's environment.measurement is not a hex string, so it names no image");
+    else add("attestation.pcr0", "The attested image is the one the proof names", r(pcr0), "PCR0 inside the signed document", pcr0?.detail ?? "not reached");
     add("attestation.binding", "The attestation is bound to this proof (user_data = SHA-256 of the signed body)", r(bound), "user_data inside the signed document", bound?.detail ?? "not reached");
-    const measured = n.doc?.pcrs[0] ?? proof.environment.measurement;
-    if (opts.pins?.pcr0 && opts.pins.pcr0.length > 0) {
-      const ok = opts.pins.pcr0.map((x) => x.toLowerCase()).includes(measured.toLowerCase());
-      add("attestation.pins", "The image is one the verifier accepts", ok ? "TRUE" : "FALSE", "the verifier's own allowlist", ok ? `PCR0 ${measured.slice(0, 16)}… is on the list` : `PCR0 ${measured.slice(0, 16)}… is not on the list`);
+    if (sig?.pass && chain?.pass && root?.pass && typeof n.doc?.timestampMs === "number") attestedAtMs = n.doc.timestampMs;
+
+    // Which image is BitGraph's is a measurement policy: BitGraph's published images unless the caller names its own.
+    const docPcr0 = (n.doc?.pcrs as Record<number, unknown> | undefined)?.[0];
+    const measured = typeof docPcr0 === "string" ? docPcr0.toLowerCase() : measurement;
+    const usingDefault = opts.pins?.pcr0 === undefined;
+    const policy = (opts.pins?.pcr0 ?? PUBLISHED_PCR0S).map((x) => String(x).toLowerCase());
+    if (measured === null) {
+      add("attestation.pins", "The image is one the verifier accepts", "FALSE", "", "there is no PCR0 to judge: the document carries none and the proof names none");
+    } else if (policy.length === 0) {
+      add("attestation.pins", "The image is one the verifier accepts", "UNDETERMINED", "", `no accepted images were given: PCR0 is ${measured}; any AWS Nitro enclave can produce a valid attestation, and only a measurement policy says whose this is`);
     } else {
-      add("attestation.pins", "The image is one the verifier accepts", "UNDETERMINED", "", `no allowlist given: PCR0 is ${measured}; compare it with the published measurements, and rebuild it from source to check`);
+      const ok = policy.includes(measured);
+      const pub = publishedMeasurement(measured);
+      add("attestation.pins", "The image is one the verifier accepts", ok ? "TRUE" : "FALSE",
+        usingDefault ? "BitGraph's published enclave images (SPEC section 16)" : "the verifier's own list",
+        ok
+          ? usingDefault && pub ? `PCR0 ${measured.slice(0, 16)}… is BitGraph's published ${pub.version} image (since ${pub.since})` : `PCR0 ${measured.slice(0, 16)}… is on the verifier's list`
+          : usingDefault ? `PCR0 ${measured.slice(0, 16)}… is not an image BitGraph published, so this proof is not BitGraph's` : `PCR0 ${measured.slice(0, 16)}… is not on the verifier's list`);
     }
   } else {
     add("attestation.signature", "AWS hardware signed the attestation", "FALSE", "", "the proof carries no aws-nitro attestation");
@@ -211,7 +265,8 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     proof,
     ...(opts.bytes !== undefined ? { bytes: opts.bytes } : {}),
     ...(memberEvidence !== undefined ? { member: memberEvidence } : {}),
-    rootDocument: rootDoc,
+    // The export's own root document, never the proof's unsigned echo: a malformed one fails.
+    rootDocument: rootDoc ?? new Uint8Array(0),
     extraSpecHashes: extra,
     proofAlreadyVerified: integrity.valid,
   });
@@ -230,7 +285,7 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     }
   }
   const rootOk = tr.tree !== null;
-  add("tree.root", "The root document is the signed one and carries this position's commitment", rootOk ? "TRUE" : specOk ? "FALSE" : "UNDETERMINED", "SHA-256 over the signed position record, its nonce and the signed floor block hash",
+  add("tree.root", "The root document is the signed one and carries this position's commitment", rootOk ? "TRUE" : specOk || rootDoc === null ? "FALSE" : "UNDETERMINED", "SHA-256 over the signed position record, its nonce and the signed floor block hash",
     rootOk ? `a tree of ${tr.tree!.count} leaves, root ${tr.tree!.rootHex.slice(0, 16)}…` : tr.reason);
   member = tr.member;
   if (memberEvidence === undefined) {
@@ -267,8 +322,10 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
 
   // 3. The floor: the header hashes to the SIGNED slotAnchor block hash.
   const slotAnchor = proof.commit?.slotAnchor;
-  if (!exp.floor) {
+  if (isAbsent(exp.floor)) {
     add("floor.header", "The floor block's header is the one the proof signs", "NOT_CARRIED", "", "no floor header in the export");
+  } else if (!isObject(exp.floor)) {
+    add("floor.header", "The floor block's header is the one the proof signs", "FALSE", "", "the export's floor is neither absent nor a { blockNumber, blockHash, header } object");
   } else if (!slotAnchor) {
     add("floor.header", "The floor block's header is the one the proof signs", "FALSE", "", "the proof signs no floor block (commit.slotAnchor)");
   } else {
@@ -292,8 +349,14 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   const ceilingUnknown = typeof ceilingVersion === "string" && ceilingVersion !== CEILING_VERSION;
   if (ceilingUnknown) {
     add("ceiling.base", "The record is in a Base block", "UNDETERMINED", "", `not judged: a ceiling format this verifier does not know (${ceilingVersion})`);
-  } else if (!c || (c as { status?: string }).status === "pending" || !(c as CeilingSidecar).anchor) {
-    add("ceiling.base", "The record is in a Base block", "NOT_CARRIED", "", c ? "ceiling pending: the Base write had not landed when this export was made" : "no ceiling in the export");
+  } else if (isAbsent(c)) {
+    add("ceiling.base", "The record is in a Base block", "NOT_CARRIED", "", "no ceiling in the export");
+  } else if (!isObject(c) || (!(c as Record<string, unknown>)["anchor"] && (c as Record<string, unknown>)["status"] !== "pending")) {
+    add("ceiling.base", "The record is in a Base block", "FALSE", "", "the export's ceiling is neither absent, pending, nor a sidecar with its transaction");
+  } else if (!(c as Record<string, unknown>)["anchor"]) {
+    // Pending means no transaction to check. With a transaction, the
+    // sidecar's status is the writer's report and is never read as evidence.
+    add("ceiling.base", "The record is in a Base block", "NOT_CARRIED", "", "ceiling pending: the Base write had not landed when this export was made");
   } else {
     let r: Awaited<ReturnType<typeof verifyCeiling>>;
     try {
@@ -303,9 +366,18 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     }
     if (r.ok && r.window) {
       ceilingB = { blockNumber: r.window.ceiling.blockNumber, blockHash: r.window.ceiling.blockHash };
-      times.ceilingBase = { ...r.window.ceiling, provisional: true };
-      add("ceiling.base", "The record is in a Base block", "TRUE", `SHA-256 path, the BGC1 payload, secp256k1, Merkle-Patricia; Base block ${r.window.ceiling.blockNumber}, header as given`,
-        `under the root in transaction ${(c as CeilingSidecar).anchor!.txIndex} of Base block ${r.window.ceiling.blockNumber}; its time ${iso(r.window.ceiling.blockTimestamp)} is provisional until the block is checked against Base`);
+      const where = `under the root in transaction ${(c as CeilingSidecar).anchor!.txIndex} of Base block ${r.window.ceiling.blockNumber}`;
+      const stamp = baseTimeIsBound(r.window.ceiling.blockTimestamp, { floorTimestampSec: times.floor?.blockTimestamp ?? null, attestedAtMs });
+      if (stamp.ok) {
+        times.ceilingBase = { ...r.window.ceiling, provisional: true };
+        add("ceiling.base", "The record is in a Base block", "TRUE", `SHA-256 path, the BGC1 payload, secp256k1, Merkle-Patricia; Base block ${r.window.ceiling.blockNumber}, header as given`,
+          `${where}; its time ${iso(r.window.ceiling.blockTimestamp)} is provisional until the block is checked against Base`);
+      } else {
+        // The inclusion holds; only the stamp is withheld as a bound.
+        baseTimeWithheld = stamp.reason;
+        add("ceiling.base", "The record is in a Base block", "TRUE", `SHA-256 path, the BGC1 payload, secp256k1, Merkle-Patricia; Base block ${r.window.ceiling.blockNumber}, header as given`,
+          `${where}; ${stamp.reason}, so its time is not used as a bound`);
+      }
     } else {
       add("ceiling.base", "The record is in a Base block", "FALSE", "", r.reason ?? "the ceiling does not verify");
     }
@@ -316,13 +388,17 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   const settlementVersion = (s as { version?: unknown } | null)?.version;
   if (typeof settlementVersion === "string" && settlementVersion !== OUTPUT_ROOT_VERSION) {
     add("ceiling.ethereum", "The record existed by an Ethereum block", "UNDETERMINED", "", `not judged: a settlement format this verifier does not take in an export (${settlementVersion})`);
-  } else if (!s || (s as { status?: string }).status === "pending") {
-    add("ceiling.ethereum", "The record existed by an Ethereum block", "NOT_CARRIED", "", s ? "settlement pending: Base's claim for this block had not reached Ethereum when this export was made" : "no settlement in the export");
+  } else if (isAbsent(s)) {
+    add("ceiling.ethereum", "The record existed by an Ethereum block", "NOT_CARRIED", "", "no settlement in the export");
+  } else if (!isObject(s)) {
+    add("ceiling.ethereum", "The record existed by an Ethereum block", "FALSE", "", "the export's settlement is neither absent, pending, nor a settlement object");
+  } else if ((s as Record<string, unknown>)["status"] === "pending" && (s as Record<string, unknown>)["version"] === undefined) {
+    add("ceiling.ethereum", "The record existed by an Ethereum block", "NOT_CARRIED", "", "settlement pending: Base's claim for this block had not reached Ethereum when this export was made");
   } else {
-    const so = s as OutputRootSettlement;
+    const so = s as unknown as OutputRootSettlement;
     let r: ReturnType<typeof verifyOutputRootSettlement>;
     try {
-      r = verifyOutputRootSettlement(so);
+      r = verifyOutputRootSettlement(so, { baseChainId, ethereumChainId: opts.pins?.ethereumChainId ?? 1 });
     } catch (e) {
       r = { ok: false, reason: `the settlement is malformed (${(e as Error).message})`, checks: [] };
     }
@@ -362,24 +438,65 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   const baseConfirmed = claims.find((x) => x.id === "confirmed.ceiling.base")?.result === "TRUE";
   if (times.ceilingBase) times.ceilingBase.provisional = !baseConfirmed;
 
-  return finish(claims, exp, times, member, tr.floorCovers);
+  return finish(claims, exp, times, member, tr.floorCovers, baseTimeWithheld);
+  };
+  try {
+    return await run();
+  } catch (e) {
+    add("wellformed", "Every part of the export is well formed", "FALSE", "", `a part of this export is malformed: ${(e as Error).message}`);
+    return finish(claims, exp, times, member, null, baseTimeWithheld);
+  }
 }
 
-function finish(claims: ExportClaim[], exp: BitGraphExport | null, times: ExportVerifyResult["times"], member: TreeVerifyResult["member"], floorCovers: TreeVerifyResult["floorCovers"] = null): ExportVerifyResult {
+/**
+ * The verdict and the reading, from the claims (SPEC section 12.1).
+ *
+ * FALSE when any claim is FALSE, a lookup the reader made included: a block
+ * a node says is not the chain's own refutes every time read from it.
+ * UNDETERMINED when any offline claim is undetermined, the measurement
+ * policy included. Otherwise TRUE. The reading states a time as fact only
+ * when nothing refutes it, says when a header is taken as given, and never
+ * states a Base time that was withheld as a bound.
+ */
+function finish(
+  claims: ExportClaim[],
+  exp: BitGraphExport | null,
+  times: ExportVerifyResult["times"],
+  member: TreeVerifyResult["member"],
+  floorCovers: TreeVerifyResult["floorCovers"] = null,
+  baseTimeWithheld: string | null = null,
+): ExportVerifyResult {
   const offline = claims.filter((c) => c.level === "offline");
+  const failed = claims.filter((c) => c.result === "FALSE");
   const reasons = claims.filter((c) => c.result === "FALSE" || c.result === "UNDETERMINED").map((c) => `${c.id}: ${c.detail}`);
-  const verdict = offline.some((c) => c.result === "FALSE") ? "FALSE" : exp === null || offline.some((c) => c.result === "UNDETERMINED" && c.id !== "attestation.pins") ? "UNDETERMINED" : "TRUE";
+  const unjudged = offline.filter((c) => c.result === "UNDETERMINED");
+  const verdict = failed.length > 0 ? "FALSE" : exp === null || unjudged.length > 0 ? "UNDETERMINED" : "TRUE";
+  const confirmedTrue = (id: string) => claims.find((c) => c.id === id)?.result === "TRUE";
   const parts: string[] = [];
-  if (verdict === "FALSE") parts.push("Something in this export contradicts the proof; see the failed claims.");
-  else if (exp === null) parts.push("This is not a bitgraph-export/1 file.");
-  else {
-    if (times.floor && floorCovers === "none") parts.push(`The tree was committed after Ethereum block ${times.floor.blockNumber} (${iso(times.floor.blockTimestamp)}); this file was recorded as is, so nothing bounds the file itself from below.`);
-    else if (times.floor) parts.push(`The committed bytes were finished after Ethereum block ${times.floor.blockNumber} (${iso(times.floor.blockTimestamp)}); an original inside them has no floor of its own.`);
+  if (verdict === "FALSE") {
+    if (failed.every((c) => c.level === "confirmed")) {
+      parts.push(`A lookup refutes this export: ${failed.map((c) => c.detail).join("; ")}. A block it names is not the chain's own, so the times it states do not hold.`);
+    } else {
+      parts.push("Something in this export contradicts the proof; see the failed claims.");
+    }
+  } else if (exp === null) {
+    parts.push("This is not a bitgraph-export/1 file.");
+  } else {
+    const lc1 = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
+    if (unjudged.length > 0) parts.push(`Not judged in full: ${unjudged.map((c) => lc1(c.name)).join("; ")}.`);
+    const givenEth = "; that block's header is taken as given until it is checked against Ethereum";
+    if (times.floor) {
+      const at = `Ethereum block ${times.floor.blockNumber} (${iso(times.floor.blockTimestamp)})${confirmedTrue("confirmed.floor") ? "" : givenEth}`;
+      parts.push(floorCovers === "none"
+        ? `The tree was committed after ${at}. This file was recorded as is, so nothing bounds the file itself from below.`
+        : `The committed bytes were finished after ${at}. An original inside them has no floor of its own.`);
+    }
     if (times.ceilingBase) parts.push(`The record existed by Base block ${times.ceilingBase.blockNumber} (${iso(times.ceilingBase.blockTimestamp)}${times.ceilingBase.provisional ? ", provisional until checked against Base" : ""}).`);
-    if (times.ceilingEthereum) parts.push(`It existed by Ethereum block ${times.ceilingEthereum.blockNumber} (${iso(times.ceilingEthereum.blockTimestamp)}).`);
+    else if (baseTimeWithheld) parts.push(`The record is in a Base block, but its time is not used as a bound: ${baseTimeWithheld}.`);
+    if (times.ceilingEthereum) parts.push(`It existed by Ethereum block ${times.ceilingEthereum.blockNumber} (${iso(times.ceilingEthereum.blockTimestamp)})${confirmedTrue("confirmed.ceiling.ethereum") ? "" : givenEth}.`);
     if (member) parts.push(`The file is leaf ${member.index} of ${member.count} in the committed tree.`);
   }
-  return { verdict, reasons, claims, member, floorCovers, times, reading: parts.join(" ") };
+  return { verdict, reasons, claims, member, floorCovers, times, baseTimeWithheld, reading: parts.join(" ") };
 }
 
 /** Build an export object from its parts (producers). Fields are written in the order the spec lists them. */

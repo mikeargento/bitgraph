@@ -132,7 +132,7 @@ export interface CeilingCheck {
 }
 
 export interface CeilingVerifyResult {
-  /** True when every offline check passed. Says nothing about chain canonicality. */
+  /** True when every offline check that ran passed, the carried floor header included. Says nothing about chain canonicality. */
   ok: boolean;
   reason?: string;
   checks: CeilingCheck[];
@@ -181,8 +181,9 @@ export function ceilingLabel(status: CeilingStatus, blockNumber: number, blockTi
 }
 
 /**
- * Check a ceiling sidecar against its proof, offline. Every check runs and
- * is reported; the first failure is the `reason`.
+ * Check a ceiling sidecar against its proof, offline. The checks run in
+ * order and stop at the first failure, which is the `reason`; `ok` is true
+ * only when every check that ran passed, a carried floor header included.
  */
 export async function verifyCeiling(
   proof: BitGraphProof,
@@ -233,7 +234,9 @@ export async function verifyCeiling(
   if (bytesToHex(computedRoot) !== sidecar.root.toLowerCase()) return fail("merkle", "the leaf and path do not reach the root");
   pass("merkle", `leaf ${sidecar.leafIndex} of ${sidecar.leafCount} reaches the root`);
 
-  if (sidecar.status === "pending" || !sidecar.anchor) {
+  // Pending is the absence of a transaction to check. The status field is
+  // the writer's report, unproven by the file, and never decides a result.
+  if (!sidecar.anchor) {
     return { ok: false, reason: "ceiling pending: no transaction included yet", checks, status: "pending", headerCheckedAgainstChain: false };
   }
   const a = sidecar.anchor;
@@ -293,10 +296,12 @@ export async function verifyCeiling(
           floor.blockTimestamp = fh.timestamp;
           pass("floor", `Ethereum block ${fh.number}, header checked against the signed hash`);
         } else {
-          checks.push({ name: "floor", ok: false, detail: "the carried floor header does not match the proof's signed slotAnchor; ignored" });
+          // Every part a sidecar carries must hold: a copy of the floor that
+          // is not the signed floor block fails the sidecar, it is not skipped.
+          return fail("floor", "the carried floor header does not match the proof's signed slotAnchor");
         }
       } catch {
-        checks.push({ name: "floor", ok: false, detail: "the carried floor header does not decode; ignored" });
+        return fail("floor", "the carried floor header does not decode");
       }
     }
   }
@@ -340,3 +345,43 @@ export async function checkCeilingOnline(
 }
 
 export { keccak256 as ceilingKeccak256 };
+
+// ── The Base stamp as a time bound ─────────────────────────────────────────
+
+const isoSec = (unix: number) => new Date(unix * 1000).toISOString().replace(".000Z", "Z");
+const isoMs = (ms: number) => new Date(ms).toISOString();
+
+/**
+ * The slack allowed between a Base block's stamp and the attestation
+ * document's time: one Base block. A Base stamp is whole seconds on Base's
+ * fixed two-second schedule; the document's time is milliseconds on the AWS
+ * Nitro hypervisor's clock. The writer puts the ceiling on Base only after
+ * the proof exists, so an honest stamp is seconds to minutes after the
+ * document; one block covers sealing latency and clock skew.
+ */
+export const BASE_STAMP_TOLERANCE_SECONDS = 2;
+
+/**
+ * Whether a Base block's stamp may be stated as an "existed by" time for a
+ * record. Base stamps every block by its number, so after a halt the missed
+ * time is refilled with blocks stamped in the past; in the 2026-06-25 and
+ * 2026-06-26 halts those blocks were empty, but nothing in the protocol makes
+ * them so. A stamp earlier than the floor block's time, or more than
+ * BASE_STAMP_TOLERANCE_SECONDS earlier than the attestation document (made
+ * after the signed body it binds), cannot be a bound for this record.
+ * Passing says only that the stamp is not known to be wrong: the Base time
+ * stays provisional until the block is checked against Base.
+ */
+export function baseTimeIsBound(
+  baseTimestampSec: number,
+  ref: { floorTimestampSec?: number | null; attestedAtMs?: number | null },
+): { ok: true } | { ok: false; reason: string } {
+  if (ref.floorTimestampSec != null && baseTimestampSec < ref.floorTimestampSec) {
+    return { ok: false, reason: `Base stamped this block ${isoSec(baseTimestampSec)}, before the floor block's own time (${isoSec(ref.floorTimestampSec)})` };
+  }
+  if (ref.attestedAtMs != null && baseTimestampSec + BASE_STAMP_TOLERANCE_SECONDS < ref.attestedAtMs / 1000) {
+    return { ok: false, reason: `Base stamped this block ${isoSec(baseTimestampSec)}, more than ${BASE_STAMP_TOLERANCE_SECONDS} s before the attestation document was made (${isoMs(ref.attestedAtMs)}), as Base does when it refills time after a halt` };
+  }
+  return { ok: true };
+}
+

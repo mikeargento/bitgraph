@@ -811,7 +811,9 @@ describe("audit: exports (bitgraph-export/1)", () => {
     const byPath = new Map(r.exports!.checks.map((c) => [c.path, c]));
     assert.equal(byPath.get("bad.export.json")?.status, "malformed");
     assert.equal(byPath.get("future.export.json")?.status, "unsupported-format");
-    for (const c of r.exports!.checks) assert.equal(c.verdict, "UNDETERMINED");
+    // A broken export/1 is FALSE; a format the verifier does not know is not judged.
+    assert.equal(byPath.get("bad.export.json")?.verdict, "FALSE");
+    assert.equal(byPath.get("future.export.json")?.verdict, "UNDETERMINED");
     const codes = r.ingest.findings.map((f) => f.code).sort();
     assert.deepEqual(codes, ["export-malformed", "export-unsupported-format"]);
     assert.deepEqual(computeExitFlags(r), { verificationFailures: true, chainAnomaliesOrDivergences: false, code: 1 });
@@ -819,7 +821,8 @@ describe("audit: exports (bitgraph-export/1)", () => {
     assert.equal(report.summary.exports?.rejected, 2);
     assert.equal(report.summary.anomalyCountsByCode["export-malformed"], 1);
     const md = buildMarkdownReport(r);
-    assert.ok(md.includes("NOT CHECKED `bad.export.json`"));
+    assert.ok(md.includes("FALSE `bad.export.json`: malformed"));
+    assert.ok(md.includes("#### Export `bad.export.json`: FALSE (malformed)"));
     assert.ok(md.includes("#### Export `future.export.json`: NOT CHECKED"));
     assert.ok(md.includes("| `export-unsupported-format` | 1 |"));
   });

@@ -269,14 +269,22 @@ test("a rebuilt header with a moved timestamp passes offline and says it was not
   assert.equal(r.headerCheckedAgainstChain, false);
 });
 
-test("a floor header that is not the proof's signed floor is ignored, not trusted", async () => {
+test("a floor header that is not the proof's signed floor fails the sidecar: every part it carries must hold", async () => {
   const w = build();
   const s = clone(w.sidecar);
   const f = rlpDecode(hexToBytes(s.floor!.blockHeader)) as Uint8Array[];
   f[11] = u(1);
   s.floor!.blockHeader = bytesToHex(rlpEncode(f));
   const r = await verifyCeiling(proof, s, { writerAddress: w.writer, chainId: CHAIN });
-  assert.equal(r.ok, true);
-  assert.equal(r.window!.floor.blockTimestamp, null);
-  assert.equal(r.window!.widthSeconds, null);
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /^floor: the carried floor header does not match the proof's signed slotAnchor/);
+  assert.equal(r.window, undefined, "no window from a sidecar that failed");
+});
+
+test("the status field never decides: a sidecar with its transaction verifies whatever its status says", async () => {
+  const w = build();
+  const s = clone(w.sidecar);
+  (s as { status: string }).status = "pending";
+  const r = await verifyCeiling(proof, s, { writerAddress: w.writer, chainId: CHAIN });
+  assert.equal(r.ok, true, r.reason);
 });

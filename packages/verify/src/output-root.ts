@@ -137,7 +137,32 @@ function storageWord(item: RlpItem): Uint8Array | null {
  * bytes; the result names the Ethereum block whose canonicality is the one
  * remaining lookup.
  */
-export function verifyOutputRootSettlement(s: OutputRootSettlement): OutputRootVerifyResult {
+export interface OutputRootVerifyOptions {
+  /** The chain the ceiling is on. Default Base mainnet, 8453. */
+  baseChainId?: number;
+  /** The chain the settlement is on. Default Ethereum mainnet, 1. */
+  ethereumChainId?: number;
+}
+
+/** The chain a raw Ethereum transaction is signed for: field 0 of a typed transaction, or EIP-155's v. Null when it names none. */
+function transactionChainId(raw: Uint8Array): bigint | null {
+  if (raw.length === 0) return null;
+  const big = (b: Uint8Array) => b.reduce((n, x) => (n << 8n) | BigInt(x), 0n);
+  try {
+    if (raw[0]! <= 0x7f) {
+      const item = rlpDecode(raw.subarray(1));
+      return Array.isArray(item) && item[0] instanceof Uint8Array ? big(item[0]) : null;
+    }
+    const item = rlpDecode(raw);
+    if (!Array.isArray(item) || item.length !== 9 || !(item[6] instanceof Uint8Array)) return null;
+    const v = big(item[6]);
+    return v >= 35n ? (v - 35n) / 2n : null;
+  } catch {
+    return null;
+  }
+}
+
+export function verifyOutputRootSettlement(s: OutputRootSettlement, opts: OutputRootVerifyOptions = {}): OutputRootVerifyResult {
   const checks: OutputRootCheck[] = [];
   const fail = (name: string, detail: string): OutputRootVerifyResult => {
     checks.push({ name, ok: false, detail });
@@ -146,6 +171,12 @@ export function verifyOutputRootSettlement(s: OutputRootSettlement): OutputRootV
   const pass = (name: string, detail?: string) => checks.push(detail === undefined ? { name, ok: true } : { name, ok: true, detail });
 
   if (s?.version !== OUTPUT_ROOT_VERSION) return fail("format", `not a ${OUTPUT_ROOT_VERSION} settlement`);
+
+  // 0. The chains: the labels are part of what the result reports, so they are checked, never echoed.
+  const baseChain = opts.baseChainId ?? 8453;
+  const l1Chain = opts.ethereumChainId ?? 1;
+  if (s.base?.chainId !== baseChain) return fail("chain", `the settlement is for chain ${String(s.base?.chainId)}; this verifier settles Base ${baseChain}`);
+  if (s.ethereum?.chainId !== l1Chain) return fail("chain", `the settlement names chain ${String(s.ethereum?.chainId)}; this verifier settles on Ethereum ${l1Chain}`);
 
   // 1. The output root from its preimage.
   let outputRoot: Uint8Array;
@@ -234,6 +265,9 @@ export function verifyOutputRootSettlement(s: OutputRootSettlement): OutputRootV
     return fail("ethereum", "rawTx is not hex");
   }
   if (bytesToHex(keccak256(rawTx)) !== e.txHash.toLowerCase()) return fail("ethereum", "the raw transaction does not hash to txHash");
+  const txChain = transactionChainId(rawTx);
+  if (txChain === null) return fail("ethereum", "the transaction names no chain (a legacy transaction without EIP-155)");
+  if (txChain !== BigInt(l1Chain)) return fail("ethereum", `the transaction is signed for chain ${txChain}, not Ethereum ${l1Chain}`);
   let inBlock: Uint8Array | null;
   try {
     inBlock = mptVerify(hexToBytes(header.transactionsRoot), txTrieKey(e.txIndex), e.txInclusionProof.map(hexToBytes));

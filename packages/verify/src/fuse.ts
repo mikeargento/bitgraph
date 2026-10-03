@@ -496,6 +496,9 @@ const container1: Placement = {
     // The archive must be the one this module would build: headers included.
     const rebuilt = buildContainer(o.data, m.data);
     if (!bytesEqual(rebuilt, fused)) return null;
+    // And the original inside must be the one the manifest names: the declared
+    // digest is never taken on the archive's word.
+    if (!bytesEqual(sha256(o.data), payload.originDigest)) return null;
     return { commitment: payload.commitment, originDigest: payload.originDigest, originalBytes: o.data };
   },
   frame({ originalSize, originDigest, commitment }) {
@@ -546,6 +549,8 @@ const container2: Placement = {
     // The archive must be the one this module would build: headers included.
     const rebuilt = buildContainer2(o.data, m.data);
     if (!bytesEqual(rebuilt, fused)) return null;
+    // And the original inside must be the one the manifest names.
+    if (!bytesEqual(sha256(o.data), payload.originDigest)) return null;
     return { commitment: payload.commitment, originDigest: payload.originDigest, originalBytes: o.data };
   },
   frame({ originalSize, originDigest, commitment }) {

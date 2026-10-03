@@ -41,7 +41,7 @@ test("the golden carrier/2 verifies TRUE offline, every carried claim TRUE, the 
   for (const id of ["block", "bytes.digest", "proof.signature", "proof.hash", "proof.fused", "attestation.signature", "attestation.chain", "attestation.root", "attestation.validity", "attestation.pcr0", "attestation.binding", "attestation.witness", "floor.anchor", "floor.binding", "floor.header", "ceiling.position.anchor", "ceiling.position.binding", "ceiling.position.header", "ceiling.time.record", "ceiling.time.payload", "ceiling.time.sender", "ceiling.time.inclusion", "ceiling.time.floor", "pins"]) {
     assert.equal(c[id], "TRUE", `${id}: ${r.claims.find((x) => x.id === id)?.detail}`);
   }
-  assert.equal(c["attestation.pins"], "UNDETERMINED", "no allowlist given");
+  assert.equal(c["attestation.pins"], "TRUE", "BitGraph's published v9 image, the default policy");
   assert.equal(c["confirmed.floor"], "UNDETERMINED");
   assert.equal(c["confirmed.ceiling.time"], "UNDETERMINED");
   assert.equal(c["ceiling.time.status"], "UNDETERMINED", "status is reported, never proven");
@@ -53,6 +53,24 @@ test("the golden carrier/2 verifies TRUE offline, every carried claim TRUE, the 
   assert.equal(r.bounds?.existedBy?.timestamp, 1790749183);
   assert.match(r.reading, /made after Ethereum block 26088457 \(2026-09-30T06:19:23Z\), and existed by Base block 51979918 \(2026-09-30T06:19:43Z\)/);
   assert.match(r.reading, /Rests on: SHA-256, Ed25519, the AWS Nitro root \(641A0321…\), Ethereum block 26088457, Base block 51979918/);
+});
+
+test("the enclave image decides: an image off the list is FALSE, no list or no attestation leaves the file undetermined", async () => {
+  const bytes = buildCarrier(inner, golden());
+  const off = await verifyCarrier(bytes, { pins: { pcr0: ["00".repeat(48)] } });
+  assert.equal(off.verdict, "FALSE");
+  assert.equal(claimsById(off)["attestation.pins"], "FALSE");
+  const none = await verifyCarrier(bytes, { pins: { pcr0: [] } });
+  assert.equal(none.verdict, "UNDETERMINED", "an attestation alone says only that some Nitro enclave signed");
+  assert.equal(claimsById(none)["attestation.pins"], "UNDETERMINED");
+  assert.match(none.reading, /^Not judged in full\./);
+  // Without its attestation the file is never TRUE (for this proof the signature covers it, so it is FALSE).
+  const bare = JSON.parse(JSON.stringify(golden())) as CarrierPayload;
+  delete (bare.proof as { environment: { attestation?: unknown } }).environment.attestation;
+  delete (bare as { attestation?: unknown }).attestation;
+  const unattested = await verifyCarrier(buildCarrier(inner, bare));
+  assert.notEqual(unattested.verdict, "TRUE");
+  assert.equal(claimsById(unattested)["attestation.signature"], "NOT_CARRIED");
 });
 
 test("the block stays under the ZIP limit, with the witness inside", () => {

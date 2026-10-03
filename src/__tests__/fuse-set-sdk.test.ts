@@ -349,14 +349,15 @@ describe("fuseSet(): a bad member burns the slot and commits nothing", () => {
     const members: FuseSetBytesMember[] = [{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }];
     // The payload names png's digest (so the declared origin matches) while the tar carries other bytes.
     members[1]!.builder = ({ commitment, originDigest }) => getPlacement("container/1")!.build({ original: utf8("not the member's original\n"), originDigest: originDigest!, commitment });
-    await assert.rejects(fuseSet(members, { transport }), (e: FuseError) => e.code === "builder-failed" && /^member 1/.test(e.message) && /origin/.test(e.message) && e.member === 1);
+    // The verifier's container rule now refuses such an archive outright (the original inside must hash to the origin it declares).
+    await assert.rejects(fuseSet(members, { transport }), (e: FuseError) => (e.code === "builder-failed" || e.code === "commitment-missing") && /^member 1/.test(e.message) && /original/.test(e.message) && e.member === 1);
     assert.equal(commits(calls).length, 0, "nothing was committed");
     assert.equal(allocates(calls).length, 1);
     // The mirror: a payload declaring another digest over the member's own bytes is refused the same way.
     const declared: FuseSetBytesMember[] = [{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }];
     declared[1]!.builder = ({ commitment }) => getPlacement("container/1")!.build({ original: png, originDigest: sha256(unrelated), commitment });
     const b = honest(key, slot);
-    await assert.rejects(fuseSet(declared, { transport: b.transport }), (e: FuseError) => e.code === "builder-failed" && e.member === 1);
+    await assert.rejects(fuseSet(declared, { transport: b.transport }), (e: FuseError) => (e.code === "builder-failed" || e.code === "commitment-missing") && e.member === 1);
     assert.equal(commits(b.calls).length, 0);
     // And the honest container/1 builder still passes both checks.
     const ok = await fuseSet([{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }], { transport: honest(key, slot).transport, verifyMembers: true });

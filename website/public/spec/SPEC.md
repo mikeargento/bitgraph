@@ -29,16 +29,16 @@ Three time claims, never merged:
 | Claim | Statement | Rests on |
 |---|---|---|
 | Floor | The committed bytes were finished after Ethereum block N. | Hashes only, plus N being a real Ethereum block. |
-| Base ceiling | The record existed by Base block B, at B's timestamp. | A Base transaction carrying a Merkle root over the record, plus B being a real Base block. Until B is checked against Base, its time is provisional. |
+| Base ceiling | The record existed by Base block B, at B's timestamp. | A Base transaction carrying a Merkle root over the record, plus B being a real Base block. Until B is checked against Base, its time is provisional, and a stamp earlier than the floor block or the attestation document is never used as a bound (section 10.4). |
 | Ethereum ceiling | The record existed by Ethereum block H. | Base's output root on Ethereum committing to B, plus H being a real Ethereum block. Base's honesty is not needed. |
 
 What a BitGraph does not claim: when content was first created, who made it, who owns it, or whether what it shows is true. It dates one exact version of the bytes.
 
 A reader makes these trust decisions, and no others:
 
-1. **Chain canonicality.** Whether a given block hash is part of the chain the network agreed on. A block header is self-consistent bytes, and anyone can build a self-consistent fake chain offline, so this is a fact about the network that no file can carry. It is checked once, against whatever node or consensus source the reader chooses; that source is part of the reader's trust model.
+1. **Chain canonicality.** Whether a given block hash is part of the chain the network agreed on. A block header is self-consistent bytes, and anyone can build a self-consistent fake chain offline, so this is a fact about the network that no file can carry. It is checked once, against whatever node or consensus source the reader chooses; that source is part of the reader's trust model. A lookup that says a block is not the chain's own refutes every time read from that block: the verdict is false (section 12.1).
 2. **The AWS Nitro root.** The certificate chain in each attestation ends at the AWS Nitro Enclaves Root CA G1 (section 5.5).
-3. **What PCR0 measures.** The attestation says which enclave image signed. Knowing what that image does requires its source, built reproducibly to the same PCR0 (section 16).
+3. **Which image is BitGraph's, and what it measures.** An attestation says which enclave image signed, but only that some AWS Nitro enclave signed: anyone can run one. Which images count as BitGraph's is a measurement policy, by default the published images of section 16; a proof from any other image is not a BitGraph (section 5.6). Knowing what an image does requires its source, built reproducibly to the same PCR0.
 
 ---
 
@@ -219,7 +219,9 @@ The AWS Nitro Enclaves Root CA G1 (CN=aws.nitro-enclaves, O=Amazon, OU=AWS, C=US
 
 ### 5.6 PCR0
 
-`hex(pcrs[0])` MUST equal `environment.measurement` (lowercase comparison). Whether that PCR0 is acceptable is the reader's decision; section 16 lists BitGraph's published measurements.
+`hex(pcrs[0])` MUST equal `environment.measurement` (lowercase comparison); a measurement that is not a hex string names no image and fails.
+
+A verifier MUST then apply a **measurement policy**, a set of accepted PCR0 values. Its default is BitGraph's published images (section 16). A PCR0 outside the policy is FALSE: the attestation is genuine, but the proof is not BitGraph's. A reader who rebuilt an image from its tagged source and accepts exactly that may use a list of their own. An empty policy accepts nothing, and the claim (and so the verdict) is UNDETERMINED.
 
 ### 5.7 Binding to this proof
 
@@ -296,7 +298,7 @@ container/1 = hdr(manifest, 250) || manifest || pad(250) || hdr(original, n) || 
 container/2 = hdr(original, n) || original || pad(n) || hdr(manifest, 250) || manifest || pad(250) || 0x00 * 1024
 ```
 
-Both are plain ustar archives any tar tool can list. To locate: parse exactly two entries with these names in this order, parse the manifest strictly (exact keys, lowercase hex, equal to its own canonical rebuild), and require the whole archive to equal its rebuild from (original, manifest) byte for byte.
+Both are plain ustar archives any tar tool can list. To locate: parse exactly two entries with these names in this order, parse the manifest strictly (exact keys, lowercase hex, equal to its own canonical rebuild), require the whole archive to equal its rebuild from (original, manifest) byte for byte, and require the SHA-256 of the original entry's bytes to equal the origin digest the manifest names. An archive that fails any of these carries no commitment: a verifier never takes the declared origin on the archive's word.
 
 **Vectors.** Original `"hello"`, commitment `0x11`*32: trailer/1 SHA-256 `8dccc9720e90b1b10bb2b7332f462d0482ff64af0c27f2ff71a48b66c0329d6c`; container/1 (3,072 bytes) `d841f147cb3dcabc938bc5abb9f651d530eb6ee620ec560787adc847e784d6d6`; container/2 (3,072 bytes) `9fe94c83852be05d8817e7f86302b1b96876400a3028fbbd6203a03419587843`.
 
@@ -457,8 +459,9 @@ After each commit, a separate writer (not the enclave) batches new records, buil
 5. `rawTx` is an EIP-1559 transaction: `0x02 || RLP([chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gas, to, value, data, accessList, yParity, r, s])`. Its sender is recovered with secp256k1 from `keccak256(0x02 || RLP(first nine fields))`, `r`, `s` (low s) and `yParity`, as `keccak256(uncompressed public key without its 0x04 prefix)[12..32]`. The sender and `to` MUST both equal the writer address the verifier pins (section 16), `chainId` MUST be 8453, `data` MUST equal the payload, and `keccak256(rawTx)` MUST equal `txHash`.
 6. `keccak256(blockHeader) == blockHash`, and the header's number and timestamp equal `blockNumber` and `blockTimestamp` (section 9 decoding).
 7. The transaction is in the block: the Merkle-Patricia proof (section 10.3) for key `RLP(txIndex)` under the header's `transactionsRoot` returns exactly `rawTx`. `txIndex` counts every transaction in the block, deposits included.
+8. When the sidecar carries `floor.blockHeader`, it MUST hash to the proof's signed `commit.slotAnchor.blockHash` and carry its number. A carried part that does not hold fails the sidecar; it is never skipped.
 
-The ceiling's time is the Base header's timestamp. It is provisional until block B is checked against Base (section 1); the Ethereum ceiling (section 11) does not depend on that check.
+The checks run in order and stop at the first failure. The ceiling's time is the Base header's timestamp. It is provisional until block B is checked against Base (section 1); the Ethereum ceiling (section 11) does not depend on that check.
 
 ### 10.3 Merkle-Patricia inclusion proofs
 
@@ -481,6 +484,15 @@ loop:
 ```
 
 `RLP(i)` for a transaction index is the RLP of i's minimal big-endian bytes: 0 is `0x80`, 1 to 127 is the byte itself, 128 to 255 is `0x81 xx`, and so on.
+
+### 10.4 The Base time as a bound
+
+Base fixes each block's timestamp by its number, two seconds apart. After a halt it refills the missed time with blocks stamped in the past: in Base's halts of 2026-06-25 (blocks 47,806,547 to 47,808,791, stamped 15:47:21 to 17:02:09 UTC) and 2026-06-26 (blocks 47,849,207 to 47,849,619) those blocks were empty, but nothing in the protocol requires it. So the Base stamp is used as an "existed by" time only when:
+
+- it is not earlier than the floor block's own timestamp (section 9), and
+- it is not more than 2 seconds (one Base block) earlier than the attestation document's `timestamp` (section 5), taken only when the document's signature, chain and root hold. The document's time is milliseconds on the AWS Nitro hypervisor's clock; the document is made after the signed body it binds (section 5.7), and the writer posts the ceiling only after the proof exists, so an honest stamp is seconds to minutes later. The 2-second slack covers block sealing and clock skew.
+
+When the stamp fails either comparison, the inclusion (`ceiling.base`) still holds, and the ceiling's time is withheld and the reason stated. Passing does not make the stamp exact: it stays provisional until B is checked against Base, and only the Ethereum ceiling (section 11) is a bound that does not rest on Base.
 
 ---
 
@@ -507,11 +519,12 @@ Base runs the EIP-2935 history contract (`0x0000f90827f1c53a10cb7a02335b17532000
 
 Checks, in order:
 
+0. `base.chainId` is 8453 and `ethereum.chainId` is 1 (or the chains the verifier pins); these labels are checked, never echoed.
 1. `version` (the output-root field) is 32 zero bytes. Compute `outputRoot`.
 2. **B = P:** `history` MUST be null and `outputRoot.blockHash` MUST equal `base.blockHash`.
    **B < P:** `1 <= P - B <= 8191`; `history.address` is the EIP-2935 contract; `history.slot` is `u256be(B mod 8191)`; the account proof (section 10.3, key `keccak256(address)`) under `stateRoot_P` returns the account `RLP([nonce, balance, storageRoot, codeHash])`; the storage proof under that `storageRoot` with key `keccak256(slot)` returns `RLP(value)`, and `value`, left-padded to 32 bytes, equals `base.blockHash`.
 3. `keccak256(ethereum.header) == ethereum.blockHash`, and its number and timestamp equal the stated ones.
-4. `keccak256(rawTx) == txHash`, and the Merkle-Patricia proof for key `RLP(txIndex)` under the header's `transactionsRoot` returns exactly `rawTx`.
+4. `keccak256(rawTx) == txHash`; the chain id signed inside `rawTx` (field 0 of a typed transaction, or EIP-155's `v` for a legacy one) equals `ethereum.chainId`, and a transaction that names no chain fails; and the Merkle-Patricia proof for key `RLP(txIndex)` under the header's `transactionsRoot` returns exactly `rawTx`.
 5. The bytes of `rawTx` contain the 32 bytes of `outputRoot`.
 6. `base.blockNumber` and `base.blockHash` equal the ceiling's block (section 10).
 
@@ -563,17 +576,21 @@ A verifier reports one result per claim (TRUE, FALSE, UNDETERMINED, or NOT_CARRI
 | format | the document is export/1 |
 | proof.signature | sections 3 and 4 |
 | attestation.* | section 5: signature, chain, root, validity at the document's instant, PCR0, binding |
-| attestation.pins | PCR0 against the verifier's own list; UNDETERMINED without a list |
+| attestation.pins | PCR0 against the verifier's measurement policy (section 5.6), by default BitGraph's published images; UNDETERMINED for an empty policy |
 | spec.pin | section 8.4 (UNDETERMINED for a spec the verifier does not know) |
 | tree.root | section 8.6 step 3 |
 | tree.member / tree.leaves | section 8.5 or 8.7 |
 | bytes.member | section 8.6 step 5 (NOT_CARRIED without the file) |
 | floor.header | section 9 |
-| ceiling.base | section 10 |
+| ceiling.base | section 10 (its time used only as section 10.4 allows) |
 | ceiling.ethereum | section 11.1 |
 | confirmed.* | the reader's own lookups of the floor block, the Base block and Ethereum block H |
 
-The verdict is FALSE if any offline claim is FALSE; UNDETERMINED if any offline claim other than attestation.pins is UNDETERMINED; otherwise TRUE. The three time claims are always stated separately; the Base time is labelled provisional until `confirmed.ceiling.base` is TRUE.
+The verdict is FALSE if any claim is FALSE, a lookup the reader made included: a node that says a block is not the chain's own refutes every time read from it. Otherwise it is UNDETERMINED if any offline claim is UNDETERMINED (`attestation.pins` included), and TRUE if none is. A confirmed claim left UNDETERMINED because the reader made no lookup does not change the verdict; the reading then says that each header is taken as given until it is checked.
+
+The three time claims are always stated separately. A time is stated as fact only when nothing refutes it; the Base time is labelled provisional until `confirmed.ceiling.base` is TRUE, and is withheld when section 10.4 does not allow it.
+
+An optional part (`floor`, `ceiling`, `settlement`) that is null or missing is NOT_CARRIED. A pending ceiling is an object without `anchor` whose `status` is `"pending"`; a pending settlement is `{"status":"pending"}`. Any other value of an optional part, and an export that names `bitgraph-export/1` without a proof object and a hex `tree.rootDocument`, is malformed: FALSE, never an error. The export's own `tree.rootDocument` is the one checked; the proof's unsigned echo of it under `metadata` is never used in its place. The unsigned `spec` label, `tree.names` and the proof's `metadata` are advisory and change no claim.
 
 FALSE means a check ran and failed. A part in a format the verifier does not know is UNDETERMINED, never FALSE:
 
@@ -720,6 +737,7 @@ Be aware of these:
 |---|---|
 | `spec/vectors/tree-1.json` | a position record, commitment/2, five files across every placement code (including an empty file and one kept as is), their committed bytes, leaves, the tree, the root document and every member's evidence |
 | `spec/vectors/export-1.json` | a member's export and the owner's export, signed with a published test key (not a BitGraph), with the expected result of every offline claim |
+| `spec/vectors/tree-1-negative.json` | a signed tree whose leaves are containers that name one original and hold another: for each, the archive, the original it names and the original it holds, none of which is that member |
 | `spec/vectors/output-root-1.json` | a real ceiling transaction settled on Ethereum through Base's output root, captured from the live chains |
 | `packages/verify/src/__tests__/fixtures/carrier2/` | production proof #4,546: its AWS attestation, its Base ceiling, and a commitment carried inline |
 

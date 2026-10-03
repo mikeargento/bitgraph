@@ -223,6 +223,8 @@ export interface CompleteExportOptions extends ExportFetchOptions {
   writerAddress?: string;
   /** Default Base mainnet (8453). */
   baseChainId?: number;
+  /** The chain the settlement is on. Default Ethereum mainnet (1). */
+  ethereumChainId?: number;
   /** Keep asking while something is still pending, up to this long. Default 0: one pass. */
   waitMs?: number;
 }
@@ -326,7 +328,7 @@ export async function completeExport(input: BitGraphExport, fetcher: Fetcher = f
         } else if (r.status !== 200) notes.add(`settlement: the settlement route answered ${r.status}`);
         else {
           const so = s as OutputRootSettlement;
-          const v = verifyOutputRootSettlement(so);
+          const v = verifyOutputRootSettlement(so, { baseChainId: chainId, ethereumChainId: opts.ethereumChainId ?? 1 });
           const linked = so?.base?.blockNumber === base.blockNumber && typeof so.base.blockHash === "string" && so.base.blockHash.toLowerCase() === base.blockHash.toLowerCase();
           if (v.ok && linked) {
             settlement = so;

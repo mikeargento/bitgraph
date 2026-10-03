@@ -207,7 +207,7 @@ export interface ChainWorld {
  * preimage names the block's hash directly (B = P), carried by a
  * transaction in Ethereum block 25,500,300.
  */
-export function chainWorld(proof: BitGraphProof, floorHeaderHex?: string): ChainWorld {
+export function chainWorld(proof: BitGraphProof, floorHeaderHex?: string, o: { baseTime?: number } = {}): ChainWorld {
   const priv = secp256k1.utils.randomSecretKey();
   const writer = addressOf(priv);
   const proofHash = computeProofHash(proof);
@@ -219,7 +219,7 @@ export function chainWorld(proof: BitGraphProof, floorHeaderHex?: string): Chain
   const baseTxs = [evmHexToBytes("0x7e0102"), raw, evmHexToBytes("0x01aabbcc")];
   const baseTrie = txTrieProof(baseTxs, 1);
   const baseBlock = 30_000_000;
-  const baseTime = FLOOR_TIME + 40;
+  const baseTime = o.baseTime ?? FLOOR_TIME + 40;
   const baseHeader = blockHeader(baseTrie.root, baseBlock, baseTime, 9);
   const baseHash = evmBytesToHex(keccak256(baseHeader));
   const sidecar: CeilingSidecar = {
@@ -252,8 +252,9 @@ export function chainWorld(proof: BitGraphProof, floorHeaderHex?: string): Chain
   const z32 = "0x" + "00".repeat(32);
   const outputRoot = { blockNumber: baseBlock, version: z32, stateRoot: "0x" + "11".repeat(32), messagePasserStorageRoot: "0x" + "22".repeat(32), blockHash: baseHash };
   const claim = computeOutputRoot(outputRoot);
-  // A dispute-game creation: some calldata with the output root inside it.
-  const claimTx = new Uint8Array([0x02, ...new Uint8Array(40).fill(0x5a), ...claim, ...new Uint8Array(12).fill(0x01)]);
+  // A dispute-game creation: an EIP-1559 transaction on Ethereum (chain 1) whose calldata carries the output root.
+  const calldata = new Uint8Array([...new Uint8Array(40).fill(0x5a), ...claim, ...new Uint8Array(12).fill(0x01)]);
+  const claimTx = new Uint8Array([0x02, ...rlpEncode([u(1), u(7), u(1_000_000), u(2_000_000_000), u(300_000), evmHexToBytes("0x43edb88c4b80fdd2adff2412a7bebf9df42cb40e"), u(0), calldata, [], u(1), new Uint8Array(32).fill(0x0a), new Uint8Array(32).fill(0x0b)])]);
   const ethTxs = [evmHexToBytes("0x02c0ffee"), evmHexToBytes("0x02beef"), claimTx];
   const ethTrie = txTrieProof(ethTxs, 2);
   const ethBlock = 25_500_300;
