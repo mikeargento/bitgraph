@@ -24,6 +24,7 @@ import {
 } from "@mikeargento/bitgraph-verify";
 import type { CeilingQueueItem } from "../parent/ceiling-queue.js";
 import type { SettlementFound } from "./settlement.js";
+import { OutputRootSettler, type OutputRootMark, type OutputRootOptions } from "./output-root-settler.js";
 
 // ── The chain, as the writer needs it (viem in production, a fake in tests) ──
 
@@ -75,6 +76,12 @@ export interface Batch {
   settlement?: { pointer: SettlementPointer; foundAt: string; blobFiles: string[] };
   /** The search for it: how many tries, the last one, its error; `gaveUp` once the deadline passed. */
   settlementSearch?: { attempts: number; lastAt: string; lastError?: string; gaveUp?: boolean };
+  /**
+   * Settlement through Base's output root (bitgraph-output-root/1, output-root-settler.ts): the file
+   * written for this batch's Base block, or "out-of-window" when no output root could cover it (the
+   * blob settlement above still stands). Set once, never replaced.
+   */
+  outputRoot?: OutputRootMark;
 }
 
 /** What the writer knows about a batch's Base block when it asks for its settlement. */
@@ -128,6 +135,12 @@ export interface WriterOptions {
    * blob bytes, and put the pointer on every record's sidecar. Off when absent.
    */
   settlement?: WriterSettlementOptions;
+  /**
+   * Settlement through Base's output root (bitgraph-output-root/1), beside the blob settlement:
+   * windows captured at Base's summary blocks, claims attached from Ethereum, files written
+   * create-only. Off when absent. See output-root-settler.ts.
+   */
+  outputRoot?: OutputRootOptions;
 }
 
 const ZERO32 = "0x" + "00".repeat(32);
@@ -158,7 +171,7 @@ function groupKey(i: CeilingQueueItem): string {
 }
 
 export class CeilingWriter {
-  private readonly o: Required<Omit<WriterOptions, "minBalanceWei" | "publish" | "settlement">> & { minBalanceWei: bigint | null; publish: WriterOptions["publish"]; settlement: WriterOptions["settlement"] };
+  private readonly o: Required<Omit<WriterOptions, "minBalanceWei" | "publish" | "settlement" | "outputRoot">> & { minBalanceWei: bigint | null; publish: WriterOptions["publish"]; settlement: WriterOptions["settlement"]; outputRoot: WriterOptions["outputRoot"] };
   /** Sidecars written locally and not yet published, newest content per file. */
   private unpublished = new Map<string, string>();
   /** Blob bytes written locally and not yet published, and the names already published by this process. */
@@ -180,6 +193,9 @@ export class CeilingWriter {
   /** Batches whose sidecars on disk lack a floor header their items name; repaired a few per tick. */
   private floorRepair: string[] = [];
   private floorRepairTries = new Map<string, number>();
+  /** Output-root settlement, when configured; its state lives under <state>/output-root/. */
+  private readonly outputRootSettler: OutputRootSettler | null = null;
+  private lastOutputRootPass = 0;
 
   constructor(opts: WriterOptions) {
     this.o = {
@@ -190,12 +206,23 @@ export class CeilingWriter {
       minBalanceWei: opts.minBalanceWei ?? null,
       publish: opts.publish,
       settlement: opts.settlement,
+      outputRoot: opts.outputRoot,
     };
     this.dirs = { batches: join(opts.stateDir, "batches"), sidecars: join(opts.stateDir, "sidecars"), blobs: join(opts.stateDir, "blobs") };
     mkdirSync(this.dirs.batches, { recursive: true, mode: 0o700 });
     mkdirSync(this.dirs.sidecars, { recursive: true, mode: 0o700 });
     mkdirSync(this.dirs.blobs, { recursive: true, mode: 0o700 });
     this.load();
+    if (opts.outputRoot) {
+      // Built after load(): it reads the batches to finish any mark a stop left half-written.
+      this.outputRootSettler = new OutputRootSettler({
+        stateDir: opts.stateDir,
+        batches: () => this.batches.values(),
+        saveBatch: (b) => this.saveBatch(b),
+        event: (e) => this.event(e),
+        now: () => this.o.now(),
+      }, opts.outputRoot);
+    }
   }
 
   // ── persistence ──
@@ -368,6 +395,15 @@ export class CeilingWriter {
       this.lastSettlementPass = t;
       await this.settlementPass();
       await this.flushPublish();
+    }
+    if (this.outputRootSettler && t - this.lastOutputRootPass > (this.o.outputRoot?.everyMs ?? 30_000)) {
+      this.lastOutputRootPass = t;
+      // Its own failures stay its own: the floor repair below, and the next tick's sends, still run.
+      try {
+        await this.outputRootSettler.pass();
+      } catch (e) {
+        this.event({ type: "output-root-error", error: (e as Error).message.slice(0, 300) });
+      }
     }
     if (this.floorRepair.length > 0) {
       await this.repairFloors();
@@ -790,7 +826,7 @@ export class CeilingWriter {
 
   // ── inspection ──
 
-  snapshot(): { backlog: number; batches: Batch[]; lastPayloadHash: string } {
-    return { backlog: this.backlog.length, batches: [...this.batches.values()], lastPayloadHash: this.lastPayloadHash };
+  snapshot(): { backlog: number; batches: Batch[]; lastPayloadHash: string; outputRoot: ReturnType<OutputRootSettler["snapshot"]> | null } {
+    return { backlog: this.backlog.length, batches: [...this.batches.values()], lastPayloadHash: this.lastPayloadHash, outputRoot: this.outputRootSettler?.snapshot() ?? null };
   }
 }
