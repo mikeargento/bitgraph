@@ -43,6 +43,7 @@ import { verifyNitroAttestation, witnessMatchesAttestation, awsNitroRootSha256, 
 import { verifyCeiling, checkCeilingOnline, type CeilingSidecar } from "./ceiling.js";
 import { verifySettlementPointer, checkSettlementOnline, BASE_MAINNET_SETTLEMENT_PINS, type SettlementPointer, type SettlementPins } from "./settlement.js";
 import type { BitGraphProof } from "./types.js";
+import { sha256 } from "@noble/hashes/sha256";
 import {
   parseCarrier, checkFloorBinding, checkCeilingBinding, anchorMessageBytes,
   verifyWitnessHeader, carrierBounds, innerDigestMatches, carrierVersionOf,
@@ -116,7 +117,19 @@ export async function verifyCarrier(bytes: Uint8Array, opts: CarrierVerifyOption
     const claim: CarrierClaim = { id: "block", name: "A proof block at the end of the file", result: "UNDETERMINED", restsOn: "", detail, level: "offline" };
     return { verdict: "UNDETERMINED", carrier: "corrupt", version: null, reasons: [detail], bounds: null, ceiling: null, claims: [claim], reading: "The file ends in a proof block this reader cannot read. That is a damaged or newer block, not a verdict on the file.", payload: null, inner: null };
   }
-  return verifyCarrierPayload(parsed.payload, parsed.inner, opts);
+  const result = await verifyCarrierPayload(parsed.payload, parsed.inner, opts);
+  return { ...result, reading: `${result.reading} ${envelopeSentence(bytes, parsed.inner)}` };
+}
+
+/**
+ * THE ENVELOPE RULE, said out loud (outside review, 2026-10-02: "confirm the verify output
+ * says plainly that the bitgraphed file's own SHA-256 is not the committed digest, since
+ * that file travels without the README"). A reader who hashes the file they were handed
+ * and compares it with the proof would otherwise conclude the proof is wrong.
+ */
+function envelopeSentence(outer: Uint8Array, inner: Uint8Array): string {
+  const hex = (b: Uint8Array) => Array.from(sha256(b), (x) => x.toString(16).padStart(2, "0")).join("");
+  return `This file's own SHA-256 (${hex(outer)}) is not the committed digest and is not meant to be: the proof block at its end is part of this file's bytes. The proof names the bytes before that block (SHA-256 ${hex(inner)}), and those are the bytes checked here.`;
 }
 
 /**

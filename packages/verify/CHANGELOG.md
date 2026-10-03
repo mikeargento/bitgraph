@@ -2,6 +2,10 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.15.2 (2026-10-02)
+
+- `verifyCarrier`'s reading now ends by saying plainly that the file's own SHA-256 is not the committed digest, naming both hashes: the proof names the bytes before the proof block, and the file being verified includes that block. An outside review asked for it because a BitGraphed file travels without its package's README, and a recipient who hashes the file they were handed and compares it with the proof would otherwise conclude the proof is wrong. Only the reading changed: no claim, verdict or check is different, and `verifyCarrierPayload` (which has no outer file) is unchanged.
+
 ## 1.15.1 (2026-10-01)
 
 - `verifyCeiling`'s label no longer says "settled on Ethereum" from the sidecar's `status`. That field is what BitGraph's Base node reported when the file was written and the file cannot prove it (an outside review changed it to `finalized` and every offline check still passed, as it should: the checks are about inclusion). The label now states the inclusion, quotes the reported status as a report, and says whether a settlement pointer is attached. `ceilingLabel` takes a fourth argument, `hasSettlementPointer`. Nothing about `ok`, the checks, or the window changed.

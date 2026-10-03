@@ -191,3 +191,20 @@ test("settlement completion refuses to overwrite a different pointer", () => {
   assert.match(other.error ?? "", /refusing to overwrite/);
   assert.equal(CARRIER_VERSION_2, "bitgraph-carrier/2");
 });
+
+// Outside review, 2026-10-02: the verify output must say plainly that the BitGraphed file's
+// own SHA-256 is not the committed digest, because the file travels without the README.
+test("the reading says the file's own SHA-256 is not the committed digest, and names both hashes", async () => {
+  const { createHash } = await import("node:crypto");
+  const bytes = buildCarrier(inner, golden());
+  const r = await verifyCarrier(bytes);
+  assert.equal(r.verdict, "TRUE", r.reasons.join("; "));
+  const outer = createHash("sha256").update(bytes).digest("hex");
+  const committed = createHash("sha256").update(inner).digest("hex");
+  assert.notEqual(outer, committed);
+  assert.ok(r.reading.includes(`This file's own SHA-256 (${outer}) is not the committed digest`), r.reading);
+  assert.ok(r.reading.includes(`(SHA-256 ${committed})`), r.reading);
+  // A file with no proof block makes no such statement.
+  const plain = await verifyCarrier(inner);
+  assert.ok(!plain.reading.includes("is not the committed digest"));
+});
