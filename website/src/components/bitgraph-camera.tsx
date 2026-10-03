@@ -64,6 +64,8 @@ import { rebuildSetMember, isTeeRestarting, fusedMarkerOf, rebuildFromOrigin, ma
 import { scanPool } from "@/lib/scan-pool";
 import type { SitePlacement } from "@/lib/fuse-placement";
 import { SPEC_FILE_NAME, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, ownerTree, rootOnlyTree, treeHandoff, treeOfOneEvidence } from "@/lib/fuse-tree";
+import { recoverRows, treePositionKey } from "@/lib/recovery-fold";
+import { browserRecoveryQueue } from "@/lib/recovery-queue";
 import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CHUNK } from "@/lib/fuse-set";
 import { paintFrame, PAINT_EVERY_MS } from "@/lib/paint-frame";
 import { attachEnvironments } from "@/lib/proof-environment";
@@ -161,7 +163,7 @@ type BatchEntry = {
    *  positions these bytes hold, NOT a complete count. */
   partial?: true;
 };
-import { SET_METADATA_KEY, readSetMetadata, computeProofHash, bytesToHex as bytesToHexString, type BitGraphProof as VerifyProof } from "@mikeargento/bitgraph-verify";
+import { SET_METADATA_KEY, readSetMetadata, computeProofHash, bytesToHex as bytesToHexString, type BitGraphProof as VerifyProof, type TreeMemberEvidence } from "@mikeargento/bitgraph-verify";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
@@ -267,6 +269,25 @@ interface FileItem {
    * carries none, and the file in hand rebuilds them.
    */
   tree?: { made: MadeTree; member: MadeTreeMember };
+  /** Tree positions this file was found in by its recovery entry: the root document and its place, per position. */
+  recoveredTrees?: Array<{ proofKey: string; rootDocument: Uint8Array; evidence: TreeMemberEvidence }>;
+}
+
+
+/**
+ * Queue a made tree's recovery entries (lib/recovery-queue.ts): sealed under
+ * each file's own hash, written after the proof is already in hand, retried
+ * and saved across a closed tab. Never in the way of the proof: a failure here
+ * is logged, and the tree is exactly as made.
+ */
+function keepRecoveryCopy(made: MadeTree): void {
+  try {
+    void browserRecoveryQueue()
+      .enqueueTree({ proof: made.proof as never, rootDocument: made.rootDocument, leavesBytes: made.leavesBytes, names: made.names, keepRecoveryCopy: true })
+      .catch((e: unknown) => console.warn("[recovery] could not queue this tree's recovery entries:", e));
+  } catch (e) {
+    console.warn("[recovery] queue unavailable:", e);
+  }
 }
 
 // The results list survives leaving for a proof page: client-side navigation
@@ -461,6 +482,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
 
   // Mirror the live batch into the module cache so browser-back from a proof
   // page restores this list (see cachedResults above).
+  // Recovery entries a closed tab left unwritten are written now (lib/recovery-queue.ts).
+  useEffect(() => {
+    try {
+      void browserRecoveryQueue().resume().catch((e: unknown) => console.warn("[recovery] resume:", e));
+    } catch (e) {
+      console.warn("[recovery] queue unavailable:", e);
+    }
+  }, []);
+
   useEffect(() => {
     if (step === "results" && items.length > 0) cachedResults.set(id, items);
   }, [id, step, items]);
@@ -1101,6 +1131,30 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         r.valid = null;
       }
     }
+
+    /* ── What a recovery entry remembers ──
+     *
+     * A file made inside a tree (tree/1) is never indexed by its plain hash:
+     * that is the privacy rule. Its sealed recovery entry (lib/recovery.ts) is
+     * how a dropped file finds its proof again, so it is asked here, for rows
+     * still "new", BEFORE anything decides to make them: a member found here
+     * must never be made a second time. Every entry is bound to its proof and
+     * the file is verified as that member before the row changes.
+     *
+     * Like the folder above, it only ever turns "new" into "found". A failed
+     * read leaves the row "new" and says so in the console: the recovery store
+     * being unreachable must not stop a first recording.
+     */
+    const recovered = await recoverRows(results);
+    for (const [i, trees] of recovered.found) {
+      const r = results[i]!;
+      r.proofs = trees.map((t) => treeHandoff(t.proof as unknown as Parameters<typeof treeHandoff>[0], t.rootDocumentHex, t.evidence) as unknown as BitGraphProof);
+      r.proof = r.proofs[0]!;
+      r.recoveredTrees = trees.map((t) => ({ proofKey: t.proofKey, rootDocument: t.rootDocument, evidence: t.evidence }));
+      r.status = "found";
+      r.valid = null;
+    }
+    if (recovered.failed) console.warn(`[recovery] ${recovered.failed} lookup(s) did not complete; those rows stay new`);
     return results;
   }
 
@@ -1681,6 +1735,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   const treeInputFor = (t: FileItem) => treeInputOf({ file: t.file, digestB64: t.digestB64, placement: t.scan?.placement ?? null, state: t.scan?.state ?? null });
   async function makeOne(t: FileItem): Promise<{ proof: BitGraphProof; made: MadeTree }> {
     const made = await heldThroughRotation(() => makeTreeHere([treeInputFor(t)]));
+    keepRecoveryCopy(made);
     return { proof: made.proof as unknown as BitGraphProof, made };
   }
   async function beginRun(digests: string[]) {
@@ -1854,6 +1909,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             setProvePhase({ phase, done: walked, total: treeRows, at, since });
           },
         }));
+        keepRecoveryCopy(made);
         if (lastPhase) chargeTo(lastPhase);
         setProvePhase(null);
         if (new URLSearchParams(window.location.search).has("timing")) {
@@ -2570,6 +2626,12 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       } else if (job.made) {
         tree = ownerTree(job.made.rootDocument, job.made.leavesBytes, job.made.names);
         name = ownerExportName(proof);
+      } else if (job.rows.some((r) => r.recoveredTrees?.some((t) => t.proofKey === treePositionKey(job.proof)))) {
+        // Found by its recovery entry: the entry carries this file's place in the tree.
+        const holder = job.rows.find((r) => r.recoveredTrees?.some((t) => t.proofKey === treePositionKey(job.proof)))!;
+        const rec = holder.recoveredTrees!.find((t) => t.proofKey === treePositionKey(job.proof))!;
+        tree = memberTree(rec.rootDocument, rec.evidence);
+        name = memberExportName(holder.file.name);
       } else {
         const bound = bindTree(proof);
         let evidence: Awaited<ReturnType<typeof treeOfOneEvidence>> = null;
