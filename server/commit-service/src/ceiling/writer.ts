@@ -86,7 +86,10 @@ export interface WriterSettlementOptions {
   find: SettlementFinder;
   /** The pins the pointer must satisfy before it is written; a pointer that fails is refused and logged. */
   pins?: SettlementPins;
-  /** Publish blob bytes beside the sidecars (S3 `ceilings/blobs/<file>`); idempotent. The local copy under <state>/blobs is written first. */
+  /**
+   * Publish blob bytes beside the sidecars (S3 `ceilings/blobs/<file>`); idempotent. The local copy under <state>/blobs is
+   * written first. While a blob waits here, no sidecar or write record naming it is published (see flushPublish).
+   */
   publishBlob?: (name: string, bytes: Uint8Array) => Promise<void>;
   /** Between settlement passes, in ms (default 60 000). */
   everyMs?: number;
@@ -161,6 +164,8 @@ export class CeilingWriter {
   /** Blob bytes written locally and not yet published, and the names already published by this process. */
   private unpublishedBlobs = new Map<string, Uint8Array>();
   private publishedBlobs = new Set<string>();
+  /** How many queued files the last flush held back for their blobs, so the hold is logged when it changes, not every tick. */
+  private lastHeld = 0;
   private readonly dirs: { batches: string; sidecars: string; blobs: string };
   private backlog: CeilingQueueItem[] = [];
   private cursor = 0;
@@ -584,9 +589,13 @@ export class CeilingWriter {
           break;
         }
         const file = blobFileName(ref.versionedHash);
-        const local = join(this.dirs.blobs, file);
-        if (!existsSync(local)) atomicWrite(local, blob.bytes);
-        if (s.publishBlob && !this.publishedBlobs.has(file)) this.unpublishedBlobs.set(file, blob.bytes);
+        // Already published by this process (a blob shared with an earlier batch): no staging copy, since
+        // nothing would ever publish it and so nothing would ever delete it.
+        if (!this.publishedBlobs.has(file)) {
+          const local = join(this.dirs.blobs, file);
+          if (!existsSync(local)) atomicWrite(local, blob.bytes);
+          if (s.publishBlob) this.unpublishedBlobs.set(file, blob.bytes);
+        }
         blobFiles.push(file);
       }
       if (blobFiles.length !== pointer.blobs.length) {
@@ -594,7 +603,12 @@ export class CeilingWriter {
         this.saveBatch(b);
         continue;
       }
-      // Bytes first, then the batch, then what readers see: sidecars and the write record.
+      // The staged blobs are journaled before the batch takes the pointer, so a crash from here on cannot
+      // leave a settled batch whose blobs no restart would publish.
+      this.journalPublish();
+      // On disk: blob bytes, then the batch, then the sidecars and write record carrying the pointer.
+      // In S3, flushPublish holds back every sidecar and write record that names a blob not yet uploaded,
+      // so with publishBlob set, no published pointer names bytes that are not already in S3 beside it.
       b.settlement = { pointer, foundAt: now.toISOString(), blobFiles };
       b.settlementSearch = { attempts, lastAt: now.toISOString() };
       this.saveBatch(b);
@@ -701,19 +715,35 @@ export class CeilingWriter {
     if (this.o.publish) { this.unpublished.set(`${safeName(i.proofHash)}.ceiling.json`, json); this.journalPublish(); }
   }
 
+  /**
+   * The blob files a queued sidecar or write record names: a sidecar's settlement pointer lists
+   * `blobs[].file` (or only `versionedHash`), a write record's settlement lists file names.
+   */
+  private static blobsNamed(json: string): string[] {
+    let blobs: unknown;
+    try { blobs = (JSON.parse(json) as { settlement?: { blobs?: unknown } | null }).settlement?.blobs; } catch { return []; }
+    if (!Array.isArray(blobs)) return [];
+    const files: string[] = [];
+    for (const x of blobs) {
+      if (typeof x === "string") files.push(x);
+      else if (x && typeof x === "object") {
+        const r = x as { file?: unknown; versionedHash?: unknown };
+        if (typeof r.file === "string") files.push(r.file);
+        else if (typeof r.versionedHash === "string") files.push(`${r.versionedHash.toLowerCase()}.bin`);
+      }
+    }
+    return files;
+  }
+
+  /**
+   * Blobs first, then sidecars and write records. A file whose settlement names a blob still waiting
+   * to be uploaded stays queued (and journaled) until a later flush finds that blob published, so a
+   * failing blob upload holds its pointer back instead of publishing a pointer to bytes S3 lacks.
+   * Files with no settlement, or whose blobs are all out, are not held. At most 20 blobs per flush;
+   * held files wait a few ticks behind a long blob queue, and never block the files behind them.
+   */
   private async flushPublish(): Promise<void> {
     const pending = this.unpublished.size + this.unpublishedBlobs.size;
-    if (this.o.publish && this.unpublished.size > 0) {
-      const batch = [...this.unpublished.entries()].slice(0, 200);
-      await Promise.all(batch.map(async ([name, json]) => {
-        try {
-          await this.o.publish!(name, json);
-          if (this.unpublished.get(name) === json) this.unpublished.delete(name);
-        } catch (e) {
-          this.event({ type: "publish-error", file: name, error: (e as Error).message.slice(0, 200) });
-        }
-      }));
-    }
     const publishBlob = this.o.settlement?.publishBlob;
     if (publishBlob && this.unpublishedBlobs.size > 0) {
       const batch = [...this.unpublishedBlobs.entries()].slice(0, 20);
@@ -728,6 +758,32 @@ export class CeilingWriter {
           this.event({ type: "publish-error", file: `blobs/${file}`, error: (e as Error).message.slice(0, 200) });
         }
       }));
+    }
+    if (this.o.publish && this.unpublished.size > 0) {
+      let ready = [...this.unpublished.entries()];
+      let held = 0;
+      if (this.unpublishedBlobs.size > 0) {
+        ready = ready.filter(([, json]) => {
+          const waits = CeilingWriter.blobsNamed(json).some((f) => this.unpublishedBlobs.has(f));
+          if (waits) held++;
+          return !waits;
+        });
+      }
+      if (held !== this.lastHeld) {
+        this.lastHeld = held;
+        this.event({ type: "publish-held", files: held, blobsWaiting: this.unpublishedBlobs.size });
+      }
+      const batch = ready.slice(0, 200);
+      await Promise.all(batch.map(async ([name, json]) => {
+        try {
+          await this.o.publish!(name, json);
+          if (this.unpublished.get(name) === json) this.unpublished.delete(name);
+        } catch (e) {
+          this.event({ type: "publish-error", file: name, error: (e as Error).message.slice(0, 200) });
+        }
+      }));
+    } else if (this.lastHeld !== 0) {
+      this.lastHeld = 0;
     }
     if (pending > 0) this.journalPublish();
   }

@@ -705,6 +705,147 @@ describe("the writer's settlement pass, bounded and journaled", () => {
   });
 });
 
+describe("blob bytes reach S3 before any published pointer names them", () => {
+  const safeName = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const VH_C = "0x01" + "cc".repeat(31);
+  /** A settlement naming one blob, C, that no other batch names. */
+  const onlyC = (t: SettlementTarget): SettlementFound => {
+    const f = fakeFound(t);
+    const ref = { versionedHash: VH_C, kzgCommitment: "0x" + "c2".repeat(48), index: 0 };
+    return { pointer: { ...f.pointer, blobs: [ref] }, blobs: [{ ...ref, bytes: new Uint8Array([7, 8, 9]) }] };
+  };
+
+  function rig(find: (t: SettlementTarget) => Promise<SettlementFound | null>) {
+    const dir = mkdtempSync(join(tmpdir(), "ceiling-hold-"));
+    const queuePath = join(dir, "queue.jsonl");
+    const chain = new FakeChain();
+    /** Every successful publish, in order: sidecars and write records with their JSON, blobs by name. */
+    const out: Array<{ name: string; json?: string }> = [];
+    const failing = new Set<string>();
+    const now = () => new Date(Date.UTC(2026, 8, 30, 12));
+    const mk = () => new CeilingWriter({
+      stateDir: dir, queuePath, chain, log: () => {}, now,
+      publish: async (name, json) => { if (failing.has(name)) throw new Error("s3 down"); out.push({ name, json }); },
+      settlement: { find, everyMs: -1, publishBlob: async (name) => { if (failing.has(name)) throw new Error("s3 down"); out.push({ name }); } },
+    });
+    const sidecarName = (i: CeilingQueueItem) => `${safeName(i.proofHash)}.ceiling.json`;
+    const sidecar = (i: CeilingQueueItem) => JSON.parse(readFileSync(join(dir, "sidecars", sidecarName(i)), "utf8")) as { status: string; anchor: { blockNumber: number } | null; settlement: SettlementPointer | null };
+    /** The copy readers would fetch: the last one published under that name (or prefix). */
+    const lastOut = (match: (name: string) => boolean) => {
+      const hit = [...out].reverse().find((o) => o.json !== undefined && match(o.name));
+      return hit ? (JSON.parse(hit.json!) as { status: string; settlement: unknown }) : null;
+    };
+    const names = () => out.map((o) => o.name);
+    const journal = () => JSON.parse(readFileSync(join(dir, "unpublished.json"), "utf8")) as { files: string[]; blobs: string[] };
+    const events = () => readFileSync(join(dir, "events.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    const toIncluded = async (w: CeilingWriter, i: CeilingQueueItem) => {
+      appendFileSync(queuePath, JSON.stringify(i) + "\n");
+      await w.tick();
+      chain.step();
+      await w.tick();
+      assert.equal(sidecar(i).status, "included");
+    };
+    const toSafe = async (w: CeilingWriter, i: CeilingQueueItem) => {
+      await toIncluded(w, i);
+      chain.safe = sidecar(i).anchor!.blockNumber;
+      (w as unknown as { lastStatusPoll: number }).lastStatusPoll = 0;
+      await w.tick();
+      assert.equal(sidecar(i).status, "safe");
+    };
+    return { dir, mk, out, failing, sidecarName, sidecar, lastOut, names, journal, events, toIncluded, toSafe };
+  }
+
+  test("a sidecar with a pointer waits for its blobs, and goes out on the tick the last blob is uploaded, after it", async () => {
+    const r = rig(async (t) => fakeFound(t));
+    r.failing.add(`blobs/${VH_B}.bin`);
+    const w = r.mk();
+    const a = item();
+    await r.toSafe(w, a);
+    assert.ok(r.sidecar(a).settlement, "settled on disk");
+    assert.ok(r.names().includes(`blobs/${VH_A}.bin`), "the blob that could go, went");
+    assert.equal(r.lastOut((n) => n === r.sidecarName(a))!.settlement, null, "readers still see the sidecar without a pointer");
+    assert.equal(r.lastOut((n) => n.startsWith("writes/"))!.settlement, null, "and the write record without one");
+    assert.ok(r.events().some((e) => e["type"] === "publish-held" && e["files"] === 2), "the hold is logged");
+    r.failing.clear();
+    await w.tick();
+    const n = r.names();
+    const blobAt = n.indexOf(`blobs/${VH_B}.bin`);
+    assert.ok(blobAt >= 0, "the blob went out");
+    assert.ok(n.lastIndexOf(r.sidecarName(a)) > blobAt, "the sidecar went out after it");
+    assert.ok([...n.entries()].some(([k, x]) => k > blobAt && x.startsWith("writes/")), "so did the write record");
+    assert.deepEqual(r.lastOut((x) => x === r.sidecarName(a))!.settlement, r.sidecar(a).settlement, "readers now see the pointer");
+    assert.ok(r.lastOut((x) => x.startsWith("writes/"))!.settlement, "and the write record's settlement");
+    assert.deepEqual(r.journal(), { files: [], blobs: [] });
+    assert.equal(readdirSync(join(r.dir, "blobs")).length, 0, "no staging copy is left");
+  });
+
+  test("a blob upload that keeps failing holds the sidecar across ticks and restarts; nothing leaves the journal", async () => {
+    const r = rig(async (t) => fakeFound(t));
+    r.failing.add(`blobs/${VH_B}.bin`);
+    let w = r.mk();
+    const a = item();
+    await r.toSafe(w, a);
+    const settledOut = () => r.out.filter((o) => o.name === r.sidecarName(a) && (JSON.parse(o.json!) as { settlement: unknown }).settlement !== null).length;
+    for (let k = 0; k < 5; k++) await w.tick();
+    assert.equal(settledOut(), 0, "the settled sidecar never went out");
+    let j = r.journal();
+    assert.ok(j.files.includes(r.sidecarName(a)), "the sidecar stays journaled");
+    assert.ok(j.files.some((f) => f.startsWith("writes/")), "so does the write record");
+    assert.deepEqual(j.blobs, [`${VH_B}.bin`], "and the blob");
+    assert.ok(existsSync(join(r.dir, "blobs", `${VH_B}.bin`)), "its staging copy is kept");
+    w = r.mk(); // restart, still failing
+    await w.tick();
+    await w.tick();
+    assert.equal(settledOut(), 0, "still held after a restart");
+    j = r.journal();
+    assert.ok(j.files.includes(r.sidecarName(a)));
+    assert.deepEqual(j.blobs, [`${VH_B}.bin`]);
+    r.failing.clear();
+    await w.tick();
+    assert.equal(settledOut(), 1, "out once its blob is");
+    assert.ok(r.names().indexOf(`blobs/${VH_B}.bin`) < r.names().lastIndexOf(r.sidecarName(a)));
+    assert.deepEqual(r.journal(), { files: [], blobs: [] });
+  });
+
+  test("sidecars without a settlement, or whose blobs are all out, are not held by another batch's blob", async () => {
+    let n = 0;
+    const r = rig(async (t) => (n++ === 0 ? fakeFound(t) : onlyC(t)));
+    r.failing.add(`blobs/${VH_B}.bin`);
+    const w = r.mk();
+    const a = item();
+    await r.toSafe(w, a);
+    assert.equal(r.lastOut((x) => x === r.sidecarName(a))!.settlement, null, "a is held");
+    const b = item();
+    await r.toSafe(w, b);
+    const outB = r.lastOut((x) => x === r.sidecarName(b))!;
+    assert.equal(outB.status, "safe");
+    assert.deepEqual((outB.settlement as SettlementPointer).blobs.map((x) => x.file), [`${VH_C}.bin`], "b, whose only blob is out, is published with its pointer");
+    assert.ok(r.names().indexOf(`blobs/${VH_C}.bin`) < r.names().lastIndexOf(r.sidecarName(b)));
+    const c = item();
+    await r.toIncluded(w, c);
+    const outC = r.lastOut((x) => x === r.sidecarName(c))!;
+    assert.equal(outC.status, "included", "c, with no settlement, is published as before");
+    assert.equal(outC.settlement, null);
+    assert.equal(r.lastOut((x) => x === r.sidecarName(a))!.settlement, null, "a is still held");
+    assert.deepEqual(r.journal().blobs, [`${VH_B}.bin`]);
+  });
+
+  test("a blob already published, listed again by a later batch, leaves no local copy", async () => {
+    const r = rig(async (t) => fakeFound(t));
+    const w = r.mk();
+    const a = item();
+    await r.toSafe(w, a);
+    assert.equal(readdirSync(join(r.dir, "blobs")).length, 0);
+    const b = item();
+    await r.toSafe(w, b);
+    assert.ok(r.sidecar(b).settlement, "b settled, naming the same two blobs");
+    assert.deepEqual(r.sidecar(b).settlement!.blobs.map((x) => x.file), [`${VH_A}.bin`, `${VH_B}.bin`]);
+    assert.equal(r.names().filter((x) => x.startsWith("blobs/")).length, 2, "each blob published once");
+    assert.equal(readdirSync(join(r.dir, "blobs")).length, 0, "no staging copy written for a blob already in S3");
+    assert.ok(r.lastOut((x) => x === r.sidecarName(b))!.settlement, "and b's pointer is not held");
+  });
+});
+
 describe("the floor header survives restarts and rewrites", () => {
   const FLOOR_HASH = "0x" + "fe".repeat(32);
   const HEADER = { blockNumber: 26088457, blockTimestamp: 1790749163, headerRlp: "0xf90211a0" + "00".repeat(40) };
