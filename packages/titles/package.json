@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@mikeargento/bitgraph-audit": "^0.7.0",
-    "@mikeargento/bitgraph-player": "^0.3.0"
+    "@mikeargento/bitgraph-player": "^0.15.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
