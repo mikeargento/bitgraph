@@ -5,7 +5,8 @@
  *
  *   ingest -> verify tiers -> reconstruct -> classify anomalies ->
  *   analyze authorities -> identify anchors -> verify witnesses ->
- *   derive temporal bounds -> validate attestations
+ *   derive temporal bounds -> ceilings in time -> validate attestations ->
+ *   exports (bitgraph-export/1)
  *
  * Deterministic given the same bundle: the only wall-clock read in the
  * entire pipeline is the runMetadata.startedAt stamp taken here. Every
@@ -18,6 +19,7 @@
  */
 
 import { verifyCeilings } from "./ceilings.js";
+import { verifyExports } from "./exports.js";
 import { ingestBundle } from "./ingest.js";
 import { verifyObservedProofs } from "./verify-tiers.js";
 import { reconstructChains } from "./reconstruct.js";
@@ -89,6 +91,17 @@ export async function auditIngest(
       ? { trustedRootCaDer: options.trustedRootCaDer }
       : undefined
   );
+  // Exports: an export's Base ceiling is held to the same writer and chain as
+  // the ceiling files, and a trust policy's measurement allowlist is the PCR0
+  // list its attestation claims are judged against, unless given explicitly.
+  const exportOptions = options?.exports ?? {};
+  const allowed = options?.trustAnchors?.allowedMeasurements;
+  const exports = await verifyExports(ingest, {
+    ...exportOptions,
+    ...(exportOptions.ceilingWriter === undefined && options?.ceilings?.writer !== undefined ? { ceilingWriter: options.ceilings.writer } : {}),
+    ...(exportOptions.baseChainId === undefined && options?.ceilings?.chainId !== undefined ? { baseChainId: options.ceilings.chainId } : {}),
+    ...(exportOptions.pcr0 === undefined && allowed !== undefined ? { pcr0: allowed } : {}),
+  });
 
   return {
     runMetadata: {
@@ -107,6 +120,7 @@ export async function auditIngest(
     temporal,
     attestations,
     ceilings,
+    exports,
   };
 }
 
@@ -143,15 +157,23 @@ const WITNESS_VERIFICATION_FAILURE_CODES: ReadonlySet<string> = new Set([
 /**
  * Derive the CLI exit bit flags from an audit result. Semantics are
  * documented on the ExitFlags type: bit 1 is verification failures
- * (including unsupported-version rejections), bit 2 is chain or authority
- * anomalies, divergences between valid proofs, or anchor witness
- * verification failures. artifact-unavailable is never a failure by itself;
- * attestation results and informational anchor findings never set bits;
- * benign ingest findings never set bits.
+ * (including unsupported-version rejections, and any export with a FALSE
+ * claim or an export-shaped file that could not be checked), bit 2 is chain
+ * or authority anomalies, divergences between valid proofs, or anchor
+ * witness verification failures. artifact-unavailable is never a failure by
+ * itself; the attestation stage's results and informational anchor findings
+ * never set bits (an export's own attestation claims are part of its
+ * verdict); benign ingest findings never set bits.
  */
 export function computeExitFlags(result: AuditResult): ExitFlags {
+  // An export is checked as one self-contained object, like a carrier: a
+  // FALSE verdict (any FALSE claim) is a verification failure, as a bad proof
+  // is, and so is an export-shaped file the audit could not check.
+  const exportFailures = (result.exports?.checks ?? []).some(
+    (e) => e.status !== "checked" || e.verdict === "FALSE"
+  );
   const verificationFailures =
-    result.verification.failed > 0 || result.ingest.counts.unsupportedVersion > 0;
+    result.verification.failed > 0 || result.ingest.counts.unsupportedVersion > 0 || exportFailures;
   const witnessVerificationFailures = result.witnesses.findings.some((f) =>
     WITNESS_VERIFICATION_FAILURE_CODES.has(f.code)
   );

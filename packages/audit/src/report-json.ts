@@ -112,6 +112,7 @@ export function buildJsonReport(result: AuditResult): AuditJsonReport {
     ...(result.ceilings && (result.ceilings.checks.length > 0 || result.ceilings.statuses.length > 0)
       ? { ceilings: result.ceilings }
       : {}),
+    ...(result.exports && result.exports.checks.length > 0 ? { exports: result.exports } : {}),
     attestations: {
       records: result.attestations.records,
       counts: result.attestations.counts,
@@ -291,6 +292,8 @@ function buildSummary(
 
   const partitionsIntact = partitions.filter((p) => p.intact).length;
   const exit = computeExitFlags(result);
+  const exportChecks = result.exports?.checks ?? [];
+  const checkedExports = exportChecks.filter((e) => e.status === "checked");
 
   return {
     proofsObserved: result.ingest.counts.observed,
@@ -331,6 +334,18 @@ function buildSummary(
       segmentsUpperBounded: segmentCount("upper-bounded"),
       segmentsUnanchored: segmentCount("ordered-but-unanchored"),
     },
+    ...(exportChecks.length > 0
+      ? {
+          exports: {
+            files: exportChecks.length,
+            verdictTrue: checkedExports.filter((e) => e.verdict === "TRUE").length,
+            verdictFalse: checkedExports.filter((e) => e.verdict === "FALSE").length,
+            verdictUndetermined: checkedExports.filter((e) => e.verdict === "UNDETERMINED").length,
+            rejected: exportChecks.length - checkedExports.length,
+            coveredFilesChecked: checkedExports.reduce((n, e) => n + e.runs.filter((r) => r.file !== null).length, 0),
+          },
+        }
+      : {}),
     exit,
   };
 }

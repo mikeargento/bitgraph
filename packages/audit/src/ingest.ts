@@ -14,9 +14,16 @@
  * with the stable code "unsupported-version", counted, listed, and excluded
  * from verification, chain reconstruction, and anomaly analysis.
  *
+ * An export (bitgraph-export/1, found by its format field) is evidence,
+ * never an artifact: it is listed for the export stage (exports.ts), and the
+ * proof it carries is recorded as an observed proof from the export's path,
+ * exactly like a proof file. A file that declares another bitgraph-export
+ * format, or lacks an export's structure, is listed as rejected.
+ *
  * Memory: archives are never unpacked to disk and never loaded whole.
  * Every entry is hashed incrementally as it streams. Only small JSON
- * candidates (at most MAX_CANDIDATE_JSON_BYTES) are buffered for parsing;
+ * candidates (at most MAX_CANDIDATE_JSON_BYTES) are buffered for parsing,
+ * and entries that open an export object (at most maxExportJsonBytes);
  * artifact bytes are hashed and dropped. What ingest retains scales with
  * the number of entries and the total size of the proof JSONs, not with
  * artifact payload sizes.
@@ -37,7 +44,7 @@ import { open, readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { createGunzip } from "node:zlib";
 import { sha256 } from "@noble/hashes/sha256";
-import { computeProofHash, computeChainHash } from "@mikeargento/bitgraph-verify";
+import { computeProofHash, computeChainHash, EXPORT_FORMAT, parseExport } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
 import { readTarEntries } from "./tar.js";
 import { combineEntryDigests } from "./contents-hash.js";
@@ -49,6 +56,7 @@ import type {
   BundleManifest,
   ContainerKind,
   EmbeddedProofHashStatus,
+  ExportFile,
   IngestCounts,
   IngestLimits,
   IngestResult,
@@ -68,6 +76,20 @@ import type {
 const MAX_CANDIDATE_JSON_BYTES = 8 * 1024 * 1024;
 
 /**
+ * An export's JSON may run past MAX_CANDIDATE_JSON_BYTES: the owner's export
+ * of a large tree lists every leaf (65 bytes each, base64) and a name per
+ * leaf, up to 1,000,000 leaves. An entry whose opening bytes open an export
+ * object ({"format": "bitgraph-export/...) is buffered up to this cap
+ * instead (IngestLimits.maxExportJsonBytes); a larger one is reported as an
+ * export too large to check, never silently taken for an ordinary file.
+ */
+const MAX_EXPORT_JSON_BYTES = 192 * 1024 * 1024;
+/** How many opening bytes decide whether an entry opens an export object. */
+const EXPORT_SNIFF_BYTES = 256;
+/** Producers write format first (buildExport); whitespace and one BOM are tolerated. */
+const EXPORT_OPENING = /^\s*\{\s*"format"\s*:\s*"(bitgraph-export\/[^"\\]{0,64})"/;
+
+/**
  * Default resource caps for untrusted .tar / .tar.gz ingest. Chosen well
  * above any legitimate bundle (the 50k-proof benchmark bundle decompresses
  * to a few hundred MiB across ~50k entries, with kilobyte-scale metadata),
@@ -77,6 +99,7 @@ export const DEFAULT_INGEST_LIMITS: IngestLimits = {
   maxTotalBytes: 2 * 1024 * 1024 * 1024, // 2 GiB decompressed
   maxEntryCount: 1_000_000,
   maxMetadataEntryBytes: 8 * 1024 * 1024, // 8 MiB per PAX/GNU metadata entry
+  maxExportJsonBytes: MAX_EXPORT_JSON_BYTES, // 192 MiB for one export's JSON, every container
 };
 
 const NUL = new Uint8Array([0]);
@@ -85,6 +108,8 @@ const BUNDLE_VERSION = "bitgraph-bundle/1";
 const WITNESS_VERSION = "bitgraph-anchor-witness/1";
 const CEILING_VERSION_TAG = "bitgraph-ceiling/1";
 const CEILING_STATUS_VERSION_TAG = "bitgraph-ceiling-status/1";
+/** Every export format starts with this; only EXPORT_FORMAT ("bitgraph-export/1") is checked. */
+const EXPORT_FORMAT_PREFIX = "bitgraph-export/";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -111,6 +136,7 @@ export async function ingestBundle(
   const findings: AuditFinding[] = [];
   let skippedUnsafePaths = 0;
   let entriesScanned = 0;
+  const exportCap = limits.maxExportJsonBytes ?? MAX_EXPORT_JSON_BYTES;
 
   // ---------------------------------------------------------------------
   // Scan: stream every entry once, hashing incrementally.
@@ -122,7 +148,7 @@ export async function ingestBundle(
     for await (const file of walkDirectory(bundlePath)) {
       entriesScanned++;
       const stream = createReadStream(file.absPath);
-      const hashed = await hashEntryStream(file.relPath, undefined, undefined, stream);
+      const hashed = await hashEntryStream(file.relPath, undefined, undefined, stream, exportCap);
       scanned.push(makeScannedEntry(file.relPath, hashed));
     }
   } else {
@@ -147,7 +173,7 @@ export async function ingestBundle(
         }
         const slash = normalized.path.indexOf("/");
         const strippedVariant = slash === -1 ? undefined : normalized.path.slice(slash + 1);
-        const hashed = await hashEntryStream(normalized.path, strippedVariant, entry.size, entry.body);
+        const hashed = await hashEntryStream(normalized.path, strippedVariant, entry.size, entry.body, exportCap);
         scanned.push(makeScannedEntry(normalized.path, hashed));
       }
     } finally {
@@ -235,7 +261,8 @@ export async function ingestEntries(
       normalized.path,
       undefined,
       undefined,
-      openAsChunks(entry.open())
+      openAsChunks(entry.open()),
+      MAX_EXPORT_JSON_BYTES
     );
     scanned.push(makeScannedEntry(normalized.path, hashed));
     sources.set(normalized.path, entry);
@@ -319,6 +346,7 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
       byteLength: entry.byteLength,
       entryDigest,
       ...(entry.json !== undefined ? { json: entry.json } : {}),
+      ...(entry.exportTooLarge !== undefined ? { exportTooLarge: entry.exportTooLarge } : {}),
     });
   }
   const finalEntries = Array.from(finalByPath.values());
@@ -341,6 +369,7 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
   const witnesses: AnchorWitnessFile[] = [];
   const ceilings: CeilingFile[] = [];
   const ceilingStatuses: CeilingFile[] = [];
+  const exportFiles: ExportFile[] = [];
   const artifactsByHex = new Map<string, ArtifactRecord>();
   let manifest: ManifestReport | undefined;
   let proofFiles = 0;
@@ -350,6 +379,19 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
   for (const entry of finalEntries) {
     if (entry.path === MANIFEST_PATH) {
       manifest = classifyManifest(entry, computedContentsHashB64, findings);
+      continue;
+    }
+
+    // An export too large to parse is still an export: reported, never an
+    // artifact, and never silently checked as nothing.
+    if (entry.exportTooLarge !== undefined) {
+      exportFiles.push({ path: entry.path, fileSha256Hex: entry.sha256Hex, format: entry.exportTooLarge, status: "too-large", json: {} });
+      findings.push({
+        code: "export-too-large",
+        path: entry.path,
+        message: `the file opens an export (${entry.exportTooLarge}) but is ${entry.byteLength} bytes, past the audit's cap for one export's JSON; not checked`,
+        details: { byteLength: entry.byteLength },
+      });
       continue;
     }
 
@@ -383,6 +425,45 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
         details: { version },
       });
       indexArtifact(entry, artifactsByHex);
+      continue;
+    }
+
+    // An export (bitgraph-export/1) is one JSON file that, with the file it
+    // covers, checks a tree/1 BitGraph: { format, spec, proof, tree, floor,
+    // ceiling, settlement }. Found by its format field, never by name. It is
+    // evidence, never an artifact; the proof it carries joins the proof
+    // analysis like any other (counters, chain links, partitions, attestation).
+    const exportFormat = exportFormatOf(parsed);
+    if (exportFormat !== undefined) {
+      const record = classifyExport(entry, parsed as Record<string, unknown>, exportFormat, findings);
+      exportFiles.push(record);
+      const carried = record.status === "ok" ? (parsed as Record<string, unknown>)["proof"] : undefined;
+      if (carried !== undefined && isProofShaped(carried)) {
+        const inner = carried as Record<string, unknown>;
+        const version = inner["version"] as string;
+        if (version === "bitgraph/1") {
+          proofFiles++;
+          const outcome = recordMemberProof(entry, inner, proofsByHash, proofs, findings);
+          if (outcome === "exact-duplicate") exactDuplicates++;
+          if (outcome === "semantic-duplicate") semanticDuplicates++;
+          record.proofHash = computeProofHash(inner);
+        } else {
+          // The same version policy as any proof-shaped input; the export
+          // itself is still checked (its proof claim fails).
+          unsupportedVersions.push({
+            code: "unsupported-version",
+            path: entry.path,
+            version,
+            fileSha256Hex: entry.sha256Hex,
+          });
+          findings.push({
+            code: "unsupported-version",
+            path: entry.path,
+            message: `the proof inside this export is rejected: version "${version}" is not "bitgraph/1"`,
+            details: { version },
+          });
+        }
+      }
       continue;
     }
 
@@ -437,6 +518,7 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
     artifacts: artifacts.length,
     witnesses: witnesses.length,
     ceilings: ceilings.length + ceilingStatuses.length,
+    exports: exportFiles.length,
     skippedUnsafePaths,
   };
 
@@ -451,6 +533,7 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
     witnesses,
     ceilings,
     ceilingStatuses,
+    exports: exportFiles,
     ...(manifest !== undefined ? { manifest } : {}),
     computedContentsHashB64,
     findings,
@@ -668,6 +751,8 @@ interface ScannedEntry {
   entryDigestFull: Uint8Array;
   entryDigestStripped?: Uint8Array;
   json?: unknown;
+  /** The format an entry opening an export declared, when it ran past the export JSON cap. */
+  exportTooLarge?: string;
 }
 
 interface FinalEntry {
@@ -676,6 +761,7 @@ interface FinalEntry {
   byteLength: number;
   entryDigest: Uint8Array;
   json?: unknown;
+  exportTooLarge?: string;
 }
 
 interface HashedEntry {
@@ -684,6 +770,7 @@ interface HashedEntry {
   entryDigestFull: Uint8Array;
   entryDigestStripped?: Uint8Array;
   buffered?: Uint8Array;
+  exportTooLarge?: string;
 }
 
 /**
@@ -693,13 +780,14 @@ interface HashedEntry {
  *   - for tar entries below a potentially stripped root, the same entry
  *     digest under the stripped path variant,
  * while buffering the content only if it stays within the JSON candidacy
- * cap.
+ * cap, or, for an entry that opens an export object, within the export cap.
  */
 async function hashEntryStream(
   path: string,
   strippedPathVariant: string | undefined,
   declaredSize: number | undefined,
-  chunks: AsyncIterable<Uint8Array>
+  chunks: AsyncIterable<Uint8Array>,
+  exportCap: number
 ): Promise<HashedEntry> {
   const encoder = new TextEncoder();
   const contentHasher = sha256.create();
@@ -712,34 +800,70 @@ async function hashEntryStream(
     strippedHasher.update(NUL);
   }
 
-  let buffering = declaredSize === undefined || declaredSize <= MAX_CANDIDATE_JSON_BYTES;
+  // json: buffer within the ordinary cap (past it, keep going only if the
+  // entry opens an export). sniff: declared past the ordinary cap, so only an
+  // export is worth buffering; decided on the opening bytes. export: buffer
+  // within the export cap. off: hash only.
+  let mode: "json" | "sniff" | "export" | "off" =
+    declaredSize === undefined || declaredSize <= MAX_CANDIDATE_JSON_BYTES ? "json" : "sniff";
+  let exportTooLarge: string | undefined;
+  const head = new Uint8Array(EXPORT_SNIFF_BYTES);
+  let headLength = 0;
   const buffered: Uint8Array[] = [];
   let total = 0;
+  const stop = (): "off" => {
+    buffered.length = 0;
+    return "off";
+  };
+  const tooLarge = (): "off" => {
+    exportTooLarge = exportOpening(head.subarray(0, headLength)) ?? "bitgraph-export/";
+    return stop();
+  };
 
   for await (const chunk of chunks) {
     contentHasher.update(chunk);
     fullHasher.update(chunk);
     strippedHasher?.update(chunk);
     total += chunk.length;
-    if (buffering) {
-      if (total > MAX_CANDIDATE_JSON_BYTES) {
-        buffered.length = 0;
-        buffering = false;
-      } else {
-        // Copy: tar body chunks are views into the container's stream
-        // buffers and are not stable after iteration continues.
-        buffered.push(chunk.slice());
-      }
+    if (headLength < head.length) {
+      const take = Math.min(head.length - headLength, chunk.length);
+      head.set(chunk.subarray(0, take), headLength);
+      headLength += take;
     }
+    if (mode === "off") continue;
+    if (mode === "sniff" && headLength === head.length) {
+      mode = exportOpening(head) === undefined ? stop() : declaredSize !== undefined && declaredSize > exportCap ? tooLarge() : "export";
+      if (mode === "off") continue;
+    }
+    // Copy: tar body chunks are views into the container's stream
+    // buffers and are not stable after iteration continues.
+    buffered.push(chunk.slice());
+    if (mode === "json" && total > MAX_CANDIDATE_JSON_BYTES) {
+      mode = exportOpening(head.subarray(0, headLength)) === undefined ? stop() : "export";
+    }
+    if (mode === "export" && total > exportCap) mode = tooLarge();
+  }
+  if (mode === "sniff") {
+    // Shorter than the sniff window although declared past the ordinary cap.
+    mode = exportOpening(head.subarray(0, headLength)) === undefined || total > exportCap ? stop() : "export";
   }
 
+  const keep = mode === "json" || mode === "export";
   return {
     sha256Hex: toHex(contentHasher.digest()),
     byteLength: total,
     entryDigestFull: fullHasher.digest(),
     ...(strippedHasher !== undefined ? { entryDigestStripped: strippedHasher.digest() } : {}),
-    ...(buffering ? { buffered: concatBytes(buffered, total) } : {}),
+    ...(keep ? { buffered: concatBytes(buffered, total) } : {}),
+    ...(exportTooLarge !== undefined ? { exportTooLarge } : {}),
   };
+}
+
+/** The export format an entry's opening bytes declare ({"format": "bitgraph-export/..."), or undefined. */
+function exportOpening(head: Uint8Array): string | undefined {
+  const start = head.length >= 3 && head[0] === 0xef && head[1] === 0xbb && head[2] === 0xbf ? 3 : 0;
+  const match = EXPORT_OPENING.exec(Buffer.from(head.subarray(start)).toString("latin1"));
+  return match?.[1];
 }
 
 function makeScannedEntry(rawPath: string, hashed: HashedEntry): ScannedEntry {
@@ -753,6 +877,7 @@ function makeScannedEntry(rawPath: string, hashed: HashedEntry): ScannedEntry {
       ? { entryDigestStripped: hashed.entryDigestStripped }
       : {}),
     ...(json !== undefined ? { json } : {}),
+    ...(hashed.exportTooLarge !== undefined ? { exportTooLarge: hashed.exportTooLarge } : {}),
   };
 }
 
@@ -871,6 +996,55 @@ function isProofShaped(value: unknown): boolean {
     isPlainObject(value["commit"]) &&
     isPlainObject(value["signer"])
   );
+}
+
+// ---------------------------------------------------------------------------
+// Export classification (bitgraph-export/1)
+// ---------------------------------------------------------------------------
+
+/** The format string of an export-shaped value ("bitgraph-export/..."), or undefined. */
+function exportFormatOf(value: unknown): string | undefined {
+  if (!isPlainObject(value)) return undefined;
+  const format = value["format"];
+  return typeof format === "string" && format.startsWith(EXPORT_FORMAT_PREFIX) ? format : undefined;
+}
+
+/**
+ * Classify one export-shaped file. Structure is decided by bitgraph-verify's
+ * parseExport, so the audit and the verifier agree on what an export is. A
+ * file that declares an export format but is not one is recorded with a
+ * finding and is never an artifact.
+ */
+function classifyExport(
+  entry: FinalEntry,
+  parsed: Record<string, unknown>,
+  format: string,
+  findings: AuditFinding[]
+): ExportFile {
+  const base = { path: entry.path, fileSha256Hex: entry.sha256Hex, format, json: parsed };
+  if (format !== EXPORT_FORMAT) {
+    findings.push({
+      code: "export-unsupported-format",
+      path: entry.path,
+      message: `export-shaped file not checked: format "${format}" is not "${EXPORT_FORMAT}"`,
+      details: { format },
+    });
+    return { ...base, status: "unsupported-format" };
+  }
+  if (parseExport(parsed) === null) {
+    const tree = parsed["tree"];
+    const missing = !isPlainObject(parsed["proof"])
+      ? "a proof object"
+      : "tree.rootDocument (a string)";
+    findings.push({
+      code: "export-malformed",
+      path: entry.path,
+      message: `declares ${EXPORT_FORMAT} but lacks ${missing}; not checked`,
+      details: { hasProof: isPlainObject(parsed["proof"]), hasTree: isPlainObject(tree) },
+    });
+    return { ...base, status: "malformed" };
+  }
+  return { ...base, status: "ok" };
 }
 
 type DuplicateKind = "new" | "exact-duplicate" | "semantic-duplicate";

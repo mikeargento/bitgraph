@@ -83,6 +83,14 @@ export type {
   ReportInputSummary,
   ReportSummary,
   AuditJsonReport,
+  ExportFile,
+  ExportClaimRecord,
+  ExportOwnClaim,
+  ExportTimes,
+  ExportCoveredFile,
+  ExportRun,
+  ExportCheck,
+  ExportAnalysis,
 } from "./types.js";
 
 export { ingestBundle, ingestEntries, streamMatchedArtifacts, streamArtifactsByHash, DEFAULT_INGEST_LIMITS } from "./ingest.js";
@@ -103,6 +111,10 @@ export { verifyAnchorWitnesses, verifyAnchorWitness } from "./witness.js";
 export { deriveTemporalBounds } from "./temporal.js";
 export { verifyCeilings, BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID } from "./ceilings.js";
 export type { CeilingAuditOptions } from "./ceilings.js";
+
+// Exports (bitgraph-export/1): each checked with verifyExport, once per file in the bundle it covers.
+export { verifyExports, exportRunClaims, DEFAULT_AS_GIVEN_LEAF_BUDGET } from "./exports.js";
+export type { ExportAuditOptions } from "./exports.js";
 
 // The blob layer of a ceiling's settlement on Ethereum (bitgraph-settlement/1): KZG, frames, channel, batches, the ceiling transaction.
 export { verifySettlementBlobs, decodeOpBlob, parseFrames, decompressChannel, decodeBatches, decodeSpanBatch, BASE_MAINNET_ROLLUP, BLOB_BYTES, MAX_BLOB_DATA_BYTES } from "./settlement-blobs.js";

@@ -123,6 +123,13 @@ export type AnomalyCode =
   | "attestation-measurement-mismatch"
   /** A validated attestation document's user_data is not bound to this proof's canonical proof hash. */
   | "attestation-user-data-mismatch"
+  // --- Exports (bitgraph-export/1) ---
+  /** A file declares format "bitgraph-export/1" but lacks an export's structure (a proof object and tree.rootDocument). Not checked; fails the audit (exit bit 1). */
+  | "export-malformed"
+  /** A file declares a bitgraph-export format other than "bitgraph-export/1". Not checked; fails the audit (exit bit 1), as an unsupported proof version does. */
+  | "export-unsupported-format"
+  /** A file opens an export object but is larger than the audit's cap for one export's JSON (IngestLimits.maxExportJsonBytes). Not checked; fails the audit (exit bit 1). */
+  | "export-too-large"
   | (string & {});
 
 /**
@@ -408,6 +415,8 @@ export interface IngestCounts {
   witnesses: number;
   /** Ceiling files (bitgraph-ceiling/1) and ceiling status notes (bitgraph-ceiling-status/1). */
   ceilings?: number;
+  /** Export-shaped files (format "bitgraph-export/..."), checked or rejected. */
+  exports?: number;
   /** Container entries skipped for unsafe paths. */
   skippedUnsafePaths: number;
 }
@@ -437,6 +446,14 @@ export interface IngestLimits {
    * declaring a larger size aborts ingest before any allocation.
    */
   maxMetadataEntryBytes: number;
+  /**
+   * Ceiling on one export's JSON (bitgraph-export/1), for every container,
+   * directories included. Other JSON candidates stop at 8 MiB; an entry that
+   * opens an export object may run to this size (the owner's export of a
+   * large tree lists every leaf). A larger export is reported
+   * (export-too-large) and not checked. Default 192 MiB.
+   */
+  maxExportJsonBytes?: number;
 }
 
 /**
@@ -473,6 +490,11 @@ export interface IngestResult {
   ceilings?: CeilingFile[];
   /** Ceiling status notes (bitgraph-ceiling-status/1): a package saying why a ceiling is absent. */
   ceilingStatuses?: CeilingFile[];
+  /**
+   * Export-shaped files (format "bitgraph-export/..."), in observation order.
+   * Evidence, never artifacts. Optional so older embedders' IngestResults still type.
+   */
+  exports?: ExportFile[];
   /** Present when a root manifest.json entry existed. */
   manifest?: ManifestReport;
 
@@ -1314,6 +1336,8 @@ export interface AuditOptions {
   trustedRootCaDer?: Uint8Array;
   /** Ceilings in time: the declared writer, the chain, and an optional Base RPC for the one online check. */
   ceilings?: import("./ceilings.js").CeilingAuditOptions;
+  /** Exports (bitgraph-export/1): extra spec hashes, PCR0 pins, and optional lookups for embedders that allow network. */
+  exports?: import("./exports.js").ExportAuditOptions;
 }
 
 /**
@@ -1406,6 +1430,159 @@ export interface CeilingAnalysis {
   statuses: Array<{ path: string; status: string; note: string }>;
 }
 
+// ---------------------------------------------------------------------------
+// Exports (bitgraph-export/1)
+// ---------------------------------------------------------------------------
+
+/**
+ * An export-shaped file as found in the bundle: a JSON object whose format
+ * field starts with "bitgraph-export/". Found by structure, never by name.
+ * Evidence, never an artifact.
+ */
+export interface ExportFile {
+  path: string;
+  fileSha256Hex: string;
+  /** The format the file declares. */
+  format: string;
+  /**
+   * ok: a bitgraph-export/1 document (bitgraph-verify's parseExport accepts it).
+   * malformed: declares bitgraph-export/1 but lacks a proof object or tree.rootDocument.
+   * unsupported-format: declares another bitgraph-export version.
+   * too-large: opens an export object but is larger than the audit's export JSON cap; not parsed (json is empty).
+   */
+  status: "ok" | "malformed" | "unsupported-format" | "too-large";
+  json: Record<string, unknown>;
+  /** Canonical hash of the proof the export carries, when that proof joined the proof analysis (a proof-shaped bitgraph/1 object). */
+  proofHash?: string;
+}
+
+/** One claim exactly as bitgraph-verify's verifyExport states it. */
+export interface ExportClaimRecord {
+  /** Stable id, dotted: "proof.signature", "tree.member", "bytes.floor", "ceiling.base", "confirmed.floor" ... */
+  id: string;
+  name: string;
+  result: "TRUE" | "FALSE" | "UNDETERMINED" | "NOT_CARRIED";
+  /** What the result rests on (the primitive or the evidence), empty when nothing was checked. */
+  restsOn: string;
+  detail: string;
+  /** offline: recomputed from the bytes in hand. confirmed: from the caller's own chain lookups (never made by the CLI). */
+  level: "offline" | "confirmed";
+}
+
+/** The three time claims as verifyExport establishes them. Never merged; a null field was not established. */
+export interface ExportTimes {
+  /** The committed bytes were finished after this Ethereum block (the proof's signed floor block, its header checked by hash). */
+  floor: { blockNumber: number; blockHash: string; blockTimestamp: number } | null;
+  /** The record existed by this Base block, at its time. Provisional until the block is checked against Base (offline, always provisional). */
+  ceilingBase: { blockNumber: number; blockHash: string; blockTimestamp: number; provisional: boolean } | null;
+  /** The record existed by this Ethereum block (through Base's output root; needs no trust in Base). */
+  ceilingEthereum: { blockNumber: number; blockHash: string; blockTimestamp: number } | null;
+}
+
+/** A file in the bundle that an export covers, matched by SHA-256 against a leaf's digests. */
+export interface ExportCoveredFile {
+  /** SHA-256 of the file, lowercase hex. */
+  sha256Hex: string;
+  /** Every bundle path holding these bytes. */
+  paths: string[];
+  byteLength: number;
+  /** The leaf it matched, in tree order: the first leaf whose committed or original digest is the file's, as verifyExport picks it. */
+  leafIndex: number | null;
+  /** That leaf's placement: "as-is", "trailer/1", "container/1" or "container/2". */
+  placement: string | null;
+  /**
+   * committed-bytes: the file is the leaf's committed bytes (its artifact digest).
+   * original: the file is the original the committed bytes were made from (its origin digest).
+   * as-is: the leaf records the file exactly as it is (the two digests are the same).
+   */
+  matchedAs: "committed-bytes" | "original" | "as-is";
+  /** The name an owner's export lists for that leaf. Unsigned and informational. */
+  nameInExport?: string;
+}
+
+/** A claim of one run that is not common to every run of its export, with its place in verifyExport's order. */
+export interface ExportOwnClaim extends ExportClaimRecord {
+  /** Index of this claim in the run's whole claim list, in verifyExport's order. */
+  position: number;
+}
+
+/**
+ * One verifyExport run: with one covered file, or once without a file when
+ * the bundle holds none. The run's whole claim list, in verifyExport's
+ * order, is the export's common claims (ExportCheck.claims) with this run's
+ * own claims put back at their positions: exportRunClaims(check, run).
+ * verifyExport's reasons are that list's FALSE and UNDETERMINED claims, and
+ * its time claims are the export's (ExportCheck.times): they do not depend
+ * on the file.
+ */
+export interface ExportRun {
+  /** The covered file this run checked; null for the run without a file. */
+  file: ExportCoveredFile | null;
+  /** verifyExport's verdict over its offline claims. */
+  verdict: "TRUE" | "FALSE" | "UNDETERMINED";
+  /** This run's claims that differ from the export's common claims (in practice the ones about its file: tree.member, bytes.member, bytes.floor). */
+  claims: ExportOwnClaim[];
+  /** The member the run established (index, count, placement, digests), when it did. */
+  member: { index: number; count: number; placement: string; artifactHex: string; originHex: string } | null;
+  /**
+   * What the floor covers for this run's file, read from its claims:
+   * committed-bytes (the committed bytes were finished after the floor block;
+   * an original inside them has no floor of its own), none (an as-is leaf: the
+   * file existed by the commit, nothing bounds it from below), or null (the
+   * file was not established as a member, or no file was checked).
+   */
+  floorCovers: "committed-bytes" | "none" | null;
+  /** verifyExport's plain-language reading, written from its claims. */
+  reading: string;
+}
+
+/** One export file, checked. */
+export interface ExportCheck {
+  path: string;
+  fileSha256Hex: string;
+  format: string;
+  /** checked: verifyExport ran. malformed / unsupported-format / too-large: rejected at ingest, not checked (exit bit 1). */
+  status: "checked" | "malformed" | "unsupported-format" | "too-large";
+  /** Why the file was not checked. */
+  reason?: string;
+  /** member: carries one member's evidence (tree.member). owner: carries the whole list (tree.leaves). root-only: neither. */
+  kind?: "member" | "owner" | "root-only";
+  /** Canonical hash of the export's proof, which also appears in the proof analysis. */
+  proofHash?: string;
+  /**
+   * The audit's judgment of the export: FALSE when any run's verdict is FALSE
+   * or any claim of any run is FALSE (a confirmed claim included, from an
+   * embedder's lookup); else UNDETERMINED when any run is; else TRUE. A FALSE
+   * export fails the audit (exit bit 1), as a bad proof does.
+   */
+  verdict: "TRUE" | "FALSE" | "UNDETERMINED";
+  /** Ids of the claims that are FALSE in any run, in first-seen order. */
+  failedClaims: string[];
+  /** The three time claims, never merged. They do not depend on the file, so every run states the same; read from the first. */
+  times: ExportTimes;
+  /** The claims every run states alike (same id, result, level, restsOn and detail), in verifyExport's order. With one run, all of its claims. */
+  claims: ExportClaimRecord[];
+  /** Files in the bundle this export covers, sorted by first path. */
+  files: ExportCoveredFile[];
+  /** One run per covered file (in the order of files), or one run without a file when the bundle holds none. */
+  runs: ExportRun[];
+  /**
+   * How the per-file runs of an owner's export were made. as-given: verifyExport
+   * on the export itself, once per file. member-from-list: the owner's list was
+   * checked once (claim tree.leaves TRUE), then each file's member evidence was
+   * derived from it exactly as verifyExport derives it, verifyExport ran on that
+   * member form, and the list claim was put back in its place; the runs equal
+   * the as-given runs, without rebuilding the whole tree once per file.
+   */
+  runMode?: "as-given" | "member-from-list";
+  /** Covered files not checked one by one: only when an owner's list fails and the per-file budget ran out, or a file could not be re-read. */
+  unchecked?: Array<{ file: ExportCoveredFile; reason: string }>;
+}
+
+export interface ExportAnalysis {
+  checks: ExportCheck[];
+}
+
 export interface AuditResult {
   runMetadata: AuditRunMetadata;
   ingest: IngestResult;
@@ -1419,6 +1596,8 @@ export interface AuditResult {
   attestations: AttestationAnalysis;
   /** Ceilings in time on Base. Absent from results made before this stage existed. */
   ceilings?: CeilingAnalysis;
+  /** Exports (bitgraph-export/1), each checked with verifyExport per covered file. Absent from results made before this stage existed. */
+  exports?: ExportAnalysis;
 }
 
 /**
@@ -1426,7 +1605,13 @@ export interface AuditResult {
  *
  *   bit 1 (value 1): verification failures. Set when any proof's canonical
  *   checks failed at either tier, or any proof-shaped input was rejected
- *   as an unsupported version. artifact-unavailable is NOT a failure: a
+ *   as an unsupported version, or any export (bitgraph-export/1) has a
+ *   FALSE claim (its verdict is FALSE), or an export-shaped file was
+ *   rejected as malformed or of an unsupported format. An export's
+ *   attestation claims are part of its verdict: an export is checked as
+ *   one self-contained object, as a carrier is. NOT_CARRIED claims (a
+ *   pending ceiling, the covered file absent) never fail an export.
+ *   artifact-unavailable is NOT a failure: a
  *   proof without artifact bytes passes or fails on its bytes-free checks
  *   alone, unless a supplied trust policy makes those checks fail (for
  *   example requireSlot), in which case its status is "failed" and it
@@ -1616,6 +1801,19 @@ export interface ReportSummary {
     segmentsUpperBounded: number;
     segmentsUnanchored: number;
   };
+  /** Exports (bitgraph-export/1), as counts. Present only when the bundle carries export-shaped files. */
+  exports?: {
+    /** Export-shaped files found. */
+    files: number;
+    /** Exports checked, by the audit's verdict. */
+    verdictTrue: number;
+    verdictFalse: number;
+    verdictUndetermined: number;
+    /** Export-shaped files rejected (malformed or an unsupported format). */
+    rejected: number;
+    /** verifyExport runs made with a covered file from the bundle. */
+    coveredFilesChecked: number;
+  };
   exit: ExitFlags;
 }
 
@@ -1662,6 +1860,8 @@ export interface AuditJsonReport {
   };
   /** Ceilings in time on Base (bitgraph-ceiling/1). Absent when the bundle carries none. */
   ceilings?: import("./types.js").CeilingAnalysis;
+  /** Exports (bitgraph-export/1), one entry per export file in observation order. Absent when the bundle carries none. */
+  exports?: ExportAnalysis;
   attestations: {
     records: ProofAttestationRecord[];
     counts: AttestationAnalysis["counts"];

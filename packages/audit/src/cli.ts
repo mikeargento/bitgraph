@@ -25,6 +25,7 @@ import { parseCarrier, verifyCarrier } from "@mikeargento/bitgraph-verify";
 import type { VerificationPolicy } from "@mikeargento/bitgraph-verify";
 import { auditToolVersion, computeExitFlags, runAudit } from "./audit.js";
 import { attestationTimestampMs } from "./attestation.js";
+import { exportRunClaims } from "./exports.js";
 import { buildJsonReport } from "./report-json.js";
 import { buildMarkdownReport } from "./report-md.js";
 import type { ExitFlags } from "./types.js";
@@ -67,6 +68,14 @@ function helpText(): string {
     "printed first.",
     "archive. The audit runs entirely offline: no RPC, no HTTP, no DNS.",
     "",
+    "Exports (bitgraph-export/1) anywhere in the bundle are found by their",
+    "format field. Each is checked with verifyExport once per file in the",
+    "bundle it covers (by SHA-256: a member's committed bytes or original;",
+    "for the owner's export, any leaf's), or once without a file when none",
+    "is there, and its proof joins the proof analysis. Every claim, the",
+    "covered files and the three time claims (floor; ceiling on Base,",
+    "provisional; ceiling on Ethereum) are reported, never merged.",
+    "",
     "Options:",
     "  --out <dir>            Directory to write the report files into",
     "                         (default: current directory; created if missing).",
@@ -98,7 +107,12 @@ function helpText(): string {
     "      are absent from the bundle is NOT a failure by itself: its",
     "      bytes-free checks decide, unless a supplied trust policy makes",
     "      them fail (for example requireSlot), in which case it counts",
-    "      here.",
+    "      here. Also: an export (bitgraph-export/1) with any FALSE claim,",
+    "      its attestation claims included (an export is checked as one",
+    "      self-contained object, as a carrier is), or an export-shaped",
+    "      file that is malformed, of an unsupported format, or too large",
+    "      to read. A claim the export does not carry (NOT_CARRIED: a",
+    "      pending ceiling, the covered file absent) is never a failure.",
     "  2   Chain or authority anomalies, divergences between valid proofs,",
     "      or anchor witness verification failures: unexplained counter",
     "      positions, chain breaks, collisions, cross-kind position reuse,",
@@ -122,7 +136,8 @@ function helpText(): string {
     "change the exit code on their own: an invalid attestation document on",
     "an otherwise verified proof is reported without affecting the exit",
     "code, and counts under exit bit 1 only when a supplied trust policy",
-    "made verification itself fail.",
+    "made verification itself fail. The exception is an export's own",
+    "attestation claims, which are part of the export's verdict (exit 1).",
   ].join("\n");
 }
 
@@ -234,7 +249,7 @@ function loadTrustPolicy(path: string): VerificationPolicy {
 function exitMeaning(flags: ExitFlags): string {
   if (flags.code === 0) return "clean: no verification failures, no chain anomalies, no divergences";
   const parts: string[] = [];
-  if (flags.verificationFailures) parts.push("verification failures");
+  if (flags.verificationFailures) parts.push("verification failures (a proof, or an export with a FALSE claim)");
   if (flags.chainAnomaliesOrDivergences) {
     parts.push("chain anomalies, divergences, or anchor witness verification failures (or a failed ceiling in time)");
   }
@@ -378,6 +393,26 @@ async function main(): Promise<number> {
     for (const line of c.settlement?.lines ?? []) process.stdout.write(`  ${line}\n`);
   }
   for (const s of result.ceilings?.statuses ?? []) process.stdout.write(`ceiling ${s.status} ${s.path}: ${s.note}\n`);
+  for (const e of result.exports?.checks ?? []) {
+    if (e.status !== "checked") {
+      process.stdout.write(`export NOT CHECKED ${e.path}: ${e.reason ?? e.status}\n`);
+      continue;
+    }
+    const withFile = e.runs.filter((r) => r.file !== null).length;
+    const files = e.files.length === 0 ? "no covered file in the bundle" : `${withFile} of ${e.files.length} covered file${e.files.length === 1 ? "" : "s"} checked`;
+    process.stdout.write(`export ${e.verdict} ${e.path}: ${e.kind ?? "export"}, ${files}${e.failedClaims.length > 0 ? `; FALSE: ${e.failedClaims.join(", ")}` : ""}\n`);
+    // The three time claims, one line each, never merged.
+    const t = e.times;
+    const when = (unix: number) => new Date(unix * 1000).toISOString();
+    const firstClaims = e.runs[0] !== undefined ? exportRunClaims(e, e.runs[0]) : e.claims;
+    const why = (id: string) => {
+      const c = firstClaims.find((x) => x.id === id);
+      return c ? `not established (${c.result}: ${c.detail})` : "not established";
+    };
+    process.stdout.write(`  floor: ${t.floor ? `committed bytes finished after Ethereum block ${t.floor.blockNumber} (mined ${when(t.floor.blockTimestamp)})` : why("floor.header")}\n`);
+    process.stdout.write(`  ceiling on Base: ${t.ceilingBase ? `existed by Base block ${t.ceilingBase.blockNumber} (${when(t.ceilingBase.blockTimestamp)})${t.ceilingBase.provisional ? ", provisional until checked against Base" : ""}` : why("ceiling.base")}\n`);
+    process.stdout.write(`  ceiling on Ethereum: ${t.ceilingEthereum ? `existed by Ethereum block ${t.ceilingEthereum.blockNumber} (${when(t.ceilingEthereum.blockTimestamp)})` : why("ceiling.ethereum")}\n`);
+  }
   process.stdout.write(
     `bitgraph-audit ${auditToolVersion()}: wrote ${written.join(", ")}\n` +
       `exit ${flags.code}: ${exitMeaning(flags)}\n`

@@ -93,6 +93,8 @@ export interface ExportVerifyOptions {
     pcr0?: string[];
     ceilingWriter?: string;
     baseChainId?: number;
+    /** Another attestation trust root, DER, for a verifier that pins its own (tests use this). Default: the embedded AWS Nitro root. */
+    rootDer?: Uint8Array;
   };
   /** Spec hashes (base64) to accept beyond the ones this verifier knows. */
   extraSpecHashes?: readonly string[];
@@ -107,8 +109,8 @@ export interface ExportVerifyResult {
   /** The three time claims, as established. Null fields were not established. */
   times: {
     floor: { blockNumber: number; blockHash: string; blockTimestamp: number } | null;
-    ceilingBase: { blockNumber: number; blockHash: string; blockTimestamp: number; provisional: boolean } | null;
-    ceilingEthereum: { blockNumber: number; blockHash: string; blockTimestamp: number } | null;
+    ceilingBase: { chainId: number; blockNumber: number; blockHash: string; blockTimestamp: number; provisional: boolean } | null;
+    ceilingEthereum: { chainId: number; blockNumber: number; blockHash: string; blockTimestamp: number } | null;
   };
   /** Plain language, written from the claims. */
   reading: string;
@@ -156,7 +158,7 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     integrity.valid ? "the enclave's signature over the canonical signed body verifies, and the position record's checks pass" : `the proof does not verify: ${integrity.reason ?? "unspecified"}`);
   const att = proof.environment?.attestation;
   if (att && att.format === "aws-nitro" && typeof att.reportB64 === "string") {
-    const n = verifyNitroAttestation(att.reportB64, { expectedPcr0: proof.environment.measurement, expectedUserDataB64: computeSignedBodyHash(proof) });
+    const n = verifyNitroAttestation(att.reportB64, { expectedPcr0: proof.environment.measurement, expectedUserDataB64: computeSignedBodyHash(proof), ...(opts.pins?.rootDer ? { rootDer: opts.pins.rootDer } : {}) });
     if (n.doc === null) {
       // Not a Nitro document at all: that contradicts the proof's own claim to carry one.
       add("attestation.signature", "AWS hardware signed the attestation", "FALSE", "", `the attestation does not decode as an AWS Nitro document (${n.checks[0]?.detail ?? "unreadable"})`);
@@ -185,11 +187,13 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   const rootDoc = hexToBytes(exp.tree.rootDocument);
   const extra = opts.extraSpecHashes ?? [];
   let memberEvidence: unknown = exp.tree.member;
+  let ownerList: { ok: boolean; found: boolean } | null = null;
   const leavesBytes = typeof exp.tree.leaves === "string" ? base64ToBytes(exp.tree.leaves) : null;
   if (exp.tree.leaves !== undefined) {
     const lc = rootDoc === null ? { ok: false, reason: "the root document is not hex" } : leavesBytes === null ? { ok: false, reason: "the leaves are not base64" } : verifyTreeLeaves(rootDoc, leavesBytes);
     add("tree.leaves", "The whole list rebuilds the committed root, sorted and without duplicates", lc.ok ? "TRUE" : "FALSE", "SHA-256 (RFC 6962 tree)", lc.ok ? `${lc.count} leaves` : lc.reason ?? "invalid");
     // The owner's export: find the file's leaf in the list and build its path here.
+    ownerList = { ok: lc.ok, found: false };
     if (lc.ok && opts.bytes !== undefined && leavesBytes !== null && rootDoc !== null) {
       const leaves = decodeTreeLeaves(leavesBytes)!;
       const d = sha256(opts.bytes);
@@ -197,6 +201,7 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
       if (k >= 0) {
         const t = new MerkleTree(leaves.map(treeLeafHash));
         memberEvidence = buildTreeMemberEvidence(leaves[k]!, k, leaves.length, t.path(k));
+        ownerList.found = true;
       }
     }
   }
@@ -216,7 +221,14 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     rootOk ? `a tree of ${tr.tree!.count} leaves, root ${tr.tree!.rootHex.slice(0, 16)}…` : tr.reason);
   member = tr.member;
   if (memberEvidence === undefined) {
-    add("tree.member", "The file's leaf is in the committed tree", "NOT_CARRIED", "", exp.tree.leaves !== undefined ? "the file in hand is not in the owner's list" : "the export carries no member evidence");
+    const why = ownerList === null
+      ? "the export carries no member evidence"
+      : !ownerList.ok
+        ? "the owner's list did not verify, so no member can be read from it"
+        : opts.bytes === undefined
+          ? "no file in hand to look up in the owner's list"
+          : "the file in hand is not in the owner's list";
+    add("tree.member", "The file's leaf is in the committed tree", "NOT_CARRIED", "", why);
   } else {
     const pathOk = tr.member !== null;
     add("tree.member", "The file's leaf is in the committed tree", pathOk ? "TRUE" : rootOk ? "FALSE" : "UNDETERMINED", "SHA-256 (RFC 9162 path)",
@@ -224,6 +236,12 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   }
   if (opts.bytes === undefined) {
     add("bytes.member", "The file in hand is that member", "NOT_CARRIED", "", "the file is not in hand");
+  } else if (ownerList !== null && ownerList.ok && !ownerList.found && tr.tree !== null) {
+    // The whole list is verified (sorted, unique, rebuilds the signed root), so its absence from it is a finding, not a gap.
+    add("bytes.member", "The file in hand is that member", "FALSE", "the verified complete list of the committed tree",
+      tr.category === "TREE_MEMBERSHIP_UNPROVEN"
+        ? "these bytes carry this position's commitment, so they were made after the position existed, but they are not in the committed tree"
+        : "the file is not among the committed tree's leaves");
   } else {
     const isMember = (TREE_MEMBER_CATEGORIES as readonly string[]).includes(tr.category);
     add("bytes.member", "The file in hand is that member", isMember ? "TRUE" : tr.member !== null ? "FALSE" : "UNDETERMINED", tr.category === "TREE_MEMBER_FROM_ORIGIN" ? "the placement rule, rebuilt here" : "SHA-256",
@@ -260,7 +278,12 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   if (!c || (c as { status?: string }).status === "pending" || !(c as CeilingSidecar).anchor) {
     add("ceiling.base", "The record is in a Base block", "NOT_CARRIED", "", c ? "ceiling pending: the Base write had not landed when this export was made" : "no ceiling in the export");
   } else {
-    const r = await verifyCeiling(proof, c as CeilingSidecar, { writerAddress: writer, chainId: baseChainId, proofAlreadyVerified: integrity.valid });
+    let r: Awaited<ReturnType<typeof verifyCeiling>>;
+    try {
+      r = await verifyCeiling(proof, c as CeilingSidecar, { writerAddress: writer, chainId: baseChainId, proofAlreadyVerified: integrity.valid });
+    } catch (e) {
+      r = { ok: false, reason: `the ceiling is malformed (${(e as Error).message})`, checks: [], headerCheckedAgainstChain: false };
+    }
     if (r.ok && r.window) {
       ceilingB = { blockNumber: r.window.ceiling.blockNumber, blockHash: r.window.ceiling.blockHash };
       times.ceilingBase = { ...r.window.ceiling, provisional: true };
@@ -277,8 +300,13 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     add("ceiling.ethereum", "The record existed by an Ethereum block", "NOT_CARRIED", "", s ? "settlement pending: Base's claim for this block had not reached Ethereum when this export was made" : "no settlement in the export");
   } else {
     const so = s as OutputRootSettlement;
-    const r = verifyOutputRootSettlement(so);
-    const linked = ceilingB !== null && so.base?.blockNumber === ceilingB.blockNumber && so.base?.blockHash?.toLowerCase() === ceilingB.blockHash.toLowerCase();
+    let r: ReturnType<typeof verifyOutputRootSettlement>;
+    try {
+      r = verifyOutputRootSettlement(so);
+    } catch (e) {
+      r = { ok: false, reason: `the settlement is malformed (${(e as Error).message})`, checks: [] };
+    }
+    const linked = ceilingB !== null && so.base?.blockNumber === ceilingB.blockNumber && typeof so.base?.blockHash === "string" && so.base.blockHash.toLowerCase() === ceilingB.blockHash.toLowerCase();
     if (r.ok && linked) {
       times.ceilingEthereum = r.existedBy!;
       add("ceiling.ethereum", "The record existed by an Ethereum block", "TRUE", `keccak-256 output root, EIP-2935 storage proof, Merkle-Patricia; Ethereum block ${r.existedBy!.blockNumber}, header as given`,
@@ -312,10 +340,10 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   const baseConfirmed = claims.find((x) => x.id === "confirmed.ceiling.base")?.result === "TRUE";
   if (times.ceilingBase) times.ceilingBase.provisional = !baseConfirmed;
 
-  return finish(claims, exp, times, member);
+  return finish(claims, exp, times, member, tr.floorCovers);
 }
 
-function finish(claims: ExportClaim[], exp: BitGraphExport | null, times: ExportVerifyResult["times"], member: TreeVerifyResult["member"]): ExportVerifyResult {
+function finish(claims: ExportClaim[], exp: BitGraphExport | null, times: ExportVerifyResult["times"], member: TreeVerifyResult["member"], floorCovers: TreeVerifyResult["floorCovers"] = null): ExportVerifyResult {
   const offline = claims.filter((c) => c.level === "offline");
   const reasons = claims.filter((c) => c.result === "FALSE" || c.result === "UNDETERMINED").map((c) => `${c.id}: ${c.detail}`);
   const verdict = offline.some((c) => c.result === "FALSE") ? "FALSE" : exp === null || offline.some((c) => c.result === "UNDETERMINED" && c.id !== "attestation.pins") ? "UNDETERMINED" : "TRUE";
@@ -323,7 +351,8 @@ function finish(claims: ExportClaim[], exp: BitGraphExport | null, times: Export
   if (verdict === "FALSE") parts.push("Something in this export contradicts the proof; see the failed claims.");
   else if (exp === null) parts.push("This is not a bitgraph-export/1 file.");
   else {
-    if (times.floor) parts.push(`The committed bytes were finished after Ethereum block ${times.floor.blockNumber} (${iso(times.floor.blockTimestamp)}).`);
+    if (times.floor && floorCovers === "none") parts.push(`The tree was committed after Ethereum block ${times.floor.blockNumber} (${iso(times.floor.blockTimestamp)}); this file was recorded as is, so nothing bounds the file itself from below.`);
+    else if (times.floor) parts.push(`The committed bytes were finished after Ethereum block ${times.floor.blockNumber} (${iso(times.floor.blockTimestamp)}); an original inside them has no floor of its own.`);
     if (times.ceilingBase) parts.push(`The record existed by Base block ${times.ceilingBase.blockNumber} (${iso(times.ceilingBase.blockTimestamp)}${times.ceilingBase.provisional ? ", provisional until checked against Base" : ""}).`);
     if (times.ceilingEthereum) parts.push(`It existed by Ethereum block ${times.ceilingEthereum.blockNumber} (${iso(times.ceilingEthereum.blockTimestamp)}).`);
     if (member) parts.push(`The file is leaf ${member.index} of ${member.count} in the committed tree.`);

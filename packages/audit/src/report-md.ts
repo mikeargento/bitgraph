@@ -21,12 +21,17 @@
  * remainder line; the JSON report always carries the complete data.
  */
 
+import { exportRunClaims } from "./exports.js";
 import { buildJsonReport } from "./report-json.js";
 import type {
   AnomalyCode,
   AuditJsonReport,
   AuditResult,
   DivergenceRecord,
+  ExportCheck,
+  ExportClaimRecord,
+  ExportCoveredFile,
+  ExportRun,
   ReportAnomaly,
   ReportPartition,
   ReportProofRecord,
@@ -355,6 +360,32 @@ function executiveSummary(
     lines.push("");
   }
 
+  // Exports (bitgraph-export/1), only when the bundle carries any.
+  const ex = report.exports;
+  if (ex && ex.checks.length > 0) {
+    lines.push("### Exports (bitgraph-export/1)");
+    lines.push("");
+    lines.push(
+      `${withCommas(ex.checks.length)} export ${plural(ex.checks.length, "file was", "files were")} found. ` +
+        "An export is one JSON file that, with the file it covers, checks a tree/1 BitGraph on its own: " +
+        "the signed proof and its attestation, the tree's root document, the member's path or the owner's " +
+        "whole list, and the time evidence. Each was checked with verifyExport from bitgraph-verify, once " +
+        "for every file in this bundle it covers (matched by SHA-256 to a leaf's committed bytes or to its " +
+        "original), or once without a file when the bundle holds none. A claim the export does not carry, " +
+        "or one about a file that is not here, reads NOT_CARRIED and is never a failure. Any FALSE claim " +
+        "fails the audit (exit bit 1), as a bad proof does; the attestation claims count, because an export " +
+        "is checked as one self-contained object."
+    );
+    lines.push("");
+    for (const e of ex.checks) lines.push(`- ${exportSummaryLine(e)}`);
+    lines.push("");
+    lines.push(
+      "Each export's claims, the files it covers and its three time claims (the floor, the ceiling on " +
+        "Base, the ceiling on Ethereum, stated separately and never merged) are in the details below."
+    );
+    lines.push("");
+  }
+
   // External time evidence.
   lines.push("### External time evidence");
   lines.push("");
@@ -525,6 +556,7 @@ function detailSections(
   anchorDetails(lines, report);
   witnessDetails(lines, report);
   temporalDetails(lines, report);
+  exportDetails(lines, report);
   attestationDetails(lines, report);
   unsupportedVersionDetails(lines, report);
   manifestDetails(lines, report);
@@ -838,6 +870,210 @@ function boundLine(bound: SegmentBound): string {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Exports (bitgraph-export/1)
+// ---------------------------------------------------------------------------
+
+/** One summary line for an export: its verdict, path, kind and covered files. */
+function exportSummaryLine(e: ExportCheck): string {
+  if (e.status !== "checked") {
+    return `NOT CHECKED ${inlineCode(e.path)}: ${e.reason ?? e.status}. Fails the audit (exit bit 1).`;
+  }
+  const withFile = e.runs.filter((r) => r.file !== null).length;
+  const covered =
+    e.files.length === 0
+      ? "no covered file in this bundle (checked without one)"
+      : `${withCommas(e.files.length)} covered ${plural(e.files.length, "file", "files")} in this bundle` +
+        (withFile < e.files.length ? `, ${withCommas(withFile)} checked one by one` : "");
+  const failed = e.failedClaims.length > 0 ? ` FALSE claims: ${e.failedClaims.map(inlineCode).join(", ")}.` : "";
+  return `${e.verdict} ${inlineCode(e.path)}: ${exportKindPhrase(e)}; ${covered}.${failed}`;
+}
+
+function exportKindPhrase(e: ExportCheck): string {
+  const count = exportLeafCount(e);
+  const tree = count !== null ? ` of a tree of ${withCommas(count)} ${plural(count, "leaf", "leaves")}` : "";
+  if (e.kind === "member") return `member export${tree}`;
+  if (e.kind === "owner") return `the owner's export (the whole list)${tree}`;
+  return `an export with neither member evidence nor the owner's list${tree}`;
+}
+
+/** The tree size the export's runs established (from the member, else from tree.root's detail). */
+function exportLeafCount(e: ExportCheck): number | null {
+  for (const r of e.runs) if (r.member !== null) return r.member.count;
+  for (const c of [...e.claims, ...e.runs.flatMap((r) => r.claims)]) {
+    const m = c.id === "tree.root" && c.result === "TRUE" ? /a tree of (\d+) leaves/.exec(c.detail) : null;
+    if (m) return Number(m[1]);
+  }
+  return null;
+}
+
+function exportFileLabel(f: ExportCoveredFile): string {
+  return f.paths.map(inlineCode).join(", ");
+}
+
+function exportDetails(lines: string[], report: AuditJsonReport): void {
+  const ex = report.exports;
+  if (ex === undefined || ex.checks.length === 0) return;
+  lines.push("### Exports (bitgraph-export/1)");
+  lines.push("");
+  lines.push(
+    "Each export below was checked with verifyExport from bitgraph-verify. Every claim is TRUE, FALSE, " +
+      "UNDETERMINED or NOT_CARRIED, with what it rests on, exactly as the verifier states it. Offline claims " +
+      "take block headers as the ones matching their hashes; whether each block is its chain's own is a " +
+      "confirmed claim, which this audit never looks up (it makes no network call), so those read " +
+      "UNDETERMINED (not checked). The proof inside an export is also in the proof analysis above under its " +
+      "canonical hash, where it counts as observed without artifact bytes: its artifact is the tree's " +
+      "84-byte root document, which travels inside the export and is checked here (claim tree.root)."
+  );
+  lines.push("");
+  for (const e of ex.checks) exportDetail(lines, e);
+}
+
+function exportDetail(lines: string[], e: ExportCheck): void {
+  lines.push(`#### Export ${inlineCode(e.path)}: ${e.status === "checked" ? e.verdict : "NOT CHECKED"}`);
+  lines.push("");
+  if (e.status !== "checked") {
+    lines.push(
+      `Rejected at ingest: ${e.reason ?? e.status}. The file is not checked and is never treated as an ` +
+        "artifact; it fails the audit (exit bit 1), as an unsupported proof version does."
+    );
+    lines.push("");
+    return;
+  }
+  const facts: string[] = [`${exportKindPhrase(e).replace(/^./, (c) => c.toUpperCase())}.`];
+  if (e.proofHash !== undefined) facts.push(`Proof ${inlineCode(e.proofHash)}.`);
+  if (e.failedClaims.length > 0) facts.push(`FALSE claims: ${e.failedClaims.map(inlineCode).join(", ")}.`);
+  lines.push(facts.join(" "));
+  lines.push("");
+
+  // The files it covers.
+  if (e.files.length === 0) {
+    lines.push(
+      "No file in this bundle is covered by this export, so it was checked once without a file: the claims " +
+        "about the file read NOT_CARRIED, which is not a failure."
+    );
+    lines.push("");
+  } else {
+    lines.push("Covered files in this bundle (matched by SHA-256):");
+    lines.push("");
+    lines.push(
+      ...table(
+        ["File", "SHA-256", "Leaf", "Placement", "Matched as", "Name in the export (unsigned)"],
+        e.files.slice(0, MAX_TABLE_ROWS).map((f) => [
+          exportFileLabel(f),
+          inlineCode(f.sha256Hex),
+          f.leafIndex !== null ? String(f.leafIndex) : "",
+          f.placement ?? "",
+          f.matchedAs === "committed-bytes" ? "committed bytes" : f.matchedAs === "original" ? "original" : "as is",
+          f.nameInExport ?? "",
+        ])
+      )
+    );
+    if (e.files.length > MAX_TABLE_ROWS) lines.push("", `${withCommas(e.files.length - MAX_TABLE_ROWS)} more in the JSON report.`);
+    lines.push("");
+    if (e.runMode === "member-from-list") {
+      lines.push(
+        "The owner's list was checked once (claim tree.leaves); each file's member evidence was then derived " +
+          "from it exactly as verifyExport derives it, and verifyExport ran once per file with that evidence."
+      );
+      lines.push("");
+    }
+  }
+  for (const u of e.unchecked ?? []) lines.push(`- ${exportFileLabel(u.file)}: ${u.reason}.`);
+  if ((e.unchecked ?? []).length > 0) lines.push("");
+
+  // The three time claims, each on its own evidence, never merged.
+  const firstClaims = exportRunClaims(e, e.runs[0]!);
+  const why = (id: string): string => {
+    const c = firstClaims.find((x) => x.id === id);
+    return c ? `${inlineCode(id)} ${c.result}: ${c.detail}` : `${inlineCode(id)} was not reached`;
+  };
+  // Whether a block is its chain's own: the confirmed claim, which only an embedder's lookup answers.
+  const confirmedNote = (id: string, chain: string): string => {
+    const c = firstClaims.find((x) => x.id === id);
+    if (c === undefined || c.result === "UNDETERMINED") return ` Whether the block is ${chain}'s own is a confirmed claim, not looked up here.`;
+    return c.result === "TRUE"
+      ? ` The caller's own lookup confirms the block is ${chain}'s (${inlineCode(id)} TRUE).`
+      : ` The caller's own lookup says the block is NOT ${chain}'s (${inlineCode(id)} ${c.result}: ${c.detail}).`;
+  };
+  lines.push("Time claims, each on its own evidence and never merged:");
+  lines.push("");
+  const t = e.times;
+  lines.push(
+    t.floor !== null
+      ? `- Floor: Ethereum block ${withCommas(t.floor.blockNumber)}, mined at ${formatTimestamp(t.floor.blockTimestamp)}, ` +
+          `hash ${inlineCode(t.floor.blockHash)}: the proof's signed floor block, its header checked by hash. ` +
+          "Committed bytes that carry this position's commitment were finished after it; an original inside them " +
+          "has no floor of its own, and a file recorded as is has none at all. What the floor covers for each " +
+          "file is stated per run below." +
+          confirmedNote("confirmed.floor", "Ethereum")
+      : `- Floor: not established (${why("floor.header")}).`
+  );
+  lines.push(
+    t.ceilingBase !== null
+      ? `- Ceiling on Base: the record existed by Base block ${withCommas(t.ceilingBase.blockNumber)}, at ` +
+          `${formatTimestamp(t.ceilingBase.blockTimestamp)}, hash ${inlineCode(t.ceilingBase.blockHash)}. ` +
+          (!t.ceilingBase.provisional
+            ? "The caller's own lookup confirmed the block against Base, so the time is no longer provisional."
+            : firstClaims.some((x) => x.id === "confirmed.ceiling.base" && x.result === "FALSE")
+              ? `PROVISIONAL, and the caller's own lookup says the block is NOT Base's (${inlineCode("confirmed.ceiling.base")} FALSE).`
+              : "PROVISIONAL: this time holds once the block is checked against Base, which this offline audit does not do.")
+      : `- Ceiling on Base: not established (${why("ceiling.base")}).`
+  );
+  lines.push(
+    t.ceilingEthereum !== null
+      ? `- Ceiling on Ethereum: the record existed by Ethereum block ${withCommas(t.ceilingEthereum.blockNumber)}, at ` +
+          `${formatTimestamp(t.ceilingEthereum.blockTimestamp)}, hash ${inlineCode(t.ceilingEthereum.blockHash)}, ` +
+          "through Base's output root, whatever Base's claim turns out to be." +
+          confirmedNote("confirmed.ceiling.ethereum", "Ethereum")
+      : `- Ceiling on Ethereum: not established (${why("ceiling.ethereum")}).`
+  );
+  lines.push("");
+
+  // Claims: the ones every run states alike once, then each run's own (the ones about its file).
+  lines.push(e.runs.length > 1 ? "Claims, the same in every run:" : "Claims:");
+  lines.push("");
+  lines.push(...table(["Claim", "Result", "Level", "Rests on", "Detail"], e.claims.map((c) => claimRow(c))));
+  lines.push("");
+  const perFile: string[][] = [];
+  let perFileTotal = 0;
+  for (const r of e.runs) {
+    for (const c of r.claims) {
+      perFileTotal++;
+      if (perFile.length < MAX_TABLE_ROWS) perFile.push([r.file !== null ? exportFileLabel(r.file) : "(no file)", ...claimRow(c)]);
+    }
+  }
+  if (perFileTotal > 0) {
+    lines.push("Claims that differ by file:");
+    lines.push("");
+    lines.push(...table(["File", "Claim", "Result", "Level", "Rests on", "Detail"], perFile));
+    if (perFileTotal > MAX_TABLE_ROWS) lines.push("", `${withCommas(perFileTotal - MAX_TABLE_ROWS)} more rows in the JSON report.`);
+    lines.push("");
+  }
+
+  // Per run: the verdict, what the floor covers, and the verifier's own reading.
+  lines.push(e.runs.length > 1 ? "Runs:" : "Run:");
+  lines.push("");
+  for (const r of e.runs.slice(0, MAX_TABLE_ROWS)) lines.push(`- ${exportRunLine(r)}`);
+  if (e.runs.length > MAX_TABLE_ROWS) lines.push(`- ${withCommas(e.runs.length - MAX_TABLE_ROWS)} more runs in the JSON report.`);
+  lines.push("");
+}
+
+function claimRow(c: ExportClaimRecord): string[] {
+  return [inlineCode(c.id), c.result, c.level, c.restsOn, c.detail];
+}
+
+function exportRunLine(r: ExportRun): string {
+  const who = r.file !== null ? exportFileLabel(r.file) : "Without a file";
+  const floor =
+    r.floorCovers === "committed-bytes"
+      ? " The floor covers the committed bytes; an original inside them has no floor of its own."
+      : r.floorCovers === "none"
+        ? " Recorded as is: the file existed by the commit, and nothing bounds it from below."
+        : "";
+  return `${who}: ${r.verdict}.${floor} Reading: ${r.reading.length > 0 ? r.reading : "(none)"}`;
+}
+
 function attestationDetails(lines: string[], report: AuditJsonReport): void {
   lines.push("### Attestation breakdown");
   lines.push("");
@@ -1048,6 +1284,12 @@ function codeMeaning(code: AnomalyCode): string {
       return "A validated attestation document's measurement does not equal the measurement the proof declares.";
     case "attestation-user-data-mismatch":
       return "A validated attestation document is not bound to the specific proof that carries it.";
+    case "export-malformed":
+      return "A file declares the bitgraph-export/1 format but lacks an export's structure (a proof and the tree's root document). It was not checked, and it fails the audit.";
+    case "export-unsupported-format":
+      return "A file declares a bitgraph-export format this audit does not support (only bitgraph-export/1). It was not checked, and it fails the audit.";
+    case "export-too-large":
+      return "A file opens an export but is larger than this audit reads for one export. It was not checked, and it fails the audit.";
     default:
       return "See the anomaly details section.";
   }

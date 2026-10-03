@@ -6,6 +6,10 @@ The tool reports exactly what the evidence supports, nothing more. Incomplete in
 
 Exactly one proof schema is supported: `bitgraph/1`. The legacy `occ/1` schema is pre-release beta data and is permanently out of scope; proof-shaped files with any other version are rejected at ingest with the stable code `unsupported-version`. All verification semantics come from `@mikeargento/bitgraph-verify` (MIT), the same verifier anyone can run against a single proof. The `bitgraph-audit` CLI runs the whole pipeline (ingest, verification tiers, causal reconstruction, anomaly classification, authority analysis, anchor identification, witness verification, temporal bounds, offline attestation validation) and writes `audit-report.json` and `audit-report.md`; `runAudit()` is the one-call library entry point, and every stage is also exported individually. See [docs/HOW-TO-AUDIT.md](https://github.com/mikeargento/bitgraph/blob/main/docs/HOW-TO-AUDIT.md) for the recipient walkthrough and [docs/BUNDLE-FORMAT.md](https://github.com/mikeargento/bitgraph/blob/main/docs/BUNDLE-FORMAT.md) for the on-disk format.
 
+## Exports (bitgraph-export/1)
+
+A tree/1 BitGraph travels as one JSON export beside its file. The audit finds every export in a bundle by its `format` field, checks it with `verifyExport` once for each file in the bundle it covers (by SHA-256: a member's committed bytes or original, or any leaf of the owner's export), and reports every claim with what it rests on, the covered files, and the three time claims apart: the floor, the ceiling on Base (provisional until its block is checked against Base) and the ceiling on Ethereum. The proof inside joins the chain analysis like any proof. An export with a FALSE claim fails the audit (exit 1); a claim the export does not carry never does.
+
 ## License
 
 MIT. See LICENSE.
