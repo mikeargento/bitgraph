@@ -1517,7 +1517,7 @@ export default function ProofPage() {
         pcr0, enclaveTag: tagNote ? `enclave-v${tagNote[1]}` : null,
         writer: "0xf3972408D853c975F86351C311f4310220bbF2a3",
         hasAnchorsBefore: !!files["ethereum-anchors/anchor-before.json"], hasAnchorsAfter: !!files["ethereum-anchors/anchor-after.json"],
-        versions: { verify: "1.15.1", audit: "0.8.0", sdk: "0.3.0" },
+        versions: { verify: "1.15.2", audit: "0.8.0", sdk: "0.3.0" },
       }));
     } catch (e) { console.warn("[bitgraph] README left out of the package:", e); }
 
