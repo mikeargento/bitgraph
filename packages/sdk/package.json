@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph-sdk",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "The BitGraph SDK: record files and folders (one tree under one position, every file a leaf, with the export/1 that proves each one), check and fetch proofs, open a position before the work exists and seal the task under it, verify proofs, exports and BitGraphed files fully offline. One engine, three sockets: this library for TypeScript, the bitgraph CLI (every command speaks --json) for any language that can spawn a process, and bitgraph serve for a localhost API any runtime can call. Files are read locally and never uploaded; only digests, root documents and slot records leave the machine.",
   "keywords": [
     "bitgraph",
