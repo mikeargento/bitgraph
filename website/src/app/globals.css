@@ -2079,7 +2079,10 @@ body { background: var(--bg); }
   .br-desk { display: inline; }
 }
 @media (max-width: 899px) {
-  .home h1 { font-size: clamp(28px, 9.2vw, 72px) !important; }
+  /* One curve, no step down as the window grows (seams found 2026-10-04 at 600/601 and 899/900):
+     15vw on phones until 64px at 427 wide, flat to 696, then 9.2vw up to 72px at 783, which is
+     where the desktop rule picks up at 72. */
+  .home h1 { font-size: min(max(min(15vw, 64px), 9.2vw), 72px) !important; }
 }
 /* The line under it scales with the headline rather than sitting at the body
    size. At 58px over 17px the step is 3.4x and the italic reads as a caption
@@ -2127,6 +2130,12 @@ body { background: var(--bg); }
    stay left. */
 .home { text-align: center; align-items: center; }
 .home h1, .home .lede { margin-left: auto; margin-right: auto; }
+/* The subhead's two sentences are two blocks at every width, each balanced on its own, so the
+   break between them never depends on the width (a stub "Your" at 375 and at 601, 2026-10-04). */
+.home .lede .lede-sentence { display: block; text-wrap: balance; }
+/* Between the phone and desktop rules the subhead follows the desktop curve down to 16px, so
+   899 to 900 is no longer a jump from 16px to 21px. */
+@media (min-width: 601px) and (max-width: 899px) { .home .lede { font-size: max(16px, calc(min(90vw, 1600px) * 0.0205)) !important; line-height: 1.5 !important; } } /* the desktop curve further down, floored at 16px, so 899 and 900 meet at 16.6px */
 /* The vertical scale, measured 2026-10-04 (desktop gaps were 32 / 24 / 40 / 44: four tiers,
    one spacing, no grouping). Headline and subhead are one unit; the coordinates line is its
    coda; the actions are a separate group; the Live line is an aside with the largest break.
@@ -2151,8 +2160,7 @@ body { background: var(--bg); }
    "Your"; the coordinates line and the actions keep a clear step from each other. */
 @media (max-width: 600px) {
   .home { justify-content: flex-start !important; padding-top: 12vh !important; }
-  .home h1 { font-size: clamp(40px, 15vw, 64px) !important; font-weight: 400 !important; letter-spacing: -0.03em !important; margin-bottom: 18px !important; } /* Mike, 10-04: "mobile is thicker and could be bigger": the regular cut here too, and the width a phone gives three words */
-  .home .lede .lede-sentence { display: block; text-wrap: balance; }
+  .home h1 { margin-bottom: 18px !important; } /* size: the one curve in the 899 rule above (Mike, 10-04: "mobile is thicker and could be bigger") */
   .home .lede { font-size: 17px !important; line-height: 1.45 !important; margin-bottom: 14px !important; }
   .home .home-coordinates { margin-bottom: 36px !important; } /* same text grey as the subhead on every size; only the appendix is dim */
   .home .actions { gap: 10px; }
@@ -2503,7 +2511,7 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 @media (min-width: 900px) { .home .home-live { margin-top: 44px !important; } }
 /* Cap lowered (Mike, 2026-09-29: "still a bit large when browser width allows"): the headline
    stops at 96px, a step above the pre-restyle 88px; the paragraph stays capped at 24px. */
-@media (min-width: 900px) { .home h1 { font-size: min(calc(min(90vw, 1600px) * 0.0846), 96px) !important; } }
+@media (min-width: 900px) { .home h1 { font-size: min(max(72px, calc(min(90vw, 1600px) * 0.0846)), 96px) !important; } } /* never below the 72px the 899 rule hands over; 96px from 1261 wide */
 
 /* Prev/next pills, one size (Mike, 2026-09-29): a one-cell grid holding the
    visible arrow-and-name row, centred, over hidden rows for every section
