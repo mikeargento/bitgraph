@@ -343,11 +343,12 @@ export async function recoveredOnSite(digestsB64: readonly string[], fetchFn: Fe
         const key = `${bound.proof.commit?.epochId ?? ""}:${bound.proof.commit?.counter ?? ""}`;
         if (trees.some((t) => `${t.proof.commit?.epochId ?? ""}:${t.proof.commit?.counter ?? ""}` === key)) continue;
         trees.push({ proof: bound.proof, member: e.member, rootDocumentHex: e.rootDocument, matched: e.matched });
+        out.found.set(d, trees);
       }
-      if (trees.length > 0) out.found.set(d, trees);
-      else if (originOnly > 0) out.unknown.set(d, `a recorded tree names these bytes as the original of one of its members, which this server cannot check without the bytes; verify the file against that tree with the command line tool, or pass again=true to open a position regardless`);
+      if (trees.length === 0 && originOnly > 0) out.unknown.set(d, `a recorded tree names these bytes as the original of one of its members, which this server cannot check without the bytes; verify the file against that tree with the command line tool, or pass again=true to open a position regardless`);
     } catch (e) {
-      out.unknown.set(d, e instanceof Error ? e.message : String(e));
+      // A member already verified stands: a verified match wins over an unfinished discovery.
+      if (!out.found.has(d)) out.unknown.set(d, e instanceof Error ? e.message : String(e));
     }
   }));
   return out;

@@ -22,7 +22,7 @@
   },
   "signer": {
    "publicKeyB64": "pkxA1+1uEzLPaEMVZseFUrDYSs63uXr0gQnN0chK0Dw=",
-   "signatureB64": "iR1JMrg1ZXdYN4Euy4CA4p0ruWr5PnLn4KFlkYnP3BZj6RKAncT1wKLHSEY8fZzJv61drvc9ajBCAG5KGuW/Dw=="
+   "signatureB64": "Yf0gRWPDzoV2TYWPdWnAXF86tw6zbKzYdiJ+qzBJ12V+2gWe2tUR6CMKm0GM9uIhN7hJRuMz+0Mf8JYah0msBw=="
   },
   "environment": {
    "enforcement": "stub",
@@ -40,7 +40,7 @@
   "attribution": {
    "name": "bitgraph-fuse/2",
    "title": "tree/1",
-   "message": "lgtvMft6gYeBPnklw52+ZwndxP89reT1Nsyky/6oALw="
+   "message": "Bel4Gxjmc0A48+sSti6Ij4iBQYer3nfmN+xPFNR+UbA="
   },
   "metadata": {
    "bitgraph-tree/1": "62697467726170682d747265652f31000000000202fb91c8be4766b5fcd5a3bb6fd386851c39567de025506ae4d22c9ccc3c3f24c624d88971d6642ae2ceb5bb0e457565301aef7a82b56d42eb9763ed2dc15a45"

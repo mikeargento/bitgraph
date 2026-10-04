@@ -9,11 +9,13 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { createDecipheriv, createHash } from "node:crypto";
+import { signAsync } from "@noble/ed25519";
 import {
   bytesToBase64,
   bytesToHex,
   canonicalize,
   committedBytesFor,
+  computeProofHash,
   encodeTreeLeaves,
   parseTreeRootDocument,
   verifyTreeLeaves,
@@ -621,6 +623,47 @@ describe("lookup", () => {
     assert.equal(await findOwnRecoveryEntry(d, recoveryPlaintextFor(tree, 3, "note.md").plaintext, fakeFetch(store)), null);
     store.failing = true;
     await assert.rejects(findOwnRecoveryEntry(d, plaintext, fakeFetch(store)), RecoveryUnavailableError);
+  });
+
+  test("the locator is the proof's own signed fields: an entry whose locator disagrees with the proof it hashes to is not accepted; the grammar is the proof's", async () => {
+    const v = vectorTree();
+    const store = new MemoryRecoveryStore();
+    const { tree } = await writeTree(store, v);
+    const [entry] = await recoverFromDigest(sha256(v.memberFile), fakeFetch(store));
+    const fetch = fakeFetch(store, { proofs: [v.proof] });
+    assert.ok(await fetchRecoveredProof(entry!, fetch, { trust: "none", extraSpecHashes: [v.specHash] }));
+    assert.equal(await fetchRecoveredProof({ ...entry!, proof: { ...entry!.proof, counter: String(Number(entry!.proof.counter) + 1) } }, fetch, { trust: "none", extraSpecHashes: [v.specHash] }), null, "a counter that is not the proof's");
+    assert.equal(await fetchRecoveredProof({ ...entry!, proof: { ...entry!.proof, epochId: bytesToBase64(new Uint8Array(32).fill(9)) } }, fetch, { trust: "none", extraSpecHashes: [v.specHash] }), null, "an epoch that is not the proof's");
+    // The grammar: epochId canonical base64 of 32 bytes, counter decimal without a leading zero.
+    const good = recoveryPlaintextFor(tree, 1, "hello.txt").plaintext;
+    const parse = (p: unknown) => parseRecoveryPlaintext(utf8(JSON.stringify(p)));
+    assert.ok(parse(good));
+    assert.equal(parse({ ...good, proof: { ...good.proof, counter: "007" } }), null, "a leading zero");
+    assert.equal(parse({ ...good, proof: { ...good.proof, counter: "" } }), null, "no digits");
+    assert.ok(parse({ ...good, proof: { ...good.proof, counter: "0" } }), "zero itself");
+    assert.equal(parse({ ...good, proof: { ...good.proof, epochId: good.proof.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") } }), null, "URL-safe or unpadded is not the proof's encoding");
+    assert.equal(parse({ ...good, proof: { ...good.proof, epochId: bytesToBase64(new Uint8Array(31)) } }), null, "31 bytes");
+  });
+
+  test("a candidate that cannot be judged is unresolved, never negative: an unknown spec pin, an empty measurement policy", async () => {
+    const v = vectorTree();
+    const store = new MemoryRecoveryStore();
+    await writeTree(store, v);
+    const [entry] = await recoverFromDigest(sha256(v.memberFile), fakeFetch(store));
+    const fetch = fakeFetch(store, { proofs: [v.proof] });
+    // A proof that pins a spec this reader does not know, honestly re-signed with the vectors' published TEST key
+    // (spec/tools/gen-vectors.mjs): the signature holds, the spec is foreign, the candidate is unresolved.
+    const TEST_KEY = new Uint8Array(createHash("sha256").update("bitgraph spec vector key (TEST ONLY, NOT A BITGRAPH KEY)").digest());
+    const foreign = JSON.parse(JSON.stringify(v.proof)) as typeof v.proof & { signer: { publicKeyB64: string; signatureB64: string }; environment: { enforcement: string; measurement: string } };
+    foreign.attribution = { ...foreign.attribution, message: bytesToBase64(sha256(utf8("a spec this reader has never seen"))) };
+    const body = { version: foreign.version, artifact: foreign.artifact, commit: foreign.commit, publicKeyB64: foreign.signer.publicKeyB64, enforcement: foreign.environment.enforcement, measurement: foreign.environment.measurement, attribution: foreign.attribution };
+    foreign.signer.signatureB64 = bytesToBase64(await signAsync(canonicalize(body), TEST_KEY));
+    const foreignEntry = { ...entry!, proofHash: computeProofHash(foreign as never) };
+    await assert.rejects(fetchRecoveredProof(foreignEntry, fakeFetch(store, { proofs: [foreign as never] }), { trust: "none" }), /unresolved: .*spec/);
+    // An empty policy judges nothing.
+    await assert.rejects(fetchRecoveredProof(entry!, fetch, { trust: [], extraSpecHashes: [v.specHash] }), /measurement policy is empty/);
+    // A policy naming an image the proof does not carry rejects (the TEST vector's stub attestation).
+    assert.equal(await fetchRecoveredProof(entry!, fetch, { trust: ["ab".repeat(48)], extraSpecHashes: [v.specHash] }), null);
   });
 
   test("a proof route whose index is retired is unavailable, never 'not this file's recording'", async () => {

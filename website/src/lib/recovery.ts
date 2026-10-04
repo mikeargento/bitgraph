@@ -168,8 +168,8 @@ export const OBJECT_KEY_PATTERN = /^recovery\/v1\/[0-9a-f]{64}\/[0-9a-f]{64}$/;
 /** "recovery/v1/" + 64 + "/" + 64. */
 export const OBJECT_KEY_LENGTH = RECOVERY_PREFIX.length + 64 + 1 + 64;
 
-const EPOCH_PATTERN = /^[A-Za-z0-9+/_-]{1,128}={0,2}$/;
-const COUNTER_PATTERN = /^[0-9]{1,20}$/;
+/** A position counter as a proof writes it: decimal, no leading zero, at most 20 digits. */
+const COUNTER_PATTERN = /^(0|[1-9][0-9]{0,19})$/;
 
 const encoder = new TextEncoder();
 const utf8 = (s: string): Uint8Array => encoder.encode(s);
@@ -397,12 +397,20 @@ export function encodeRecoveryPlaintext(p: RecoveryPlaintext): Uint8Array {
   return canonicalize(ordered);
 }
 
+/**
+ * The locator carries three of the proof's own signed fields, in the proof's
+ * own encodings: `epochId` (commit.epochId, canonical standard base64 of 32
+ * bytes), `counter` (commit.counter, decimal without a leading zero) and
+ * `artifactDigestB64` (artifact.digestB64, canonical standard base64 of 32
+ * bytes). A reader checks each against the proof it fetches.
+ */
 function parseLocator(v: unknown): RecoveryLocator | null {
   if (!isPlainObject(v) || Object.keys(v).sort().join(",") !== "artifactDigestB64,counter,epochId") return null;
   const { epochId, counter, artifactDigestB64 } = v;
-  if (typeof epochId !== "string" || !EPOCH_PATTERN.test(epochId)) return null;
-  if (typeof counter !== "string" || !COUNTER_PATTERN.test(counter)) return null;
-  if (typeof artifactDigestB64 !== "string") return null;
+  if (typeof epochId !== "string" || typeof counter !== "string" || typeof artifactDigestB64 !== "string") return null;
+  const epoch = base64ToBytes(epochId);
+  if (epoch === null || epoch.length !== 32) return null;
+  if (!COUNTER_PATTERN.test(counter)) return null;
   const d = base64ToBytes(artifactDigestB64);
   if (d === null || d.length !== 32) return null;
   return { epochId, counter, artifactDigestB64 };
@@ -1113,30 +1121,43 @@ async function openListed(item: unknown, digest32: Uint8Array, address: string, 
   };
 }
 
-/** Which proofs count as recovered: "published", attested by an image BitGraph published (the default); "none", the tree and signature alone (tests with the published TEST key). */
-export type RecoveryTrust = "published" | "none";
+/**
+ * The measurement policy a recovery reader judges proofs by (SPEC section
+ * 5.6): "published", BitGraph's published images (the default); a list of
+ * PCR0 hex strings, the reader's own; "none", the signature and tree alone
+ * (tests with the published TEST key). An empty list judges nothing: every
+ * candidate is then unresolved, never a negative (see proofTrusted).
+ */
+export type RecoveryTrust = "published" | "none" | readonly string[];
 
 /**
- * The proof's attestation verified in full (AWS signature, chain, root,
- * validity, PCR0 as the proof names it, bound to this proof's signed body)
- * and attesting an image on BitGraph's published list.
+ * Whether the proof's attestation verified in full (AWS signature, chain,
+ * root, validity, PCR0 as the proof names it, bound to this proof's signed
+ * body) and attests an image the policy accepts. "undetermined" when the
+ * policy is empty: nothing was judged, and a reader must leave the candidate
+ * unresolved rather than call it negative.
  */
-export function proofTrusted(proof: BitGraphProof): boolean {
+export function proofTrusted(proof: BitGraphProof, policy: RecoveryTrust = "published"): "trusted" | "rejected" | "undetermined" {
+  if (policy === "none") return "trusted";
+  if (Array.isArray(policy) && policy.length === 0) return "undetermined";
   const env = (proof as { environment?: { measurement?: unknown; attestation?: { reportB64?: unknown } } }).environment;
   const measurement = typeof env?.measurement === "string" ? env.measurement.toLowerCase() : null;
   const reportB64 = env?.attestation?.reportB64;
-  if (measurement === null || typeof reportB64 !== "string") return false;
+  if (measurement === null || typeof reportB64 !== "string") return "rejected";
   let n: ReturnType<typeof verifyNitroAttestation>;
   try {
     n = verifyNitroAttestation(reportB64, { expectedPcr0: measurement, expectedUserDataB64: computeSignedBodyHash(proof) });
   } catch {
-    return false;
+    return "rejected";
   }
   const byName = (prefix: string) => n.checks.find((c) => c.name.startsWith(prefix));
   const all = [byName("AWS signature"), byName("Certificate chain"), byName("Chains to") ?? byName("Trust root"), byName("Certificate validity"), byName("PCR0"), byName("Bound to this proof")];
-  if (n.doc === null || !all.every((c) => c?.pass === true)) return false;
+  if (n.doc === null || !all.every((c) => c?.pass === true)) return "rejected";
   const docPcr0 = (n.doc.pcrs as Record<number, unknown> | undefined)?.[0];
-  return typeof docPcr0 === "string" && publishedMeasurement(docPcr0.toLowerCase()) !== null;
+  if (typeof docPcr0 !== "string") return "rejected";
+  const measured = docPcr0.toLowerCase();
+  const accepted = policy === "published" ? publishedMeasurement(measured) !== null : policy.some((p) => p.toLowerCase() === measured);
+  return accepted ? "trusted" : "rejected";
 }
 
 export interface RecoveredProof {
@@ -1200,11 +1221,19 @@ export async function fetchRecoveredProof(
       continue;
     }
     if (hash !== entry.proofHash) continue;
+    // The locator names this proof's own signed fields, exactly: a plaintext
+    // whose locator disagrees with the proof it hashes to is not an entry a
+    // reader accepts.
+    const p = proof as { commit?: { epochId?: unknown; counter?: unknown }; artifact?: { digestB64?: unknown } };
+    if (p.commit?.epochId !== entry.proof.epochId || p.commit?.counter !== entry.proof.counter || p.artifact?.digestB64 !== entry.proof.artifactDigestB64) continue;
     // A recovered BitGraph is a BitGraph: beyond the signature and the tree,
-    // its attestation must verify in full and attest an image BitGraph
-    // published (SPEC sections 5 and 16). A proof that does not is nobody's
-    // recording of this file, whatever the index served it from.
-    if ((opts.trust ?? "published") === "published" && !proofTrusted(proof)) continue;
+    // its attestation must verify in full and attest an image the policy
+    // accepts (SPEC sections 5.6 and 16). A proof that fails is nobody's
+    // recording of this file, whatever the index served it from; a policy
+    // that judges nothing leaves the candidate unresolved, never negative.
+    const trust = proofTrusted(proof, opts.trust ?? "published");
+    if (trust === "undetermined") throw new RecoveryUnavailableError("the reader's measurement policy is empty, so the recovered proof's attestation was not judged");
+    if (trust === "rejected") continue;
     const check = await verifyTreeMember({
       proof,
       member: entry.member,
@@ -1213,6 +1242,10 @@ export async function fetchRecoveredProof(
       ...(opts.source !== undefined ? { source: opts.source } : {}),
       ...(opts.extraSpecHashes !== undefined ? { extraSpecHashes: opts.extraSpecHashes } : {}),
     });
+    // A proof that pins a spec this reader does not know is not judged, so it is
+    // not negative either: the candidate stays unresolved and the file unknown
+    // (unless another candidate verifies).
+    if (check.category === "UNKNOWN_SPEC") throw new RecoveryUnavailableError(`unresolved: ${check.reason}`);
     return { proof, check };
   }
   return null;

@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { MemoryRecoveryStore } from "../recovery-store.ts";
 import { recoveryPlaintextFor, recoveryTreeFrom, sealRecoveryMember } from "../recovery.ts";
 import { recoverRows, treePositionKey } from "../recovery-fold.ts";
-import { fakeFetch, sha256, utf8, vectorTree } from "./recovery-helpers.ts";
+import { fakeFetch, sha256, syntheticTree, utf8, vectorTree } from "./recovery-helpers.ts";
 
 const b64 = (b: Uint8Array) => Buffer.from(b).toString("base64");
 
@@ -104,6 +104,24 @@ describe("recovery fold", () => {
     const masked = await recoverRows([row(file)], { fetch: noProofs, local, trust: "none" });
     assert.equal(masked.found.size, 0);
     assert.equal(masked.unknown.size, 1);
+  });
+
+  test("a verified match wins over an unfinished discovery: one candidate verifies, the next cannot be read, the row is found", async () => {
+    const t = vectorTree();
+    const store = new MemoryRecoveryStore();
+    const tree = recoveryTreeFrom({ proof: t.proof, rootDocument: t.rootDocument, leavesBytes: t.leavesBytes });
+    for (let i = 0; i < t.count; i++) for (const w of (await sealRecoveryMember(tree, i, t.names[i])).writes) await store.putIfAbsent(w.objectKey, w.envelope);
+    // The same file recorded a second time, in a tree whose proof route is down.
+    const second = syntheticTree([{ name: "again.txt", original: Buffer.from(TREE.files[0]!.originalHex, "hex"), code: 0x00 }], "4242");
+    const tree2 = recoveryTreeFrom({ proof: second.proof, rootDocument: second.rootDocument, leavesBytes: second.leavesBytes });
+    for (const w of (await sealRecoveryMember(tree2, 0, "again.txt")).writes) await store.putIfAbsent(w.objectKey, w.envelope);
+    const inner = fakeFetch(store, { proofs: [t.proof] });
+    const secondDigest = second.proof.artifact.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const flaky = async (u: string, init?: RequestInit) => (u === `/api/proofs/${secondDigest}` ? new Response("down", { status: 503 }) : inner(u, init));
+    const file = Buffer.from(TREE.files[0]!.originalHex, "hex");
+    const r = await recoverRows([row(file)], { fetch: flaky, trust: "none" });
+    assert.equal(r.found.size, 1, "the vector's tree verified");
+    assert.equal(r.unknown.size, 0, "the unreadable second candidate does not unsettle a verified match");
   });
 
   test("this browser's own records that cannot be read leave the row unknown, never new", async () => {

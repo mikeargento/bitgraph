@@ -104,6 +104,8 @@ export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: 
         const key = treePositionKey(bound.proof);
         if (trees.some((t) => t.proofKey === key)) continue;
         trees.push({ proofKey: key, proof: bound.proof, rootDocument, rootDocumentHex: e.rootDocument, evidence: e.member });
+        out.found.set(i, trees);
+        out.unknown.delete(i);
       }
       if (trees.length) {
         out.found.set(i, trees);
@@ -111,6 +113,8 @@ export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: 
       }
     } catch (e) {
       // An entry says the file is in a tree, and the proof could not be read to check it: unknown, not new.
+      // A member already verified above still stands: a verified match wins over an unfinished discovery.
+      if (out.found.has(i)) return;
       out.unknown.set(i, e instanceof Error ? e.message : String(e));
     }
   }));
