@@ -2151,7 +2151,7 @@ body { background: var(--bg); }
    "Your"; the coordinates line and the actions keep a clear step from each other. */
 @media (max-width: 600px) {
   .home { justify-content: flex-start !important; padding-top: 12vh !important; }
-  .home h1 { font-size: clamp(34px, 11.5vw, 48px) !important; margin-bottom: 18px !important; }
+  .home h1 { font-size: clamp(40px, 15vw, 64px) !important; font-weight: 400 !important; letter-spacing: -0.03em !important; margin-bottom: 18px !important; } /* Mike, 10-04: "mobile is thicker and could be bigger": the regular cut here too, and the width a phone gives three words */
   .home .lede .lede-sentence { display: block; text-wrap: balance; }
   .home .lede { font-size: 17px !important; line-height: 1.45 !important; margin-bottom: 14px !important; }
   .home .home-coordinates { margin-bottom: 36px !important; } /* same text grey as the subhead on every size; only the appendix is dim */
@@ -2530,11 +2530,11 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 /* Home headline in semibold, not bold (Mike, 2026-09-30, after comparing base.org:
    "if we learn one thing, maybe the font weight?"). The kit carries Acumin 400/600/700,
    so 600 is the one step lighter. Size, tracking and alignment unchanged. */
-.home h1 { font-weight: 600 !important; }
-/* At display size the regular cut (Mike, 2026-10-04, base.org's hero beside ours: "on desk it
-   seems thicker"). The kit has 400/600/700, no 500, so 600 is a phone weight and 400 the desktop
-   one; tracking tightens a little to hold the word shapes at 96px. Phones keep 600. */
-@media (min-width: 900px) { .home h1 { font-weight: 400 !important; letter-spacing: -0.03em !important; } }
+/* The regular cut at every size (Mike, 2026-10-04, base.org's hero beside ours: "on desk it
+   seems thicker", then "mobile is thicker and could be bigger"). The kit has 400/600/700 and no
+   500; 600 was the 09-30 choice and read heavy once the headline was three words at display size.
+   Tracking tightens a little to hold the word shapes. */
+.home h1 { font-weight: 400 !important; letter-spacing: -0.03em !important; }
 /* MOCK (not committed): the typing caret on the home headline. */
 .typed-caret { display: inline-block; width: 0.06em; height: 0.82em; margin-left: 0.06em; vertical-align: -0.06em; background: var(--accent); opacity: 0; }
 .typed-caret.on { animation: typed-blink 1s steps(1) infinite; opacity: 1; }
