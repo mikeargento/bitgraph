@@ -192,6 +192,8 @@ export const MAX_LOOKUP_ADDRESSES = 1000;
 export const MAX_LOOKUP_RESPONSE_BYTES = 4_000_000;
 /** The most a lookup request's body may be (1,000 addresses are 70 KB). */
 export const MAX_LOOKUP_BODY_BYTES = 131_072;
+/** More distinct members than this listed under one address, and the lookup is unknown: each would cost a proof fetch, and nothing honest records one file this often. */
+export const MAX_RECOVERED_PER_DIGEST = 200;
 
 /** A caller handed the queue or the sealer something that must never be written. */
 export class RecoveryInputError extends Error {
@@ -897,9 +899,22 @@ const asPlaintext = (e: RecoveredEntry): RecoveryPlaintext => ({ format: RECOVER
  * different members are both kept; binding each to its proof sorts them out.
  */
 function dedupeRecovered(entries: RecoveredEntry[]): RecoveredEntry[] {
+  // One pass: the member's identity as a key (the same fields sameRecoveryMember compares), so a long listing costs time in proportion, not squared.
+  const seen = new Set<string>();
   const out: RecoveredEntry[] = [];
-  for (const e of entries) if (!out.some((o) => sameRecoveryMember(asPlaintext(o), asPlaintext(e)))) out.push(e);
+  for (const e of entries) {
+    const key = [e.proofHash, e.leafIndex, e.rootDocument, e.member.index, e.member.count, e.member.leaf, e.member.path.join(","), e.proof.epochId, e.proof.counter, e.proof.artifactDigestB64].join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(e);
+  }
   return out;
+}
+
+/** A listing with more distinct members than a reader will bind is not an answer: each member costs a proof fetch, and a file is not honestly recorded this often. */
+function checkRecoveredCount(entries: RecoveredEntry[]): RecoveredEntry[] {
+  if (entries.length > MAX_RECOVERED_PER_DIGEST) throw new RecoveryUnavailableError(`more than ${MAX_RECOVERED_PER_DIGEST} members listed under one address`);
+  return entries;
 }
 
 /**
@@ -965,7 +980,7 @@ export async function recoverFromDigest(digest32: Uint8Array, fetchFn: FetchLike
   checkDigest(digest32);
   const address = recoveryAddress(digest32);
   const key = await importKey(recoveryKeyBytes(digest32));
-  return collectPages(address, digest32, key, null, fetchFn, opts);
+  return checkRecoveredCount(await collectPages(address, digest32, key, null, fetchFn, opts));
 }
 
 /** One digest's lookup in a batch: every page read and every entry opened, or why it could not be. A failure is never a verdict. */
@@ -1056,7 +1071,7 @@ export async function recoverFromDigests(digests: readonly Uint8Array[], fetchFn
           if (r["truncated"] !== true) first = checkPage(r);
         }
         // Through the batch route the site has recovery; a 404 on a page is then a failed read, never "nothing kept".
-        answerAll(address, { ok: true, entries: await collectPages(address, digest32, key, first, fetchFn, opts, oneByOne) });
+        answerAll(address, { ok: true, entries: checkRecoveredCount(await collectPages(address, digest32, key, first, fetchFn, opts, oneByOne)) });
       } catch (e) {
         answerAll(address, { ok: false, reason: messageOf(e) });
       }

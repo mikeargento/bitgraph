@@ -39,6 +39,7 @@ import {
   parseRecoveryObjectKey,
   parseRecoveryPlaintext,
   recoverFromDigest,
+  recoverFromDigests,
   recoveryAddress,
   recoveryEntryId,
   recoveryKeyBytes,
@@ -507,6 +508,22 @@ describe("lookup", () => {
     const found = await recoverFromDigest(d, fakeFetch(store));
     assert.equal(found.length, 1, "only the genuine entry");
     assert.equal(found[0]!.objectKey, genuineKey);
+  });
+
+  test("more than 200 distinct members listed under one address is unknown, never bound one by one; 200 is still an answer", async () => {
+    const store = new MemoryRecoveryStore();
+    const file = utf8("a file recorded very many times\n");
+    const d = sha256(file);
+    // 201 recordings of the same as-is file, each a tree of one under its own position: 201 valid entries under one address.
+    for (let n = 0; n < 201; n++) await writeTree(store, syntheticTree([{ name: "copy", original: file, code: 0x00 }], String(10_000 + n)));
+    await assert.rejects(recoverFromDigest(d, fakeFetch(store)), /more than 200 members/);
+    const [answer] = await recoverFromDigests([d], fakeFetch(store));
+    assert.equal(answer!.ok, false);
+    assert.match((answer as { reason: string }).reason, /more than 200 members/);
+    // Another file recorded 200 times is answered in full.
+    const other = utf8("recorded two hundred times\n");
+    for (let n = 0; n < 200; n++) await writeTree(store, syntheticTree([{ name: "copy", original: other, code: 0x00 }], String(20_000 + n)));
+    assert.equal((await recoverFromDigest(sha256(other), fakeFetch(store))).length, 200);
   });
 
   test("a failed read is never an empty answer", async () => {
