@@ -78,15 +78,6 @@ export default function HomePage() {
         <Link className="bg-action-link" href="/docs/overview">How it works</Link>
       </div>
 
-      {/* The live demo, one quiet line with a link (Mike, 2026-09-29): the headline's claim, happening. It
-          leaves the site, so it opens in a new tab. Drop "Live now" when the postseason ends. */}
-      <div className="home-live">
-        <a className="home-live-title" href="https://live.bitgraph.ing" target="_blank" rel="noopener">
-          <span className="home-live-pill"><span className="home-live-dot" aria-hidden="true" />Live</span>
-          <span className="home-live-name">BitGraph AI Postseason</span><svg className="ext-arrow" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg><span className="sr-only"> (opens in a new tab)</span>
-        </a>
-        <p className="home-live-text">Jev, ChatGPT and Claude bet on how every at bat of the 2026 baseball postseason ends. BitGraph proves each bet was recorded before the at-bat started.</p>
-      </div>
 
       {/* Renders nothing. Starts the example proof's fetch while the reader is still
           here, so the click lands on a finished page instead of a skeleton. */}
