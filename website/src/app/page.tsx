@@ -63,7 +63,7 @@ export default function HomePage() {
       {/* Two sentences. On a desktop they balance into one line each; on a phone each
           sentence is its own balanced block, so no line ends on a stub like "Your". */}
       <p className="lede">
-        <span className="lede-sentence">A position, verified against a public broadcast.</span>{" "}
+        <span className="lede-sentence">A position verified against a public broadcast.</span>{" "}
         <span className="lede-sentence">Your files never leave your&nbsp;computer.</span>
       </p>
 
