@@ -48,6 +48,9 @@ const recoveryEntries = new Map<string, string>();
 const minted = new Map<string, unknown[]>();
 const toUrlSafe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
+/** Every path the stand-in boundary was asked for, in order. */
+const hits: string[] = [];
+
 before(async () => {
   priv = randomBytes(32);
   pub = b64(await getPublicKeyAsync(priv));
@@ -62,6 +65,7 @@ before(async () => {
     req.on("end", () => {
       void (async () => {
         const url = new URL(req.url ?? "/", "http://localhost");
+        hits.push(url.pathname);
         const send = (status: number, payload: unknown) => {
           res.writeHead(status, { "Content-Type": "application/json" });
           res.end(JSON.stringify(payload));
@@ -160,6 +164,32 @@ test("the default pipeline makes a signed tree/1 and the export it writes proves
     assert.equal(v.member?.index, row.member - 1);
     assert.equal(v.member?.placement, row.placement);
   }
+});
+
+test("check finds a tree member through its recovery entry, with its leaf and the tree's proof page, and never commits", async () => {
+  // Until 0.9.2 bitgraph_check did only the plain lookup, which never lists a tree's members, so a
+  // member answered "not on record" (found on the first real trees, 2026-10-04).
+  const checked = join(dirname(folder), "checked");
+  await mkdir(checked, { recursive: true });
+  await writeFile(join(checked, "one.txt"), "checked one\n");
+  await writeFile(join(checked, "two.txt"), "checked two\n");
+  const server = buildServer();
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test-client", version: "0.0.0" });
+  await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+  const made = await client.callTool({ name: "bitgraph_record", arguments: { paths: [checked], response_format: "json" } });
+  assert.ok(!made.isError, JSON.stringify(made.content).slice(0, 600));
+  const tree = (made.structuredContent as { tree: { proof_url: string } }).tree;
+  const before = hits.length;
+  const result = await client.callTool({ name: "bitgraph_check", arguments: { paths: [join(checked, "one.txt")], response_format: "json" } });
+  assert.ok(!result.isError, JSON.stringify(result.content).slice(0, 600));
+  assert.ok(!hits.slice(before).some((h) => h.startsWith("/api/fuse/") || h === "/api/commit"), "check never commits");
+  const row = (result.structuredContent as { results: Array<{ on_record: boolean; positions: Array<{ member?: { index: number; count: number } }>; proof_url: string | null; note?: string }> }).results[0]!;
+  assert.equal(row.on_record, true, "a tree member is on record");
+  assert.equal(row.positions.length, 1);
+  assert.equal(row.positions[0]!.member?.count, 2, "with its leaf");
+  assert.equal(row.proof_url, tree.proof_url, "the tree's own proof page");
+  assert.equal(row.note, undefined);
 });
 
 test("recovery: the tree keeps a sealed entry per file, and recording the same files again finds them on record in that tree", async () => {

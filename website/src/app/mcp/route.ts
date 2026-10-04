@@ -670,21 +670,35 @@ const handler = createMcpHandler(
           const normalized = normalizeDigests(digests);
           if ("error" in normalized) return fail(normalized.error);
 
-          const checked = await batchCheck(normalized.standard.map(toUrlSafeB64));
+          const unique = [...new Set(normalized.standard)];
+          const checked = await batchCheck(unique.map(toUrlSafeB64));
+          // A tree's members are never indexed by their own hash (SPEC section 13), so the plain
+          // lookup cannot see them: every digest's sealed recovery entries are asked too, as
+          // bitgraph_open asks before opening anything (2026-10-04; until then this tool called a
+          // tree member "not on record"). Without the bytes a member cannot be verified from
+          // them, so recoveredOnSite answers from the entry alone: a match on the committed
+          // bytes or an as-is leaf is on record, an origin-only match is unknown. A lookup that
+          // did not complete is said, never read as "no".
+          const inTrees = await recoveredOnSite(unique, siteRecoveryFetch());
 
           const baseUrl = apiBaseUrl();
           const outcomes: CheckOutcome[] = normalized.standard.map((standardDigest, i) => {
             const entry = checked.results[toUrlSafeB64(standardDigest)];
             const proofs = entry?.proofs ?? [];
-            const positions = proofs.map((p) => ({ ...positionOf(p.proof), ...(p.member ? { member: p.member } : {}) }));
+            const treeRows = (inTrees.found.get(standardDigest) ?? []).map((t) => ({ proof: t.proof as unknown as Parameters<typeof positionOf>[0], member: t.member }));
+            const rows = [...proofs, ...treeRows];
+            const unknown = inTrees.unknown.get(standardDigest);
+            const positions = rows.map((p) => ({ ...positionOf(p.proof), ...(p.member ? { member: p.member } : {}) }));
+            const treeFirst = treeRows[0]?.proof;
             return {
               input: digests[i] as string,
               digest: toUrlSafeB64(standardDigest),
               // A fused descendant that names these bytes as origin is not a recording of them.
               // The original and the new file made from it find the same proof.
-              on_record: proofs.length > 0,
+              on_record: rows.length > 0,
               positions,
-              proof_url: proofs.length > 0 ? proofUrl(baseUrl, standardDigest) : null,
+              proof_url: proofs.length > 0 ? proofUrl(baseUrl, standardDigest) : treeFirst && typeof treeFirst.artifact?.digestB64 === "string" ? proofUrl(baseUrl, treeFirst.artifact.digestB64, treeFirst.commit?.counter ?? undefined, treeFirst.commit?.epochId) : null,
+              ...(rows.length === 0 && unknown !== undefined ? { note: `whether these bytes are in a tree is unknown: ${unknown}` } : {}),
             };
           });
 

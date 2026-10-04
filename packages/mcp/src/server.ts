@@ -53,7 +53,7 @@ import { TASK_INSTRUCTIONS } from "./instructions.js";
 
 export type { FuseTreeFn, TreeSummary, FuseFileFn, FuseSetFn, FusedSummary, SetSummary } from "@mikeargento/bitgraph-sdk";
 
-export const SERVER_VERSION = "0.9.1";
+export const SERVER_VERSION = "0.9.2";
 
 const SCAN_CONCURRENCY = 4;
 /** Paths per call; a directory counts once and expands to its files. */
@@ -650,14 +650,14 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     async ({ paths, digests, response_format }) => {
       const config = configFromEnv();
       try {
-        const inputs: Array<{ label: string; standardDigest: string; carrier?: CarrierWindowView; c2pa?: boolean; note?: string }> = [];
+        const inputs: Array<{ label: string; standardDigest: string; file?: ScannedFile; carrier?: CarrierWindowView; c2pa?: boolean; note?: string }> = [];
         if (paths && paths.length > 0) {
           const { files } = await expandPaths(paths, MAX_CHECK_FILES);
           const classified = await mapConcurrent(files, SCAN_CONCURRENCY, classifyPath);
           classified.forEach((c, i) => {
             const label = files[i] as string;
             if (c.kind === "plain") {
-              inputs.push({ label, standardDigest: c.file.digestB64, ...(c.file.c2pa ? { c2pa: true } : {}) });
+              inputs.push({ label, standardDigest: c.file.digestB64, file: c.file, ...(c.file.c2pa ? { c2pa: true } : {}) });
             } else if (c.status === "ok" && c.innerDigestB64 !== null) {
               inputs.push({ label, standardDigest: c.innerDigestB64, ...(c.view ? { carrier: c.view } : {}), ...(c.c2pa ? { c2pa: true } : {}) });
             } else {
@@ -683,22 +683,35 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
 
         const lookable = [...new Set(inputs.filter((i) => i.standardDigest !== "").map((i) => toUrlSafeB64(i.standardDigest)))];
         const checked = lookable.length > 0 ? await batchCheck(config, lookable) : { results: {} };
+        // A tree's members are never indexed by their own hash (SPEC section 13), so the plain
+        // lookup cannot see them: every plain file's sealed recovery entry is asked too, as
+        // bitgraph_record asks before making anything (0.9.2; until then this tool called a tree
+        // member "not on record", and showed only an older solo position for a file in both).
+        // A digest alone carries no bytes to verify a member with, so digests get the plain
+        // lookup only. A lookup that did not complete is said, never read as "no".
+        const plainFiles = inputs.filter((i): i is typeof i & { file: ScannedFile } => i.file !== undefined).map((i) => i.file);
+        const recovered = plainFiles.length > 0 ? await lookupRecovered(plainFiles, config) : null;
 
         const outcomes: CheckOutcome[] = inputs.map((input) => {
           const entry = input.standardDigest === "" ? undefined : checked.results[toUrlSafeB64(input.standardDigest)];
           const proofs = entry?.proofs ?? [];
-          const positions = proofs.map((p) => ({ ...positionOf(p.proof), ...(p.member ? { member: p.member } : {}) }));
+          const treeRows = input.file !== undefined ? (recovered?.found.get(input.file.digestB64) ?? []) : [];
+          const rows = [...proofs, ...treeRows];
+          const unknown = input.file !== undefined ? recovered?.unknown.get(input.file.digestB64) : undefined;
+          const note = input.note ?? (rows.length === 0 && unknown !== undefined ? `whether this file is in a tree is unknown: ${unknown}` : undefined);
+          const positions = rows.map((p) => ({ ...positionOf(p.proof), ...(p.member ? { member: p.member } : {}) }));
+          const treeFirst = treeRows[0]?.proof;
           return {
             input: input.label,
             digest: input.standardDigest === "" ? "" : toUrlSafeB64(input.standardDigest),
             // A fused descendant that names these bytes as origin is not a recording of them.
             // The original and the new file made from it find the same proof.
-            on_record: proofs.length > 0,
+            on_record: rows.length > 0,
             positions,
-            proof_url: proofs.length > 0 ? proofUrl(config.baseUrl, input.standardDigest) : null,
+            proof_url: proofs.length > 0 ? proofUrl(config.baseUrl, input.standardDigest) : treeFirst && typeof treeFirst.artifact?.digestB64 === "string" ? proofUrl(config.baseUrl, treeFirst.artifact.digestB64, treeFirst.commit?.counter ?? undefined, treeFirst.commit?.epochId) : null,
             ...(input.carrier ? { carrier: input.carrier } : {}),
             ...(input.c2pa ? { c2pa: true } : {}),
-            ...(input.note !== undefined ? { note: input.note } : {}),
+            ...(note !== undefined ? { note } : {}),
           };
         });
 

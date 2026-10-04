@@ -57,6 +57,8 @@ export interface CheckOutcome {
   on_record: boolean;
   positions: Array<{ counter: string | null; epoch: string | null; member?: SetMemberView }>;
   proof_url: string | null;
+  /** Present when the lookup did not complete: whether the bytes are in a tree is unknown, and why. */
+  note?: string;
 }
 
 function memberNote(m: SetMemberView | undefined): string {
