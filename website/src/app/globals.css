@@ -2543,6 +2543,8 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
    500; 600 was the 09-30 choice and read heavy once the headline was three words at display size.
    Tracking tightens a little to hold the word shapes. */
 .home h1 { font-weight: 400 !important; letter-spacing: -0.03em !important; }
+/* Phones: the Medium cut, added to the Typekit kit 2026-10-04 for exactly this. 400 at 96px and 500 at 56px read as one weight; 600 read heavy, 400 read thin. */
+@media (max-width: 899px) { .home h1 { font-weight: 500 !important; } }
 /* MOCK (not committed): the typing caret on the home headline. */
 .typed-caret { display: inline-block; width: 0.06em; height: 0.82em; margin-left: 0.06em; vertical-align: -0.06em; background: var(--accent); opacity: 0; }
 .typed-caret.on { animation: typed-blink 1s steps(1) infinite; opacity: 1; }
