@@ -489,6 +489,13 @@ def spec_hash_b64():
         return base64.b64encode(sha256(f.read())).decode()
 
 
+def check_frozen():
+    """spec/FROZEN.json records v1's hash; the file must still hash to it (an edit is a new version, beside v1)."""
+    with open(os.path.join(ROOT, "spec", "FROZEN.json")) as f:
+        frozen = json.load(f)
+    return frozen["v1"]["sha256_b64"] == spec_hash_b64()
+
+
 def check_tree_member(p, root_doc: bytes, ev, file_bytes):
     """Returns (category, floor_covers)."""
     a = p.get("attribution") or {}
@@ -821,6 +828,9 @@ def expect(label, got, want):
 
 def main():
     vec = lambda n: json.load(open(os.path.join(ROOT, "spec", "vectors", n)))
+
+    # The frozen version: spec/FROZEN.json names v1's hash and the file still hashes to it.
+    expect("spec: v1 is frozen (spec/FROZEN.json) and SPEC.md still hashes to it", check_frozen(), True)
 
     # Canonical JSON quirks the spec pins down.
     expect("canonical: integer-like keys first, numerically", canonical({"10": 0, "2": 0, "b": 0, "a": 0}), b'{"2":0,"10":0,"a":0,"b":0}')

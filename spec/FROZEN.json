@@ -1,0 +1,8 @@
+{
+  "v1": {
+    "sha256_b64": "QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs=",
+    "frozen_on": "2026-10-04",
+    "frozen_at_commit": "be31b54e",
+    "note": "SPEC.md version 1. This hash is signed into every tree/1 proof as attribution.message and never changes; a later specification is a new version added beside it. Verifiers keep every hash they have ever accepted."
+  }
+}

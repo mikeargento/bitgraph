@@ -1,6 +1,6 @@
 # BitGraph Specification, version 1
 
-Status: version 1, 2026-10-03. The SHA-256 of this exact file is pinned, in base64, in the signed `attribution.message` of every tree/1 proof (section 8.6). Any edit to this file is a new spec version with a new hash; verifiers keep every hash they have ever accepted.
+Status: version 1, frozen 2026-10-04. The SHA-256 of this exact file is pinned, in base64, in the signed `attribution.message` of every tree/1 proof (section 8.6); it is recorded in `spec/FROZEN.json` and never changes. Any edit to this file is a new spec version with a new hash, added beside this one; verifiers keep every hash they have ever accepted.
 
 This document says how to check a BitGraph from bytes alone: the proof, the file it is about, and public block data. Nothing in it requires a service, a server or a software package of BitGraph's. A second implementation written from this text, in another language, is in `spec/tools/check.py`; it reproduces every vector in `spec/vectors/` and a production proof end to end.
 

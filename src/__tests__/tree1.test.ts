@@ -407,6 +407,15 @@ describe("the spec pin", () => {
     const site = readFileSync(fileURLToPath(new URL("../../website/public/spec/SPEC.md", import.meta.url)));
     assert.ok(Buffer.compare(site, spec) === 0, "copy spec/SPEC.md to website/public/spec/SPEC.md");
   });
+
+  test("v1 is frozen: spec/FROZEN.json names its hash, it is the first known hash, and the file still hashes to it (an edit is v2, beside it)", () => {
+    const frozen = JSON.parse(readFileSync(fileURLToPath(new URL("../../spec/FROZEN.json", import.meta.url)), "utf8")) as { v1: { sha256_b64: string; frozen_on: string } };
+    assert.match(frozen.v1.sha256_b64, /^[A-Za-z0-9+/]{43}=$/);
+    assert.equal(KNOWN_TREE_SPEC_HASHES[0], frozen.v1.sha256_b64, "v1 is the first entry, and it never moves");
+    const spec = readFileSync(fileURLToPath(new URL("../../spec/SPEC.md", import.meta.url)));
+    assert.equal(bytesToBase64(sha256(new Uint8Array(spec))), frozen.v1.sha256_b64, "spec/SPEC.md is the frozen v1 text (an edited spec must be added as v2, not pinned over v1)");
+    assert.match(readFileSync(fileURLToPath(new URL("../../spec/SPEC.md", import.meta.url)), "utf8"), /^Status: version 1, frozen 2026-10-04\./m);
+  });
 });
 
 describe("tree/1 is never read as a single fused file", () => {
