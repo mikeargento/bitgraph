@@ -529,6 +529,42 @@ test("recovery: the tree's entries are written after the make; recording the sam
   }
 });
 
+test("check: a tree member is found through its recovery entry, with its leaf and the tree's proof page; a lookup that cannot complete is said, never read as not on record", async () => {
+  // Found on the first real trees (2026-10-04): check read only the plain-hash
+  // index, which never lists a tree's members, so it called them "not on record".
+  const dir = join(root, "checked");
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, "alpha.txt"), "checked alpha\n");
+  await writeFile(join(dir, "beta.txt"), "checked beta\n");
+  mode.recovery = "on";
+  try {
+    const bg = new BitGraph({ baseUrl });
+    const made = (await bg.record(dir)).made!;
+    assert.equal(made.count, 2);
+
+    const [alpha] = await bg.check(join(dir, "alpha.txt"));
+    assert.equal(alpha!.onRecord, true, "a tree member is on record");
+    assert.equal(alpha!.positions.length, 1);
+    assert.equal(alpha!.positions[0]!.counter, made.counter, "the tree's position");
+    assert.ok(alpha!.positions[0]!.member, "with its leaf");
+    assert.equal(alpha!.proofUrl, made.proofUrl, "the tree's own proof page");
+    assert.equal(alpha!.note, undefined);
+
+    const [fresh] = await bg.check(Buffer.from("never recorded\n"));
+    assert.equal(fresh!.onRecord, false, "bytes never recorded are not on record");
+    assert.equal(fresh!.note, undefined, "and that is a complete answer, not an unknown");
+
+    // The site has no recovery route at all: the plain index says nothing about a
+    // tree member, and the entry cannot be asked. That is unknown, said as such.
+    mode.recovery = "absent";
+    const [blind] = await bg.check(join(dir, "beta.txt"));
+    assert.equal(blind!.onRecord, false);
+    assert.match(blind!.note ?? "", /unknown/, "the lookup that did not complete is named");
+  } finally {
+    mode.recovery = "on";
+  }
+});
+
 test("recovery: a site not taking writes leaves the entries pending and says why; the tree is made all the same", async () => {
   const file = join(root, "pending.txt");
   await writeFile(file, "made while the site takes no recovery writes\n");

@@ -408,7 +408,7 @@ export class BitGraph {
 
   /** Read-only: are these bytes on record? Paths, folders, raw digests or bytes; a BitGraphed file is judged offline and looked up by the committed bytes inside. */
   async check(inputs: string | Uint8Array | readonly string[]): Promise<CheckedInput[]> {
-    const items: Array<{ label: string; digest: string; carrier?: CarrierWindowView; c2pa?: boolean; note?: string }> = [];
+    const items: Array<{ label: string; digest: string; file?: ScannedFile; carrier?: CarrierWindowView; c2pa?: boolean; note?: string }> = [];
     const list = inputs instanceof Uint8Array ? [inputs] : typeof inputs === "string" ? [inputs] : [...inputs];
     const pathsToExpand: string[] = [];
     for (const input of list) {
@@ -426,15 +426,32 @@ export class BitGraph {
       const classified = await mapConcurrent(files, 4, (p) => classifyPath(p));
       classified.forEach((c, i) => {
         const label = files[i] as string;
-        if (c.kind === "plain") items.push({ label, digest: c.file.digestB64, ...(c.file.c2pa ? { c2pa: true } : {}) });
+        if (c.kind === "plain") items.push({ label, digest: c.file.digestB64, file: c.file, ...(c.file.c2pa ? { c2pa: true } : {}) });
         else if (c.status === "ok" && c.innerDigestB64 !== null) items.push({ label, digest: c.innerDigestB64, ...(c.view ? { carrier: c.view } : {}), ...(c.c2pa ? { c2pa: true } : {}) });
         else items.push({ label, digest: "", note: c.reason ?? "unreadable BitGraphed file" });
       });
     }
     const lookable = [...new Set(items.filter((i) => i.digest !== "").map((i) => toUrlSafeB64(i.digest)))];
     const checked = lookable.length > 0 ? await batchCheck(this.config, lookable) : { results: {} };
+    // A tree's members are never indexed by their own hash (SPEC section 13), so
+    // the plain lookup above cannot see them: each plain file's sealed recovery
+    // entry is asked too, exactly as `record` asks before making anything. Found
+    // 2026-10-04 on the first real trees: `check` called a tree member "not on
+    // record", and showed only an older solo position for a file in both. Both
+    // lookups run for every plain file, so a file in a solo position AND a tree
+    // lists both. A lookup that did not complete is said, never read as "no".
+    const plain = items.filter((i): i is typeof i & { file: ScannedFile } => i.file !== undefined);
+    const recovered = plain.length > 0
+      ? await lookupRecovered(plain.map((i) => i.file), this.config, this.recoveryTrust !== undefined ? { trust: this.recoveryTrust } : {})
+      : null;
     return items.map((i) => {
-      const rows = i.digest === "" ? [] : (checked.results[toUrlSafeB64(i.digest)]?.proofs ?? []);
+      const plainRows = i.digest === "" ? [] : (checked.results[toUrlSafeB64(i.digest)]?.proofs ?? []);
+      const treeRows = i.file !== undefined ? (recovered?.found.get(i.file.digestB64) ?? []) : [];
+      const rows: Array<{ proof: BitGraphProof; member?: SetMemberView }> = [...plainRows, ...treeRows];
+      const unknown = i.file !== undefined ? recovered?.unknown.get(i.file.digestB64) : undefined;
+      const note = i.note ?? (rows.length === 0 && unknown !== undefined ? `whether this file is in a tree is unknown: ${unknown}` : undefined);
+      const treeFirst = treeRows[0]?.proof;
+      const treeUrl = treeFirst && typeof treeFirst.artifact?.digestB64 === "string" ? this.proofUrl(treeFirst.artifact.digestB64, treeFirst.commit?.counter ?? null, treeFirst.commit?.epochId ?? null) : null;
       return {
         input: i.label,
         digest: i.digest === "" ? "" : toUrlSafeB64(i.digest),
@@ -444,10 +461,10 @@ export class BitGraph {
           epoch: p.proof.commit?.epochId !== undefined ? toUrlSafeB64(p.proof.commit.epochId) : null,
           ...(p.member ? { member: p.member } : {}),
         })),
-        proofUrl: rows.length > 0 ? this.proofUrl(i.digest) : null,
+        proofUrl: plainRows.length > 0 ? this.proofUrl(i.digest) : treeUrl,
         ...(i.carrier ? { carrier: i.carrier } : {}),
         ...(i.c2pa ? { c2pa: true } : {}),
-        ...(i.note !== undefined ? { note: i.note } : {}),
+        ...(note !== undefined ? { note } : {}),
       };
     });
   }
