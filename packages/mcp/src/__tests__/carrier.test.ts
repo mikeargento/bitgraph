@@ -94,6 +94,7 @@ before(async () => {
   c2paPath = join(root, "credentialed.bin");
   await writeFile(c2paPath, c2pa);
 
+  const recoveryEntries = new Map<string, string>();
   mock = createServer((req, res) => {
     let raw = "";
     req.on("data", (d) => (raw += d));
@@ -126,6 +127,26 @@ before(async () => {
         } else {
           send(200, { proofs: [] });
         }
+      } else if (url.pathname === "/api/recovery" && req.method === "POST") {
+        // The site's recovery store in memory: create-only, the stored envelope back on "exists".
+        const results = ((body as { entries: Array<{ key: string; envelope: string }> }).entries).map(({ key, envelope }) => {
+          const held = recoveryEntries.get(key);
+          if (held !== undefined) return { key, status: "exists", envelope: held };
+          recoveryEntries.set(key, envelope);
+          return { key, status: "created" };
+        });
+        send(200, { results });
+      } else if (url.pathname === "/api/recovery/lookup" && req.method === "POST") {
+        const results = ((body as { addresses: string[] }).addresses).map((address) => ({
+          address,
+          entries: [...recoveryEntries.entries()].filter(([k]) => k.startsWith(`recovery/v1/${address}/`)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, envelope]) => ({ key, envelope })),
+          next: null,
+        }));
+        send(200, { results });
+      } else if (url.pathname.startsWith("/api/recovery/")) {
+        const address = url.pathname.slice("/api/recovery/".length);
+        const entries = [...recoveryEntries.entries()].filter(([k]) => k.startsWith(`recovery/v1/${address}/`)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, envelope]) => ({ key, envelope }));
+        send(200, { address, entries, next: null });
       } else {
         send(404, { error: `unexpected ${url.pathname}` });
       }

@@ -31,7 +31,7 @@
  */
 
 import { TREE_MEMBER_CATEGORIES, hexToBytes, verifyTreeMember } from "@mikeargento/bitgraph-verify";
-import { fetchRecoveredProof, recoverFromDigests, writeRecoveryEntries, type RecoveryWriteOptions, type RecoveryWriteResult } from "@mikeargento/bitgraph";
+import { fetchRecoveredProof, recoverFromDigests, writeRecoveryEntries, type RecoveryTrust, type RecoveryWriteOptions, type RecoveryWriteResult } from "@mikeargento/bitgraph";
 import type { ApiConfig } from "./api.js";
 import { mapConcurrent } from "./encoding.js";
 import { RECORD_RECOVERY_BUDGET_MS, pendingMembersFor, registerRecoveryJob, runRecoveryJob } from "./recovery-jobs.js";
@@ -61,16 +61,40 @@ export type KeptRecovery = RecoveryWriteResult & { job: string | null };
 
 const EMPTY_STATE = () => ({ progress: new Uint8Array(0), salts: {} as Record<string, string> });
 
-/** Ask the recovery entries of files the ledger does not know: every file, a thousand addresses a request. */
-export async function lookupRecovered(files: readonly ScannedFile[], config: Pick<ApiConfig, "baseUrl">): Promise<RecoveryLookup> {
+/** Which proofs a recovery lookup accepts: BitGraph's published images (the default), or the signature and tree alone (BITGRAPH_RECOVERY_TRUST=none, a test seam). */
+export function recoveryTrustFromEnv(): RecoveryTrust {
+  return process.env["BITGRAPH_RECOVERY_TRUST"] === "none" ? "none" : "published";
+}
+
+export interface LookupOptions {
+  trust?: RecoveryTrust;
+}
+
+/** Ask the recovery entries of files the ledger does not know: every file, a thousand addresses a request, and this machine's own pending jobs. */
+export async function lookupRecovered(files: readonly ScannedFile[], config: Pick<ApiConfig, "baseUrl">, opts: LookupOptions = {}): Promise<RecoveryLookup> {
   const out: RecoveryLookup = { found: new Map(), unknown: new Map(), failed: 0 };
   if (files.length === 0) return out;
+  const trust = opts.trust ?? recoveryTrustFromEnv();
   const lookup = { baseUrl: config.baseUrl };
   const digests = files.map((f) => Uint8Array.from(Buffer.from(f.digestB64, "base64")));
-  const [answers, pending] = await Promise.all([
-    recoverFromDigests(digests, undefined, lookup),
-    pendingMembersFor(files.map((f) => f.digestB64), config.baseUrl).catch(() => new Map<string, never[]>()),
-  ]);
+  // This machine's own history first. A history that cannot be read, or a job
+  // set aside as broken (a recording happened; its damaged list no longer says
+  // which files), leaves EVERY file unknown: nothing is called new over it.
+  let historyProblem: string | null = null;
+  let pending = new Map<string, Awaited<ReturnType<typeof pendingMembersFor>>["members"] extends Map<string, infer V> ? V : never>();
+  try {
+    const p = await pendingMembersFor(files.map((f) => f.digestB64), config.baseUrl);
+    pending = p.members;
+    if (p.broken.length > 0) historyProblem = `a saved recovery job of this machine is damaged (${p.broken.join(", ")}); repair it with bitgraph recovery keep <owner export>, or remove it on purpose`;
+  } catch (e) {
+    historyProblem = `this machine's pending recovery jobs could not be read (${e instanceof Error ? e.message : String(e)})`;
+  }
+  if (historyProblem !== null) {
+    for (const f of files) out.unknown.set(f.digestB64, historyProblem);
+    out.failed = out.unknown.size;
+    return out;
+  }
+  const answers = await recoverFromDigests(digests, undefined, lookup);
   await mapConcurrent(files, 4, async (file, k) => {
     const a = answers[k]!;
     const local = pending.get(file.digestB64) ?? [];
@@ -104,7 +128,7 @@ export async function lookupRecovered(files: readonly ScannedFile[], config: Pic
     try {
       const source = await fileSource(file.path);
       for (const e of a.entries) {
-        const bound = await fetchRecoveredProof(e, undefined, { ...lookup, source });
+        const bound = await fetchRecoveredProof(e, undefined, { ...lookup, source, trust });
         if (bound === null) continue;
         if (!(TREE_MEMBER_CATEGORIES as readonly string[]).includes(bound.check.category)) continue;
         const proof = bound.proof as unknown as BitGraphProof;

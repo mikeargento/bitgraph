@@ -17,7 +17,7 @@ const counts = ({ state, ...rest }: SiteRecoveryResult) => {
 import { fakeFetch, sha256, vectorTree } from "./recovery-helpers.ts";
 
 const TREE = JSON.parse(readFileSync(new URL("../../../../spec/vectors/tree-1.json", import.meta.url), "utf8")) as {
-  files: Array<{ name: string; originalHex: string; committedHex: string }>;
+  files: Array<{ name: string; originalHex: string; committedHex: string; placementCode: number }>;
 };
 
 /** A store where every key under one address is already held by somebody else's bytes, whatever the name. */
@@ -50,7 +50,7 @@ describe("recovery written by the site", () => {
       const bytes = Buffer.from(f.originalHex, "hex");
       const [entry] = await recoverFromDigest(sha256(bytes), fetch);
       assert.ok(entry, f.name);
-      const bound = await fetchRecoveredProof(entry, fetch, { bytes });
+      const bound = await fetchRecoveredProof(entry, fetch, { bytes, trust: "none" });
       assert.ok(bound?.check.category.startsWith("TREE_MEMBER"), `${f.name}: ${bound?.check.category}`);
     }
     const again = await keepTreeOnSite(input, store, { writesOn: true });
@@ -145,22 +145,33 @@ describe("recovery written by the site", () => {
     await keepTreeOnSite(input, store, { writesOn: true });
     const proofsByDigest = async (urlSafe: string) => (urlSafe === t.proof.artifact.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") ? [t.proof] : []);
     const fetch = inProcessRecoveryFetch(store, proofsByDigest);
-    const digests = TREE.files.map((f) => Buffer.from(sha256(Buffer.from(f.originalHex, "hex"))).toString("base64"));
-    const r = await recoveredOnSite([...digests, Buffer.from(sha256(Buffer.from("never recorded"))).toString("base64")], fetch);
-    assert.equal(r.unknown.size, 0);
-    assert.equal(r.found.size, digests.length, "every member, by its original's digest");
-    for (const d of digests) {
+    const asIs = TREE.files.filter((f) => f.placementCode === 0);
+    const placed = TREE.files.filter((f) => f.placementCode !== 0);
+    const committed = placed.map((f) => Buffer.from(sha256(Buffer.from(f.committedHex, "hex"))).toString("base64"));
+    const asIsDigests = asIs.map((f) => Buffer.from(sha256(Buffer.from(f.originalHex, "hex"))).toString("base64"));
+    const origins = placed.map((f) => Buffer.from(sha256(Buffer.from(f.originalHex, "hex"))).toString("base64"));
+    const r = await recoveredOnSite([...committed, ...asIsDigests, ...origins, Buffer.from(sha256(Buffer.from("never recorded"))).toString("base64")], fetch, { trust: "none" });
+    // The committed bytes and an as-is file ARE what the tree commits to: on record.
+    assert.equal(r.found.size, committed.length + asIsDigests.length, "every member by its committed bytes, and the as-is file by its one digest");
+    for (const d of [...committed, ...asIsDigests]) {
       const [hit] = r.found.get(d)!;
       assert.equal(hit!.proof.commit?.counter, t.proof.commit?.counter);
       assert.equal(hit!.rootDocumentHex, Buffer.from(t.rootDocument).toString("hex"));
+      assert.notEqual(hit!.matched, "origin");
     }
+    // An original named by a placed leaf: the tree's maker declared that digest; without the bytes nothing checks it. Unknown, with the reason.
+    assert.equal(r.unknown.size, origins.length, "every placed member's original is unknown here");
+    for (const d of origins) assert.match(r.unknown.get(d)!, /names these bytes as the original/);
     // The ledger has no proof under the tree's digest (not written yet): not found, and not unknown either; the entry alone is not a position.
-    const noProof = await recoveredOnSite(digests.slice(0, 1), inProcessRecoveryFetch(store, async () => []));
+    const noProof = await recoveredOnSite(committed.slice(0, 1), inProcessRecoveryFetch(store, async () => []), { trust: "none" });
     assert.equal(noProof.found.size, 0);
     assert.equal(noProof.unknown.size, 0);
+    // The default trust: the TEST vector's stub attestation is nobody's recording.
+    const strict = await recoveredOnSite(committed.slice(0, 1), fetch);
+    assert.equal(strict.found.size, 0);
     // A store that cannot be read: unknown, never new.
     store.failing = true;
-    const down = await recoveredOnSite(digests.slice(0, 2), fetch);
+    const down = await recoveredOnSite(committed.slice(0, 2), fetch, { trust: "none" });
     assert.equal(down.found.size, 0);
     assert.equal(down.unknown.size, 2);
   });

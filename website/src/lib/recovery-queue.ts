@@ -132,7 +132,10 @@ export interface RecoveryJobRecord {
 
 export interface RecoveryQueueStore {
   loadJobs(): Promise<RecoveryJobRecord[]>;
+  /** Replace the stored record (finishing a job). Enqueueing uses addJob, never this: a stale tab must not replace another tab's record. */
   saveJob(job: RecoveryJobRecord): Promise<void>;
+  /** Store `job` only if none is stored under its id, and return what is stored afterwards: the existing record (with its salts) when there is one. */
+  addJob(job: RecoveryJobRecord): Promise<RecoveryJobRecord>;
   loadProgress(id: string): Promise<Uint8Array | null>;
   /** OR `progress` into what is stored, store the result, and return it. */
   mergeProgress(id: string, progress: Uint8Array): Promise<Uint8Array>;
@@ -164,6 +167,13 @@ export class MemoryRecoveryQueueStore implements RecoveryQueueStore {
   async saveJob(job: RecoveryJobRecord): Promise<void> {
     this.check();
     this.jobs.set(job.id, cloneJob(job));
+  }
+  async addJob(job: RecoveryJobRecord): Promise<RecoveryJobRecord> {
+    this.check();
+    const existing = this.jobs.get(job.id);
+    if (existing !== undefined) return cloneJob(existing);
+    this.jobs.set(job.id, cloneJob(job));
+    return cloneJob(job);
   }
   async loadProgress(id: string): Promise<Uint8Array | null> {
     this.check();
@@ -263,6 +273,22 @@ export class IndexedDbRecoveryQueueStore implements RecoveryQueueStore {
   saveJob(job: RecoveryJobRecord): Promise<void> {
     return this.run<void>([JOBS], "readwrite", (tx) => {
       tx.objectStore(JOBS).put(job, job.id);
+    });
+  }
+
+  addJob(job: RecoveryJobRecord): Promise<RecoveryJobRecord> {
+    return this.run<RecoveryJobRecord>([JOBS], "readwrite", (tx, set) => {
+      const store = tx.objectStore(JOBS);
+      const r = store.get(job.id);
+      r.onsuccess = () => {
+        const existing = r.result as RecoveryJobRecord | undefined;
+        if (existing !== undefined) {
+          set(existing);
+          return;
+        }
+        store.put(job, job.id);
+        set(job);
+      };
     });
   }
 
@@ -522,6 +548,28 @@ export class RecoveryQueue {
     return this.loaded;
   }
 
+  /** Read the saved records again: jobs another tab saved since are adopted (and worked), and a known job takes salts it did not have. Throws when storage cannot be read. */
+  private async refresh(): Promise<void> {
+    const records = await this.opts.store.loadJobs();
+    let added = false;
+    for (const rec of records) {
+      const known = this.jobs.get(rec.id);
+      if (known === undefined) {
+        let progress: Uint8Array | null = null;
+        try {
+          progress = await this.opts.store.loadProgress(rec.id);
+        } catch {
+          progress = null;
+        }
+        this.adopt(rec, progress, true);
+        added = true;
+      } else if (rec.salts !== undefined) {
+        known.rec = { ...known.rec, salts: mergeSaltTables(rec.salts, known.rec.salts ?? {}) };
+      }
+    }
+    if (added) this.kick();
+  }
+
   /** Pick up every job a previous page left, and work them. Call once per page load; later calls only make sure the work is running. */
   async resume(): Promise<void> {
     await this.load();
@@ -610,13 +658,19 @@ export class RecoveryQueue {
     }
     let persisted = true;
     try {
-      await this.opts.store.saveJob(rec);
+      // Create or adopt: a record another tab saved meanwhile (its salts
+      // included) wins over this tab's fresh one; nothing is ever replaced.
+      const stored = await this.opts.store.addJob(rec);
+      if (stored.id === rec.id && (stored.createdAt !== rec.createdAt || stored.salts !== undefined)) {
+        rec = { ...stored, ...(repair || !stored.keep ? { keep: rec.keep, leaves: rec.leaves, names: rec.names, rootDocument: rec.rootDocument, done: rec.done } : {}) };
+        if (repair || !stored.keep) await this.opts.store.saveJob(rec);
+      }
     } catch (e) {
       persisted = false;
       this.log(`[recovery] job ${id.slice(0, 12)} could not be saved; it runs in memory only: ${(e as Error).message}`);
     }
     const job = this.adopt(rec, existing?.progress ?? null, persisted);
-    job.tree = tree;
+    job.tree = rec.keep && rec.leaves !== null ? tree : null;
     this.emit(id);
     this.kick();
     return { id, count: rec.count, keep, persisted };
@@ -679,6 +733,8 @@ export class RecoveryQueue {
    */
   async localEntriesFor(digest32: Uint8Array): Promise<Array<Omit<RecoveredEntry, "objectKey" | "entryId">>> {
     await this.load();
+    // Another tab may have saved a tree since this one loaded: read the records again, adopt the new ones, take newer salts.
+    await this.refresh();
     const out: Array<Omit<RecoveredEntry, "objectKey" | "entryId">> = [];
     for (const job of this.jobs.values()) {
       if (!job.rec.keep || job.rec.done || job.rec.leaves === null) continue;
@@ -945,7 +1001,7 @@ export class RecoveryQueue {
       const { plaintext } = recoveryPlaintextFor(tree, s.index, job.rec.names?.[s.index] ?? null);
       let own: Awaited<ReturnType<typeof findOwnRecoveryEntry>>;
       try {
-        own = await findOwnRecoveryEntry(digest, plaintext, this.opts.lookupFetch ?? ((u, i) => fetch(u, i)), this.opts.baseUrl !== undefined ? { baseUrl: this.opts.baseUrl } : {});
+        own = await findOwnRecoveryEntry(digest, plaintext, this.opts.lookupFetch ?? ((u, i) => fetch(u, i)), { timeoutMs: 30_000, ...(this.opts.baseUrl !== undefined ? { baseUrl: this.opts.baseUrl } : {}) });
       } catch (e) {
         this.log(`[recovery] member ${s.index} of ${job.rec.id.slice(0, 12)}: the address could not be read before a salted write (${(e as Error).message})`);
         continue;
@@ -1031,6 +1087,8 @@ export class RecoveryQueue {
     job.rec = { ...job.rec, done: true, leaves: null, names: null };
     job.tree = null;
     try {
+      // The salts stored (another tab's included) stay with the finished record.
+      if (job.persisted) job.rec = { ...job.rec, salts: await this.opts.store.mergeSalts(job.rec.id, job.rec.salts ?? {}) };
       await this.opts.store.saveJob(job.rec);
     } catch (e) {
       this.log(`[recovery] job ${job.rec.id.slice(0, 12)} finished but could not be marked done: ${(e as Error).message}`);

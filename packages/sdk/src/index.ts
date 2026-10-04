@@ -39,8 +39,8 @@ export type { BitGraphProof, ProofDetailResponse, PositionView, AnchorView, SetM
 export { serve } from "./serve.js";
 export { lookupRecovered, keepRecoveryEntries, recoveryLine, type RecoveredRow, type RecoveryLookup, type RecoveryWriteResult, type KeptRecovery } from "./recovery.js";
 export {
-  recoveryJobsDir, registerRecoveryJob, runRecoveryJob, listRecoveryJobs, flushRecoveryJobs, jobFromOwnerExport, saveRecoveryJob, recoveryJobId, pendingMembersFor, normalizeBaseUrl,
+  recoveryJobsDir, registerRecoveryJob, runRecoveryJob, listRecoveryJobs, flushRecoveryJobs, jobFromOwnerExport, saveRecoveryJob, recoveryJobId, pendingMembersFor, brokenRecoveryJobs, normalizeBaseUrl, siteTag, LockLostError,
   RECOVERY_JOB_FORMAT, RECORD_RECOVERY_BUDGET_MS, FLUSH_ON_RECORD_BUDGET_MS, LOCK_STALE_MS, LOCK_TOUCH_MS,
-  type RecoveryJobFile, type RecoveryJobSummary, type FlushResult, type RunJobOptions, type PendingMember,
+  type RecoveryJobFile, type RecoveryJobSummary, type FlushResult, type RunJobOptions, type PendingMember, type PendingMembers,
 } from "./recovery-jobs.js";
 export type { ServeOptions, RunningServer } from "./serve.js";

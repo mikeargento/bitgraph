@@ -80,6 +80,7 @@ before(async () => {
   await mkdir(bigDir);
   await Promise.all(Array.from({ length: BIG }, (_, i) => writeFile(join(bigDir, `m${String(i).padStart(5, "0")}.txt`), `member ${i}\n`)));
 
+  const recoveryEntries = new Map<string, string>();
   mock = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on("data", (c: Buffer) => chunks.push(c));
@@ -140,6 +141,9 @@ before(async () => {
         } else {
           send(200, { proofs: [] });
         }
+      } else if (url.pathname.startsWith("/api/proofs/") && req.method === "GET" && !url.pathname.startsWith("/api/proofs/digest/") && url.pathname !== "/api/proofs/batch" && url.pathname !== "/api/proofs/witness") {
+        // The ledger's proofs by digest: this server indexes none of the stand-in pipeline's trees, so a recovery entry that names one finds no proof here.
+        send(200, { proofs: [] });
       } else if (url.pathname === "/api/search") {
         const q = url.searchParams.get("q") ?? "";
         if (q.replace(/[#,\s]/g, "") === "10") {
@@ -147,6 +151,26 @@ before(async () => {
         } else {
           send(200, { found: false });
         }
+      } else if (url.pathname === "/api/recovery" && req.method === "POST") {
+        // The site's recovery store in memory: create-only, the stored envelope back on "exists".
+        const results = ((body as { entries: Array<{ key: string; envelope: string }> }).entries).map(({ key, envelope }) => {
+          const held = recoveryEntries.get(key);
+          if (held !== undefined) return { key, status: "exists", envelope: held };
+          recoveryEntries.set(key, envelope);
+          return { key, status: "created" };
+        });
+        send(200, { results });
+      } else if (url.pathname === "/api/recovery/lookup" && req.method === "POST") {
+        const results = ((body as { addresses: string[] }).addresses).map((address) => ({
+          address,
+          entries: [...recoveryEntries.entries()].filter(([k]) => k.startsWith(`recovery/v1/${address}/`)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, envelope]) => ({ key, envelope })),
+          next: null,
+        }));
+        send(200, { results });
+      } else if (url.pathname.startsWith("/api/recovery/")) {
+        const address = url.pathname.slice("/api/recovery/".length);
+        const entries = [...recoveryEntries.entries()].filter(([k]) => k.startsWith(`recovery/v1/${address}/`)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, envelope]) => ({ key, envelope }));
+        send(200, { address, entries, next: null });
       } else {
         send(404, { error: "not found" });
       }
@@ -157,6 +181,7 @@ before(async () => {
   if (address === null || typeof address === "string") throw new Error("no port");
   process.env["BITGRAPH_API_URL"] = `http://127.0.0.1:${address.port}`;
   process.env["BITGRAPH_HOME"] = await mkdtemp(join(tmpdir(), "bitgraph-mcp-home-"));
+  process.env["BITGRAPH_RECOVERY_TRUST"] = "none";
   process.env["BITGRAPH_API_KEY"] = "test-key-123";
 });
 

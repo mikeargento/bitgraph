@@ -33,7 +33,7 @@ describe("recovery fold", () => {
     const { t, store } = await storeWithEveryMember();
     const fetch = fakeFetch(store, { proofs: [t.proof] });
     const rows = TREE.files.flatMap((f) => [row(Buffer.from(f.originalHex, "hex")), row(Buffer.from(f.committedHex, "hex"))]);
-    const r = await recoverRows(rows, { fetch });
+    const r = await recoverRows(rows, { fetch, trust: "none" });
     assert.equal(r.failed, 0);
     assert.equal(r.found.size, rows.length, "all ten rows found");
     for (const trees of r.found.values()) {
@@ -46,7 +46,7 @@ describe("recovery fold", () => {
     const { t, store } = await storeWithEveryMember();
     const calls: string[] = [];
     const fetch = fakeFetch(store, { proofs: [t.proof], calls });
-    const r = await recoverRows([row(utf8("never recorded")), row(utf8("already found"), "found")], { fetch });
+    const r = await recoverRows([row(utf8("never recorded")), row(utf8("already found"), "found")], { fetch, trust: "none" });
     assert.equal(r.found.size, 0);
     assert.equal(calls.length, 1, "only the new row was asked about");
   });
@@ -55,14 +55,14 @@ describe("recovery fold", () => {
     const { store } = await storeWithEveryMember();
     const noProofs = fakeFetch(store, { proofs: [] });
     const file = Buffer.from(TREE.files[0]!.originalHex, "hex");
-    const r = await recoverRows([row(file)], { fetch: noProofs });
+    const r = await recoverRows([row(file)], { fetch: noProofs, trust: "none" });
     assert.equal(r.found.size, 0);
   });
 
   test("a recovery store that is down leaves the row new and counts the failure", async () => {
     const { store } = await storeWithEveryMember();
     const down = fakeFetch(store, { status: 503 });
-    const r = await recoverRows([row(Buffer.from(TREE.files[1]!.originalHex, "hex"))], { fetch: down });
+    const r = await recoverRows([row(Buffer.from(TREE.files[1]!.originalHex, "hex"))], { fetch: down, trust: "none" });
     assert.equal(r.found.size, 0);
     assert.equal(r.failed, 1);
   });
@@ -71,7 +71,7 @@ describe("recovery fold", () => {
     const { t, store } = await storeWithEveryMember();
     const calls: string[] = [];
     const rows = Array.from({ length: 1_200 }, (_, i) => row(utf8(`file ${i}`)));
-    const r = await recoverRows(rows, { fetch: fakeFetch(store, { proofs: [t.proof], calls }) });
+    const r = await recoverRows(rows, { fetch: fakeFetch(store, { proofs: [t.proof], calls }), trust: "none" });
     assert.equal(r.found.size, 0);
     assert.equal(r.unknown.size, 0, "an empty listing is an answer");
     assert.equal(calls.filter((c) => c.endsWith("/api/recovery/lookup")).length, 2, "1,000 + 200");
@@ -90,27 +90,37 @@ describe("recovery fold", () => {
       const { plaintext } = recoveryPlaintextFor(tree, index, t.names[index]);
       return [{ salted: false, salt: null, matched: "origin" as const, proofHash: plaintext.proofHash, leafIndex: plaintext.leafIndex, rootDocument: plaintext.rootDocument, member: plaintext.member, proof: plaintext.proof, name: plaintext.name ?? null }];
     };
-    const r = await recoverRows([row(file)], { fetch: fakeFetch(empty, { proofs: [t.proof] }), local });
+    const r = await recoverRows([row(file)], { fetch: fakeFetch(empty, { proofs: [t.proof] }), local, trust: "none" });
     assert.equal(r.unknown.size, 0);
     assert.equal(r.found.size, 1, "found through the pending job, with nothing in the store");
     assert.equal(r.found.get(0)![0]!.proofKey, treePositionKey(t.proof));
     // The store down AND the local queue holding the member: found, not unknown.
     empty.failing = true;
-    const down = await recoverRows([row(file)], { fetch: fakeFetch(empty, { proofs: [t.proof] }), local });
+    const down = await recoverRows([row(file)], { fetch: fakeFetch(empty, { proofs: [t.proof] }), local, trust: "none" });
     assert.equal(down.found.size, 1);
     assert.equal(down.unknown.size, 0);
     // The store down and the local entry's proof not readable yet: unknown, never new (the cold review's finding 3a).
     const noProofs = fakeFetch(empty, { proofs: [] });
-    const masked = await recoverRows([row(file)], { fetch: noProofs, local });
+    const masked = await recoverRows([row(file)], { fetch: noProofs, local, trust: "none" });
     assert.equal(masked.found.size, 0);
     assert.equal(masked.unknown.size, 1);
+  });
+
+  test("this browser's own records that cannot be read leave the row unknown, never new", async () => {
+    const t = vectorTree();
+    const empty = new MemoryRecoveryStore();
+    const file = Buffer.from(TREE.files[0]!.originalHex, "hex");
+    const r = await recoverRows([row(file)], { fetch: fakeFetch(empty, { proofs: [t.proof] }), local: async () => { throw new Error("IndexedDB unavailable"); }, trust: "none" });
+    assert.equal(r.found.size, 0);
+    assert.equal(r.unknown.size, 1);
+    assert.match(r.unknown.get(0)!, /own pending records could not be read/);
   });
 
   test("a store that cannot be read, or a proof route that is down, leaves the row unknown, never new", async () => {
     const { t, store } = await storeWithEveryMember();
     const file = Buffer.from(TREE.files[0]!.originalHex, "hex");
     store.failing = true;
-    const r = await recoverRows([row(file)], { fetch: fakeFetch(store, { proofs: [t.proof] }) });
+    const r = await recoverRows([row(file)], { fetch: fakeFetch(store, { proofs: [t.proof] }), trust: "none" });
     assert.equal(r.found.size, 0);
     assert.equal(r.unknown.size, 1);
     assert.match(r.unknown.get(0)!, /could not read this address/);
@@ -118,7 +128,7 @@ describe("recovery fold", () => {
     // The entry is there, but the proof route answers 503: the file cannot be verified as that member, and it is not new either.
     const inner = fakeFetch(store, { proofs: [t.proof] });
     const proofsDown = async (u: string, init?: RequestInit) => (u.startsWith("/api/proofs/") ? new Response("down", { status: 503 }) : inner(u, init));
-    const d = await recoverRows([row(file)], { fetch: proofsDown });
+    const d = await recoverRows([row(file)], { fetch: proofsDown, trust: "none" });
     assert.equal(d.found.size, 0);
     assert.equal(d.unknown.size, 1);
   });

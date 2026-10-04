@@ -168,15 +168,24 @@ export async function writeRecoveryEntries(input: RecoveryWriteInput, opts: Reco
     return out;
   }
 
+  /** What one operation may still take: its own limit, or what is left of the budget, whichever is less. Zero or less: the budget is spent. */
+  const remaining = (): number => Math.min(timeoutMs, deadline - Date.now());
+
   /** POST one batch. The answers by key, or null when the request failed as a whole (the reason says how). */
   async function post(batch: Planned[]): Promise<Map<string, Answer> | null> {
+    const allowed = remaining();
+    if (allowed <= 0) {
+      reason = "the time budget ran out";
+      stopped = true;
+      return null;
+    }
     let res: Response;
     try {
       res = await f(`${base}/api/recovery`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ entries: batch.map((p) => ({ key: p.w.objectKey, envelope: bytesToBase64(p.w.envelope) })) }),
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(allowed),
       });
     } catch (e) {
       reason = `the site could not be reached (${(e as Error).message})`;
@@ -244,9 +253,15 @@ export async function writeRecoveryEntries(input: RecoveryWriteInput, opts: Reco
     // pending (nothing is guessed, no second copy is written).
     const fresh: Planned[] = [];
     for (const p of fallbacks) {
+      const allowed = remaining();
+      if (allowed <= 0) {
+        reason = "the time budget ran out";
+        stopped = true;
+        return;
+      }
       let own: Awaited<ReturnType<typeof findOwnRecoveryEntry>>;
       try {
-        own = await findOwnRecoveryEntry(p.w.digest, p.w.plaintext, f, { baseUrl: base });
+        own = await findOwnRecoveryEntry(p.w.digest, p.w.plaintext, f, { baseUrl: base, timeoutMs: allowed });
       } catch (e) {
         reason = `the address could not be read before a salted write (${(e as Error).message})`;
         continue;

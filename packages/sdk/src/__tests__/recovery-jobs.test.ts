@@ -38,6 +38,7 @@ import {
   registerRecoveryJob,
   runRecoveryJob,
   saveRecoveryJob,
+  siteTag,
 } from "../index.js";
 import { utimes } from "node:fs/promises";
 
@@ -88,7 +89,7 @@ function site() {
   return { store, state, fetch };
 }
 
-const jobFiles = async () => (await readdir(recoveryJobsDir()).catch(() => [] as string[])).filter((n) => n.endsWith(".json"));
+const jobFiles = async () => (await readdir(recoveryJobsDir()).catch(() => [] as string[])).filter((n) => /^[0-9a-f]{64}\.[0-9a-f]{16}\.json$/.test(n));
 
 const sha256 = (b: Uint8Array) => new Uint8Array(createHash("sha256").update(b).digest());
 const utf8 = (s: string) => new TextEncoder().encode(s);
@@ -125,8 +126,8 @@ test("a site that takes no writes leaves the job on disk, with its reason; the n
   assert.equal(r.written, 0);
   assert.equal(r.pending, ENTRIES);
   assert.equal(r.done, false);
-  assert.ok(r.job !== null && r.job.endsWith(`${recoveryJobId(owner.proof)}.json`), "the saved job's file is named");
-  assert.deepEqual(await jobFiles(), [`${recoveryJobId(owner.proof)}.json`]);
+  assert.ok(r.job !== null && r.job.endsWith(`${recoveryJobId(owner.proof)}.${siteTag(BASE)}.json`), "the saved job's file is named after the proof and the site");
+  assert.deepEqual(await jobFiles(), [`${recoveryJobId(owner.proof)}.${siteTag(BASE)}.json`]);
   const listed = await listRecoveryJobs();
   assert.equal(listed.length, 1);
   assert.equal(listed[0]!.count, count);
@@ -208,14 +209,15 @@ test("a file in a pending job is on record for the next record: its member comes
   const origin0 = bytesToBase64(leaves.subarray(1 + 32, 1 + 64));
   const artifact0 = bytesToBase64(leaves.subarray(1, 1 + 32));
   const pending = await pendingMembersFor([origin0, artifact0, bytesToBase64(sha256(utf8("not in any tree")))], BASE);
-  assert.equal(pending.size, 2);
-  assert.equal(pending.get(origin0)![0]!.leafIndex, 0);
-  assert.equal(pending.get(artifact0)![0]!.side, "artifact");
-  assert.equal(pending.get(origin0)![0]!.job.id, recoveryJobId(owner.proof));
-  assert.deepEqual(await pendingMembersFor([origin0], "https://other.test"), new Map(), "another site's jobs are not this site's");
+  assert.equal(pending.members.size, 2);
+  assert.deepEqual(pending.broken, []);
+  assert.equal(pending.members.get(origin0)![0]!.leafIndex, 0);
+  assert.equal(pending.members.get(artifact0)![0]!.side, "artifact");
+  assert.equal(pending.members.get(origin0)![0]!.job.id, recoveryJobId(owner.proof));
+  assert.equal((await pendingMembersFor([origin0], "https://other.test")).members.size, 0, "another site's jobs are not this site's");
   s.state.writes = "on";
   await flushRecoveryJobs({ baseUrl: BASE }, { fetch: s.fetch, backoffMs: 1 });
-  assert.equal((await pendingMembersFor([origin0], BASE)).size, 0, "a finished job is gone from the pending members");
+  assert.equal((await pendingMembersFor([origin0], BASE)).members.size, 0, "a finished job is gone from the pending members");
 });
 
 test("a job from an owner's export is the same job; a member's export cannot write the tree's entries", async () => {
@@ -232,4 +234,65 @@ test("a job from an owner's export is the same job; a member's export cannot wri
   assert.equal(jobFromOwnerExport(owner, `${BASE}/`).baseUrl, BASE);
   assert.throws(() => jobFromOwnerExport({ proof: owner.proof, tree: { member: {} } }, BASE), /owner's export/);
   assert.throws(() => jobFromOwnerExport("nonsense", BASE), /owner's export/);
+});
+
+test("the same proof kept on two sites is two jobs: one site's writes and progress never count for the other", async () => {
+  const a = site();
+  const b = site();
+  const ra = await keepRecoveryEntries(made, { baseUrl: "https://a.invalid" }, { fetch: a.fetch, backoffMs: 1 });
+  assert.ok(ra.done);
+  // Registered for B: a fresh job with no progress, posting to B, whatever A has.
+  const rb = await keepRecoveryEntries(made, { baseUrl: "https://b.invalid" }, { fetch: b.fetch, backoffMs: 1 });
+  assert.ok(rb.done);
+  assert.equal(rb.written, ENTRIES, "B's entries were written to B");
+  assert.equal(b.store.size, ENTRIES);
+  assert.equal(a.store.size, ENTRIES);
+  assert.notEqual(siteTag("https://a.invalid"), siteTag("https://b.invalid"));
+});
+
+test("a holder that lost its lock to a takeover saves nothing more and cannot remove the new holder's lock", async () => {
+  const s = site();
+  const { job, path } = await registerRecoveryJob(made, { baseUrl: BASE });
+  const lock = path.replace(/\.json$/, ".lock");
+  // A slow holder: its first POST hangs until released.
+  let release: (() => void) | null = null;
+  const gate = new Promise<void>((r) => { release = r; });
+  let posts = 0;
+  const slow = async (u: string, init?: RequestInit) => {
+    if (init?.method === "POST") {
+      posts++;
+      if (posts === 1) await gate;
+    }
+    return s.fetch(u, init);
+  };
+  const first = runRecoveryJob(job, { fetch: slow, backoffMs: 1 });
+  await new Promise((r) => setTimeout(r, 20));
+  // Its lock goes stale (untouched for ten minutes, as a frozen process's would); another process takes over and finishes.
+  const old = new Date(Date.now() - 11 * 60_000);
+  await utimes(lock, old, old);
+  const second = await runRecoveryJob(job, { fetch: s.fetch, backoffMs: 1 });
+  assert.ok(second !== null && second.done, "the new holder finished the job");
+  assert.deepEqual(await jobFiles(), [], "and removed it");
+  release!();
+  const r1 = await first;
+  assert.ok(r1 !== null);
+  assert.match(r1.reason ?? "", /took over/);
+  assert.equal(s.store.size, ENTRIES, "no entry was written twice: the second run's entries, and the first's one batch that landed, are the same keys");
+});
+
+test("a broken job (its list no longer rebuilds its root) is set aside and reported: the history is not empty, it is unreadable", async () => {
+  const s = site();
+  const { job, path } = await registerRecoveryJob(made, { baseUrl: BASE });
+  // Corrupt the saved list.
+  const damaged = { ...job, leavesB64: bytesToBase64(new Uint8Array(65 * count).fill(7)) };
+  await writeFile(path, JSON.stringify(damaged));
+  const r = await runRecoveryJob(damaged, { fetch: s.fetch, backoffMs: 1 });
+  assert.ok(r !== null && !r.done);
+  assert.deepEqual(await jobFiles(), [], "no longer a pending job");
+  const broken = (await readdir(recoveryJobsDir())).filter((n) => n.endsWith(".broken.json"));
+  assert.equal(broken.length, 1);
+  const pending = await pendingMembersFor([bytesToBase64(sha256(utf8("anything")))], BASE);
+  assert.equal(pending.broken.length, 1, "reported to every lookup for this site");
+  assert.equal((await pendingMembersFor([], "https://other.test")).broken.length, 0, "not to another site's");
+  await rm(join(recoveryJobsDir(), broken[0]!));
 });

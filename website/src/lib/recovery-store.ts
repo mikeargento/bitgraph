@@ -47,6 +47,7 @@ import {
   MAX_LOOKUP_BODY_BYTES,
   MAX_LOOKUP_RESPONSE_BYTES,
   MIN_ENVELOPE_BYTES,
+  OBJECT_KEY_LENGTH,
   OBJECT_KEY_PATTERN,
   RECOVERY_PREFIX,
 } from "./recovery.ts";
@@ -371,20 +372,27 @@ export async function handleRecoveryLookup(bodyText: string, store: RecoveryStor
     checked.push(a);
   }
 
-  // The budget bounds the WORK, not only the answer: once the pages read so
-  // far fill it, the addresses still waiting are answered truncated without
-  // being listed (the client lists them one by one). Each address reads a
-  // short first page, so one request cannot make the store read a hundred
-  // objects per address a thousand times over.
+  // The budget bounds the WORK and the ANSWER. Before an address is listed its
+  // worst-case page is reserved against the budget (a full short page of the
+  // largest envelopes); when the page comes back the unused part is released.
+  // An address the budget cannot take is answered truncated without being
+  // listed (the client lists it one by one). Pages in flight can therefore
+  // never add up past the budget, and a final check trims the serialized
+  // answer under it whatever the estimate missed.
   const maxBytes = opts.maxBytes ?? MAX_LOOKUP_RESPONSE_BYTES;
-  let bytes = 0;
-  const pages = await pool(checked, opts.concurrency ?? 8, async (address): Promise<ListPage | "truncated" | null> => {
-    if (bytes >= maxBytes) return "truncated";
+  const sizeOf = (entries: Array<{ key: string; envelope: string }>) => 120 + entries.reduce((n, e) => n + e.key.length + e.envelope.length + 32, 0);
+  const worstPage = 120 + LOOKUP_PAGE * (OBJECT_KEY_LENGTH + Math.ceil(MAX_ENVELOPE_BYTES / 3) * 4 + 32);
+  let reserved = 0;
+  const pages = await pool(checked, opts.concurrency ?? 8, async (address): Promise<Array<{ key: string; envelope: string }> | { next: string | null; entries: Array<{ key: string; envelope: string }> } | "truncated" | null> => {
+    if (reserved + worstPage > maxBytes) return "truncated";
+    reserved += worstPage;
     try {
       const page = await store.list(address, null, LOOKUP_PAGE);
-      bytes += 120 + page.entries.reduce((n, e) => n + e.key.length + Math.ceil(e.envelope.length / 3) * 4 + 32, 0);
-      return page;
+      const encoded = page.entries.map((e) => ({ key: e.key, envelope: bytesToBase64(e.envelope) }));
+      reserved -= worstPage - sizeOf(encoded);
+      return { next: page.next, entries: encoded };
     } catch (e) {
+      reserved -= worstPage;
       console.error("[api/recovery/lookup] list failed:", e instanceof Error ? e.name : "error");
       return null;
     }
@@ -402,15 +410,23 @@ export async function handleRecoveryLookup(bodyText: string, store: RecoveryStor
       results.push({ address, error: "unavailable" });
       continue;
     }
-    if (page === "truncated") {
+    if (page === "truncated" || Array.isArray(page)) {
       truncated++;
       results.push({ address, truncated: true });
       continue;
     }
-    const encoded = page.entries.map((e) => ({ key: e.key, envelope: bytesToBase64(e.envelope) }));
-    if (encoded.length > 0) found++;
-    entries += encoded.length;
-    results.push({ address, entries: encoded, next: page.next });
+    if (page.entries.length > 0) found++;
+    entries += page.entries.length;
+    results.push({ address, entries: page.entries, next: page.next });
+  }
+  // Whatever the estimate missed: the serialized answer stays under the budget, the last listed addresses turning truncated.
+  for (let i = results.length - 1; i >= 0 && JSON.stringify({ results }).length > maxBytes; i--) {
+    const r = results[i]!;
+    if (!("entries" in r)) continue;
+    if (r.entries.length > 0) found--;
+    entries -= r.entries.length;
+    truncated++;
+    results[i] = { address: r.address, truncated: true };
   }
   (opts.log ?? console.log)(`[api/recovery/lookup] addresses=${checked.length} found=${found} entries=${entries} truncated=${truncated} unavailable=${unavailable}`);
   return { status: 200, body: { results } };

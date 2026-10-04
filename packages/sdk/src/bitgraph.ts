@@ -51,6 +51,8 @@ export interface BitGraphOptions {
   baseUrl?: string;
   /** A licensee's key. Default: BITGRAPH_API_KEY. The public boundary needs none. */
   apiKey?: string;
+  /** Which proofs a recovery lookup accepts: BitGraph's published images (the default, also BITGRAPH_RECOVERY_TRUST), or "none" for the signature and tree alone (tests). */
+  recoveryTrust?: "published" | "none";
   /** Test seams; the default is the tree pipeline. fuseFile and fuseSet are superseded: accepted so existing callers compile, and ignored. */
   pipelines?: { fuseTree?: FuseTreeFn; fuseFile?: FuseFileFn; fuseSet?: FuseSetFn };
 }
@@ -150,8 +152,10 @@ const MAX_FILES = 100_000;
 export class BitGraph {
   readonly config: ApiConfig;
   private readonly fuseTree: FuseTreeFn;
+  private readonly recoveryTrust: "published" | "none" | undefined;
 
   constructor(options: BitGraphOptions = {}) {
+    this.recoveryTrust = options.recoveryTrust;
     const env = configFromEnv();
     const baseUrl = (options.baseUrl ?? env.baseUrl).replace(/\/+$/, "");
     const apiKey = options.apiKey ?? env.apiKey;
@@ -214,18 +218,23 @@ export class BitGraph {
     const lookups = [...new Set([...unique, ...carrierInner])];
     const checked = lookups.length > 0 ? await batchCheck(this.config, lookups.map(toUrlSafeB64)) : { results: {} as Record<string, { proofs: Array<{ proof: BitGraphProof; member?: SetMemberView }> }> };
     const rowsFor = (d: string) => checked.results[toUrlSafeB64(d)]?.proofs ?? [];
+    // The ledger's answer must cover every digest asked: a digest it leaves
+    // out was not checked, and "not checked" is not "not on record".
+    const uncovered = new Set(lookups.filter((d) => checked.results[toUrlSafeB64(d)] === undefined));
 
     // A file made inside a tree is never indexed by its plain hash, so the
     // ledger's silence is not "new": its sealed recovery entry is asked first
     // (recovery.ts). A file verified there is on record and not made again.
-    const recovered = opts.recovery !== false && !opts.again
-      ? await lookupRecovered(unique.filter((d) => rowsFor(d).length === 0).map((d) => (byDigest.get(d) as { file: ScannedFile }).file), this.config)
+    // Only `again` skips this; `recovery: false` keeps no entries and skips nothing.
+    const recovered = !opts.again
+      ? await lookupRecovered(unique.filter((d) => rowsFor(d).length === 0).map((d) => (byDigest.get(d) as { file: ScannedFile }).file), this.config, this.recoveryTrust !== undefined ? { trust: this.recoveryTrust } : {})
       : null;
     const knownRows = (d: string): Array<{ proof: BitGraphProof; member?: SetMemberView } | RecoveredRow> => (rowsFor(d).length > 0 ? rowsFor(d) : recovered?.found.get(d) ?? []);
     // A file whose lookup did not complete is neither found nor new: a member
     // of an earlier tree would look exactly like it. It is refused, with the
     // reason, unless `again` asks for a new BitGraph regardless.
     const unchecked = new Map<string, string>(recovered?.unknown ?? []);
+    if (!opts.again) for (const d of uncovered) if (!unchecked.has(d) && byDigest.has(d)) unchecked.set(d, "the ledger's answer did not cover this file");
 
     const fresh = (opts.again ? unique : unique.filter((d) => knownRows(d).length === 0 && !unchecked.has(d))).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
     // A file whose length changed while it was read left no hasher state and

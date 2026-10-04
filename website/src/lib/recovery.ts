@@ -104,6 +104,7 @@
  */
 
 import { sha256 } from "@noble/hashes/sha256";
+import { canonicalize, computeSignedBodyHash, publishedMeasurement, verifyNitroAttestation } from "@mikeargento/bitgraph-verify";
 import {
   LEAF_AS_IS,
   MerkleTree,
@@ -164,6 +165,8 @@ export const MAX_LIST_LIMIT = 100;
 export const ADDRESS_PATTERN = /^[0-9a-f]{64}$/;
 export const ENTRY_ID_PATTERN = /^[0-9a-f]{64}$/;
 export const OBJECT_KEY_PATTERN = /^recovery\/v1\/[0-9a-f]{64}\/[0-9a-f]{64}$/;
+/** "recovery/v1/" + 64 + "/" + 64. */
+export const OBJECT_KEY_LENGTH = RECOVERY_PREFIX.length + 64 + 1 + 64;
 
 const EPOCH_PATTERN = /^[A-Za-z0-9+/_-]{1,128}={0,2}$/;
 const COUNTER_PATTERN = /^[0-9]{1,20}$/;
@@ -179,8 +182,10 @@ const KEY_LABEL = utf8("bitgraph-lookup-key");
 export const SALT_BYTES = 32;
 /** Addresses one lookup request may ask for (POST /api/recovery/lookup). */
 export const MAX_LOOKUP_ADDRESSES = 1000;
-/** The most a lookup answer carries; addresses past it come back `truncated` and are listed one by one. */
-export const MAX_LOOKUP_RESPONSE_BYTES = 4_000_000;
+/** The most a lookup answer carries (under the hosting platform's 4.5 MB response limit); addresses past it come back `truncated` and are listed one by one. */
+export const MAX_LOOKUP_RESPONSE_BYTES = 3_500_000;
+/** The default time one recovery read may take. */
+export const LOOKUP_TIMEOUT_MS = 30_000;
 /** The most a lookup request's body may be (1,000 addresses are 70 KB). */
 export const MAX_LOOKUP_BODY_BYTES = 131_072;
 /** More distinct members than this listed under one address, and the lookup is unknown: each would cost a proof fetch, and nothing honest records one file this often. */
@@ -388,7 +393,8 @@ export function encodeRecoveryPlaintext(p: RecoveryPlaintext): Uint8Array {
     ...(p.salt !== undefined ? { salt: p.salt } : {}),
     ...(p.name !== undefined ? { name: p.name } : {}),
   };
-  return utf8(JSON.stringify(ordered));
+  // Canonical JSON (SPEC section 2): the one serialization every BitGraph document uses.
+  return canonicalize(ordered);
 }
 
 function parseLocator(v: unknown): RecoveryLocator | null {
@@ -813,7 +819,7 @@ export async function findOwnRecoveryEntry(digest32: Uint8Array, expected: Recov
   checkDigest(digest32);
   const address = recoveryAddress(digest32);
   const key = await importKey(recoveryKeyBytes(digest32));
-  const entries = await collectPages(address, digest32, key, null, fetchFn, opts, false);
+  const entries = await collectPages(address, digest32, key, null, fetchFn, opts);
   for (const e of entries) {
     const found: RecoveryPlaintext = { format: RECOVERY_FORMAT, proofHash: e.proofHash, leafIndex: e.leafIndex, rootDocument: e.rootDocument, member: e.member, proof: e.proof };
     if (!sameRecoveryMember(found, expected)) continue;
@@ -853,7 +859,12 @@ export interface RecoveryLookupOptions {
   baseUrl?: string;
   /** A guard against a server whose pages never end. Default 1,000 (100,000 entries). */
   maxPages?: number;
+  /** The most one read may take; a read that outlasts it is a failed read. Default LOOKUP_TIMEOUT_MS. */
+  timeoutMs?: number;
 }
+
+/** An abort signal for one read: the caller's limit, or the default. */
+const readSignal = (opts: RecoveryLookupOptions): AbortSignal => AbortSignal.timeout(opts.timeoutMs ?? LOOKUP_TIMEOUT_MS);
 
 /** One page of a listing, checked: { entries, next }. */
 interface ListingPage {
@@ -915,7 +926,7 @@ function checkRecoveredCount(entries: RecoveredEntry[]): RecoveredEntry[] {
  * followed to its end, or the lookup fails: a partial listing is never an
  * answer.
  */
-async function collectPages(address: string, digest32: Uint8Array, key: CryptoKey, first: ListingPage | null, fetchFn: FetchLike, opts: RecoveryLookupOptions, emptyOn404 = true): Promise<RecoveredEntry[]> {
+async function collectPages(address: string, digest32: Uint8Array, key: CryptoKey, first: ListingPage | null, fetchFn: FetchLike, opts: RecoveryLookupOptions): Promise<RecoveredEntry[]> {
   const base = opts.baseUrl ?? "";
   const maxPages = opts.maxPages ?? 1000;
   const out: RecoveredEntry[] = [];
@@ -927,12 +938,10 @@ async function collectPages(address: string, digest32: Uint8Array, key: CryptoKe
       const url = `${base}/api/recovery/${address}${after !== null ? `?after=${after}` : ""}`;
       let body: unknown;
       try {
-        const res = await fetchFn(url, { headers: { accept: "application/json" }, cache: "no-store" });
-        // A site without the route keeps no entries at all: that is an
-        // answer (nothing is kept here), not a failed read. Only a 404, only
-        // on the first page, and never for an address already known to hold
-        // entries (emptyOn404 false: the batch route named it).
-        if (res.status === 404 && after === null && first === null && emptyOn404) return [];
+        // Any status but 200 is a failed read, a 404 included: a route that is
+        // missing (a rollback, a routing fault) says nothing about the entries
+        // that may sit in storage behind it.
+        const res = await fetchFn(url, { headers: { accept: "application/json" }, signal: readSignal(opts), cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         body = await res.json();
       } catch (e) {
@@ -963,9 +972,9 @@ async function collectPages(address: string, digest32: Uint8Array, key: CryptoKe
  * listing order; order the recordings by their proofs' own times once
  * fetched.
  *
- * Raises RecoveryUnavailableError when the entries cannot be read. An empty
- * array is an answer (nothing is kept for these bytes, or the site keeps no
- * recovery entries at all: its route answers 404); a failure never is.
+ * Raises RecoveryUnavailableError when the entries cannot be read, a route
+ * that answers 404 included. An empty array is an answer (nothing is kept
+ * for these bytes); a failure never is.
  */
 export async function recoverFromDigest(digest32: Uint8Array, fetchFn: FetchLike = defaultFetch, opts: RecoveryLookupOptions = {}): Promise<RecoveredEntry[]> {
   checkDigest(digest32);
@@ -1010,14 +1019,14 @@ export async function recoverFromDigests(digests: readonly Uint8Array[], fetchFn
     for (const i of indexesByAddress.get(address)!) out[i] = a;
   };
 
-  /** POST one slice, trying again after a 429 or a 5xx (Retry-After honoured, at most 30 s) or a network failure, three times in all. */
+  /** POST one slice, trying again after a 429 or a 5xx (Retry-After honoured, at most 30 s) or a network failure, three times in all. A site without the batch route (404, 405, 501) is asked address by address instead. */
   async function postLookup(addresses: string[]): Promise<{ kind: "answered"; body: unknown } | { kind: "no-route" } | { kind: "failed"; reason: string }> {
     let reason = "";
     let retryAfterSec = 0;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await sleep(Math.min(30_000, retryAfterSec > 0 ? retryAfterSec * 1000 : 500 * 2 ** (attempt - 1)));
       try {
-        const res = await fetchFn(`${base}/api/recovery/lookup`, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ addresses }), cache: "no-store" });
+        const res = await fetchFn(`${base}/api/recovery/lookup`, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ addresses }), signal: readSignal(opts), cache: "no-store" });
         if (res.status === 404 || res.status === 405 || res.status === 501) return { kind: "no-route" };
         if (res.status === 429 || res.status >= 500) {
           reason = `POST /api/recovery/lookup answered ${res.status}`;
@@ -1048,7 +1057,7 @@ export async function recoverFromDigests(digests: readonly Uint8Array[], fetchFn
       }
       for (const r of posted.body["results"] as unknown[]) if (isPlainObject(r) && typeof r["address"] === "string") results.set(r["address"], r);
     }
-    // A site without the route is asked one address at a time (GET), from the start of each listing.
+    // A site without the batch route is asked one address at a time (GET), from the start of each listing; a 404 there is a failed read.
     const oneByOne = posted.kind === "no-route";
     await mapPool(addresses, 8, async (address): Promise<void> => {
       const digest32 = digests[indexesByAddress.get(address)![0]!]!;
@@ -1061,8 +1070,7 @@ export async function recoverFromDigests(digests: readonly Uint8Array[], fetchFn
           if (r["error"] !== undefined) throw new RecoveryUnavailableError(`the site could not read this address (${String(r["error"])})`);
           if (r["truncated"] !== true) first = checkPage(r);
         }
-        // Through the batch route the site has recovery; a 404 on a page is then a failed read, never "nothing kept".
-        answerAll(address, { ok: true, entries: checkRecoveredCount(await collectPages(address, digest32, key, first, fetchFn, opts, oneByOne)) });
+        answerAll(address, { ok: true, entries: checkRecoveredCount(await collectPages(address, digest32, key, first, fetchFn, opts)) });
       } catch (e) {
         answerAll(address, { ok: false, reason: messageOf(e) });
       }
@@ -1072,11 +1080,14 @@ export async function recoverFromDigests(digests: readonly Uint8Array[], fetchFn
 }
 
 async function openListed(item: unknown, digest32: Uint8Array, address: string, key: CryptoKey): Promise<RecoveredEntry | null> {
-  if (!isPlainObject(item) || typeof item["key"] !== "string" || typeof item["envelope"] !== "string") return null;
+  // The wire shape is the server's to get right: an item that is not { key, envelope } under this
+  // address, in canonical base64, is a malformed answer (a failed read), never a candidate to skip.
+  if (!isPlainObject(item) || typeof item["key"] !== "string" || typeof item["envelope"] !== "string") throw new RecoveryUnavailableError("a listed entry is not { key, envelope }");
   const parsedKey = parseRecoveryObjectKey(item["key"]);
-  if (parsedKey === null || parsedKey.address !== address) return null;
+  if (parsedKey === null || parsedKey.address !== address) throw new RecoveryUnavailableError("a listed entry's key is not under this address");
   const envelope = base64ToBytes(item["envelope"]);
-  if (envelope === null) return null;
+  if (envelope === null) throw new RecoveryUnavailableError("a listed entry's envelope is not canonical base64");
+  // From here on, what does not hold is somebody's entry that is not ours: skipped, not a failure.
   const plain = await openWith(key, item["key"], envelope);
   if (plain === null) return null;
   const p = parseRecoveryPlaintext(plain);
@@ -1100,6 +1111,32 @@ async function openListed(item: unknown, digest32: Uint8Array, address: string, 
     proof: p.proof,
     name: p.name ?? null,
   };
+}
+
+/** Which proofs count as recovered: "published", attested by an image BitGraph published (the default); "none", the tree and signature alone (tests with the published TEST key). */
+export type RecoveryTrust = "published" | "none";
+
+/**
+ * The proof's attestation verified in full (AWS signature, chain, root,
+ * validity, PCR0 as the proof names it, bound to this proof's signed body)
+ * and attesting an image on BitGraph's published list.
+ */
+export function proofTrusted(proof: BitGraphProof): boolean {
+  const env = (proof as { environment?: { measurement?: unknown; attestation?: { reportB64?: unknown } } }).environment;
+  const measurement = typeof env?.measurement === "string" ? env.measurement.toLowerCase() : null;
+  const reportB64 = env?.attestation?.reportB64;
+  if (measurement === null || typeof reportB64 !== "string") return false;
+  let n: ReturnType<typeof verifyNitroAttestation>;
+  try {
+    n = verifyNitroAttestation(reportB64, { expectedPcr0: measurement, expectedUserDataB64: computeSignedBodyHash(proof) });
+  } catch {
+    return false;
+  }
+  const byName = (prefix: string) => n.checks.find((c) => c.name.startsWith(prefix));
+  const all = [byName("AWS signature"), byName("Certificate chain"), byName("Chains to") ?? byName("Trust root"), byName("Certificate validity"), byName("PCR0"), byName("Bound to this proof")];
+  if (n.doc === null || !all.every((c) => c?.pass === true)) return false;
+  const docPcr0 = (n.doc.pcrs as Record<number, unknown> | undefined)?.[0];
+  return typeof docPcr0 === "string" && publishedMeasurement(docPcr0.toLowerCase()) !== null;
 }
 
 export interface RecoveredProof {
@@ -1133,18 +1170,20 @@ export interface RecoveredProof {
 export async function fetchRecoveredProof(
   entry: Pick<RecoveredEntry, "proofHash" | "rootDocument" | "member" | "proof">,
   fetchFn: FetchLike = defaultFetch,
-  opts: { baseUrl?: string; bytes?: Uint8Array; source?: ByteSource; extraSpecHashes?: readonly string[] } = {},
+  opts: { baseUrl?: string; bytes?: Uint8Array; source?: ByteSource; extraSpecHashes?: readonly string[]; timeoutMs?: number; trust?: RecoveryTrust } = {},
 ): Promise<RecoveredProof | null> {
   const url = `${opts.baseUrl ?? ""}/api/proofs/${toUrlSafe(entry.proof.artifactDigestB64)}`;
   let body: unknown;
   try {
-    const res = await fetchFn(url, { headers: { accept: "application/json" }, cache: "no-store" });
+    const res = await fetchFn(url, { headers: { accept: "application/json" }, signal: readSignal(opts), cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     body = await res.json();
   } catch (e) {
     throw new RecoveryUnavailableError("GET /api/proofs/<artifact digest>", e);
   }
-  const proofs = isPlainObject(body) && Array.isArray(body["proofs"]) ? (body["proofs"] as unknown[]) : [];
+  // The answer's shape is the route's to get right: anything but { proofs: [...] } is a failed read, never "no proof".
+  if (!isPlainObject(body) || !Array.isArray(body["proofs"])) throw new RecoveryUnavailableError("the proof route's answer is not { proofs }");
+  const proofs = body["proofs"] as unknown[];
   // The route says so itself when a miss is not a finding: the ledger no longer
   // indexes proofs by digest. The entry may well name a real proof; nothing here
   // can read it, so this is unavailable, never "not this file's recording".
@@ -1161,6 +1200,11 @@ export async function fetchRecoveredProof(
       continue;
     }
     if (hash !== entry.proofHash) continue;
+    // A recovered BitGraph is a BitGraph: beyond the signature and the tree,
+    // its attestation must verify in full and attest an image BitGraph
+    // published (SPEC sections 5 and 16). A proof that does not is nobody's
+    // recording of this file, whatever the index served it from.
+    if ((opts.trust ?? "published") === "published" && !proofTrusted(proof)) continue;
     const check = await verifyTreeMember({
       proof,
       member: entry.member,

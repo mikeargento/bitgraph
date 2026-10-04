@@ -221,7 +221,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         recovery: z
           .boolean()
           .default(true)
-          .describe("true (default): look for each file in earlier trees through its sealed recovery entry before calling it new, and keep one for each file made here, so the file finds its proof again from its bytes alone. false: neither."),
+          .describe("true (default): keep a sealed recovery entry for each file made here, so the file finds its proof again from its bytes alone. false: keep none. Either way a file is looked for in earlier trees before it is called new; only again=true skips that."),
         response_format: responseFormatSchema,
       },
       annotations: {
@@ -288,7 +288,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         // member of an earlier tree would look exactly like it): refused with
         // the reason, unless again=true asks for a new BitGraph regardless.
         const excluded = new Map<string, string>();
-        if (!again && recovery !== false) {
+        if (!again) {
           const unknown = unique.filter((d) => !existing.has(d)).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
           if (unknown.length > 0) {
             report(0, 1, "checking recovery entries");

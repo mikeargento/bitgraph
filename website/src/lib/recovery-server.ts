@@ -32,6 +32,7 @@ import {
   fetchRecoveredProof,
   findOwnRecoveryEntry,
   newRecoverySalt,
+  type RecoveryTrust,
   recoverFromDigests,
   recoverySaltKey,
   recoverySaltsFor,
@@ -41,6 +42,7 @@ import {
   sealRecoveryMember,
   type FetchLike,
   type RecoveryPlaintext,
+  type RecoverySide,
   type RecoveryTreeInput,
   type RecoveryWrite,
 } from "./recovery.ts";
@@ -201,8 +203,9 @@ export async function keepTreeOnSite(
             }
             // "conflict": try again, a few times.
           } catch (e) {
+            // The error's name only: a store message can carry the object key, and keys name addresses.
             broken = true;
-            result.reason = `the recovery store could not be written (${e instanceof Error ? e.message : String(e)})`;
+            result.reason = `the recovery store could not be written (${e instanceof Error ? e.name : "error"})`;
           }
         }
       }
@@ -214,7 +217,7 @@ export async function keepTreeOnSite(
     else if (outOfTime) result.reason = BUDGET_REASON;
     else if (earlier !== null) result.reason = earlier;
   } catch (e) {
-    result.reason = `recovery entries were not written: ${e instanceof Error ? e.message : String(e)}`;
+    result.reason = `recovery entries were not written: ${e instanceof Error && e.name === "RecoveryInputError" ? e.message : e instanceof Error ? e.name : "error"}`;
     result.pending = Math.max(0, result.entries - result.kept - result.blocked);
     result.done = false;
   }
@@ -229,6 +232,9 @@ export function siteRecoveryNote(r: SiteRecoveryResult): string {
   return `Not yet recoverable from the files alone (${r.reason ?? "the entries were not written"}); keep this export.`;
 }
 
+/** The note on a hosted export when the entries are written after the answer (SPEC section 13: the proof and the export come first). */
+export const AFTER_ANSWER_NOTE = "Each file's recovery entries are being written after this answer (they are what lets a file find this proof again from its own bytes on bitgraph.ing). Keep this export: it is the record either way.";
+
 // ---------------------------------------------------------------------------
 // The site reading its own entries: a file's digest, on the hosted MCP, is
 // enough to find the tree it is already in (no bytes, so TREE_PATH_VALID is
@@ -239,13 +245,20 @@ export interface SiteRecovered {
   proof: BitGraphProof;
   member: TreeMemberEvidence;
   rootDocumentHex: string;
+  /** Which digest of the leaf these bytes are: the committed bytes ("artifact"), or the one digest of an as-is leaf. Never "origin": see recoveredOnSite. */
+  matched: RecoverySide;
 }
 
 export interface SiteRecoveryLookup {
   /** Standard base64 digest to the tree positions it was found in (one per recording). */
   found: Map<string, SiteRecovered[]>;
-  /** Standard base64 digest to why its lookup did not complete: whether it is already in a tree is unknown. */
+  /** Standard base64 digest to why its lookup did not complete, or why what was found could not be checked here: whether it is already in a tree is unknown. */
   unknown: Map<string, string>;
+}
+
+export interface SiteLookupOptions {
+  /** Which proofs count: attested by a published image (default), or the tree and signature alone (tests). */
+  trust?: RecoveryTrust;
 }
 
 /**
@@ -282,11 +295,16 @@ export function inProcessRecoveryFetch(store: RecoveryStore, proofsByDigest: (ur
 /**
  * The trees these digests are already members of, by their recovery entries,
  * read in this process. With no bytes in hand the most a member can show is a
- * valid path from a leaf naming the digest to the signed root
- * (TREE_PATH_VALID): "these bytes are named by a recorded tree", the same
- * strength as the ledger's index of set members. Never throws.
+ * valid path from a leaf naming the digest to the signed root. That is enough
+ * when the digest IS the leaf's committed bytes (the artifact, or the one
+ * digest of an as-is leaf): the tree commits to exactly these bytes. It is
+ * not enough when the digest is only the leaf's ORIGIN: a leaf's origin is
+ * whatever its maker declared, and the hosted MCP's makers declare digests
+ * without sending bytes, so a tree can name any digest as the original of a
+ * container holding something else. Such a match is UNKNOWN here, with the
+ * reason: only the bytes can settle it. Never throws.
  */
-export async function recoveredOnSite(digestsB64: readonly string[], fetchFn: FetchLike): Promise<SiteRecoveryLookup> {
+export async function recoveredOnSite(digestsB64: readonly string[], fetchFn: FetchLike, opts: SiteLookupOptions = {}): Promise<SiteRecoveryLookup> {
   const out: SiteRecoveryLookup = { found: new Map(), unknown: new Map() };
   const digests: Uint8Array[] = [];
   const kept: string[] = [];
@@ -313,15 +331,21 @@ export async function recoveredOnSite(digestsB64: readonly string[], fetchFn: Fe
     if (a.entries.length === 0) return;
     try {
       const trees: SiteRecovered[] = [];
+      let originOnly = 0;
       for (const e of a.entries) {
-        const bound = await fetchRecoveredProof(e, fetchFn);
+        const bound = await fetchRecoveredProof(e, fetchFn, opts.trust !== undefined ? { trust: opts.trust } : {});
         if (!bound) continue;
         if (bound.check.category !== "TREE_PATH_VALID" && !(TREE_MEMBER_CATEGORIES as readonly string[]).includes(bound.check.category)) continue;
+        if (e.matched === "origin") {
+          originOnly++;
+          continue;
+        }
         const key = `${bound.proof.commit?.epochId ?? ""}:${bound.proof.commit?.counter ?? ""}`;
         if (trees.some((t) => `${t.proof.commit?.epochId ?? ""}:${t.proof.commit?.counter ?? ""}` === key)) continue;
-        trees.push({ proof: bound.proof, member: e.member, rootDocumentHex: e.rootDocument });
+        trees.push({ proof: bound.proof, member: e.member, rootDocumentHex: e.rootDocument, matched: e.matched });
       }
       if (trees.length > 0) out.found.set(d, trees);
+      else if (originOnly > 0) out.unknown.set(d, `a recorded tree names these bytes as the original of one of its members, which this server cannot check without the bytes; verify the file against that tree with the command line tool, or pass again=true to open a position regardless`);
     } catch (e) {
       out.unknown.set(d, e instanceof Error ? e.message : String(e));
     }

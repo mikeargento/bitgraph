@@ -12,6 +12,7 @@ import { createDecipheriv, createHash } from "node:crypto";
 import {
   bytesToBase64,
   bytesToHex,
+  canonicalize,
   committedBytesFor,
   encodeTreeLeaves,
   parseTreeRootDocument,
@@ -274,14 +275,16 @@ describe("a tree, its members and their plaintexts", () => {
     assert.notEqual(k0, k1);
   });
 
-  test("the plaintext is canonical JSON in the documented order and parses back", () => {
+  test("the plaintext is section 2 canonical JSON and parses back", () => {
     const v = vectorTree();
     const tree = recoveryTreeFrom({ proof: v.proof, rootDocument: v.rootDocument, leavesBytes: v.leavesBytes });
     const { plaintext, bytes } = recoveryPlaintextFor(tree, 1, "hello.txt");
     const text = new TextDecoder().decode(bytes);
-    assert.deepEqual(Object.keys(JSON.parse(text)), ["format", "proofHash", "leafIndex", "rootDocument", "member", "proof", "name"]);
-    assert.deepEqual(Object.keys(JSON.parse(text).member), ["index", "count", "leaf", "path"]);
-    assert.deepEqual(Object.keys(JSON.parse(text).proof), ["epochId", "counter", "artifactDigestB64"]);
+    // Canonical JSON (SPEC section 2): sorted keys at every level, and the very bytes canonicalize() gives.
+    assert.deepEqual(Object.keys(JSON.parse(text)), ["format", "leafIndex", "member", "name", "proof", "proofHash", "rootDocument"]);
+    assert.deepEqual(Object.keys(JSON.parse(text).member), ["count", "index", "leaf", "path"]);
+    assert.deepEqual(Object.keys(JSON.parse(text).proof), ["artifactDigestB64", "counter", "epochId"]);
+    assert.deepEqual(bytes, canonicalize(plaintext), "the bytes are section 2's canonicalization of the plaintext");
     assert.equal(plaintext.format, RECOVERY_FORMAT);
     assert.equal(plaintext.proof.artifactDigestB64, v.proof.artifact.digestB64);
     assert.equal(plaintext.proof.epochId, v.proof.commit.epochId);
@@ -457,16 +460,21 @@ describe("lookup", () => {
 
     // The proof comes back from the public route, bound by proof hash, and verifies.
     const proofsFetch = fakeFetch(store, { proofs: [second.proof, v.proof] });
-    const bound = await fetchRecoveredProof(fromVector, proofsFetch, { extraSpecHashes: [v.specHash] });
+    const bound = await fetchRecoveredProof(fromVector, proofsFetch, { extraSpecHashes: [v.specHash], trust: "none" });
     assert.ok(bound);
     assert.equal(bound.check.category, "TREE_PATH_VALID", bound.check.reason);
-    const withFile = await fetchRecoveredProof(fromVector, proofsFetch, { bytes: v.memberFile, extraSpecHashes: [v.specHash] });
+    const withFile = await fetchRecoveredProof(fromVector, proofsFetch, { bytes: v.memberFile, extraSpecHashes: [v.specHash], trust: "none" });
     assert.equal(withFile!.check.category, "TREE_MEMBER_FROM_ORIGIN", withFile!.check.reason);
-    const withCommitted = await fetchRecoveredProof(byArtifact[0]!, proofsFetch, { bytes: committed, extraSpecHashes: [v.specHash] });
+    const withCommitted = await fetchRecoveredProof(byArtifact[0]!, proofsFetch, { bytes: committed, extraSpecHashes: [v.specHash], trust: "none" });
     assert.equal(withCommitted!.check.category, "TREE_MEMBER_DIRECT", withCommitted!.check.reason);
     // A route that has no proof with this proof hash: null, not a verdict.
-    assert.equal(await fetchRecoveredProof(fromVector, fakeFetch(store, { proofs: [] })), null);
+    assert.equal(await fetchRecoveredProof(fromVector, fakeFetch(store, { proofs: [] }), { trust: "none" }), null);
     await assert.rejects(fetchRecoveredProof(fromVector, fakeFetch(store, { status: 503 })), RecoveryUnavailableError);
+    // The default trust: a proof whose attestation is a stub is nobody's recording, whatever served it.
+    assert.equal(await fetchRecoveredProof(fromVector, proofsFetch, { extraSpecHashes: [v.specHash] }), null, "the TEST vector's stub attestation does not pass the published-image policy");
+    // A proof answer that is not { proofs } is a failed read, never "no proof".
+    const malformed = async (u: string, init?: RequestInit) => (u.startsWith("/api/proofs/") ? new Response(JSON.stringify({ error: "temporarily unavailable" }), { status: 200 }) : fakeFetch(store)(u, init));
+    await assert.rejects(fetchRecoveredProof(fromVector, malformed, { trust: "none" }), RecoveryUnavailableError);
   });
 
   test("pages are followed to the end", async () => {
@@ -538,6 +546,13 @@ describe("lookup", () => {
     // A cursor that does not advance is a server fault, not an endless loop.
     const stuck = async () => new Response(JSON.stringify({ entries: [], next: "00".repeat(32) }), { status: 200 });
     await assert.rejects(recoverFromDigest(d, stuck), /does not advance/);
+    // A route that is not there (a rollback, a routing fault) says nothing about the entries behind it.
+    await assert.rejects(recoverFromDigest(d, async () => new Response("not found", { status: 404 })), RecoveryUnavailableError, "404 is a failed read");
+    const [viaBatch] = await recoverFromDigests([d], async () => new Response("not found", { status: 404 }));
+    assert.equal(viaBatch!.ok, false, "and through the batch route's fallback too");
+    // A listed item that is not { key, envelope } is the server's fault, never a candidate to skip.
+    const junkItem = async () => new Response(JSON.stringify({ entries: [{}], next: null }), { status: 200 });
+    await assert.rejects(recoverFromDigest(d, junkItem), RecoveryUnavailableError, "a malformed listing item is a failed read");
   });
 
   test("existingEntryHoldsMember: only this member's own entry counts, whatever else sits at the key", async () => {
@@ -615,9 +630,9 @@ describe("lookup", () => {
     const [entry] = await recoverFromDigest(sha256(v.memberFile), fakeFetch(store));
     assert.ok(entry);
     const retired = async (u: string, init?: RequestInit) => (u.startsWith("/api/proofs/") ? new Response(JSON.stringify({ proofs: [], discovery: "retired", note: "a miss here is not a finding" }), { status: 200 }) : fakeFetch(store)(u, init));
-    await assert.rejects(fetchRecoveredProof(entry!, retired), RecoveryUnavailableError);
+    await assert.rejects(fetchRecoveredProof(entry!, retired, { trust: "none" }), RecoveryUnavailableError);
     // A plain empty answer from a live index is an answer: no such proof.
-    assert.equal(await fetchRecoveredProof(entry!, fakeFetch(store, { proofs: [] })), null);
+    assert.equal(await fetchRecoveredProof(entry!, fakeFetch(store, { proofs: [] }), { trust: "none" }), null);
     void tree;
   });
 });

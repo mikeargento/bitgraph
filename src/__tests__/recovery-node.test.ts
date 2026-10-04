@@ -116,7 +116,7 @@ test("every member's entries are written once, and each file finds its proof aga
       const bytes = Uint8Array.from(Buffer.from(hex, "hex"));
       const found = await recoverFromDigest(sha(bytes), s.fetch, { baseUrl: opts.baseUrl });
       assert.equal(found.length, 1, `${f.name}: one tree holds these bytes`);
-      const bound = await fetchRecoveredProof(found[0]!, s.fetch, { baseUrl: opts.baseUrl, bytes });
+      const bound = await fetchRecoveredProof(found[0]!, s.fetch, { baseUrl: opts.baseUrl, bytes, trust: "none" });
       assert.ok(bound !== null, `${f.name}: the proof was found`);
       assert.ok((TREE_MEMBER_CATEGORIES as readonly string[]).includes(bound.check.category), `${f.name}: ${bound.check.category}`);
       assert.equal(found[0]!.name, f.name, "the sealed name comes back");

@@ -86,12 +86,12 @@ import {
   type SetOutcome,
 } from "@/lib/mcp/fuse-hosted";
 import { after } from "next/server";
-import { BUDGET_REASON, inProcessRecoveryFetch, keepTreeOnSite, recoveredOnSite, siteRecoveryNote, type SiteRecovered } from "@/lib/recovery-server";
+import { AFTER_ANSWER_NOTE, inProcessRecoveryFetch, keepTreeOnSite, recoveredOnSite, type SiteRecovered } from "@/lib/recovery-server";
 import { s3RecoveryStore } from "@/lib/recovery-store-s3";
 import { getProofsByDigest } from "@/lib/s3";
 
-/** Milliseconds a commit spends writing a tree's recovery entries before the answer; the rest follows after it (lib/recovery-server.ts). */
-const HOSTED_RECOVERY_BUDGET_MS = 15_000;
+/** Milliseconds the after-answer continuation spends writing a tree's recovery entries (lib/recovery-server.ts); the export is the record either way. */
+const HOSTED_RECOVERY_BUDGET_MS = 45_000;
 
 /** The site reading its own recovery entries, in this process: the store's handlers and the ledger's by-digest read. */
 const siteRecoveryFetch = () => inProcessRecoveryFetch(s3RecoveryStore(), async (d) => (await getProofsByDigest(fromUrlSafeB64(d))).map((e) => e.proof));
@@ -548,18 +548,17 @@ const handler = createMcpHandler(
             try {
               const t = await commitHostedTree(g);
               const ex = await treeExportFor(t);
-              // Each file's sealed recovery entries, after the proof is in hand
-              // (lib/recovery-server.ts): what fits in the budget now, the rest
-              // after the answer is sent. The export is the record either way.
+              // Each file's sealed recovery entries are written AFTER this answer
+              // (lib/recovery-server.ts, Next's after()): the proof and the export
+              // come first, as SPEC section 13 says, and nothing here waits on the
+              // store. The continuation is not durable; the export is the record.
               const recoveryInput = { proof: t.proof as never, rootDocument: t.rootDocument, leaves: t.leaves, names: t.names };
-              const kept = await keepTreeOnSite(recoveryInput, s3RecoveryStore, { budgetMs: HOSTED_RECOVERY_BUDGET_MS });
-              ex.notes.push(siteRecoveryNote(kept));
-              if (!kept.done && kept.reason === BUDGET_REASON) {
-                after(async () => {
-                  const rest = await keepTreeOnSite(recoveryInput, s3RecoveryStore, { state: kept.state });
-                  console.log(`[mcp] recovery entries after the answer: kept=${rest.kept} of ${rest.entries} pending=${rest.pending}${rest.reason !== null ? ` (${rest.reason})` : ""}`);
-                });
-              }
+              ex.notes.push(AFTER_ANSWER_NOTE);
+              after(async () => {
+                const kept = await keepTreeOnSite(recoveryInput, s3RecoveryStore, { budgetMs: HOSTED_RECOVERY_BUDGET_MS });
+                // Counts and sanitized reasons only (lib/recovery-server.ts never puts a store message in a reason).
+                console.log(`[mcp] recovery entries after the answer: kept=${kept.kept} of ${kept.entries} pending=${kept.pending} blocked=${kept.blocked}${kept.reason !== null ? ` (${kept.reason})` : ""}`);
+              });
               const { counter, epoch } = positionOf(t.proof);
               const treeDigest = t.proof.artifact?.digestB64 ?? "";
               const url = proofUrl(baseUrl, treeDigest, counter ?? undefined, t.proof.commit?.epochId);

@@ -54,7 +54,7 @@ export interface RecoveryFold {
 export const treePositionKey = (p: { commit?: { epochId?: string; counter?: string }; artifact: { digestB64: string } }): string =>
   `${p.commit?.epochId ?? ""}:${p.commit?.counter ?? ""}:${p.artifact.digestB64}`;
 
-export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: FetchLike; baseUrl?: string; local?: (digest32: Uint8Array) => Promise<LocalEntry[]> } = {}): Promise<RecoveryFold> {
+export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: FetchLike; baseUrl?: string; local?: (digest32: Uint8Array) => Promise<LocalEntry[]>; trust?: "published" | "none" } = {}): Promise<RecoveryFold> {
   const out: RecoveryFold = { found: new Map(), unknown: new Map(), failed: 0 };
   const unfound = rows.map((r, i) => [r, i] as const).filter(([r]) => r.status === "new" && r.digestB64 && !r.fromProofJson);
   if (unfound.length === 0) return out;
@@ -71,11 +71,17 @@ export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: 
   await Promise.all(asked.map(async ([r, i], k) => {
     const a = answers[k]!;
     // What this browser still owes comes first: those trees are on record whatever the store says.
+    // Its own records that cannot be read are an unknown of their own, never an empty history.
     let local: LocalEntry[] = [];
+    let localFailure: string | null = null;
     try {
       local = opts.local !== undefined ? await opts.local(digests[k]!) : [];
-    } catch {
-      local = [];
+    } catch (e) {
+      localFailure = `this browser's own pending records could not be read (${e instanceof Error ? e.message : String(e)})`;
+    }
+    if (localFailure !== null) {
+      out.unknown.set(i, localFailure);
+      if (!a.ok || a.entries.length === 0) return;
     }
     if (!a.ok && local.length === 0) {
       out.unknown.set(i, a.reason);
@@ -89,8 +95,9 @@ export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: 
       const trees: RecoveredTree[] = [];
       // A failed server lookup is unknown unless a local entry verifies below: "could not tell" is never "new".
       if (!a.ok) out.unknown.set(i, a.reason);
+      if (localFailure !== null) out.unknown.set(i, localFailure);
       for (const e of entries) {
-        const bound = await fetchRecoveredProof(e, opts.fetch, { ...lookupOpts, source });
+        const bound = await fetchRecoveredProof(e, opts.fetch, { ...lookupOpts, source, ...(opts.trust !== undefined ? { trust: opts.trust } : {}) });
         if (!bound || !(TREE_MEMBER_CATEGORIES as readonly string[]).includes(bound.check.category)) continue;
         const rootDocument = hexToBytes(e.rootDocument);
         if (rootDocument === null) continue;

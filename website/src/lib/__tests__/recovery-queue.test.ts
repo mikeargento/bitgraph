@@ -251,6 +251,28 @@ describe("the queue", () => {
     assert.equal(fresh.jobs.get(id)!.salts!["1:origin"], jobs.jobs.get(ra.id)!.salts!["1:origin"], "the same salt, read back from the entry");
   });
 
+  test("a tab that loaded an empty queue still finds a tree another tab saved later, and a stale enqueue never replaces the saved record", T, async () => {
+    const { v, input } = vectorInput();
+    const shared = new MemoryRecoveryQueueStore();
+    const refusing: RecoveryTransport = { async post() { throw new RecoveryTransportError(503, "writes off"); } };
+    const a = queueWith({ store: shared, transport: refusing });
+    await a.resume(); // A loads: nothing there
+    const b = queueWith({ store: shared, transport: refusing });
+    const { id } = await b.enqueueTree(input); // B saves a tree whose entries stay pending
+    await new Promise((r) => setTimeout(r, 5));
+    await b.stop();
+    const origin = v.leavesBytes.subarray(1 + 32, 65);
+    assert.equal((await a.localEntriesFor(origin)).length, 1, "A reads the records again before answering");
+    // A saved a salt meanwhile; a third tab's fresh enqueue of the same tree adopts the record instead of replacing it.
+    await shared.mergeSalts(id, { "1:origin": Buffer.from(new Uint8Array(32).fill(1)).toString("base64") });
+    const c = queueWith({ store: shared, transport: refusing });
+    await c.resume();
+    await c.enqueueTree(input);
+    assert.deepEqual(shared.jobs.get(id)!.salts, { "1:origin": Buffer.from(new Uint8Array(32).fill(1)).toString("base64") }, "the saved salt survives another tab's enqueue");
+    await a.stop();
+    await c.stop();
+  });
+
   test("a salt that cannot be saved is never written under: the side stays pending until storage works", T, async () => {
     const { v, input } = vectorInput();
     const server = new MemoryRecoveryStore();

@@ -81,7 +81,7 @@ const HELP = `bitgraph: make, check and verify BitGraphs from any stack
                                        the bytes themselves not dated (your choice, never a size's).
                                        Files already on record are left alone unless --again;
                                        a file in an earlier tree is found by its sealed recovery
-                                       entry, and each file made here gets one (--no-recovery: neither)
+                                       entry, and each file made here gets one (--no-recovery: keeps none; the check still runs)
   check <paths|digests...>             read-only: are these bytes on record?
   proof --digest D | --path P | --number N
   open                                 hold a position before the work exists

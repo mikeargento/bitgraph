@@ -18,21 +18,30 @@
  * flushes what is pending first, inside a small time budget; `bitgraph
  * recovery flush` finishes the rest; `bitgraph recovery keep <export.json>`
  * makes a job from an owner's export (a tree recorded elsewhere, or one whose
- * job file is gone).
+ * job file is gone). The file's name carries the proof hash AND a tag of the
+ * site the entries belong on: the same proof kept on two sites is two jobs,
+ * and one site's progress is never counted for the other.
  *
- * Two processes never work the same job at once: a sibling <id>.lock is
- * created with O_EXCL; the process holding it touches it as it works, and a
- * lock untouched for LOCK_STALE_MS is stale (a killed process) and is taken
- * over. State is written to a temporary name and renamed, so a crash
- * mid-write leaves the previous state, never half a file. A job whose saved
- * list no longer rebuilds its root is set aside as <id>.broken.json, never
- * retried, never lost.
+ * Two processes do not work the same job at once: a sibling .lock is created
+ * with O_EXCL and holds a random token; the process holding it touches it as
+ * it works, and a lock untouched for LOCK_STALE_MS is stale (a killed or
+ * frozen process) and is taken over. The token fences the old holder: it
+ * touches, saves and releases only while the lock still carries its token,
+ * so a holder that wakes after a takeover stops instead of overwriting the
+ * new holder's state or removing its lock. The new holder reads the job from
+ * disk again after taking the lock, never working an older snapshot. State
+ * is written to a temporary name and renamed, so a crash mid-write leaves the
+ * previous state, never half a file. A job whose saved list no longer
+ * rebuilds its root is set aside as <name>.broken.json: never retried, never
+ * lost, and reported (pendingMembersFor) so a record knows a recording it
+ * cannot read happened.
  *
  * The jobs are also what a record consults before calling a file new: a
  * member of a tree made here whose entries are not written yet is on record,
  * and the store does not know it yet (pendingMembersFor).
  */
 
+import { createHash, randomBytes } from "node:crypto";
 import { mkdir, open, readdir, readFile, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -48,8 +57,8 @@ export const LOCK_TOUCH_MS = 30_000;
 
 /** Base URLs compare without trailing slashes. */
 export const normalizeBaseUrl = (u: string): string => u.replace(/\/+$/, "");
-/** The time a record spends on its own tree's entries before leaving the rest to the job. */
-export const RECORD_RECOVERY_BUDGET_MS = 90_000;
+/** The time a record spends on its own tree's entries before leaving the rest to the job: the proof and the export are already delivered, the caller waits this long at most. */
+export const RECORD_RECOVERY_BUDGET_MS = 30_000;
 /** The time a record spends on OTHER pending jobs before its own work. */
 export const FLUSH_ON_RECORD_BUDGET_MS = 20_000;
 
@@ -97,8 +106,13 @@ export function recoveryJobsDir(): string {
   return join(home !== undefined && home !== "" ? home : join(homedir(), ".bitgraph"), "recovery");
 }
 
-const jobPath = (id: string) => join(recoveryJobsDir(), `${id}.json`);
-const lockPath = (id: string) => join(recoveryJobsDir(), `${id}.lock`);
+/** The site's tag in a job's file name: the first 16 hex of SHA-256 over its normalized base URL. */
+export const siteTag = (baseUrl: string): string => bytesToHex(new Uint8Array(createHash("sha256").update(normalizeBaseUrl(baseUrl)).digest())).slice(0, 16);
+const jobName = (id: string, baseUrl: string) => `${id}.${siteTag(baseUrl)}`;
+const jobPath = (id: string, baseUrl: string) => join(recoveryJobsDir(), `${jobName(id, baseUrl)}.json`);
+const lockPath = (id: string, baseUrl: string) => join(recoveryJobsDir(), `${jobName(id, baseUrl)}.lock`);
+const JOB_FILE = /^([0-9a-f]{64})\.([0-9a-f]{16})\.json$/;
+const BROKEN_FILE = /^([0-9a-f]{64})\.([0-9a-f]{16})\.broken\.json$/;
 
 export function recoveryJobId(proof: BitGraphProof): string {
   return bytesToHex(base64ToBytes(computeProofHash(proof))!);
@@ -119,7 +133,7 @@ export async function saveRecoveryJob(job: RecoveryJobFile): Promise<string> {
 
 async function saveJob(job: RecoveryJobFile): Promise<string> {
   await mkdir(recoveryJobsDir(), { recursive: true, mode: 0o700 });
-  const path = jobPath(job.id);
+  const path = jobPath(job.id, job.baseUrl);
   const tmp = `${path}.${process.pid}.tmp`;
   await writeFile(tmp, JSON.stringify(job), { mode: 0o600 });
   await rename(tmp, path);
@@ -136,9 +150,9 @@ function parseJob(text: string): RecoveryJobFile | null {
   }
 }
 
-async function loadJob(id: string): Promise<RecoveryJobFile | null> {
+async function loadJob(id: string, baseUrl: string): Promise<RecoveryJobFile | null> {
   try {
-    return parseJob(await readFile(jobPath(id), "utf8"));
+    return parseJob(await readFile(jobPath(id, baseUrl), "utf8"));
   } catch {
     return null;
   }
@@ -155,8 +169,8 @@ export async function registerRecoveryJob(
 ): Promise<{ job: RecoveryJobFile; path: string }> {
   const proof = made.proof as BitGraphProof;
   const id = recoveryJobId(proof);
-  const existing = await loadJob(id);
-  if (existing !== null) return { job: existing, path: jobPath(id) };
+  const existing = await loadJob(id, config.baseUrl);
+  if (existing !== null) return { job: existing, path: jobPath(id, config.baseUrl) };
   const now = new Date().toISOString();
   const job: RecoveryJobFile = {
     format: RECOVERY_JOB_FORMAT,
@@ -199,25 +213,45 @@ export function jobFromOwnerExport(exportDoc: unknown, baseUrl: string): Recover
   };
 }
 
+/** The lock is no longer this process's: another took it over. Nothing more is saved or written. */
+export class LockLostError extends Error {
+  constructor() {
+    super("another process took over this recovery job");
+    this.name = "LockLostError";
+  }
+}
+
 /**
  * Take the job's lock; null when another live process holds it. Staleness is
  * the file's modification time (never its contents, which a process may not
  * have written yet): the holder touches it every LOCK_TOUCH_MS, and a lock
- * untouched for LOCK_STALE_MS is taken over, once.
+ * untouched for LOCK_STALE_MS is taken over, once. The lock carries a random
+ * token; `held()` is whether the file still carries ours, and touch and
+ * release do nothing once it does not.
  */
-async function lock(id: string): Promise<{ release: () => Promise<void>; touch: () => Promise<void> } | null> {
+async function lock(id: string, baseUrl: string): Promise<{ release: () => Promise<void>; touch: () => Promise<void>; held: () => Promise<boolean> } | null> {
   await mkdir(recoveryJobsDir(), { recursive: true, mode: 0o700 });
-  const path = lockPath(id);
+  const path = lockPath(id, baseUrl);
+  const token = randomBytes(16).toString("hex");
+  const held = async (): Promise<boolean> => {
+    try {
+      return (JSON.parse(await readFile(path, "utf8")) as { token?: unknown }).token === token;
+    } catch {
+      return false;
+    }
+  };
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const fh = await open(path, "wx", 0o600);
-      await fh.writeFile(JSON.stringify({ pid: process.pid, at: Date.now() }));
+      await fh.writeFile(JSON.stringify({ pid: process.pid, at: Date.now(), token }));
       await fh.close();
       return {
+        held,
         release: async () => {
-          await rm(path, { force: true });
+          if (await held()) await rm(path, { force: true });
         },
         touch: async () => {
+          if (!(await held())) return;
           const now = new Date();
           await utimes(path, now, now).catch(() => undefined);
         },
@@ -257,10 +291,13 @@ export interface RunJobOptions {
  * the job. Never throws: a failure is the result's reason, and the job stays.
  */
 export async function runRecoveryJob(job: RecoveryJobFile, opts: RunJobOptions = {}): Promise<RecoveryWriteResult | null> {
-  const held = await lock(job.id);
-  if (held === null) return null;
-  let current = job;
-  const touching = setInterval(() => void held.touch(), LOCK_TOUCH_MS);
+  const lk = await lock(job.id, job.baseUrl);
+  if (lk === null) return null;
+  // Under the lock, the job as it is on disk now, never the caller's snapshot: another process may have moved it.
+  let current = (await loadJob(job.id, job.baseUrl)) ?? job;
+  job = current;
+  const touching = setInterval(() => void lk.touch(), LOCK_TOUCH_MS);
+  let lost = false;
   try {
     const result = await writeRecoveryEntries(
       {
@@ -278,25 +315,35 @@ export async function runRecoveryJob(job: RecoveryJobFile, opts: RunJobOptions =
         ...(opts.backoffMs !== undefined ? { backoffMs: opts.backoffMs } : {}),
         ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
         onState: async (state) => {
+          // Fenced: a holder that lost its lock saves nothing and stops.
+          if (!(await lk.held())) {
+            lost = true;
+            throw new LockLostError();
+          }
           current = withState(current, state);
           await saveJob(current);
-          await held.touch();
+          await lk.touch();
         },
       },
     );
+    if (!(await lk.held())) throw new LockLostError();
     if (result.done) {
-      await rm(jobPath(job.id), { force: true });
+      await rm(jobPath(job.id, job.baseUrl), { force: true });
     } else {
       current = { ...withState(current, result.state), attempts: current.attempts + 1, lastReason: result.reason };
       await saveJob(current);
     }
     return result;
   } catch (e) {
+    if (lost || e instanceof LockLostError) {
+      const progress = stateOf(current).progress;
+      return { entries: 0, kept: 0, written: 0, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: "another process took over this job; it finishes it", state: { progress, salts: { ...current.state.salts } }, done: false };
+    }
     const reason = `recovery entries were not written: ${e instanceof Error ? e.message : String(e)}`;
     try {
       await saveJob({ ...current, attempts: current.attempts + 1, lastReason: reason });
-      // Data that cannot be worked (its list no longer rebuilds its root) is set aside, named, and never retried.
-      if (isBrokenTree(e)) await rename(jobPath(job.id), join(recoveryJobsDir(), `${job.id}.broken.json`));
+      // Data that cannot be worked (its list no longer rebuilds its root) is set aside, named, never retried, and reported.
+      if (isBrokenTree(e)) await rename(jobPath(job.id, job.baseUrl), join(recoveryJobsDir(), `${jobName(job.id, job.baseUrl)}.broken.json`));
     } catch {
       /* the job file is as it was */
     }
@@ -304,7 +351,7 @@ export async function runRecoveryJob(job: RecoveryJobFile, opts: RunJobOptions =
     return { entries: 0, kept: 0, written: 0, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason, state: { progress, salts: { ...current.state.salts } }, done: false };
   } finally {
     clearInterval(touching);
-    await held.release();
+    await lk.release();
   }
 }
 
@@ -318,25 +365,34 @@ export interface PendingMember {
   name: string | null;
 }
 
+export interface PendingMembers {
+  /** Standard base64 digest to the pending members whose original or committed bytes it is. */
+  members: Map<string, PendingMember[]>;
+  /** Jobs set aside as broken for this site: recordings that happened whose damaged lists no longer say which files they covered. While any exists, no file's history here is known. */
+  broken: string[];
+}
+
 /**
  * The members of pending jobs (trees made here whose entries are not all
  * written) whose original or committed bytes have one of these digests, for
  * the site at `baseUrl`. Such a file is on record whatever the store says: a
- * record consults this before calling a file new. A job that cannot be
- * rebuilt is skipped.
+ * record consults this before calling a file new. Throws when the jobs cannot
+ * be read: an unreadable history is not an empty one.
  */
-export async function pendingMembersFor(digestsB64: readonly string[], baseUrl: string): Promise<Map<string, PendingMember[]>> {
-  const out = new Map<string, PendingMember[]>();
+export async function pendingMembersFor(digestsB64: readonly string[], baseUrl: string): Promise<PendingMembers> {
+  const out: PendingMembers = { members: new Map(), broken: await brokenRecoveryJobs(baseUrl) };
   if (digestsB64.length === 0) return out;
   const wanted = new Set(digestsB64);
   for (const summary of await listRecoveryJobs()) {
     if (summary.baseUrl !== normalizeBaseUrl(baseUrl)) continue;
-    const job = await loadJob(summary.id);
+    const job = await loadJob(summary.id, summary.baseUrl);
     if (job === null) continue;
     let tree;
     try {
       tree = recoveryTreeFrom({ proof: job.proof as never, rootDocument: Uint8Array.from(Buffer.from(job.rootDocumentHex, "hex")), leavesBytes: Uint8Array.from(Buffer.from(job.leavesB64, "base64")) });
     } catch {
+      // Its list does not rebuild its root: the next run sets it aside as broken; until then it is history that cannot be read.
+      out.broken.push(summary.path);
       continue;
     }
     for (let i = 0; i < tree.count; i++) {
@@ -344,31 +400,54 @@ export async function pendingMembersFor(digestsB64: readonly string[], baseUrl: 
         const d = Buffer.from(recoveryDigestOf(tree, i, side)).toString("base64");
         if (!wanted.has(d)) continue;
         const { plaintext } = recoveryPlaintextFor(tree, i, job.names?.[i] ?? null);
-        const list = out.get(d) ?? [];
+        const list = out.members.get(d) ?? [];
         list.push({ job, leafIndex: i, side, evidence: plaintext.member, rootDocumentHex: plaintext.rootDocument, name: plaintext.name ?? null });
-        out.set(d, list);
+        out.members.set(d, list);
       }
     }
   }
   return out;
 }
 
-/** Every pending job, oldest first. */
+/** The names of jobs set aside as broken (their saved list no longer rebuilds the root), for the site at `baseUrl` when given. Throws when the directory cannot be read. */
+export async function brokenRecoveryJobs(baseUrl?: string): Promise<string[]> {
+  let names: string[];
+  try {
+    names = await readdir(recoveryJobsDir());
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw e;
+  }
+  const tag = baseUrl !== undefined ? siteTag(baseUrl) : null;
+  return names.filter((n) => {
+    const m = BROKEN_FILE.exec(n);
+    return m !== null && (tag === null || m[2] === tag);
+  }).map((n) => join(recoveryJobsDir(), n));
+}
+
+/** Every pending job, oldest first. Throws when the directory exists and cannot be read. */
 export async function listRecoveryJobs(): Promise<RecoveryJobSummary[]> {
   let names: string[];
   try {
     names = await readdir(recoveryJobsDir());
-  } catch {
-    return [];
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw e;
   }
   const out: RecoveryJobSummary[] = [];
   for (const name of names) {
-    if (!/^[0-9a-f]{64}\.json$/.test(name)) continue;
-    const job = await loadJob(name.slice(0, -5));
-    if (job === null) continue;
+    const m = JOB_FILE.exec(name);
+    if (m === null) continue;
+    let job: RecoveryJobFile | null;
+    try {
+      job = parseJob(await readFile(join(recoveryJobsDir(), name), "utf8"));
+    } catch {
+      job = null;
+    }
+    if (job === null || siteTag(job.baseUrl) !== m[2]) continue;
     out.push({
       id: job.id,
-      path: jobPath(job.id),
+      path: jobPath(job.id, job.baseUrl),
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
       baseUrl: job.baseUrl,
@@ -389,7 +468,12 @@ export async function listRecoveryJobs(): Promise<RecoveryJobSummary[]> {
 export async function flushRecoveryJobs(config: Pick<ApiConfig, "baseUrl">, opts: RunJobOptions & { budgetMs?: number } = {}): Promise<FlushResult> {
   const deadline = Date.now() + (opts.budgetMs ?? FLUSH_ON_RECORD_BUDGET_MS);
   const out: FlushResult = { worked: [], left: 0 };
-  const jobs = (await listRecoveryJobs()).filter((j) => j.baseUrl === normalizeBaseUrl(config.baseUrl));
+  let jobs: RecoveryJobSummary[];
+  try {
+    jobs = (await listRecoveryJobs()).filter((j) => j.baseUrl === normalizeBaseUrl(config.baseUrl));
+  } catch {
+    return out;
+  }
   let stop = false;
   for (const summary of jobs) {
     const remaining = deadline - Date.now();
@@ -397,7 +481,7 @@ export async function flushRecoveryJobs(config: Pick<ApiConfig, "baseUrl">, opts
       out.left++;
       continue;
     }
-    const job = await loadJob(summary.id);
+    const job = await loadJob(summary.id, summary.baseUrl);
     if (job === null) continue;
     const result = await runRecoveryJob(job, { ...opts, budgetMs: remaining });
     if (result === null) {

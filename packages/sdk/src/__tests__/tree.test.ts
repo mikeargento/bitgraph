@@ -60,7 +60,7 @@ let slotCounter = 1000;
 // recovery: "absent" answers 404 like a site without the route, "off" 503 like
 // one with writes off, "on" keeps sealed entries in memory like the site's
 // create-only store.
-const mode: { witness: boolean; floor: boolean; spec: "pinned" | "wrong" | "none"; recovery: "absent" | "off" | "on" } = { witness: true, floor: true, spec: "none", recovery: "absent" };
+const mode: { witness: boolean; floor: boolean; spec: "pinned" | "wrong" | "none"; recovery: "absent" | "off" | "on" } = { witness: true, floor: true, spec: "none", recovery: "on" };
 /** A recovery result without its resumable state (progress bytes and salts), for comparing the counts. */
 const withoutState = (r: object) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== "state"));
 const recoveryEntries = new Map<string, string>();
@@ -101,6 +101,8 @@ before(async () => {
   root = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-"));
   // Pending recovery jobs go under $BITGRAPH_HOME, never this machine's ~/.bitgraph.
   process.env["BITGRAPH_HOME"] = await mkdtemp(join(tmpdir(), "bitgraph-sdk-home-"));
+  // The test server's proofs carry a stub attestation: recovery accepts them on their signature and tree alone here.
+  process.env["BITGRAPH_RECOVERY_TRUST"] = "none";
   folder = join(root, "photos");
   await mkdir(join(folder, "sub"), { recursive: true });
   await writeFile(join(folder, "alpha.txt"), "alpha, a plain text member\n");
@@ -284,8 +286,14 @@ test("a boundary that returns no floor makes nothing: the tree needs fuse/2", as
 
 test("cli: record a folder writes the owner's export; verify <file> <export> states every claim; exit 2 on the stub attestation alone", async () => {
   const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-out-"));
-  // Its own home: the suite's earlier records of this folder left pending jobs (the site takes no recovery writes), and a member of a pending job is on record, not new.
-  const rec = await run([cliPath, "record", folder, "--out", out, "--json", "--base-url", baseUrl], { BITGRAPH_HOME: await mkdtemp(join(tmpdir(), "bitgraph-sdk-home-cli-")) });
+  // A folder of its own: the suite's earlier records of the shared folder are on record (found through their recovery entries), and this test wants a fresh tree.
+  const cliFolder = join(root, "photos-cli");
+  await mkdir(join(cliFolder, "sub"), { recursive: true });
+  await writeFile(join(cliFolder, "alpha.txt"), "alpha, a plain text member, for the cli\n");
+  await writeFile(join(cliFolder, "photo.png"), Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("not really a picture, but the bytes say PNG, cli")]));
+  await writeFile(join(cliFolder, "sub", "beta.txt"), "beta, one folder down, for the cli\n");
+  const folder = cliFolder;
+  const rec = await run([cliPath, "record", folder, "--out", out, "--json", "--base-url", baseUrl]);
   assert.equal(rec.code, 0, rec.stderr);
   const r = JSON.parse(rec.stdout) as { made: { count: number; counter: string; epoch: string; artifactDigest: string; exports: { owner: string; membersDir: string | null } }; files: Array<{ path: string; member: number }> };
   assert.equal(r.made.count, 3);
@@ -508,12 +516,16 @@ test("recovery: the tree's entries are written after the make; recording the sam
     const rewrite = await writeRecoveryEntries({ proof: made.proof as never, rootDocument: Uint8Array.from(Buffer.from(made.rootDocument, "hex")), leavesBytes: Uint8Array.from(Buffer.from(made.leaves, "base64")) }, { baseUrl });
     assert.deepEqual(withoutState(rewrite), { entries: 4, kept: 4, written: 0, alreadyThere: 4, salted: 0, blocked: 0, pending: 0, reason: null, done: true });
 
-    // recovery: false is the plain-hash index alone: the files are new to it, and are made again.
+    // recovery: false keeps no entries; it skips no check. The files are still found in their tree and not made again.
     const opted = await bg.record(dir, { recovery: false });
-    assert.notEqual(opted.made, null);
-    assert.equal(opted.made!.recovery, null);
+    assert.equal(opted.made, null, "found through their recovery entries all the same");
+    assert.ok(opted.files.every((f) => f.outcome === "on record"));
+    // Only again asks for a new BitGraph regardless; with recovery off, it keeps no entries for it.
+    const regardless = await bg.record(dir, { recovery: false, again: true });
+    assert.notEqual(regardless.made, null);
+    assert.equal(regardless.made!.recovery, null);
   } finally {
-    mode.recovery = "absent";
+    mode.recovery = "on";
   }
 });
 
@@ -529,7 +541,7 @@ test("recovery: a site not taking writes leaves the entries pending and says why
       assert.equal(r.made?.recovery?.pending, 2);
       assert.match(r.made?.recovery?.reason ?? "", /is not taking recovery writes yet/);
     } finally {
-      mode.recovery = "absent";
+      mode.recovery = "on";
     }
   }
 });
@@ -554,7 +566,7 @@ test("recovery: an entry whose leaf names a file's digest but not its bytes is n
     assert.notEqual(r.made, null, "the victim's file was made, not taken as on record");
     assert.equal(r.files[0]?.outcome, "recorded");
   } finally {
-    mode.recovery = "absent";
+    mode.recovery = "on";
   }
 });
 
@@ -577,6 +589,6 @@ test("cli: record says whether the files can find their proof again from their b
     const none = await run([cliPath, "record", dir, "--out", out, "--again", "--no-recovery"]);
     assert.doesNotMatch(none.stdout, /recoverable|finds this proof again/);
   } finally {
-    mode.recovery = "absent";
+    mode.recovery = "on";
   }
 });

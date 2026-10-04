@@ -124,6 +124,7 @@ before(async () => {
   if (addr === null || typeof addr === "string") throw new Error("no port");
   process.env["BITGRAPH_API_URL"] = `http://127.0.0.1:${addr.port}`;
   process.env["BITGRAPH_HOME"] = await mkdtemp(join(tmpdir(), "bitgraph-mcp-home-"));
+  process.env["BITGRAPH_RECOVERY_TRUST"] = "none";
   delete process.env["BITGRAPH_API_KEY"];
 });
 
@@ -191,8 +192,12 @@ test("recovery: the tree keeps a sealed entry per file, and recording the same f
   const text = (again.content as Array<{ text: string }>)[0]!.text;
   assert.ok(text.startsWith("0 fused, 2 already on record."), text);
 
+  // recovery=false keeps no entries; it skips no check: the files are still found in their tree.
   const off = await client.callTool({ name: "bitgraph_record", arguments: { paths: [kept], recovery: false, response_format: "json" } });
-  const offTree = (off.structuredContent as Out).tree;
-  assert.equal(offTree?.count, 2, "recovery=false: the plain-hash index alone, so the files are made again");
+  assert.equal((off.structuredContent as Out).tree, null, "recovery=false still finds the files on record");
+  // Only again=true asks for a new BitGraph regardless; with recovery off, it keeps no entries for it.
+  const regardless = await client.callTool({ name: "bitgraph_record", arguments: { paths: [kept], recovery: false, again: true, response_format: "json" } });
+  const offTree = (regardless.structuredContent as Out).tree;
+  assert.equal(offTree?.count, 2, "again=true makes a new tree of the two");
   assert.equal(offTree?.recovery, null);
 });
