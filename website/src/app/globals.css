@@ -2161,7 +2161,7 @@ body { background: var(--bg); }
 @media (max-width: 600px) {
   .home { justify-content: flex-start !important; padding-top: 12vh !important; }
   .home h1 { margin-bottom: 18px !important; } /* size: the one curve in the 899 rule above (Mike, 10-04: "mobile is thicker and could be bigger") */
-  .home .lede { font-size: 17px !important; line-height: 1.45 !important; margin-bottom: 14px !important; }
+  .home .lede { font-size: clamp(15px, 4.3vw, 17px) !important; line-height: 1.45 !important; margin-bottom: 14px !important; } /* shrinks just enough on narrow phones for the first sentence to hold one line (a 2+1 wrap with a short middle line "looks weird", Mike, 10-04) */
   .home .home-coordinates { margin-bottom: 36px !important; } /* same text grey as the subhead on every size; only the appendix is dim */
   .home .actions { gap: 10px; }
   .home::before { margin-top: 0; } /* phones: the hero sits at 12vh, the appendix still drops to the foot */
