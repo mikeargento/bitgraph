@@ -2531,6 +2531,10 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
    "if we learn one thing, maybe the font weight?"). The kit carries Acumin 400/600/700,
    so 600 is the one step lighter. Size, tracking and alignment unchanged. */
 .home h1 { font-weight: 600 !important; }
+/* At display size the regular cut (Mike, 2026-10-04, base.org's hero beside ours: "on desk it
+   seems thicker"). The kit has 400/600/700, no 500, so 600 is a phone weight and 400 the desktop
+   one; tracking tightens a little to hold the word shapes at 96px. Phones keep 600. */
+@media (min-width: 900px) { .home h1 { font-weight: 400 !important; letter-spacing: -0.03em !important; } }
 /* MOCK (not committed): the typing caret on the home headline. */
 .typed-caret { display: inline-block; width: 0.06em; height: 0.82em; margin-left: 0.06em; vertical-align: -0.06em; background: var(--accent); opacity: 0; }
 .typed-caret.on { animation: typed-blink 1s steps(1) infinite; opacity: 1; }
