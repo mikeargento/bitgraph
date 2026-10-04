@@ -1185,7 +1185,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const recovered = await recoverRows(results, { local: (d) => browserRecoveryQueue().localEntriesFor(d) });
     for (const [i, trees] of recovered.found) {
       const r = results[i]!;
-      r.proofs = trees.map((t) => treeHandoff(t.proof as unknown as Parameters<typeof treeHandoff>[0], t.rootDocumentHex, t.evidence) as unknown as BitGraphProof);
+      // ADDED to what the plain index found, never substituted (2026-10-04): a file can hold an
+      // older solo position and a tree position, and the row lists both. The earlier position
+      // stays first; a tree position already listed is not listed twice.
+      const had = r.proofs.length ? r.proofs : r.proof ? [r.proof] : [];
+      const have = new Set(had.map((p) => treePositionKey(p)));
+      const treeProofs = trees
+        .filter((t) => !have.has(t.proofKey))
+        .map((t) => treeHandoff(t.proof as unknown as Parameters<typeof treeHandoff>[0], t.rootDocumentHex, t.evidence) as unknown as BitGraphProof);
+      r.proofs = [...had, ...treeProofs];
       r.proof = r.proofs[0]!;
       r.recoveredTrees = trees.map((t) => ({ proofKey: t.proofKey, rootDocument: t.rootDocument, evidence: t.evidence }));
       r.status = "found";

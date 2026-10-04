@@ -42,13 +42,19 @@ describe("recovery fold", () => {
     }
   });
 
-  test("a file that is in no tree stays new; rows not new are never asked", async () => {
+  test("a file that is in no tree stays new; a row already found is asked too, and its tree position is reported beside what it had", async () => {
+    // Until 2026-10-04 only "new" rows were asked, so a file holding an older solo position was
+    // never asked about its tree, and its tree position went unlisted (Mike's two photos, #4608).
     const { t, store } = await storeWithEveryMember();
     const calls: string[] = [];
     const fetch = fakeFetch(store, { proofs: [t.proof], calls });
-    const r = await recoverRows([row(utf8("never recorded")), row(utf8("already found"), "found")], { fetch, trust: "none" });
-    assert.equal(r.found.size, 0);
-    assert.equal(calls.length, 1, "only the new row was asked about");
+    const member = Buffer.from(TREE.files[0]!.originalHex, "hex");
+    const r = await recoverRows([row(utf8("never recorded")), row(utf8("already found, in no tree"), "found"), row(member, "found")], { fetch, trust: "none" });
+    assert.equal(calls.filter((c) => c.includes("/api/recovery/lookup")).length, 1, "one lookup request asked about every row with bytes, found or new");
+    assert.equal(r.found.size, 1, "only the member is in a tree");
+    assert.ok(r.found.has(2), "the row already found by its plain hash is the one with a tree position");
+    assert.equal(r.found.get(2)![0]!.proofKey, treePositionKey(t.proof));
+    assert.equal(r.unknown.size, 0);
   });
 
   test("an entry whose proof cannot be found, or whose file is not the member, is not a match", async () => {

@@ -4,11 +4,12 @@
  * members are never indexed by their plain hash. Its sealed recovery entry
  * (lib/recovery.ts) is how it finds its proof again.
  *
- * recoverRows asks for every row still "new" (a thousand addresses a request:
- * recoverFromDigests), binds each entry to its proof, and verifies the file
- * as that member before reporting it. It never changes a row itself; the
- * caller turns "new" into "found" with what comes back, and only ever in that
- * direction.
+ * recoverRows asks for every row that has bytes, found or new (a thousand
+ * addresses a request: recoverFromDigests), binds each entry to its proof, and
+ * verifies the file as that member before reporting it. It never changes a
+ * row itself; the caller turns "new" into "found" with what comes back, and
+ * ADDS a tree position to a row the plain index already found (a file can hold
+ * an older solo position and a tree position), only ever in that direction.
  *
  * A failed read is not a verdict, in either direction. A row whose lookup
  * did not complete (the store could not be read, the answer was malformed,
@@ -56,7 +57,12 @@ export const treePositionKey = (p: { commit?: { epochId?: string; counter?: stri
 
 export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: FetchLike; baseUrl?: string; local?: (digest32: Uint8Array) => Promise<LocalEntry[]>; trust?: "published" | "none" } = {}): Promise<RecoveryFold> {
   const out: RecoveryFold = { found: new Map(), unknown: new Map(), failed: 0 };
-  const unfound = rows.map((r, i) => [r, i] as const).filter(([r]) => r.status === "new" && r.digestB64 && !r.fromProofJson);
+  // EVERY file with bytes is asked, found or new (2026-10-04). Until then only "new" rows were
+  // asked, so a file that already held an older solo position was never asked about its tree:
+  // its tree position went unlisted and its export went out without its place (the website
+  // twin of the SDK check defect fixed the same day). A row already found stays found whatever
+  // the lookup says; the caller ADDS the tree positions to the ones it has.
+  const unfound = rows.map((r, i) => [r, i] as const).filter(([r]) => r.digestB64 && !r.fromProofJson);
   if (unfound.length === 0) return out;
   const lookupOpts = opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {};
   const asked: Array<readonly [RecoveryRow, number]> = [];
