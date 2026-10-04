@@ -1,12 +1,13 @@
 # BitGraph
 
-[![npm @mikeargento/bitgraph](https://img.shields.io/npm/v/@mikeargento/bitgraph?label=%40mikeargento%2Fbitgraph&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph)
+[![npm @mikeargento/bitgraph-sdk](https://img.shields.io/npm/v/@mikeargento/bitgraph-sdk?label=%40mikeargento%2Fbitgraph-sdk&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-sdk)
+[![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 [![Docs](https://img.shields.io/badge/docs-0065A4)](https://bitgraph.ing/docs)
 
 ---
 
-BitGraphs are not labels or metadata added after the fact. They are new computations created when your file's hash *fills* a pre-existing, cryptographically reserved position, constraining the commitment so it cannot be retroactively constructed. The commit happens off-chain, inside the enclave, and produces a proof permanently bound to that exact digital state. Seconds later, a Merkle root over new records' proof hashes is written to Base, so each record also gets a ceiling in time.
+BitGraphs are not labels or metadata added after the fact. They are new computations created when your file's hash *fills* a pre-existing, cryptographically reserved position, constraining the commitment so it cannot be made after the fact. The commit happens off-chain, inside the enclave, and produces a proof permanently bound to that exact digital state. Seconds later, a Merkle root over new records' proof hashes is written to Base, so each record also gets a ceiling in time.
 
 Provenance can be enforced or it can be claimed. Most systems claim it: they bind a statement about the content to the content itself. That binding can be cryptographically strong, and it can be made at the moment of capture rather than afterward, so the weakness is not timing. The weakness is that a claim is something a trusted signer can attach to any artifact at all. The artifact does not have to satisfy any prior condition to receive one.
 
@@ -18,26 +19,25 @@ The first thing built on it is AI audit. A BitGraph is a verifiable receipt for 
 
 ## Quickstart
 
-Make one in your browser at [bitgraph.ing/docs/try](https://bitgraph.ing/docs/try). The file never leaves your machine; only its fingerprint does. From an agent, connect the [MCP server](https://bitgraph.ing/docs/mcp) with one URL. To put a commitment inside a record your own system writes, follow the [integration guide](https://bitgraph.ing/docs/integration).
+Make one in your browser at [bitgraph.ing/docs/try](https://bitgraph.ing/docs/try): the drop box. The file never leaves your machine; only its fingerprint does. From an agent, connect the [MCP server](https://bitgraph.ing/docs/mcp) at `bitgraph.ing/mcp` with one URL. From code, `npx -p @mikeargento/bitgraph-sdk bitgraph record <paths...>`. To put a commitment inside a record your own system writes, follow the [integration guide](https://bitgraph.ing/docs/integration).
 
-Verify a proof in code, with the MIT verifier:
+Making a BitGraph of one or more files yields ONE position: a Merkle tree of the files (tree/1), one file a tree of one. What you keep is the **export** (bitgraph-export/1) beside the files, with `SPEC.md`, the exact text the proof pins. The owner's export lists every leaf and name; a member export holds one file's leaf and path. An export holds no copy of any file and no anchors. `bitgraph export complete` adds the floor header, the Base ceiling and the Ethereum settlement later. If the export is lost, the file alone finds its proof again through its recovery entry (SPEC section 13).
+
+Verify a file with its export in code, with the MIT verifier:
 
 ```bash
 npm install @mikeargento/bitgraph-verify
 ```
 
 ```ts
-import { verify, verifyFuse } from "@mikeargento/bitgraph-verify";
+import { verifyExport } from "@mikeargento/bitgraph-verify";
 
-const result = await verify({ proof, bytes });
-if (result.valid) {
-  // structure, Ed25519 signature, position binding and the digest match all checked
-} else {
-  console.error(result.reason);
-}
+const result = await verifyExport(exportJson, { bytes });
+console.log(result.verdict);          // TRUE, FALSE or UNDETERMINED
+for (const c of result.claims) console.log(c.name, c.result, c.restsOn);
 ```
 
-`verify()` answers whether the proof is sound and whether these exact bytes are the ones it committed. Whether those bytes *carry* the position commitment is a separate question, and `verifyFuse()` in the same package is what answers it: that check is the one showing the bytes could not have been finished before the position existed. A fused file, or a record with its own commitment field, wants both.
+`verifyExport()` answers one claim per line: the proof and its attestation, the spec pin, the tree root, this file's leaf, the floor, the Base ceiling and the Ethereum settlement, each saying what it rests on. `verify()` in the same package checks a bare bitgraph/1 proof against bytes, and `verifyCarrier()` judges a BitGraphed file (carrier/2), the single-file form that carries its own proof inside it.
 
 See [bitgraph.ing/docs](https://bitgraph.ing/docs) for the full proof format, verification checklist, attestation handling, and self-host instructions.
 
@@ -45,13 +45,15 @@ See [bitgraph.ing/docs](https://bitgraph.ing/docs) for the full proof format, ve
 
 | Path | What it is |
 |---|---|
-| [`packages/verify`](packages/verify) | `@mikeargento/bitgraph-verify`, MIT. The canonical verifier: the `bitgraph/1` schema, canonical serialization, proof and chain hashes, and the fuse checks. Every other component checks proofs through this one. |
-| [`packages/audit`](packages/audit) | `@mikeargento/bitgraph-audit`, MIT. Offline audit of a whole bundle: ingest, tiered verification, causal reconstruction, anomaly codes, CLI. |
-| [`src`](src) | `@mikeargento/bitgraph`. The SDK that makes a BitGraph: placements, sets, and the builders that write a commitment into new bytes. |
-| [`packages/mcp`](packages/mcp) | `@mikeargento/bitgraph-mcp`. The MCP server an agent connects to. |
+| [`spec/SPEC.md`](spec/SPEC.md) | The specification, version 1, frozen 2026-10-04. Its SHA-256 (`QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs=`, [`spec/FROZEN.json`](spec/FROZEN.json)) is signed into every tree/1 proof. It never changes; a later version is added beside it. |
+| [`packages/verify`](packages/verify) | `@mikeargento/bitgraph-verify`, MIT. The canonical verifier: the `bitgraph/1` schema, canonical serialization, proof and chain hashes, tree/1, exports, BitGraphed files, ceilings and settlement. Every other component checks proofs through this one. |
+| [`packages/audit`](packages/audit) | `@mikeargento/bitgraph-audit`, MIT. Offline audit of a whole bundle: ingest, tiered verification, exports, causal reconstruction, anomaly codes, CLI. |
+| [`packages/sdk`](packages/sdk) | `@mikeargento/bitgraph-sdk`. How software makes a BitGraph: the `BitGraph` class, the `bitgraph` CLI, and `bitgraph serve` on 127.0.0.1. New integrations start here. |
+| [`src`](src) | `@mikeargento/bitgraph`. The older package the SDK is built on: the tree/1 pipeline, the placements, export building and recovery writes. Still published. |
+| [`packages/mcp`](packages/mcp) | `@mikeargento/bitgraph-mcp`. The MCP server an agent connects to; the same engine as the SDK. |
 | [`packages/player`](packages/player) | `@mikeargento/bitgraph-player`. Deterministic evaluation of causal rules over verified evidence. |
 | [`server/commit-service`](server/commit-service) | The enclave that allocates and commits, its parent host, and the reproducible build whose published measurement is in [`PINS.md`](server/commit-service/reproducible-build/PINS.md). |
-| [`website`](website) | [bitgraph.ing](https://bitgraph.ing), including the browser drop and the hosted MCP endpoint. |
+| [`website`](website) | [bitgraph.ing](https://bitgraph.ing), including the drop box, the recovery service and the hosted MCP endpoint. |
 
 Trust assumptions, and what each one buys, are in [The trust model](#the-trust-model) below and at [bitgraph.ing/docs/trust-model](https://bitgraph.ing/docs/trust-model).
 
@@ -98,7 +100,7 @@ A BitGraph proof is a portable proof object, a JSON document, that travels with 
 | TEE measurement | Shows what code and environment produced the proof |
 | Attestation | Shows the proof came from measured hardware |
 | Public anchor | Tethers BitGraph logical time to a public reference |
-| Fuse marker | Signed: the placement the commitment was written at, and the digest of the original |
+| Tree marker | Signed: the format (tree/1) and the SHA-256 of SPEC.md, the exact text the proof pins. The artifact hash is then the tree's 84-byte root document; each file's leaf and path live in the export |
 
 Taken together: this hash was committed into this reserved position, by this measured environment, at this point in logical order, under this signing identity.
 
@@ -112,7 +114,9 @@ BitGraph proves causal order. It does not assert a clock time.
 
 BitGraph's internal ordering does not require Ethereum. The chain creates internal order through position allocation, consumption, counters, signatures, and chained proof history. What that order lacks, on its own, is a clock. The enclave keeps no trusted one; any clock reading inside a proof is advisory.
 
-Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is produced, so the anchor, and every proof chained after it, came after that block and its public date. Anchors recur throughout every epoch. This is the wall-clock statement every proof carries, and it runs in one direction: no earlier than. Nothing in the proof bounds the other side.
+Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is produced, so the anchor, and every proof chained after it, came after that block and its public date. Anchors recur throughout every epoch, and they write nothing to Ethereum. A tree/1 proof signs its own floor: the Ethereum block fixed when the position opened. This is the floor in time, and it runs in one direction: no earlier than.
+
+The other side is stated in two units, never merged. The ceiling in position is the next anchor: the record was committed before that anchor was made, a bound in the sequence and never a clock time. The ceiling in time is the Base block carrying a Merkle root over the record: the record existed by that block. Settlement is Ethereum's record of that Base block through Base's output root (bitgraph-output-root/1), so the Base time rests on Ethereum too.
 
 The anchors also fix history backward, through content. Each anchor is hash-linked to everything before it, so once an anchor exists, the history behind it is fixed: alter any earlier proof and the chain no longer reaches the anchor. When the epoch ends, its signing key is destroyed, and the set closes.
 
@@ -192,9 +196,9 @@ The result is a protocol that does not say "someone signed this."
 
 Two MIT-licensed packages in this repository make BitGraph evidence checkable without permission:
 
-**[`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)** verifies one proof. `verify()` checks a proof against the original artifact bytes: structure, canonical Ed25519 signature, position binding, epoch link, and the digest match. `verifyProofIntegrity()` runs every check except the artifact binding for cases where the bytes are not available, and its result states explicitly that the binding was not checked.
+**[`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)** (1.16.0) verifies one record. `verifyExport()` checks a tree/1 export with the file it is about, one claim per line, the three time claims kept apart. `verifyCarrier()` judges a BitGraphed file. `verify()` checks a bare proof against the artifact bytes: structure, canonical Ed25519 signature, position binding, epoch link, and the digest match. `verifyProofIntegrity()` runs every check except the artifact binding for cases where the bytes are not available, and its result states explicitly that the binding was not checked.
 
-**`@mikeargento/bitgraph-audit`** audits a whole bundle of proofs, fully offline. It ingests a directory, `.tar`, or `.tar.gz`, verifies every proof through the canonical verifier, reconstructs causal order from the hash links and counters, classifies anomalies with stable machine-readable codes, and preserves divergence between valid proofs for the reader to adjudicate instead of choosing a winner. It ships a CLI (`bitgraph-audit <bundle>`) that writes machine-readable and human-readable reports. The bundle format is specified in [docs/BUNDLE-FORMAT.md](docs/BUNDLE-FORMAT.md); the recipient walkthrough is [docs/HOW-TO-AUDIT.md](docs/HOW-TO-AUDIT.md).
+**`@mikeargento/bitgraph-audit`** (0.9.0) audits a whole bundle of proofs, fully offline. It ingests a directory, `.tar`, or `.tar.gz`, or a single BitGraphed file; finds every export by its `format` field and checks it against each file it covers; verifies every proof through the canonical verifier, reconstructs causal order from the hash links and counters, classifies anomalies with stable machine-readable codes, and preserves divergence between valid proofs for the reader to adjudicate instead of choosing a winner. It ships a CLI (`bitgraph-audit <bundle>`) that writes machine-readable and human-readable reports. The bundle format is specified in [docs/BUNDLE-FORMAT.md](docs/BUNDLE-FORMAT.md); the recipient walkthrough is [docs/HOW-TO-AUDIT.md](docs/HOW-TO-AUDIT.md).
 
 ## License
 

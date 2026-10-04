@@ -7,7 +7,7 @@ BitGraph records. Player evaluates.
 A BitGraph proof bundle establishes facts: these bits were recorded at
 these causal positions, anchored to a public timeline. Player
 evaluates a rule over those facts and produces a verdict anyone can
-reproduce from the bundle alone — no network, no clock, no account, no
+reproduce from the bundle alone: no network, no clock, no account, no
 trust in the machine that ran it first.
 
     evidence + rule = conclusion
@@ -20,24 +20,32 @@ trust in the machine that ran it first.
 
     bitgraph-play rule.json bundle/ > verdict.json
 
-The bundle is a directory, `.tar`, or `.tar.gz` of BitGraph exports (the
-folders the BitGraph Folder writes). Exit codes: `0` TRUE, `1` FALSE,
+The bundle is a directory, `.tar`, or `.tar.gz` of BitGraph proofs:
+`proof.json` files beside the files they record, Frame files
+(`bitgraph-fuse/1`), Ethereum anchor witnesses. This build reads through
+`@mikeargento/bitgraph-audit` 0.7.x, which does not read the export
+(`bitgraph-export/1`) a tree/1 BitGraph is kept with. So Player does not
+read exports yet; a file with its export is checked with
+`npx -p @mikeargento/bitgraph-sdk bitgraph verify <file> <export.json>`
+or with bitgraph-audit 0.9.0. Exit codes: `0` TRUE, `1` FALSE,
 `2` UNDETERMINED, `3` error. `--out file` writes the verdict to a file;
 `--summary` prints a bundle reconnaissance to stderr.
 
 ## Check a bundle
 
-    bitgraph-play check "BitGraph (photo.jpg)/"
+    bitgraph-play check recordings/
     bitgraph-play check proof.json photo.jpg --json
 
-No rule needed. `check` reads an export (a folder or archive, or a
+No rule needed. `check` reads a bundle (a folder or archive, or a
 proof.json beside the file it records) and says, offline, what the bundle
 establishes about each recording in it: that the file in hand hashes to
 the recorded digest, that the Ed25519 signature and position binding verify,
 that the AWS Nitro attestation validates to the AWS root and binds this
 exact proof, that the attested PCR0 is a published BitGraph enclave
-measurement, and, from block headers in the bundle, which Ethereum blocks
-the recording sits between. Every line is TRUE, FALSE, or UNDETERMINED:
+measurement (enclave v9 included), and, from block headers in the bundle,
+the Ethereum block the recording comes after (its floor, a time) and the
+later anchor it was committed before (a position, never a clock time).
+Every line is TRUE, FALSE, or UNDETERMINED:
 FALSE only when evidence in hand contradicts the recording (an edited
 signature, a block header that does not hash to its anchor), UNDETERMINED
 when the evidence does not decide (the file is not in the bundle, a
@@ -46,7 +54,7 @@ no offline check can establish, stated rather than implied. `--json`
 prints the `bitgraph-check/1` report; exit codes match evaluation.
 
 The same check runs in a browser: `verify.html`, built from this package
-to `dist-web/verify.html`. Open it and choose or drop an export, offline,
+to `dist-web/verify.html`. Open it and choose or drop a bundle, offline,
 and it renders the same report from the same code. bitgraph.ing stopped
 serving a copy on 8 September 2026: loading a checker from the party
 being checked is not an offline check. A copy you already have still
@@ -59,7 +67,7 @@ network request.
 
 `init` hashes the files you name and writes a rule skeleton with the
 cast filled in: one role per file, digests computed, role names from
-filenames. The skeleton does not run as written — `requires.ordering`
+filenames. The skeleton does not run as written: `requires.ordering`
 is a placeholder you must replace, because the trust floor is the
 rule's own security policy and has no default, from the scaffolder or
 anywhere else. Choose the floor, say what each digest means, refine the
@@ -98,7 +106,7 @@ ambiguous rather than silently picking a mode.
 
 `cast` is everything taken on the rule author's word: which digest means
 what, which occurrence is meant, who is said to have signed it. `claim`
-is only what BitGraph derives. `then` is a label — no field of a rule can
+is only what BitGraph derives. `then` is a label: no field of a rule can
 cause an action. Player decides; whatever stakes money on a TRUE sits
 above it.
 
@@ -113,7 +121,7 @@ wrong on some input.
 
 The verdict splits `derived` (BitGraph established this) from `declared`
 (a named party asserted this), and its last declared entry is always the
-closed world itself — absence is asserted only among the roles the author
+closed world itself: absence is asserted only among the roles the author
 declared, and nothing establishes that the cast is complete.
 
 ## Determinism
@@ -126,7 +134,7 @@ agree with it.
 
 ## API
 
-One call runs the whole pipeline — the CLI is built on the same
+One call runs the whole pipeline; the CLI is built on the same
 function, so embedding Player cannot drift from it:
 
 ```ts
@@ -159,7 +167,7 @@ browser page share:
 import { ingestBundle, ingestEntries } from "@mikeargento/bitgraph-audit";
 import { checkIngest, renderCheckText } from "@mikeargento/bitgraph-player";
 
-const report = await checkIngest(await ingestBundle("BitGraph (photo.jpg)/"));
+const report = await checkIngest(await ingestBundle("recordings/"));
 // or, from bytes already in hand (a browser drop):
 // await checkIngest(await ingestEntries([{ path: "proof.json", open: () => bytes }]));
 process.stdout.write(renderCheckText(report));
