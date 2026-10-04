@@ -95,6 +95,8 @@ export interface DownloadView {
   onClick: () => void;
   busy: boolean;
   primary?: boolean;
+  /** One line under the name: what this download is. */
+  desc?: string;
 }
 
 export interface FieldView {
@@ -137,7 +139,9 @@ export interface ProofViewModel {
    *  button downloads depends on the kind of position, and the person makes no
    *  choice. Null while nothing can be exported yet (a tree still binding). */
   exportAction: DownloadView | null;
-  /** One line under the button: what the export holds. */
+  /** The export's row name: what the one download is, for this kind of position. */
+  exportName: string;
+  /** One line under it: what the export holds. */
   exportInside: string;
   /** The pieces on their own, as small text links: the proof, the anchors, the
    *  original, the BitGraphed file. For the few who want one part. */
@@ -438,25 +442,41 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       {/* ── 4. Take it with you ── */}
       <section className="pv-card">
         <div className="pv-section-title">Take it with you</div>
-        {/* One button, one export, whatever the kind of position (Mike, 2026-10-04).
-            The pieces stay reachable below it as text, never as a second row of pills. */}
-        {m.exportAction && (
-          <div className="pv-downloads">
-            <button type="button" onClick={m.exportAction.onClick} disabled={m.exportAction.busy} className="bg-action-link pv-dl is-primary">
-              <span>{m.exportAction.busy ? m.exportAction.busyLabel : m.exportAction.label}</span>
-            </button>
-          </div>
-        )}
-        {m.exportInside && <div className="pv-note pv-inside">{m.exportInside}</div>}
-        {(m.pieces.length > 0 || m.ceilingFileHref) && (
-          <div className="pv-pieces">
-            <span className="pv-pieces-label">On its own</span>
-            {m.pieces.map((d) => (
-              <button key={d.label} type="button" onClick={d.onClick} disabled={d.busy} className="pv-piece">{d.busy ? d.busyLabel : d.label}</button>
-            ))}
-            {m.ceilingFileHref && <a href={m.ceilingFileHref} download className="pv-piece">Ceiling file</a>}
-          </div>
-        )}
+        {/* One export, one button (Mike, 2026-10-04: "a master button"), laid out as
+            an assets list, the structure the Positions list below already uses: the
+            export is the first row and the only filled button; the pieces are rows
+            under it with a text link each. Before this, four pills in a row. */}
+        <div className="pv-take">
+          {m.exportAction && (
+            <div className="pv-take-row is-main">
+              <div className="pv-take-text">
+                <div className="pv-take-name">{m.exportName}</div>
+                <div className="pv-take-desc">{m.exportInside}</div>
+              </div>
+              <button type="button" onClick={m.exportAction.onClick} disabled={m.exportAction.busy} className="bg-action-link pv-dl is-primary">
+                <span>{m.exportAction.busy ? m.exportAction.busyLabel : m.exportAction.label}</span>
+              </button>
+            </div>
+          )}
+          {m.pieces.map((d) => (
+            <div key={d.label} className="pv-take-row">
+              <div className="pv-take-text">
+                <div className="pv-take-name">{d.label}</div>
+                {d.desc && <div className="pv-take-desc">{d.desc}</div>}
+              </div>
+              <button type="button" onClick={d.onClick} disabled={d.busy} className="pv-take-link">{d.busy ? d.busyLabel : "Download"} <span aria-hidden>&darr;</span></button>
+            </div>
+          ))}
+          {m.ceilingFileHref && (
+            <div className="pv-take-row">
+              <div className="pv-take-text">
+                <div className="pv-take-name">Ceiling file</div>
+                <div className="pv-take-desc">The Base ceiling: the transaction that carries the root, its block header, and the settlement pointer.</div>
+              </div>
+              <a href={m.ceilingFileHref} download className="pv-take-link">Download <span aria-hidden>&darr;</span></a>
+            </div>
+          )}
+        </div>
         {m.downloadNotes.length > 0 && (
           <div className="pv-note">{m.downloadNotes.map((n, i) => <div key={i}>{n}</div>)}</div>
         )}

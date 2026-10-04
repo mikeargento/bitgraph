@@ -1891,18 +1891,22 @@ export default function ProofPage() {
                 ? "One zip: the tree's export, with the proof and its times, and SPEC.md, the rules the proof pins. Drop the file in the box above first and the export carries its place too."
                 : `One zip: the tree's export, with the proof and its times, and SPEC.md, the rules the proof pins. A file's own place among the ${treeCount.toLocaleString("en-US")} files comes with that file's export: drop it in the box above first.`)
             : `One zip: the proof, the Ethereum anchors with their block headers, the ceiling file${cachedFile ? ", the file" : ""}${carrierPossible ? " and the BitGraphed file, the file with the proof inside" : ""}, with a README that says what each is.`;
+          const exportName = isEth
+            ? "The anchor's proof"
+            : isTree
+            ? (treeMember && cachedFile ? "This file's export" : "The tree's export")
+            : "The package";
+          const PROOF_PIECE: DownloadView = { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false, desc: "The signed proof alone, byte for byte as the ledger serves it." };
+          const ANCHORS_PIECE: DownloadView = { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy, desc: "The floor and the ceiling in position, each with its Ethereum block header." };
           const pieces: DownloadView[] = isEth
             ? []
             : isTree
-            ? [
-                { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false },
-                { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy },
-              ]
+            ? [PROOF_PIECE, ANCHORS_PIECE]
             : [
-                ...(carrierPossible ? [{ label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: downloadCarrier, busy: carrierBusy }] : []),
-                { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false },
-                ...(cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? [{ label: "Original file", busyLabel: "Recovering\u2026", onClick: downloadOriginal, busy: originBusy }] : []),
-                { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy },
+                ...(carrierPossible ? [{ label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: downloadCarrier, busy: carrierBusy, desc: "The file with the proof inside: one file that verifies with nothing else." }] : []),
+                PROOF_PIECE,
+                ...(cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? [{ label: "Original file", busyLabel: "Recovering\u2026", onClick: downloadOriginal, busy: originBusy, desc: "The original, back out of the committed file." }] : []),
+                ANCHORS_PIECE,
               ];
           const checkText = isEth
             ? null
@@ -1984,6 +1988,7 @@ export default function ProofPage() {
             checks: isTree ? treeChecks(checks) : checks,
             onConfirm: confirmAgainstNodes,
             exportAction,
+            exportName,
             exportInside,
             pieces,
             downloadNotes,

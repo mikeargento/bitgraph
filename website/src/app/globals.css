@@ -2591,13 +2591,25 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-dl { margin: 0 !important; min-height: 42px; }
 .pv-dl.is-primary { background: var(--btn-primary) !important; color: #fff !important; border-color: var(--btn-primary) !important; }
 .pv-dl.is-primary:hover { background: var(--btn-primary-hover) !important; }
-/* Under the one Export button: what is inside, then the pieces as text (Mike, 10-04: one master button). */
-.pv-inside { margin-top: 10px; }
-.pv-pieces { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; font-size: 13.5px; line-height: 1.55; }
-.pv-pieces-label { color: var(--dim); }
-.pv-piece { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; font-size: 13.5px; color: var(--accent); cursor: pointer; text-decoration: none; }
-.pv-piece:hover { text-decoration: underline; }
-.pv-piece:disabled { color: var(--dim); cursor: default; text-decoration: none; }
+/* Take it with you as an assets list (Mike, 10-04: one master button, "your most optimized
+   design"): the export is the first row and the only filled button; each piece is a row with a
+   text link. Same bones as the Positions rows below it. */
+.pv-take { display: flex; flex-direction: column; }
+.pv-take-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 0; border-top: 1px solid var(--line-2); }
+.pv-take-row:first-child { border-top: 0; padding-top: 0; }
+.pv-take-row.is-main { padding-bottom: 16px; }
+.pv-take-text { min-width: 0; }
+.pv-take-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+.pv-take-row.is-main .pv-take-name { font-size: 16px; }
+.pv-take-desc { font-size: 13.5px; color: var(--dim); line-height: 1.5; margin-top: 2px; }
+.pv-take-row .pv-dl { flex: 0 0 auto; min-height: 44px; padding: 0 26px !important; }
+.pv-take-link { flex: 0 0 auto; appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--accent); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.pv-take-link:hover { text-decoration: underline; }
+.pv-take-link:disabled { color: var(--dim); cursor: default; text-decoration: none; }
+@media (max-width: 600px) {
+  .pv-take-row.is-main { flex-direction: column; align-items: stretch; }
+  .pv-take-row.is-main .pv-dl { width: 100%; justify-content: center; }
+}
 .pv-offline { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-2); }
 .pv-offline-text { font-size: 13.5px; color: var(--dim); line-height: 1.55; margin-bottom: 10px; }
 .pv-code { margin: 0 !important; }
