@@ -55,8 +55,11 @@ export default function HomePage() {
           are in the git history and in the headline file. */}
       <h1>GPS for files.</h1>
 
+      {/* Two sentences. On a desktop they balance into one line each; on a phone each
+          sentence is its own balanced block, so no line ends on a stub like "Your". */}
       <p className="lede">
-        A position, verified against a public broadcast. Your files never leave your&nbsp;computer.
+        <span className="lede-sentence">A position, verified against a public broadcast.</span>{" "}
+        <span className="lede-sentence">Your files never leave your&nbsp;computer.</span>
       </p>
 
       <p className="lede home-coordinates">Local files. Global&nbsp;coordinates.</p>

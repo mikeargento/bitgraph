@@ -2131,6 +2131,18 @@ body { background: var(--bg); }
 .home .home-live { text-align: center; align-items: center; }
 .home .home-live-title { justify-content: center; }
 .home .home-live-text { margin-left: auto; margin-right: auto; }
+/* Phones (Mike, 2026-10-04: "why does it look like ass on mobile"): the block sits in the
+   upper part of the screen instead of floating mid-void; the three-word headline takes the
+   width a phone gives it; each subhead sentence is its own balanced block, so no line ends on
+   "Your"; the coordinates line and the actions keep a clear step from each other. */
+@media (max-width: 600px) {
+  .home { justify-content: flex-start !important; padding-top: 12vh !important; }
+  .home h1 { font-size: clamp(34px, 11.5vw, 48px) !important; margin-bottom: 0.55em; }
+  .home .lede .lede-sentence { display: block; text-wrap: balance; }
+  .home .lede { font-size: 17px !important; line-height: 1.45 !important; margin-bottom: 1.1rem; }
+  .home .home-coordinates { color: var(--dim); margin-top: 0.2rem; margin-bottom: 1.6rem; }
+  .home .actions { gap: 10px; }
+}
 
 /* The home page's two actions are the only interactive thing on it, sitting under
    an 80px headline, so the site's 32px toolbar control reads as an afterthought
