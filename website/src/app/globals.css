@@ -2827,3 +2827,12 @@ html { background: #ffffff !important; }
 @media (min-width: 961px) { .nav2-cats { position: absolute; left: 50%; transform: translateX(-50%); } }
 /* Mike 10-02: "maybe a little bolder on the text of buttons?" The phone Menu button matches the bar's groups. */
 #site-nav .nav2-menu { font-weight: 600 !important; }
+
+/* /spec (react-markdown): its code blocks are bare <pre>, which the measure and centring rules above
+   do not name, so they ran the full frame beside a centred column (Mike, 2026-10-04: "these are weird
+   now"). They take the reading measure, the code-block look, and scroll sideways when a line is long. */
+.spec-doc pre { max-width: var(--measure); margin: 1.25rem auto !important; padding: 14px 18px; background: var(--paper); border-radius: 12px; box-shadow: var(--shadow-card); overflow-x: auto; font-size: 13px; line-height: 1.55; }
+.spec-doc pre code { padding: 0; background: none; border-radius: 0; font-size: inherit; white-space: pre; }
+.spec-doc table { display: block; overflow-x: auto; max-width: var(--measure); margin-left: auto !important; margin-right: auto !important; }
+.spec-doc h1 { font-size: 32px !important; }
+.spec-doc h2 { margin-top: 48px !important; }
