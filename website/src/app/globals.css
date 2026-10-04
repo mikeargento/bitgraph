@@ -2259,6 +2259,14 @@ body { background: var(--bg); }
    frame. */
 main :is(p, ul, ol, dl, blockquote, h1, h2, h3, h4, .lede, .callout, .facts, .doors, .steps, .receipt, table, .note, .meta, details, .code-block) { max-width: var(--measure); }
 main :is(figure, .fig-well) :is(p, ul, ol, dl, table, figcaption, .note, .meta) { max-width: none; }
+/* The reading column sits in the MIDDLE of the frame (Mike, 2026-10-04: "should the content
+   window be centered?"), not against its left edge: since the home and the nav moved to a centre
+   axis the left-pinned column read as a different site, and on a wide screen it left a 560px
+   void beside every paragraph. Figures and tables still take the frame, now spreading evenly to
+   both sides of the text. Text inside stays left-aligned. !important because several of these
+   elements set a margin shorthand of their own (h2, h3, .faq h2, .table-scroll). */
+main :is(p, ul, ol, dl, blockquote, h1, h2, h3, h4, .lede, .callout, .facts, .doors, .steps, .receipt, table, .note, .meta, details, .code-block, .table-scroll, .try-zone, .anchor-zone) { margin-left: auto !important; margin-right: auto !important; }
+main :is(figure, .fig-well, li, .callout, .facts, .doors, .steps, .note, details, .table-scroll) :is(p, ul, ol, dl, table, h3, h4, .note, .meta, .code-block) { margin-left: 0 !important; margin-right: 0 !important; }
 
 /* The bar: white, a hairline under it, and Google's lift once the page moves (site-nav adds
    .scrolled). The wordmark takes the blue, as the postseason's does. */
