@@ -33,7 +33,12 @@ export default function HomePage() {
         /* Vertically centred in what is left after the bar and the footer. A min-height, not a
            fixed one, so a phone can still scroll if the headline wraps further than expected.
            142px is the measured bar (65) plus footer (77), not a guess. */
-        minHeight: "calc(100vh - 142px)",
+        /* svh, not vh (Mike, 2026-10-04, iPhone: "why does this happen when I pull up"): on a phone
+           100vh is the screen with the browser's toolbars hidden, so the frame overshot the visible
+           screen by the toolbar height and the page scrolled by that much, headline under the bar,
+           appendix and footer coming up from below. 100svh is the screen with the toolbars showing,
+           the one the visitor actually has on arrival. Desktops measure the two the same. */
+        minHeight: "calc(100svh - 142px)",
         /* The frame ships 56px top and 96px bottom padding; that 40px asymmetry was pushing the
            centred block upward by exactly 40px. Equalised here rather than in globals. */
         paddingTop: "56px",
