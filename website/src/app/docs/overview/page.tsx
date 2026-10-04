@@ -57,7 +57,7 @@ export default function OverviewPage() {
         <strong>Commit.</strong> The new bytes&rsquo; digest arrives together with the position&rsquo;s identifier. In one atomic step the enclave deletes the position from its table, binds the digest to it, records both counters and the hash of the position record in a signed body, signs the body with its Ed25519 key, and obtains a hardware attestation over that exact body. There is no partial state: if any part fails, no proof exists and the position is simply lost. A position is consumed once and never reused. Storing BitGraph&rsquo;s public copy happens afterwards, outside that step.
       </p>
       <p>
-        <strong>The proof.</strong> What comes back is a JSON document: the digest, the commit fields, the signature, the enclave&rsquo;s measurement and attestation, the position record itself, and a signed marker naming the original&rsquo;s digest. It is returned to whoever asked and travels with the original. BitGraph also keeps a public copy, indexed by digest, for retrieval. Verification uses the proof you hold and does not require contacting the service.
+        <strong>The proof.</strong> What comes back is a JSON document: the digest, the commit fields, the signature, the enclave&rsquo;s measurement and attestation, the position record itself, and a signed marker naming the form (<code>tree/1</code>) and the exact specification text it follows. It is returned to whoever asked inside an <em>export</em> (<code>bitgraph-export/1</code>), one JSON file kept beside the original with <code>SPEC.md</code>, the text the proof pins. BitGraph also keeps a public copy, indexed by digest, for retrieval. Verification uses the export you hold and does not require contacting the service.
       </p>
 
       <h3>Why the order matters</h3>
@@ -73,7 +73,10 @@ export default function OverviewPage() {
 
       <h2 id="boundary">2. What crosses the boundary</h2>
       <p>
-        The file itself never crosses. On the public site, in the MCP server and in the SDK, the new bytes are built and hashed where the file is, and the commit request carries only their digest, the position record and the signed marker with the original&rsquo;s digest. That is a property of each client rather than of the protocol: a client can send whatever it likes, and a verifier should read the client&rsquo;s source if it matters. The service sees the requester&rsquo;s address and those two digests, and publishes them with the position and the anchors. It never sees the file.
+        The file itself never crosses. On the public site, in the MCP server and in the SDK, the new bytes are built and hashed where the file is. Their digests become the leaves of a small Merkle tree, and the commit request carries only the hash of its 84-byte root document, the position record and the signed marker. That is a property of each client rather than of the protocol: a client can send whatever it likes, and a verifier should read the client&rsquo;s source if it matters. The service sees the requester&rsquo;s address and that one hash, and publishes them with the position and the anchors. It never sees the file.
+      </p>
+      <p>
+        After the proof is written, the client also sends sealed <em>recovery entries</em>, one per file, stored under names derived from the file&rsquo;s hash; the hash itself is never indexed. Whoever knows the file&rsquo;s digest can derive the names and open the entries; without it an entry is opaque. That is how the file alone finds its proof again if the export is lost: the drop box, the CLI and the MCP server consult the entries before anything else. A lookup that did not complete is answered as unknown, and unknown is not new: no client makes a second recording of the file unless the person asks for one regardless.
       </p>
       <p>
         The enclave is a measured environment. Its image is identified by a hash, PCR0, that AWS computes at boot and that anyone can reproduce from the published source. The enclave&rsquo;s signing key is generated inside it and never leaves. Every proof carries an attestation document, signed by the Nitro hardware, whose user data is the hash of that proof&rsquo;s signed body. A verifier who pins the published PCR0 is therefore checking not only that some key signed the proof but that the key belonged to that specific code.
@@ -91,17 +94,17 @@ export default function OverviewPage() {
 
       <h2 id="fused">3. Carrying the position inside the bytes</h2>
       <p>
-        For a file that already exists, the new bytes wrap it: the commitment is added after the last byte for formats whose decoders ignore trailing data, such as JPEG and PNG, and for everything else the file goes first into a small container that holds the commitment. The original is never modified, and the new file need not be kept: the original plus the proof rebuilds it byte for byte, and checking that reconstruction against the committed digest is the evidence.
+        For a file that already exists, the new bytes wrap it: the commitment is added after the last byte for formats whose decoders ignore trailing data, such as JPEG and PNG, and for everything else the file goes first into a small container that holds the commitment. The original is never modified, and the new file need not be kept: the original plus the export rebuilds it byte for byte, and checking that reconstruction against the leaf the export names, and the leaf against the committed root, is the evidence. A file can also be kept as is, with no commitment inside it; it then takes the record&rsquo;s floor but its own bytes are not dated.
       </p>
       <FusedFigure />
       <p>
         A format you produce yourself, such as an AI system&rsquo;s audit record, can carry the commitment in a field of its own. Then there is nothing to rebuild: the record with its commitment is the file you keep.
       </p>
       <p>
-        Either way, the new bytes name the position and the position names the new bytes, and the floor the enclave fixed when it allocated the position puts a public time under them. The proof&rsquo;s signed attribution field carries the marker: the label <code>bitgraph-fuse/1</code>, the placement used and, for a wrapped file, the digest of the original.
+        Either way, the new bytes name the position and the position names the new bytes, and the floor the enclave fixed when it allocated the position puts a public time under them. The proof&rsquo;s signed attribution field carries the marker: the name <code>bitgraph-fuse/2</code>, the title <code>tree/1</code>, and the SHA-256 of the <code>SPEC.md</code> the proof was made under. A verifier that does not know that hash answers undetermined, never valid.
       </p>
       <p>
-        Two or more files made together become one set under one position, with each file a member that keeps its own row and inclusion path. The <Link href="/docs/proof-format#fused">proof format</Link> page has the byte-level placements.
+        Making a BitGraph of one or more files yields one position: a <code>tree/1</code>. Each file is a leaf, named by its digest and its placement; one file is a tree of one. The committed artifact is the hash of an 84-byte root document holding the leaf count, the Merkle root and the position commitment, so the root, the count and the commitment are all signed. The owner&rsquo;s export lists every leaf and name; a member&rsquo;s export carries one file&rsquo;s leaf and its path to the root, so each file can be checked alone. Nothing can be added to a tree afterwards. Earlier recordings placed a single fused file directly, or two or more files as a set; they still verify. The <Link href="/docs/proof-format#fused">proof format</Link> page has the byte-level placements, and <a href="/spec/SPEC.md">SPEC.md</a> section 8 is the normative text.
       </p>
 
       <h2 id="time">4. Where time comes from</h2>
@@ -113,13 +116,16 @@ export default function OverviewPage() {
       </p>
       <AnchorFigure />
       <p>
-        <strong>The floor.</strong> On the anchored sequence the enclave fixes a floor for every position at the moment it allocates it: the latest anchor, which it signs into the proof at commit (since enclave version 7). Since version 8 it refuses to sign a proof without one. The block that anchor names had been mined before the position existed, so its time is a lower bound on the position that nobody involved chose. A verifier reads the block&rsquo;s time from its header, which an export ships as a witness, and can confirm the same block on any Ethereum explorer.
+        <strong>The floor.</strong> On the anchored sequence the enclave fixes a floor for every position at the moment it allocates it: the latest anchor, which it signs into the proof at commit (since enclave version 7). Since version 8 it refuses to sign a proof without one. The block that anchor names had been mined before the position existed, so its time is a lower bound on the position that nobody involved chose. A verifier reads the block&rsquo;s time from its header, which an export carries as <code>floor.header</code>, and can confirm the same block on any Ethereum explorer.
       </p>
       <p>
         <strong>The ceiling.</strong> The next anchor the sequence took is the position&rsquo;s ceiling: the record was committed before that anchor took its place. That is a fact about order in the sequence and it does not convert to a clock reading. An anchor is made after the block it carries, so a record can sit after that block was mined and still before the anchor. No field in a proof is a trusted timestamp, and the proof itself makes no wall-clock upper-bound claim.
       </p>
       <p>
-        <strong>The ceiling in time.</strong> A few seconds after a commit, BitGraph writes a Merkle root over the newest records&rsquo; proof hashes to Base, in one small transaction from a published address. The block that includes it is a clock the record cannot move: the record existed by that block&rsquo;s time. The ceiling travels in its own file beside the proof, and every write is listed on the Ceilings page.
+        <strong>The ceiling in time.</strong> A few seconds after a commit, BitGraph writes a Merkle root over the newest records&rsquo; proof hashes to Base, in one small transaction from a published address. The block that includes it is a clock the record cannot move: the record existed by that block&rsquo;s time. The ceiling travels in the export, never inside the proof, and every write is listed on the Ceilings page.
+      </p>
+      <p>
+        <strong>The settlement.</strong> About an hour later Ethereum records that Base block through Base&rsquo;s output root, and the export carries that record too (<code>bitgraph-output-root/1</code>). It says the Base block&rsquo;s data existed by that Ethereum block, and no more. An export written right after the commit has the ceiling and the settlement pending; <code>bitgraph export complete</code> fills them in once they have landed, and a verifier states a pending part as not carried, never as failure.
       </p>
       <p>
         The anchor cadence is a deployment setting, as frequent as one anchor per Ethereum block. Anchors are not confirmation-delayed: a chain reorganisation near an anchor can orphan the block it names, in which case the witness check fails and that temporal bound is lost rather than silently wrong. Ordering within the sequence is untouched by anything that happens to Ethereum.
@@ -142,19 +148,19 @@ export default function OverviewPage() {
         <table className="table-k">
           <thead><tr><th>Field</th><th>What it establishes</th></tr></thead>
           <tbody>
-            <tr><td>artifact.digestB64</td><td>The committed new bytes: your file plus the commitment. Any change to either changes the digest.</td></tr>
+            <tr><td>artifact.digestB64</td><td>For tree/1, the hash of the 84-byte root document: leaf count, Merkle root over the files&rsquo; committed bytes, and the commitment. Any change to a file, the count or the commitment changes it.</td></tr>
             <tr><td>slotAllocation</td><td>The position record: nonce, counter, epoch, key, signature. Made before any digest was received.</td></tr>
             <tr><td>commit.slotCounter, commit.counter</td><td>The reserved position and the commit&rsquo;s. The first is always smaller.</td></tr>
             <tr><td>commit.slotHashB64</td><td>Hash of the position record, inside the signed body, so the position cannot be swapped.</td></tr>
             <tr><td>commit.prevB64</td><td>Hash of the previous proof on the sequence: the link that makes the order checkable.</td></tr>
             <tr><td>commit.slotAnchor</td><td>The Ethereum block the floor rests on: fixed by the enclave when the position was allocated, signed into the proof at commit.</td></tr>
             <tr><td>signer, environment</td><td>The enclave&rsquo;s key and signature, its PCR0 measurement, and its hardware attestation over this body.</td></tr>
-            <tr><td>attribution</td><td>Signed. The marker, the placement and, for a wrapped file, the original&rsquo;s digest.</td></tr>
-            <tr><td>metadata, timestamps</td><td>Unsigned and advisory. Never evidence.</td></tr>
+            <tr><td>attribution</td><td>Signed. The marker: name <code>bitgraph-fuse/2</code>, title <code>tree/1</code>, message the SHA-256 of the pinned <code>SPEC.md</code>.</td></tr>
+            <tr><td>metadata, timestamps</td><td>Unsigned and advisory. Never evidence. <code>metadata[&quot;bitgraph-tree/1&quot;]</code> echoes the root document in hex; a reader counts it only after it hashes to the signed digest.</td></tr>
           </tbody>
         </table>
       </div>
-      <p className="note">Every field, its encoding and what is and is not signed: <Link href="/docs/proof-format">proof format</Link>. The same account in formal terms, with the invariants: <Link href="/docs/what-is-bitgraph">the protocol</Link>.</p>
+      <p className="note">Every field, its encoding and what is and is not signed: <Link href="/docs/proof-format">proof format</Link>. The same account in formal terms, with the invariants: <Link href="/docs/what-is-bitgraph">the protocol</Link>. The normative text for tree/1, the export and recovery: <a href="/spec/SPEC.md">SPEC.md</a>.</p>
 
       <h2 id="next">Where next</h2>
       <ul className="doors">

@@ -39,7 +39,7 @@ export default function CarrierPage() {
       <ul>
         <li><strong>The ceiling in position.</strong> The next Ethereum anchor in the sequence: the record was committed before the anchoring of that block, a bound in position, not a clock time. Every record ever made has one.</li>
         <li><strong>The ceiling in time.</strong> A Base block that includes a Merkle root over the record&rsquo;s proof hash: the record existed by that block&rsquo;s time. It lands seconds after the commit, and it is carried as the same <code>bitgraph-ceiling/1</code> file the proof page serves, whole, so the raw Base transaction, its inclusion proof and the Base header are inside. Records made before 2026-09-29 have none, and the file says so.</li>
-        <li><strong>Settlement.</strong> When known, the Ethereum block that committed the Base batch data holding the ceiling transaction: an Ethereum header, the batcher transaction&rsquo;s inclusion proof, and the blob commitments. The blob bytes themselves are kept beside a download package (in <code>base-ceiling/blobs/</code>), not in the file, because Ethereum prunes them after about 18 days; BitGraph also archives them, at <code>bitgraph.ing/api/ceilings/blobs/&lt;versioned hash&gt;.bin</code>. This says the ceiling transaction&rsquo;s bytes existed by that Ethereum block, whatever Base&rsquo;s own state says.</li>
+        <li><strong>Settlement.</strong> When known, Ethereum&rsquo;s own record of that Base block. The current form, which an export carries, goes through Base&rsquo;s output root (<code>bitgraph-output-root/1</code>): an Ethereum header and the proof that the output root in it covers the Base block. A BitGraphed file carries the earlier pointer form (<code>bitgraph-settlement/1</code>): the Ethereum header, the batcher transaction&rsquo;s inclusion proof and the blob commitments for the Base batch data holding the ceiling transaction. No blob bytes travel in either; BitGraph archives them at <code>bitgraph.ing/api/ceilings/blobs/&lt;versioned hash&gt;.bin</code> because Ethereum prunes them after about 18 days. Either form says the record existed by that Ethereum block, whatever Base&rsquo;s own state says.</li>
       </ul>
       <p>
         Neither ceiling can be inside at the moment of the commit, so each is either present or stated as not fetched, in those words. Completion is a one-step patch from public data: drop the file back on the site, or run <code>bitgraph complete</code>, and what has landed since is fetched in. The committed bytes never change, so the proof is unaffected. Nothing already inside is ever overwritten; a file offered a different ceiling than the one it holds refuses it, because a conflicting embedded ceiling is evidence worth keeping.
@@ -99,7 +99,7 @@ xxd -p sigstructure.bin | tr -d '\\n' | grep -c <user_data>   # 1: user_data is 
 
       <h2 id="survival">What survives, what does not</h2>
       <p>
-        The block rides after the file&rsquo;s own end. Most formats never read past their own data, so a BitGraphed photo still opens as a photo. PDF and ZIP-based files (docx, xlsx, pptx) are read from the end, and tested readers still open them because they search back for their own end marker; a ZIP-based file stops opening once the block passes 65,535 bytes (its end record must sit within the last 64 KiB; measured 2026-09-30: Spotlight and Python fail at 65,536, and QuickLook hangs), so the builder keeps every block under 60,000 bytes for them, leaving the openssl witness out first (the attestation itself is still inside the proof) and keeping the proof beside the file rather than inside it when even that is too large. MP4 and MOV have no such limit: every reader tested ignored a trailing block up to the format&rsquo;s own 8 MiB cap. A block is about 50 KB with the witness and 35 KB without. Copying preserves it byte for byte. Re-encoding does not: export from an editor, and the block is gone the way any trailing data is. The original recording is unaffected either way, and the file can be rebuilt from its position page.
+        The block rides after the file&rsquo;s own end. Most formats never read past their own data, so a BitGraphed photo still opens as a photo. PDF and ZIP-based files (docx, xlsx, pptx) are read from the end, and tested readers still open them because they search back for their own end marker; a ZIP-based file stops opening once the block passes 65,535 bytes (its end record must sit within the last 64 KiB; measured 2026-09-30: Spotlight and Python fail at 65,536, and QuickLook hangs), so the builder keeps every block under 60,000 bytes for them, leaving the openssl witness out first (the attestation itself is still inside the proof) and keeping the proof beside the file, in an export, when even that is too large. MP4 and MOV have no such limit: every reader tested ignored a trailing block up to the format&rsquo;s own 8 MiB cap. A block is about 50 KB with the witness and 35 KB without. Copying preserves it byte for byte. Re-encoding does not: export from an editor, and the block is gone the way any trailing data is. The original recording is unaffected either way, and the file can be rebuilt from its position page.
       </p>
 
       <h2 id="format">The block, for people writing readers</h2>
@@ -132,7 +132,7 @@ xxd -p sigstructure.bin | tr -d '\\n' | grep -c <user_data>   # 1: user_data is 
                                         //   "basis": "counter-order", "anchor": { ... }, "witness": { ... } }
   "ceilingInTime": { "status": "present", "sidecar": { "version": "bitgraph-ceiling/1", ... } },
                                         // or { "status": "unfetched", "searched": { "at": "<ISO>" } }
-  "settlement": { "status": "present", "pointer": { "version": "bitgraph-settlement/1", ... } },   // optional
+  "settlement": { "status": "present", "pointer": { "version": "bitgraph-settlement/1", ... } },   // optional; the pointer form, no blob bytes
   "pins": { "pcr0": "<hex>", "ceilingWriter": "0x...", "chains": { "ethereum": 1, "base": 8453 } },  // declared, never trusted
   "attestation": { "format": "aws-nitro-witness/1", "sigStructureB64": "...", "signatureDerHex": "...",
                    "chainPem": [ ... ], "rootPem": "...", "rootSha256": "641A0321...", "atTimeUnix": 0,
@@ -141,7 +141,15 @@ xxd -p sigstructure.bin | tr -d '\\n' | grep -c <user_data>   # 1: user_data is 
 }`}</Code>
       </div>
       <p>
-        <code>bitgraph-carrier/1</code> files, made before 2026-09-30, carry the first three fields only and verify exactly as before. An ordinary reader never needs to know the block is there: it sees the file it always saw. The formats inside are specified with the <Link href="/docs/proof-format">proof</Link>: the position record and its commitment, the <Link href="/docs/proof-format#ceiling">ceiling file</Link>, and settlement.
+        <code>bitgraph-carrier/1</code> files, made before 2026-09-30, carry the first three fields only and verify exactly as before. An ordinary reader never needs to know the block is there: it sees the file it always saw. The formats inside are specified with the <Link href="/docs/proof-format">proof</Link>: the position record and its commitment, the <Link href="/docs/proof-format#ceiling">ceiling file</Link>, and settlement. <a href="/spec/SPEC.md">SPEC.md</a> is the normative text; carriers are its section 15.5.
+      </p>
+
+      <h2 id="export">The BitGraphed file and the export</h2>
+      <p>
+        A BitGraphed file is single-file only, and the proof inside it is a single-file position: the committed bytes are the file itself, not a leaf in a tree. It is an earlier format that still verifies and is still offered for single-file positions (<code>bitgraph bitgraphed &lt;path&gt;</code>, or the proof page&rsquo;s download).
+      </p>
+      <p>
+        What BitGraph makes now is a <code>tree/1</code>: one position over one or more files, each a leaf, one file a tree of one. Its evidence travels as an <code>export/1</code> JSON beside the files, with SPEC.md, and holds no copy of any file. The two answer the same questions in the same words, one line per claim, from <code>bitgraph verify &lt;file&gt;</code> for a BitGraphed file and <code>bitgraph verify &lt;file&gt; &lt;export.json&gt;</code> for a tree member. A reader that must stay inside one file takes the BitGraphed file; a reader with several files at one position takes the export.
       </p>
     </article>
   );

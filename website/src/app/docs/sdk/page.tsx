@@ -17,7 +17,7 @@ export default function SdkPage() {
     <article className="prose">
       <h1>SDK</h1>
       <p className="lede">
-        One engine, three sockets. The same pipelines the drop box runs, packaged so software can plug in whatever it is written in: a TypeScript library, a CLI for any language that can spawn a process, and a localhost daemon for any runtime that can make an HTTP call. Files are read on your machine and never uploaded; only digests, the committed artifact and position records leave it.
+        One engine, three sockets. The same pipelines the drop box runs, packaged so software can plug in whatever it is written in: a TypeScript library, a CLI for any language that can spawn a process, and a localhost daemon for any runtime that can make an HTTP call. Files are read on your machine and never uploaded; only digests, the committed root document, position records and each file&rsquo;s sealed recovery entry leave it.
       </p>
 
       <h2 id="typescript">TypeScript</h2>
@@ -30,14 +30,18 @@ export default function SdkPage() {
         <Code lang="typescript">{`import { BitGraph } from "@mikeargento/bitgraph-sdk";
 
 const bg = new BitGraph();
-const r = await bg.record("run-042.log");
-console.log(r.files[0].proofUrl);`}</Code>
+const r = await bg.record("run-042.log", { exportDir: "." });
+console.log(r.files[0].proofUrl);     // the record's public proof page
+console.log(r.made?.exports?.owner);  // ./bitgraph-<n>.bitgraph.json: keep it with the file`}</Code>
       </div>
       <p>
-        One file is fused on its own position; a folder or many paths become one set under one position. Bytes already on record come back <code>&quot;on record&quot;</code> untouched, and a <Link href="/docs/carrier">BitGraphed file</Link> is judged offline from the proof it carries and never minted: the envelope is not the recorded thing, the bytes inside are.
+        Every call makes one BitGraph: a tree/1, every file one leaf of one Merkle tree under one position, and a single file is a tree of one. Bytes already on record come back <code>&quot;on record&quot;</code> untouched, and a file in an earlier tree is found by its sealed recovery entry before it is called new; a lookup that did not complete refuses the file with the reason, because unknown is not new, unless <code>again</code> asks for a new BitGraph regardless. A <Link href="/docs/carrier">BitGraphed file</Link> is judged offline from the proof it carries and never minted: the envelope is not the recorded thing, the bytes inside are. Earlier forms (sets, the Frame file) still verify; new recordings are tree/1.
       </p>
       <p>
-        The verbs: <code>record</code>, <code>check</code>, <code>proof</code>, <code>open</code> and <code>seal</code>, <code>verify</code>, <code>bitgraphedFile</code>, <code>complete</code>. <code>verify</code> needs no network: a BitGraphed file argues for itself, and the window is stated in the protocol&rsquo;s units, no earlier than the floor block, committed before the anchoring of the later block.
+        The proof commits only the tree&rsquo;s root, so each file shows it is in its BitGraph with its export (bitgraph-export/1), written beside the files: the owner&rsquo;s export holds every leaf and name, a member export holds one file&rsquo;s leaf and path, and <Link href="/spec/SPEC.md">SPEC.md</Link>, the text the proof pins, is written beside them. Exports hold no file copies and no anchors. Keep export/1 and SPEC.md with the files. Each file made also gets a sealed recovery entry, stored under a name derived from the file&rsquo;s hash and encrypted with a key derived from it, so the file alone can find its proof again when the export is lost; <code>recovery: false</code> keeps none but still checks them.
+      </p>
+      <p>
+        The verbs: <code>record</code>, <code>check</code>, <code>proof</code>, <code>open</code> and <code>seal</code>, <code>verify</code> and <code>verifyExport</code>, <code>ownerExport</code>, <code>memberExport</code>, <code>writeExports</code>, <code>completeExport</code>, <code>bitgraphedFile</code>, <code>complete</code>. <code>verify</code> needs no network: a BitGraphed file argues for itself, and a file with its export is judged one line per claim, each saying what it rests on. The window is stated in the protocol&rsquo;s units: the floor in time (the Ethereum block fixed when the position opened), the ceiling in position (committed before the anchoring of the next anchor, a bound in position and never a clock time), the ceiling in time (the Base block carrying a Merkle root over the record) and the settlement (Ethereum&rsquo;s record of that Base block through Base&rsquo;s output root), each once it exists. <code>completeExport</code> adds the floor header, the Base ceiling and the settlement to an export once they exist, each verified first. <code>check</code> is read-only and asks the recovery entries too, so a tree member is reported on record with its leaf and the tree&rsquo;s proof page.
       </p>
 
       <h2 id="position-first">The position before the work</h2>
@@ -55,11 +59,14 @@ const sealed = await slot.seal(Buffer.from(task));
 
       <h2 id="cli">Any language: the CLI</h2>
       <p>
-        Every command takes <code>--json</code> and prints one JSON document, so anything that can spawn a process is integrated. <code>verify</code> prints one line per claim and the reading, and exits 2 on FALSE or a corrupt block; <code>--eth-rpc</code> and <code>--base-rpc</code> confirm each block against a node, <code>--pcr0</code> names the enclave images you accept. <code>bitgraphed</code> writes the <Link href="/docs/carrier">BitGraphed file</Link> (carrier/2) beside the original, and <code>complete</code> fetches in what has landed since.
+        Every command takes <code>--json</code> and prints one JSON document, so anything that can spawn a process is integrated. <code>record &lt;paths...&gt;</code> makes one tree and writes its export/1 beside the files (<code>--out DIR</code>; <code>--exports owner|members|both|none</code>, the owner&rsquo;s by default; <code>--again</code> records files already on record; <code>--as-is</code>; <code>--no-recovery</code>). <code>verify &lt;file&gt; &lt;export.json&gt;</code> (or <code>--export</code>) judges a file with its export offline, one line per claim, and exits 2 on FALSE or a corrupt block; <code>--eth-rpc</code> and <code>--base-rpc</code> confirm each block against a node, <code>--pcr0</code> names the enclave images you accept. <code>export complete &lt;export.json&gt;</code> adds the floor header, the Base ceiling and the Ethereum settlement once they exist; <code>export member &lt;owner.json&gt; &lt;file&gt;</code> derives one member&rsquo;s export. <code>check</code> is read-only. <code>recovery list|flush|keep</code> manage pending recovery entries, saved under <code>$BITGRAPH_HOME/recovery</code> (default <code>~/.bitgraph</code>). The single-file form: <code>bitgraphed</code> writes the <Link href="/docs/carrier">BitGraphed file</Link> (carrier/2) beside the original, <code>complete</code> fetches in what has landed since, and <code>ceiling verify</code> checks a ceiling in time.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>shell</span><CopyCode /></div>
-        <Code lang="text">{`npx bitgraph record run-042.log --json
+        <Code lang="text">{`npx bitgraph record run-042.log --json                     # one tree; writes ./bitgraph-<n>.bitgraph.json and SPEC.md beside it
+npx bitgraph verify run-042.log bitgraph-<n>.bitgraph.json   # the file with its export, offline, one line per claim
+npx bitgraph export complete bitgraph-<n>.bitgraph.json      # add the floor header, the Base ceiling and the settlement once they exist
+npx bitgraph export member bitgraph-<n>.bitgraph.json run-042.log   # one file's own export, from the owner's
 npx bitgraph verify photo.bitgraph.jpg --eth-rpc https://ethereum-rpc.publicnode.com --base-rpc https://mainnet.base.org
 npx bitgraph bitgraphed photo.jpg --wait 30000
 npx bitgraph open

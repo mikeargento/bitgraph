@@ -47,8 +47,8 @@ export default function PlayerPage() {
       <h2 id="need">What you need</h2>
       <ul className="facts">
         <li><b>Runtime</b><span>Node.js. The package runs with <code>npx</code>; nothing else is installed.</span></li>
-        <li><b>Package</b><span><code>@mikeargento/bitgraph-player</code> 0.14.0, MIT-licensed.</span></li>
-        <li><b>A bundle</b><span>A directory, <code>.tar</code> or <code>.tar.gz</code> of BitGraph exports: <code>proof.json</code> files, or Frame files (<code>&lt;name&gt;.bitgraph-fuse.json</code>), with the files they are about and the anchors that floor them.</span></li>
+        <li><b>Package</b><span><code>@mikeargento/bitgraph-player</code> 0.15.0, MIT-licensed.</span></li>
+        <li><b>A bundle</b><span>A directory, <code>.tar</code> or <code>.tar.gz</code> holding <code>proof.json</code> files, or Frame files from the earlier single fused form (<code>&lt;name&gt;.bitgraph-fuse.json</code>), with the files they are about and the anchors that floor them. Player does not yet read the current <code>bitgraph-export/1</code> file; that support is pending.</span></li>
         <li><b>A rule</b><span>A JSON file naming each file by its fingerprint (SHA-256 digest) and stating a claim about their order. <code>init</code> writes the skeleton for you.</span></li>
       </ul>
       <p>
@@ -128,7 +128,7 @@ export default function PlayerPage() {
 
       <h2 id="run">Run it</h2>
       <p>
-        With Node.js installed, evaluate a rule against a BitGraph proof bundle. A bundle may be a directory, <code>.tar</code>, or <code>.tar.gz</code> containing BitGraph exports. Discovery is by schema shape, not by filename, so any layout holding <code>proof.json</code> files works. A Frame file (<code>&lt;name&gt;.bitgraph-fuse.json</code>, the carrier of a fused recording) is read as a proof carrier.
+        With Node.js installed, evaluate a rule against a BitGraph proof bundle. A bundle may be a directory, <code>.tar</code>, or <code>.tar.gz</code>. Discovery is by schema shape, not by filename, so any layout holding <code>proof.json</code> files works. A Frame file (<code>&lt;name&gt;.bitgraph-fuse.json</code>, from the earlier single fused form) is read as a proof carrier. An <code>export/1</code> file is not read yet: take the <code>proof</code> object out of it and give Player that as <code>proof.json</code> until export support lands.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>
@@ -177,7 +177,7 @@ export default function PlayerPage() {
         Two runs of the same rule bytes over the same bundle contents produce byte-identical verdicts, on any machine, at any later time. The verdict carries no clock reading, filesystem path, or machine-local state. Every ordering conclusion identifies the evidence it rests on and whether that conclusion depends on an assumption.
       </p>
       <p>
-        Nothing in a check reaches the network. The bundle carries the proof, the file and the Ethereum anchor that gives its position a floor; the verifier carries its own copy of the code and the enclave measurement it will accept. Pull the cable and the verdict is the same, which is the whole design: a recording has to stay checkable years from now, by someone who should not have to trust a server to tell them what their own bytes say.
+        Nothing in a check reaches the network. The bundle carries the proof, the file and the Ethereum anchor that gives its position a floor (a tree/1 proof signs its floor block itself); the verifier carries its own copy of the code and the enclave measurement it will accept. Pull the cable and the verdict is the same, which is the whole design: a recording has to stay checkable years from now, by someone who should not have to trust a server to tell them what their own bytes say.
       </p>
       <p>
         That is also why the check does not live on this site. A page loaded from <code>bitgraph.ing</code> is trusted exactly as far as <code>bitgraph.ing</code> is, and we are the party being checked. A signed package you install once, pinned to a version, is a smaller thing to trust. The PCR0 it enforces is reproducible from published inputs, so you can confirm it names the enclave we say it does.
@@ -191,7 +191,7 @@ export default function PlayerPage() {
 
       <h2 id="spec">Specification</h2>
       <p>
-        The semantics are specified precisely enough to reimplement. <a href={`${GITHUB}/blob/main/packages/player/SPEC.md`} target="_blank" rel="noopener noreferrer">SPEC.md</a> is normative. The <a href={NPM} target="_blank" rel="noopener noreferrer">published package</a> is the MIT-licensed reference implementation, built on the same <Link href="/docs/audit">audit pipeline</Link> used to inspect a BitGraph bundle by hand. A conforming Player in any language must reach the same verdict from the same rule and the same evidence.
+        The semantics are specified precisely enough to reimplement. Player&rsquo;s own <a href={`${GITHUB}/blob/main/packages/player/SPEC.md`} target="_blank" rel="noopener noreferrer">SPEC.md</a> (the rule language, the three answers, the verdict) is normative for Player. The proofs it reads are specified by the protocol&rsquo;s <a href="/spec/SPEC.md">SPEC.md</a>. The <a href={NPM} target="_blank" rel="noopener noreferrer">published package</a> is the MIT-licensed reference implementation, built on the same <Link href="/docs/audit">audit pipeline</Link> used to inspect a BitGraph bundle by hand. A conforming Player in any language must reach the same verdict from the same rule and the same evidence.
       </p>
 
       <h2 id="next">Where next</h2>

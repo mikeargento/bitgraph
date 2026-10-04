@@ -54,7 +54,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "Can I verify a proof without an internet connection?",
-    a: "Yes. The digest, the Ed25519 signature, the attestation chain to the AWS Nitro root and the position binding are all checked from the proof and the bytes. The floor is checked offline too when the anchor and its block-header witness travel with the proof, which an export includes. The ceiling in time is checked offline from its ceiling file: the Merkle path, the signed Base transaction and the block header. Whether that header is Base's own takes one lookup against any Base node.",
+    a: "Yes. The digest, the Ed25519 signature, the attestation chain to the AWS Nitro root, the position binding and the tree membership are all checked from the export and the bytes: `npx @mikeargento/bitgraph-sdk verify <file> <export.json>` states one line per claim. The floor is read offline from the block header the export carries. The ceiling in time is checked offline from the export too: the Merkle path, the signed Base transaction and the block header. Whether that header is Base's own takes one lookup against any Base node. A proof that pins a SPEC.md the verifier does not know is answered undetermined, never true.",
     href: "/docs/verification", label: "Verification",
   },
   {
@@ -73,8 +73,8 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "Can I record many files at once?",
-    a: "Yes. Two or more files made together become one set at one position, every file a member with its own row and inclusion path. A member cannot be added afterwards, because the committed root was made with the rows it had.",
-    href: "/docs/proof-format#fused", label: "Proof format",
+    a: "Yes. One or more files made together become one tree (`tree/1`) at one position: each file is a leaf, and one file is a tree of one. The committed digest is the hash of a small root document holding the leaf count, the Merkle root and the position commitment. The owner's export lists every leaf; each file can also travel with a member export that holds only its own leaf and path. A file cannot be added afterwards, because the root was made with the leaves it had. Earlier recordings made as sets still verify.",
+    href: "/spec/SPEC.md", label: "SPEC.md, section 8",
   },
   {
     q: "What if someone edits the proof JSON?",
@@ -88,8 +88,13 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "Does the service keep my proof?",
-    a: "Yes, as a convenience: BitGraph keeps a public copy of each proof, indexed by digest, for lookups and proof pages. The copy is not part of the protocol and could stop at any time. The proof returned to you is the evidence; keep it beside the file. A lookup that finds nothing is not evidence that bytes were never recorded.",
+    a: "Yes, as a convenience: BitGraph keeps a public copy of each proof, indexed by digest, for lookups and proof pages. The copy is not part of the protocol and could stop at any time. The export returned to you (`bitgraph-export/1`) is the evidence; keep it beside the file, with the SPEC.md it was made under. A lookup that finds nothing is not evidence that bytes were never recorded.",
     href: "/api-reference", label: "API reference",
+  },
+  {
+    q: "I lost the export. Is the proof gone?",
+    a: "No. When a BitGraph is made, each file also gets sealed recovery entries stored under names derived from the file's hash; the hash itself is never indexed. The file alone derives those names, so the drop box, the CLI (`bitgraph check`) and the MCP server can find its proof again; the proof is read from the public copy and checked in full before it counts. If the lookup does not complete, the answer is unknown, and unknown is not new: nothing records the file a second time unless you ask for that regardless.",
+    href: "/spec/SPEC.md", label: "SPEC.md, section 13",
   },
   {
     q: "What does it cost, and what is licensed?",

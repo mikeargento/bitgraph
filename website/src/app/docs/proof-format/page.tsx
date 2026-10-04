@@ -6,7 +6,7 @@ import { Code } from "@/components/code";
 export const metadata: Metadata = {
   title: "Proof format",
   description:
-    "Normative specification of the bitgraph/1 proof: the schema field by field, the signed body, the position binding, the anchor floor, fused artifacts and their placements, and canonical serialization.",
+    "The bitgraph/1 proof field by field: the signed body, the position binding, the anchor floor, the tree/1 marker and its placements, the ceiling file, and canonical serialization. The normative text is SPEC.md.",
 };
 
 /**
@@ -20,7 +20,7 @@ export default function ProofFormatPage() {
     <article className="prose">
       <h1>Proof format</h1>
       <p className="lede">
-        The normative specification of the <code>bitgraph/1</code> proof, the JSON a holder keeps beside a file. For anyone writing a verifier, a reader or a producer that must interoperate with the reference implementation, from which this page is derived.
+        The <code>bitgraph/1</code> proof, field by field, for anyone writing a verifier, a reader or a producer that must interoperate with the reference implementation. The normative text is <a href="/spec/SPEC.md">SPEC.md</a> (rendered at <Link href="/spec">/spec</Link>); every tree/1 proof pins its SHA-256. What a holder keeps beside a file is not the bare proof but an export, <code>bitgraph-export/1</code>, which carries the proof with the file&rsquo;s leaf and the blocks that bound it, and SPEC.md itself.
       </p>
 
       <h2 id="schema">The proof</h2>
@@ -28,7 +28,7 @@ export default function ProofFormatPage() {
         A proof is one JSON object. The comments mark what is required; the table after the block says what each field is and whether it is signed, self-authenticating or advisory.
       </p>
       <div className="code-block">
-        <div className="code-block-header"><span>proof.json</span><CopyCode /></div>
+        <div className="code-block-header"><span>bitgraph/1</span><CopyCode /></div>
         <Code lang="jsonc">{`{
   "version": "bitgraph/1",                // REQUIRED - exact value
   "artifact": {
@@ -44,12 +44,12 @@ export default function ProofFormatPage() {
     "prevB64":  "<base64>",          // OPTIONAL - chain link, 32 bytes
     "epochId":  "<base64>",          // OPTIONAL - the epoch identifier, 32 bytes
     "chainId":  "bitgraph:main",     // OPTIONAL - the sequence this proof is on
-    "slotAnchor": {                  // OPTIONAL - the chain's latest Ethereum anchor when the position was allocated (since enclave v7; v8 is current)
+    "slotAnchor": {                  // OPTIONAL - the chain's latest Ethereum anchor when the position was allocated (since enclave v7; v9 is current)
       "counter":     "17",           //   counter of that anchor proof on this chain
       "blockNumber": 25921179,
       "blockHash":   "0x<hex>"       //   32 bytes, lowercase
     },
-    "anchor": {                      // OPTIONAL - on Ethereum anchor proofs only: the block this proof anchors (since enclave v7; v8 is current)
+    "anchor": {                      // OPTIONAL - on Ethereum anchor proofs only: the block this proof anchors (since enclave v7; v9 is current)
       "blockNumber": 25921180,
       "blockHash":   "0x<hex>"
     }
@@ -76,12 +76,12 @@ export default function ProofFormatPage() {
     "signatureB64": "<base64>"       // Ed25519 over the canonical position record (every field above except this one)
   },                                 // no anchor and no time: the enclave allocates without a clock, and the floor is signed at commit as commit.slotAnchor
   "agency": { ... },                 // OPTIONAL - legacy; present on some older proofs
-  "attribution": {                   // OPTIONAL - signed; creator metadata, or the fused marker (below)
+  "attribution": {                   // OPTIONAL - signed; creator metadata, or the marker (below): for a tree/1 it names the spec the proof pins
     "name":    "string",
     "title":   "string",
     "message": "string"
   },
-  "metadata": { },                   // OPTIONAL - NOT signed, advisory
+  "metadata": { },                   // OPTIONAL - NOT signed, advisory; a tree/1 carries its root document here as metadata["bitgraph-tree/1"], counted only when it hashes to the signed digest
   "claims": { },                     // OPTIONAL - NOT signed, advisory
   "proofHash": "<base64>"            // OPTIONAL - NOT signed; added by the ledger after signing (see commit.prevB64)
 }`}</Code>
@@ -112,9 +112,9 @@ export default function ProofFormatPage() {
             <tr><td>environment.attestation.reportB64</td><td>The hardware attestation, whose user data is the hash of this proof&rsquo;s signed body.</td><td>Self-authenticating (vendor-signed)</td></tr>
             <tr><td>slotAllocation</td><td>The position record, signed by the enclave before any digest was received; bound to the commit through <code>commit.slotHashB64</code>.</td><td>Self-authenticating</td></tr>
             <tr><td>agency</td><td>Legacy actor envelope on some older proofs; its actor summary is signed, its authorization carries its own signature.</td><td>Legacy</td></tr>
-            <tr><td>attribution</td><td>A claim the submitter made (name, title, message), or the fused marker below.</td><td>Signed</td></tr>
+            <tr><td>attribution</td><td>A claim the submitter made (name, title, message), or the signed marker below: for a tree/1, the commitment version, the word <code>tree/1</code>, and the SHA-256 of the SPEC.md the proof was made under.</td><td>Signed</td></tr>
             <tr><td>timestamps</td><td>Optional RFC 3161 tokens. Never evidence of position.</td><td>Advisory</td></tr>
-            <tr><td>metadata</td><td>Caller-supplied. A set proof carries its committed artifact here, counted only when it hashes to the signed digest.</td><td>Advisory</td></tr>
+            <tr><td>metadata</td><td>Caller-supplied. A tree/1 proof carries its committed artifact here, the 84-byte root document as <code>metadata[&quot;bitgraph-tree/1&quot;]</code> in hex, counted only when it hashes to the signed digest; earlier set proofs carried theirs the same way.</td><td>Advisory</td></tr>
             <tr><td>claims</td><td>Caller-supplied.</td><td>Advisory</td></tr>
           </tbody>
         </table>
@@ -154,7 +154,7 @@ export default function ProofFormatPage() {
             <tr><td>signatureB64</td><td>The signature cannot cover itself</td></tr>
             <tr><td>attestation.reportB64</td><td>Vendor-signed, self-authenticating separately</td></tr>
             <tr><td>slotAllocation</td><td>Self-authenticating (own Ed25519 signature); bound via commit.slotHashB64</td></tr>
-            <tr><td>metadata</td><td>Advisory, never trusted as a field. A set proof carries its committed artifact here: the member manifest for placement set/1, the Merkle root document for set/2; a reader re-canonicalizes it and counts it only if it hashes to the signed artifact.digestB64. A set/2 member&rsquo;s evidence (its row, leaf index and path) may ride under bitgraph-fuse/1/member</td></tr>
+            <tr><td>metadata</td><td>Advisory, never trusted as a field. A tree/1 proof carries its committed artifact here, the root document under <code>bitgraph-tree/1</code> in hex; a reader counts it only if it hashes to the signed artifact.digestB64. Earlier set proofs carried their manifest (set/1) or root document (set/2) the same way, and a set/2 member&rsquo;s evidence may ride under bitgraph-fuse/1/member. A tree member&rsquo;s own evidence, its leaf and path, never rides in the proof: it is in the export.</td></tr>
             <tr><td>claims</td><td>Advisory, not trusted</td></tr>
           </tbody>
         </table>
@@ -198,8 +198,8 @@ export default function ProofFormatPage() {
         <div className="code-block-header"><span>attribution (fused)</span><CopyCode /></div>
         <Code lang="jsonc">{`{
   "name":    "bitgraph-fuse/2",      // the commitment version: bitgraph-fuse/1 or bitgraph-fuse/2
-  "title":   "trailer/1",            // placement id, or the encoding id base64url
-  "message": "<base64>"              // origin digest, SHA-256, standard base64
+  "title":   "tree/1",               // "tree/1" for every BitGraph made now; a placement id or encoding id on earlier single-file proofs
+  "message": "<base64>"              // tree/1: SHA-256 of SPEC.md, standard base64, the spec this proof pins; earlier proofs: the origin digest
 }`}</Code>
       </div>
       <p>
@@ -215,7 +215,7 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
         A verifier chooses the formula by the signed marker name and recomputes commitment/2 from the proof&rsquo;s own signed <code>commit.slotAnchor.blockHash</code>, so a producer can neither tighten nor loosen the floor. What /2 adds: a block hash cannot be known before its block exists, so bytes carrying commitment/2 were finished after that block by the hash alone; with /1, that step rested on the enclave&rsquo;s counter order (the anchor before the position). Placements, payloads and set documents are unchanged between the two; a set&rsquo;s documents keep the <code>bitgraph-fuse/1</code> type and metadata key, and the commitment version is the signed attribution name. A verifier that knows only /1 sees a /2 proof as an ordinary valid proof and says nothing about the file.
       </p>
       <p>
-        Two or more files made together are one set under one position: the committed artifact is the set root, and each file is a member with its own row. Registered placements say, byte for byte, where the commitment sits:
+        Every BitGraph made now is a <strong>tree/1</strong>, whether it holds one file or a hundred thousand: one position, each file a leaf. A leaf is the hash of the file&rsquo;s committed bytes with its placement code (<code>0x00</code> kept as is, <code>0x01</code> trailer/1, <code>0x02</code> container/1, <code>0x03</code> container/2), the leaves form an RFC 9162 tree, and the committed artifact is an 84-byte root document naming the root and the count; <code>artifact.digestB64</code> is its hash. The proof alone commits the root. A file proves it is in the tree with its export, which carries its leaf and path (SPEC.md <a href="/spec/SPEC.md">sections 8 and 12</a>). A verifier that does not know the pinned spec hash answers &ldquo;undetermined&rdquo;, never true. Before tree/1, two or more files were a set under one position (set/1, set/2 below); those positions still verify. Registered placements say, byte for byte, where a file&rsquo;s commitment sits:
       </p>
       <div className="table-scroll">
         <table className="table-k">
@@ -226,12 +226,13 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
             <tr><td>container/2</td><td>the same archive with <code>bitgraph-fuse/original</code> first, then <code>bitgraph-fuse/manifest.json</code>, so the file is hashed once and the digest finished later</td><td>everything else</td></tr>
             <tr><td>produced/1</td><td>a canonical JSON payload naming the commitment and an optional origin digest</td><td>artifacts produced without a source file; SDK and CLI only</td></tr>
             <tr><td>set/1</td><td>a canonical JSON manifest listing every member&rsquo;s fused digest, origin digest and placement; the manifest is the committed artifact</td><td>older sets; readable, no longer made</td></tr>
-            <tr><td>set/2</td><td>a Merkle root document over the member rows; each member keeps its row, leaf index and inclusion path</td><td>two or more files made together: one position, each file a member</td></tr>
+            <tr><td>set/2</td><td>a Merkle root document over the member rows; each member keeps its row, leaf index and inclusion path</td><td>older sets of two or more files; readable, no longer made</td></tr>
+            <tr><td>tree/1</td><td>an 84-byte root document over the leaves; each file&rsquo;s leaf and path travel in its export, never in the proof</td><td>every BitGraph made now, one file or many</td></tr>
           </tbody>
         </table>
       </div>
       <p>
-        The fused bytes are transient. The original plus the proof rebuilds them byte for byte with the declared placement, and verifying that reconstruction against the signed artifact digest is the evidence. A Frame file, <code>&lt;name&gt;.bitgraph-fuse.json</code>, carries the proof with an advisory manifest: <code className="break">{`{ type: "bitgraph-fuse/1", manifest: { placement, origin, artifact, fusedFile }, proof }`}</code>.
+        The fused bytes are transient. The original plus the proof rebuilds them byte for byte with the declared placement, and verifying that reconstruction against the leaf, and the leaf against the signed root, is the evidence. What travels with the file is its export, <code>bitgraph-export/1</code>: the proof, the file&rsquo;s leaf and path (the owner&rsquo;s export holds every leaf and name), the floor block&rsquo;s header, and the Base ceiling and its Ethereum settlement once they exist. An export holds no copy of the file and no anchor proofs; SPEC.md travels beside it. Earlier single-file proofs travelled as a Frame file, <code>&lt;name&gt;.bitgraph-fuse.json</code>, with an advisory manifest; those still verify.
       </p>
       <p className="note">
         What this bound reaches: the fused bytes could not have been finished before the position was allocated. What it does not reach: the original, which can be any age; the proof says only that it existed no later than the commit.
@@ -268,7 +269,7 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
   "floor": {                         // the proof's commit.slotAnchor block, with its header
     "blockNumber": 26088457, "blockHash": "0x<hex>", "blockTimestamp": 1790749163, "blockHeader": "0x<hex>"
   },
-  "settlement": null                 // empty in this version
+  "settlement": null                 // filled in later, when Ethereum carries the block (below)
 }`}</Code>
       </div>
       <p>
@@ -284,7 +285,7 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
         <strong>What the file does not prove.</strong> <code>status</code> is what BitGraph&rsquo;s Base node reported when the file was written: included by Base&rsquo;s sequencer, <code>safe</code> once Base had posted the block&rsquo;s data to Ethereum, <code>finalized</code> once that Ethereum block was final. Ask any Base node for its safe or finalized block to check it yourself.
       </p>
       <p>
-        <strong>Settlement</strong> is the proof of that step, filled in once the batch is on Ethereum (minutes after the Base block): a <code>bitgraph-settlement/1</code> pointer naming the Ethereum block that committed the batch data, its raw header, the batcher&rsquo;s blob transaction with its inclusion proof against that header&rsquo;s <code>transactionsRoot</code>, and the KZG commitments of the blobs that carry the batch. Offline, a verifier checks the header against its hash, the transaction in it, that it is a blob transaction to Base&rsquo;s batch inbox signed by Base&rsquo;s batcher (two pins the verifier names), and that each versioned hash is <code>0x01 || SHA-256(commitment)[1:]</code>. That shows the ceiling transaction&rsquo;s batch data was committed by that Ethereum block, whatever Base&rsquo;s own state says. Ethereum nodes prune blob bytes after about 18 days and keep only the commitment, so a download package keeps the blob bytes beside the ceiling file, in <code>base-ceiling/blobs/&lt;versioned hash&gt;.bin</code>. BitGraph archives every blob a pointer names when it builds the pointer, and serves it at <code>https://bitgraph.ing/api/ceilings/blobs/&lt;versioned hash&gt;.bin</code>; the bytes check themselves against their commitment, so the copy is checked, not trusted. <code>bitgraph-audit</code> verifies each blob against its commitment, decodes the batch, and locates the ceiling transaction inside it. What settlement does not prove: that Base&rsquo;s derivation accepted the batch, and that the Ethereum header is canonical, which is one lookup on any node.
+        <strong>Settlement</strong> is the proof of that step: Ethereum&rsquo;s own record of the Base block, filled in once it exists. The current form, <code>bitgraph-output-root/1</code>, is Base&rsquo;s output root: Base posts to Ethereum, about once an hour, a root over its state that covers a run of blocks, and the settlement carries that root&rsquo;s claim on Ethereum (the dispute game that proposed it, with the Ethereum block and transaction), together with the proof from Base&rsquo;s block header to the root. Offline, a verifier recomputes the output root from the Base header it already holds and matches it to the claim. That shows the Base block existed by that Ethereum block, whatever happens to the block&rsquo;s bytes later; a tree/1 export carries exactly this. The earlier form, <code>bitgraph-settlement/1</code>, pointed at the Ethereum block that committed the Base batch data, its raw header, the batcher&rsquo;s blob transaction with its inclusion proof, and the KZG commitments of the blobs. Ethereum prunes blob bytes after about 18 days, so the older proof packages kept them beside the ceiling file and <code>bitgraph-audit</code> checks each blob against its commitment, decodes the batch and locates the ceiling transaction inside it; exports carry no blob bytes. What neither form proves: that Base&rsquo;s derivation accepted the batch, and that the Ethereum header is canonical, which is one lookup on any node, said and never implied.
       </p>
       <p>
         <strong>The floor it names</strong> is always the proof&rsquo;s <code>commit.slotAnchor</code> block. A record whose own bytes quote a later anchor, as the demonstration file on the home page quotes the anchor recorded right after its position opened, has a tighter floor of its own, which a reader checks from that quote.
@@ -337,6 +338,7 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
 
       <h2 id="next">Where next</h2>
       <ul className="doors">
+        <li><Link href="/spec">SPEC.md</Link><span>The normative text, rendered, with the hash every tree/1 proof pins. The bytes are at <a href="/spec/SPEC.md">/spec/SPEC.md</a>.</span></li>
         <li><Link href="/docs/verification">Verification</Link><span>What a verifier checks, in order, and what each result means.</span></li>
         <li><Link href="/api-reference">API reference</Link><span>Every endpoint that produces or reads these proofs.</span></li>
         <li><Link href="/docs/integration">Integration guide</Link><span>Make a proof from the CLI, the SDK or two HTTP calls, and keep it.</span></li>

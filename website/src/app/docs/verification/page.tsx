@@ -26,9 +26,9 @@ export default function VerificationPage() {
         A proof establishes where a file&rsquo;s fingerprint (SHA-256 digest) was placed in a sequence. Checking it needs the evidence below, and one decision of yours: which enclave images you trust.
       </p>
       <ul className="facts">
-        <li><b>The proof</b><span>The <code>bitgraph/1</code> JSON the holder keeps. It carries the digest, the position record, both counters, the signature, the enclave&rsquo;s measurement and its attestation.</span></li>
-        <li><b>The file</b><span>The exact bytes. For a fused file, either the fused bytes or the original they were built from; the proof rebuilds one from the other.</span></li>
-        <li><b>The anchors</b><span>For the floor: the anchor proofs that bracket the position and the Ethereum block header witnesses. An export includes them. Without them the floor is a block number in the proof, not a time.</span></li>
+        <li><b>The export</b><span>The <code>bitgraph-export/1</code> JSON the holder keeps beside the file, with <code>SPEC.md</code>, the exact text the proof pins. The export carries the <code>bitgraph/1</code> proof (the digest, the position record, both counters, the signature, the enclave&rsquo;s measurement and its attestation) and the tree evidence: the 84-byte root document and, for one file, its leaf and path, or, for the owner, every leaf and name. A proof handed over on its own still verifies as a proof; the member check needs the export.</span></li>
+        <li><b>The file</b><span>The exact bytes. For a fused file, either the fused bytes or the original they were built from; the proof rebuilds one from the other. An export holds no copy of any file.</span></li>
+        <li><b>The time evidence</b><span>In the export, when they exist: <code>floor</code>, the Ethereum block header the enclave&rsquo;s signed floor names; <code>ceiling</code>, the Base block that carries a Merkle root over the record; <code>settlement</code>, Ethereum&rsquo;s own record of that Base block. An export holds no anchor proofs. Without the header the floor is a block number in the proof, not a time. <code>bitgraph export complete</code> fills in a ceiling and settlement that had not landed when the export was written.</span></li>
         <li><b>A trust policy</b><span>The list of PCR0 measurements you accept. The published one is <code className="break">{PCR0}</code> (enclave-v9), reproducible from source. A proof from any other image should fail your check, whatever else it passes.</span></li>
       </ul>
 
@@ -90,7 +90,7 @@ export default function VerificationPage() {
         <li><b>Valid</b><span>Every check passed against the bytes in hand. These exact bytes were committed at the position the proof names, under the key and the enclave image the proof names. On a proof from enclave v8, the position record, signed before any digest reached the enclave, names the anchor that is the position&rsquo;s floor.</span></li>
         <li><b>Incomplete</b><span><code>verifyProofIntegrity</code> runs every check except the digest comparison and answers with <code>artifactBinding: &quot;not-checked&quot;</code>. The proof is sound, but nothing has said which file it belongs to. The audit tool reports this as <code>artifact-unavailable</code>; it is never reported as verified.</span></li>
         <li><b>Invalid</b><span>One check failed, and <code>reason</code> names it: a digest that does not match the bytes, a signature that does not verify, a position record that does not bind, a policy the proof does not meet. An invalid result says nothing about the bytes beyond this: this proof does not stand for them.</span></li>
-        <li><b className="break">Unverifiable</b><span>Evidence is missing, so no verdict is possible on that point. Without the bytes, identity is unchecked. Without the anchor proofs and their witnesses, the floor stays a block number and cannot be read as a time. Without a measurement you recognize, the proof may be internally sound and still come from an image you have no reason to trust; a policy with <code>allowedMeasurements</code> turns that into a failure.</span></li>
+        <li><b className="break">Unverifiable</b><span>Evidence is missing, so no verdict is possible on that point. Without the bytes, identity is unchecked. Without the floor block header, the floor stays a block number and cannot be read as a time. A tree/1 proof that pins a spec hash the verifier does not know is answered <code>undetermined</code>, never <code>TRUE</code>. Without a measurement you recognize, the proof may be internally sound and still come from an image you have no reason to trust; a policy with <code>allowedMeasurements</code> turns that into a failure.</span></li>
       </ul>
 
       <h3 id="fused">Fused files</h3>
@@ -137,6 +137,32 @@ export default function VerificationPage() {
         Ordering follows from the counters. When two proofs are comparable (same key, epoch and chain), <code>commitCounter(A) &lt; slotCounter(B)</code> means B was assembled after A was committed. A fused failure is never reported as a valid recording, and <code>bitgraph/1</code> verification (<code>verify</code>, <code>verifyProofIntegrity</code>) is unchanged.
       </p>
 
+      <h3 id="tree">Members of a tree</h3>
+      <p>
+        Every BitGraph made since 2026-10-04 is a <code>tree/1</code>: one position for one or more files, each file a leaf, one file a tree of one. Earlier recordings placed a single fused file directly, or two or more files as a set; they still verify by the rules above. For a tree the committed artifact is not the file but an 84-byte root document, so the seven checks run on the proof and four more run on the member. The rules are <a href="/spec/SPEC.md">SPEC.md</a>, section 8; the verifier states one line per claim.
+      </p>
+      <ol className="steps">
+        <li>
+          <strong>Marker.</strong>{" "}
+          The signed <code>attribution</code> is <code>{"{ name: \"bitgraph-fuse/2\", title: \"tree/1\", message }"}</code>, where <code>message</code> is the base64 SHA-256 of the <code>SPEC.md</code> the proof was made under. The verifier must know that hash. A proof that pins a hash it does not know is answered <code>undetermined</code> on every tree claim, never <code>TRUE</code> and never <code>FALSE</code>.
+        </li>
+        <li>
+          <strong>Root document.</strong>{" "}
+          Taken from the export (the proof&rsquo;s unsigned <code>metadata[&quot;bitgraph-tree/1&quot;]</code> echo is never used in its place): 84 bytes, the domain, a count from 1 to 1,000,000, a SHA-256 equal to the signed <code>artifact.digestB64</code>, and a commitment equal to the one recomputed from the position record and the signed floor block.
+        </li>
+        <li>
+          <strong>Leaf and path.</strong>{" "}
+          The member&rsquo;s leaf names the file&rsquo;s digest and its placement; its path must reach the root inside the root document. An owner&rsquo;s export carries every leaf instead, and the list must rebuild the same root.
+        </li>
+        <li>
+          <strong>Bytes.</strong>{" "}
+          With the file in hand, its digest must be the leaf&rsquo;s, and for a placed member the committed bytes rebuild from it. Without the file this claim is stated as not carried.
+        </li>
+      </ol>
+      <p>
+        A member states two floors apart: the record floor (the root document was signed after the floor block, so every leaf inherits it) and the content floor (the member&rsquo;s committed bytes carry the commitment, so they were finished after that block). A file kept as is has the record floor only; its bytes are not dated.
+      </p>
+
       <h2 id="limits">What the checks cannot conclude</h2>
       <p>
         A valid result is a statement about placement. It does not say the file is true, who made it, that these bytes did not exist somewhere earlier, or at what time the commit happened. The floor is a time: the block the proof names had been mined before the position existed. The ceiling in position is a position: the next anchor in the sequence, which does not convert to a clock reading. No field in a proof is a trusted clock, and the proof verifier makes no upper bound claim in time. That claim comes from the ceiling file, checked on its own: the record's hash under a Merkle root, the root in a Base transaction from the published writer, the transaction in a block, and the block's time.
@@ -169,7 +195,7 @@ export default function VerificationPage() {
             </tr>
             <tr>
               <td>Wall-clock floor of a fused file</td>
-              <td>The proof names its floor in its signed commit (commit.slotAnchor). Turning that into a clock time needs the Ethereum block header, which the export package ships as a witness; the verifier does not fetch it.</td>
+              <td>The proof names its floor in its signed commit (commit.slotAnchor). Turning that into a clock time needs the Ethereum block header, which an export carries as <code>floor.header</code>; the verifier does not fetch it.</td>
             </tr>
           </tbody>
         </table>
@@ -194,36 +220,52 @@ xxd -p sigstructure.bin | tr -d '\n' | grep -c <user_data>                      
 
       <h2 id="levels">One line per claim, two levels</h2>
       <p>
-        <code>verifyCarrier</code> answers a BitGraphed file with one result per claim, each naming what it rests on: SHA-256, Ed25519, the AWS Nitro root, an Ethereum block, a Base block. <strong>Offline</strong>, every claim holds by mathematics and the AWS root, with the block headers taken as the ones matching their hashes. <strong>Confirmed</strong> asks any node the caller names one question per chain, whether that header is the chain&rsquo;s own block; the lookups are injected and the package never fetches. A claim the file does not carry yet (a ceiling not landed, no settlement) is stated as not carried, never as failure. The reading at the end is written from the results.
+        <code>verifyExport</code> answers a file and its export with one result per claim, each naming what it rests on: SHA-256, Ed25519, the AWS Nitro root, the pinned spec, an Ethereum block, a Base block. <code>verifyCarrier</code> does the same for a <Link href="/docs/carrier">BitGraphed file</Link>, a single file carrying its proof inside (<code>bitgraph-carrier/2</code>), verified with nothing but itself; carriers hold one file only and are an earlier form that still verifies. <strong>Offline</strong>, every claim holds by mathematics and the AWS root, with the block headers taken as the ones matching their hashes. <strong>Confirmed</strong> asks any node the caller names one question per chain, whether that header is the chain&rsquo;s own block; the lookups are injected and the package never fetches. A claim the export does not carry yet (a ceiling not landed, no settlement) is stated as not carried, never as failure. A settlement says the Base block&rsquo;s data existed by the Ethereum block that records it, and no more. The reading at the end is written from the results.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>
-        <Code lang="bash">{`npx @mikeargento/bitgraph-sdk verify photo.bitgraph.jpg --eth-rpc https://ethereum-rpc.publicnode.com --base-rpc https://mainnet.base.org --pcr0 ${PCR0}`}</Code>
+        <Code lang="bash">{`npx @mikeargento/bitgraph-sdk verify photo.jpg photo.export.json --eth-rpc https://ethereum-rpc.publicnode.com --base-rpc https://mainnet.base.org --pcr0 ${PCR0}
+npx @mikeargento/bitgraph-sdk verify photo.bitgraph.jpg --eth-rpc https://ethereum-rpc.publicnode.com --base-rpc https://mainnet.base.org --pcr0 ${PCR0}`}</Code>
       </div>
 
       <h2 id="run">Three ways to run it</h2>
       <h3>A folder, offline</h3>
       <p>
-        Everything you were handed, checked at once: every proof, the files beside them, the anchors and their witnesses, and the order between positions. The report says what the evidence supports and what it does not. The <Link href="/docs/audit">audit page</Link> is the walkthrough.
+        Everything you were handed, checked at once: an export with its file, or a folder of them, every proof, the floor headers, the ceilings and settlements, and the order between positions. The report says what the evidence supports and what it does not. The <Link href="/docs/audit">audit page</Link> is the walkthrough.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>
-        <Code lang="bash">{`npx @mikeargento/bitgraph-audit <folder>`}</Code>
+        <Code lang="bash">{`npx @mikeargento/bitgraph-audit <folder or export.json>`}</Code>
       </div>
 
       <h3>In code</h3>
       <p>
-        <code>@mikeargento/bitgraph-verify</code> is MIT and has no network dependency. <code>verify</code> takes the proof and the bytes; <code>verifyFuse</code> takes the same and adds the fused-file comparison.
+        <code>@mikeargento/bitgraph-verify</code> (1.16.0) is MIT and has no network dependency. <code>parseExport</code> reads an export from JSON text or an object and answers <code>null</code> when it is not <code>export/1</code>; <code>verifyExport</code> takes the export and the bytes and answers one line per claim; <code>verifyTreeMember</code> runs the member checks alone, given the proof, the member evidence, the bytes and, when it is not in the proof&rsquo;s metadata, the root document. <code>verify</code> takes a proof and bytes; <code>verifyFuse</code> takes the same and adds the fused-file comparison for the earlier single-file form.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>TypeScript</span><CopyCode /></div>
-        <Code lang="typescript">{`import { verify, verifyFuse } from "@mikeargento/bitgraph-verify";
+        <Code lang="typescript">{`import { parseExport, verifyExport, verifyTreeMember, verify, verifyFuse } from "@mikeargento/bitgraph-verify";
 
 const policy = {
   requireEnforcement: "measured-tee",
   allowedMeasurements: ["${PCR0}"],
   requireAttestation: true,
 };
+
+const exp = parseExport(exportJsonText);
+// the export, or null when the document is not bitgraph-export/1
+
+const report = await verifyExport(exp, {
+  bytes,
+  pins: { pcr0: policy.allowedMeasurements },
+  lookups: { ethereumBlockHash: async (n) => hashFromYourNode(n), baseBlockHash: async (n) => hashFromYourBaseNode(n) },
+});
+// report.verdict: TRUE | FALSE | UNDETERMINED
+// report.claims: [{ id, name, result, restsOn, detail, level }], report.times, report.reading
+
+const member = await verifyTreeMember({ proof: exp.proof, member: exp.tree.member, bytes, trustAnchors: policy });
+// member.category: TREE_MEMBER_DIRECT | TREE_MEMBER_FROM_ORIGIN | TREE_MEMBER_AS_IS | NO_MATCH | ...
+// member.reason: one sentence; member.specHashB64: the SPEC.md the proof pins
 
 const result = await verify({ proof, bytes, trustAnchors: policy });
 // { valid: true }  or  { valid: false, reason }
@@ -307,6 +349,7 @@ Content-Type: application/json
         <li><Link href="/docs/audit">Audit a bundle</Link><span>Many proofs, their order and their anchors, checked offline with one command.</span></li>
         <li><Link href="/docs/player">Player</Link><span>Evaluate ordering rules over a set of proofs and get a verdict anyone can reproduce.</span></li>
         <li><Link href="/docs/proof-format">Proof format</Link><span>Every field, its encoding, and what is and is not signed.</span></li>
+        <li><a href="/spec/SPEC.md">SPEC.md</a><span>The normative text: tree/1, the export, recovery entries and every verification rule, byte for byte the file a proof pins.</span></li>
         <li><Link href="/docs/what-bitgraph-is-not">Limits</Link><span>Truth, authorship, first creation, exact time, a universal order.</span></li>
       </ul>
     </article>

@@ -7,7 +7,7 @@ import { Code, guessLang } from "@/components/code";
 export const metadata: Metadata = {
   title: "API reference",
   description:
-    "Every BitGraph endpoint: making a BitGraph on bitgraph.ing, the enclave host, looking up proofs and anchors, verifying, the types and the errors.",
+    "Every BitGraph endpoint: making a BitGraph on bitgraph.ing, the enclave host, looking up proofs and anchors, recovery entries, the specification, verifying, the types and the errors.",
 };
 
 const PCR0 = "934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8";
@@ -73,19 +73,19 @@ export default function APIReferencePage() {
           <dt>Counters and epochs</dt>
           <dd>Counters are decimal strings. An epoch id is hex SHA-256 inside a proof and URL-safe base64 in query strings. Block times are ISO 8601, read from the block header.</dd>
           <dt>Body limit</dt>
-          <dd>1 MB. Larger bodies get 413.</dd>
+          <dd>1 MB. Larger bodies get 413. The recovery routes carry their own limits, stated with them.</dd>
         </dl>
 
         <h2 id="make">Making a BitGraph on bitgraph.ing</h2>
         <p>
-          The recommended path is two calls: reserve a position, then commit the digest of the fused file you built around it. The API calls a reserved position&rsquo;s signed record a slot (<code>slot</code>, <code>slotId</code>, <code>slotAllocation</code>). Recording a digest of bytes that already exist is a compatibility operation, listed third.
+          The recommended path is two calls: reserve a position, then commit the hash of the tree/1 root document you built around it. Making a BitGraph of one file or of many yields one tree/1 position: the files are the leaves of a Merkle tree, and the position commits to the SHA-256 of an 84-byte root document (domain, leaf count, root, commitment). The proof&rsquo;s <code>artifact.digestB64</code> is that hash, never a file&rsquo;s. The API calls a reserved position&rsquo;s signed record a slot (<code>slot</code>, <code>slotId</code>, <code>slotAllocation</code>). Recording a digest of bytes that already exist is a compatibility operation, listed third.
         </p>
 
         <Endpoint
           method="POST"
           path="/api/fuse/allocate"
           id="post-api-fuse-allocate"
-          summary="Reserve an unused position before the fused file exists. No body. The enclave signs the position record (the slot) before it receives any digest; the producer writes a commitment derived from that record into the new file, then commits the file's digest under the same position with POST /api/fuse/commit."
+          summary="Reserve an unused position before the root document exists. No body. The enclave signs the position record (the slot) before it receives any digest; the producer derives a commitment from that record and the floor, writes it into the new bytes and the root document, then commits the root document's hash under the same position with POST /api/fuse/commit."
         >
           <Block label="Request" code={`(no body)`} />
           <Block
@@ -111,7 +111,7 @@ export default function APIReferencePage() {
           />
           <ul>
             <li><code>anchor</code> is unsigned here and needs no signature: the commit signs the same anchor as <code>commit.slotAnchor</code>, and a <code>bitgraph-fuse/2</code> verifier recomputes the commitment from that signed value, so a wrong answer here only makes the file fail. It is absent before an epoch&rsquo;s first anchor, when no fused commit can succeed anyway.</li>
-            <li>The <code>slotId</code> is the position&rsquo;s nonce: a bearer ticket until the position is consumed. Write only the derived commitment into the file, never the nonce, and do not log it. The commitment is SHA-256 over the domain string <code>bitgraph-fuse/1</code>, a zero byte, the SHA-256 of the canonical slot record, and the nonce.</li>
+            <li>The <code>slotId</code> is the position&rsquo;s nonce: a bearer ticket until the position is consumed. Write only the derived commitment into the file, never the nonce, and do not log it. Two commitments exist. <code>bitgraph-fuse/2</code>, the current one, is SHA-256 over the domain string <code>bitgraph-fuse/2</code>, a zero byte, the SHA-256 of the canonical position record, the nonce, and the 32 bytes of the floor block hash from <code>anchor.blockHash</code>. <code>bitgraph-fuse/1</code> omits the floor: SHA-256 over <code>bitgraph-fuse/1</code>, a zero byte, the record hash and the nonce. tree/1 always uses <code>bitgraph-fuse/2</code>.</li>
             <li>The chain is bound at allocation and pinned to <code>bitgraph:main</code>, the anchored sequence. A position that is never consumed expires after 120 seconds.</li>
             <li>The route sits behind the anchor-first gate and a rotation guard: until the current epoch has an anchor, in the window before the daily restart, and when the enclave cannot be reached, it answers <code>503 tee-restarting</code>. Retry. The epoch that issued the position must be the epoch the gate approved; a position from a rotation inside that check is refused the same way and expires on its own.</li>
             <li><code>429</code> with <code>Retry-After</code> when the per-address allocation budget is spent. <code>404 fuse-disabled</code> on a deployment that has not enabled the route. <code>502</code> if the enclave host&rsquo;s answer is not a position record.</li>
@@ -122,47 +122,79 @@ export default function APIReferencePage() {
           method="POST"
           path="/api/fuse/commit"
           id="post-api-fuse-commit"
-          summary="Commit the fused file's digest under the position reserved by /api/fuse/allocate. Exactly one digest. The signed attribution is the fused marker. The proof comes back whole, and the route refuses to return a proof minted under any other position."
+          summary="Commit the committed artifact's digest under the position reserved by /api/fuse/allocate: for tree/1, the SHA-256 of the root document. Exactly one digest. The signed attribution is the marker. The proof comes back whole, and the route refuses to return a proof minted under any other position."
         >
           <Block
-            label="Request"
+            label="Request: tree/1"
             code={`{
   "slotId": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",   // must equal slot.nonceB64
   "slot": { ... },                   // the position record from /api/fuse/allocate, verbatim
   "digests": [{
-    "digestB64": "<SHA-256 of the fused bytes>",
+    "digestB64": "<SHA-256 of the 84-byte root document>",
     "hashAlg": "sha256"
   }],
   "chainId": "bitgraph:main",
   "attribution": {
+    "name": "bitgraph-fuse/2",       // tree/1 is always bitgraph-fuse/2: its commitment binds the floor block
+    "title": "tree/1",               // the placement id
+    "message": "QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs="   // base64 SHA-256 of /spec/SPEC.md, version 1
+  },
+  "anchor": { "counter": "270", "blockNumber": 25949300, "blockHash": "0x..." },   // the floor bound into the commitment, from /api/fuse/allocate
+  "metadata": {                      // exactly this key and nothing else
+    "bitgraph-tree/1": "<the 84-byte root document, 168 lowercase hex characters>"
+  }
+}`}
+          />
+          <Block
+            label="Request: earlier placements (backward compatibility)"
+            code={`{
+  "slotId": "...", "slot": { ... },
+  "digests": [{ "digestB64": "<SHA-256 of the fused bytes>", "hashAlg": "sha256" }],
+  "chainId": "bitgraph:main",
+  "attribution": {
     "name": "bitgraph-fuse/2",       // bitgraph-fuse/1 or bitgraph-fuse/2: which commitment the file carries
-    "title": "trailer/1",            // placement id: trailer/1 | container/1 | container/2 | produced/1 | set/1 | set/2, or the encoding id base64url
+    "title": "trailer/1",            // trailer/1 | container/1 | container/2 | produced/1 | set/1 | set/2, or the encoding id base64url
     "message": "<origin digest, standard base64>"   // optional; the original the new file was built from
   },
-  "anchor": { "counter": "270", "blockNumber": 25949300, "blockHash": "0x..." },   // bitgraph-fuse/2 only: the floor bound into the commitment, from /api/fuse/allocate
-  "metadata": {                      // sets only: the manifest (set/1) or Merkle root document (set/2)
+  "anchor": { ... },                 // bitgraph-fuse/2 only
+  "metadata": {                      // set/1 and set/2 only: the manifest or the earlier Merkle root document
     "bitgraph-fuse/1": { ... }
   }
 }`}
           />
           <Block
-            label="Response 200"
+            label="Response 200: tree/1"
+            code={`{
+  "proof": {
+    "version": "bitgraph/1",
+    "artifact": { "hashAlg": "sha256", "digestB64": "<SHA-256 of the root document>" },
+    "commit": { "nonceB64": "...", "counter": "278", "slotCounter": "277", "slotHashB64": "...", "epochId": "...",
+                "slotAnchor": { "counter": "270", "blockNumber": 25949300, "blockHash": "0x..." } },
+    "attribution": { "name": "bitgraph-fuse/2", "title": "tree/1", "message": "QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs=" },
+    "slotAllocation": { ... },       // the held position's record
+    "metadata": { "bitgraph-tree/1": "<84 bytes, hex>" },   // unsigned; read only once it hashes to artifact.digestB64
+    ...
+  }
+}`}
+          />
+          <Block
+            label="Response 200: earlier placement"
             code={`{
   "proof": {
     "version": "bitgraph/1",
     "artifact": { "hashAlg": "sha256", "digestB64": "<SHA-256 of the fused bytes>" },
-    "commit": { "nonceB64": "...", "counter": "278", "slotCounter": "277", "slotHashB64": "...", "epochId": "...",
-                "slotAnchor": { "counter": "270", "blockNumber": 25949300, "blockHash": "0x..." } },
-    "attribution": { "name": "bitgraph-fuse/1", "title": "trailer/1", "message": "..." },
-    "slotAllocation": { ... },       // the held position's record
+    "commit": { ... },
+    "attribution": { "name": "bitgraph-fuse/1", "title": "trailer/1", "message": "<origin digest>" },
+    "slotAllocation": { ... },
     ...
   }
 }`}
           />
           <ul>
-            <li>An ordinary <code>bitgraph/1</code> proof: <code>slotAllocation</code> is the held position&rsquo;s record, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position. Keep the response: the proof returned here is the evidence. The service also keeps a copy and indexes it by digest, so a response lost in transit can be read back by the fused file&rsquo;s digest and matched on <code>commit.slotHashB64</code>; but store what comes back.</li>
-            <li>Validation, all <code>400</code>: the body must be a JSON object; <code>slot</code> must be the record the allocate route returned; <code>slotId</code> must equal <code>slot.nonceB64</code>; <code>digests</code> carries exactly one entry with <code>hashAlg: "sha256"</code>; <code>attribution.name</code> must be <code>bitgraph-fuse/1</code>; <code>title</code> is printable ASCII, 1 to 64 characters; <code>message</code>, when present, is printable ASCII up to 128 characters.</li>
-            <li>Sets: with title <code>set/1</code> or <code>set/2</code>, <code>metadata["bitgraph-fuse/1"]</code> carries the manifest or the Merkle root document, and it is verified before the position is spent: exact shape, size cap, strict canonical round trip, the named position&rsquo;s commitment, and the hash to the committed digest. <code>metadata</code> on any other title is refused. The returned proof carries the verified manifest whether or not the enclave echoed it; a different manifest from the enclave is refused with <code>502 manifest-mismatch</code>.</li>
+            <li>An ordinary <code>bitgraph/1</code> proof: <code>slotAllocation</code> is the held position&rsquo;s record, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position. Keep the response: the proof returned here is the evidence. The service also keeps a copy and indexes it by the committed digest (for tree/1, the root document&rsquo;s hash), so a response lost in transit can be read back by that digest and matched on <code>commit.slotHashB64</code>; but store what comes back. A tree&rsquo;s members are never indexed by their own hash; a member finds its tree again through the recovery routes below.</li>
+            <li>Validation, all <code>400</code>: the body must be a JSON object; <code>slot</code> must be the record the allocate route returned; <code>slotId</code> must equal <code>slot.nonceB64</code>; <code>digests</code> carries exactly one entry with <code>hashAlg: "sha256"</code>; <code>attribution.name</code> must be <code>bitgraph-fuse/1</code> or <code>bitgraph-fuse/2</code>; <code>title</code> is printable ASCII, 1 to 64 characters; <code>message</code>, when present, is printable ASCII up to 128 characters.</li>
+            <li>tree/1, checked before anything is spent, each a <code>400</code> in this order: the name is <code>bitgraph-fuse/2</code>; <code>anchor</code> names the floor the commitment bound; <code>message</code> is the base64 SHA-256 of a SPEC.md this site knows; <code>metadata</code> is exactly <code>{`{ "bitgraph-tree/1": <168 lowercase hex> }`}</code>; the 84 bytes parse as a root document with a leaf count from 1 to 1,000,000; its commitment is the one recomputed from the named position and floor; its SHA-256 is the committed digest. The returned proof carries the root document whether or not the enclave echoed it; a different root document from the enclave is refused with <code>502 root-mismatch</code>.</li>
+            <li>Backward compatibility: titles <code>set/1</code> and <code>set/2</code> stay accepted because published packages (bitgraph 1.10, mcp 0.8 and earlier) make them. <code>metadata["bitgraph-fuse/1"]</code> then carries the manifest or the earlier root document, verified before the position is spent: exact shape, size cap, strict canonical round trip, the named position&rsquo;s commitment, and the hash to the committed digest. A different manifest from the enclave is refused with <code>502 manifest-mismatch</code>. <code>metadata</code> on any title other than <code>tree/1</code>, <code>set/1</code> or <code>set/2</code> is refused.</li>
             <li>An anchor must precede the reserved position in its epoch, or the fused floor is undefined: <code>409 no-anchor-before-slot</code>. That condition cannot heal for a given position, so the failure is final: allocate again.</li>
             <li><code>bitgraph-fuse/2</code>: <code>anchor</code> is required (<code>400</code> without it) and is compared with the ledger&rsquo;s anchor before the position; a floor the ledger contradicts (an older counter, or the same counter with a different block) is <code>409 floor-mismatch</code>, final for that position. A set&rsquo;s manifest or root document must carry the /2 commitment when the marker says /2.</li>
             <li><code>502 slot-mismatch</code>: the enclave returned a proof under a different position; nothing is reported as success. <code>503 tee-restarting</code> or <code>503 ledger-unavailable</code>: retry. <code>429</code> carries <code>Retry-After</code>.</li>
@@ -401,7 +433,7 @@ const proofs = await resp.json();
 
         <h2 id="ledger">Looking up proofs and anchors on bitgraph.ing</h2>
         <p>
-          The service keeps a copy of each proof it makes and indexes it by digest, and it keeps every anchor by counter. These routes read that copy. Two rules hold on all of them: a read that fails is a <code>503</code>, never an empty answer, because &ldquo;we could not look&rdquo; and &ldquo;nothing is there&rdquo; are opposite claims; and a lookup that finds nothing is not evidence that bytes were never recorded. Proofs made between 8 and 16 September 2026, when the per-proof writes were off, were backfilled afterwards; the holder&rsquo;s copy is the record in every case.
+          The service keeps a copy of each proof it makes and indexes it by digest, and it keeps every anchor by counter. These routes read that copy. Two rules hold on all of them: a read that fails is a <code>503</code>, never an empty answer, because &ldquo;we could not look&rdquo; and &ldquo;nothing is there&rdquo; are opposite claims; and a lookup that finds nothing is not evidence that bytes were never recorded. Proofs made between 8 and 16 September 2026, when the per-proof writes were off, were backfilled afterwards; the holder&rsquo;s copy is the record in every case. A tree/1 BitGraph is indexed under one digest only, the root document&rsquo;s hash. Its members are never indexed by their own hash, by design, so a file inside a tree misses every route here; the <a href="#recovery">recovery routes</a> are how a file finds its tree again.
         </p>
 
         <Endpoint
@@ -439,8 +471,8 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
       "artifactDigest": "<url-safe>", // the fused file's own digest
       "placement": "trailer/1",
       "fusedOrigin": "<url-safe>",    // the original's digest, from the signed marker
-      "member": { "index": 0, "count": 3, "role": "origin" },   // set members only: this file's row
-      "setCount": 3                   // set entries only: how many members the set lists
+      "member": { "index": 0, "count": 3, "role": "origin" },   // earlier set/1 and set/2 members only: this file's row; tree/1 members are not indexed
+      "setCount": 3                   // earlier set entries only: how many members the set lists
     }
   ],
   "causalWindow": { "anchorBefore": { ... }, "anchorAfter": { ... } },   // AnchorView each, or null; null when neither exists
@@ -449,7 +481,7 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
           />
           <ul>
             <li>The lead proof is the earliest recording of these bytes. A fused file naming the bytes as its original never stands in for it: when only such descendants exist, <code>lookupKind</code> is <code>origin-only</code> and the bytes themselves are not on record.</li>
-            <li>When the digest is a fused file&rsquo;s own, or a set member&rsquo;s, <code>positions</code> is the history of the original it was built from, so dropping the original and dropping the new file land on the same list.</li>
+            <li>When the digest is a fused file&rsquo;s own, or an earlier set member&rsquo;s, <code>positions</code> is the history of the original it was built from, so dropping the original and dropping the new file land on the same list. A tree/1 member&rsquo;s digest is not indexed and answers a miss here; the tree itself is found by its root document&rsquo;s hash, and a file reaches it through the recovery routes.</li>
             <li><code>anchorBefore</code> is the floor. <code>anchorAfter</code> is the next anchor in the order: the ceiling, a position, not a clock reading.</li>
             <li>A miss is <code>{`{ "proofs": [] }`}</code>. When the service is running with indexing off (<code>LEDGER_WRITES=off</code>) the miss also carries <code>"discovery": "retired"</code> and a note; in either form it is not a finding about the bytes.</li>
             <li><code>503 {`{ "error": "ledger unavailable" }`}</code>: BitGraph&rsquo;s copy could not be read. Not an answer.</li>
@@ -467,7 +499,7 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
             code={`{
   "digests": ["<digest-a>", "<digest-b>", "<digest-c>"],   // 1 to 2,000 URL-safe digests
   "environments": "table",           // optional: send each distinct environment once, in a side table
-  "members": "full"                  // optional: read every position so each set member entry carries its own evidence
+  "members": "full"                  // optional: read every position so each earlier set member entry carries its own evidence
 }`}
           />
           <Block
@@ -494,7 +526,30 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
             <li>A set is one position. A few digests are looked up first; one that lands on a set member names its set, and that set&rsquo;s member list answers the other members without a read each. Those entries say <code>partial</code>: a reader must not present a count from them. A digest no list places is looked up in full.</li>
             <li>A set member&rsquo;s entry carries the set&rsquo;s proof without its manifest; the manifest travels once, under <code>sets</code>. With <code>members: "full"</code> every position is read and each member entry carries its own row, index and Merkle path, which an export needs and a check does not.</li>
             <li>With <code>environments: "table"</code>, each proof&rsquo;s <code>environment</code> is replaced by a reference into the table. A proof without its <code>environment</code> does not verify, so the caller must put it back before reading a proof. Callers that do not ask get the proofs whole.</li>
+            <li><code>members</code>, <code>partial</code>, <code>setDigest</code> and <code>sets</code> concern the earlier <code>set/1</code> and <code>set/2</code> placements only. A tree/1 member is never indexed, so its digest answers <code>{`{ "proofs": [] }`}</code> here; the recovery routes are the path from a file to its tree.</li>
             <li>With indexing off, the answer carries <code>"discovery": "retired"</code> once, at the top level.</li>
+          </ul>
+        </Endpoint>
+
+        <Endpoint
+          method="GET"
+          path="/api/proofs/{digest}"
+          id="get-api-proofs-plain-digest"
+          summary="The plain form of the lookup: every proof BitGraph's copy holds under a committed digest, earliest position first, with no anchors and no positions table. This is the route a recovery entry's locator is read through (specification, section 13). The path digest is URL-safe base64 without padding."
+        >
+          <Block label="Query" code={`GET /api/proofs/<digest>`} />
+          <Block
+            label="Response 200"
+            code={`{
+  "proofs": [
+    { "proof": { ... }, "writeTime": 1741496392841, "kind": "recorded" }   // writeTime: when BitGraph's copy wrote the entry, ms; null for a legacy key
+  ]                                    // "kind": "recorded" | "fused"; [] when nothing is indexed under the digest
+}`}
+          />
+          <ul>
+            <li><code>{`{ "proofs": [] }`}</code> with no <code>discovery</code> field is a complete negative answer: nothing is indexed under that digest. With indexing off (<code>LEDGER_WRITES=off</code>) the miss carries <code>"discovery": "retired"</code> and a note, and a recovery reader treats that as a failed read, not as an answer.</li>
+            <li>For a tree/1 proof the digest is the root document&rsquo;s hash. A recovery reader picks, among the proofs answered, the one whose recomputed proofHash equals its entry&rsquo;s, and checks <code>commit.epochId</code>, <code>commit.counter</code> and <code>artifact.digestB64</code> against the locator.</li>
+            <li><code>503 {`{ "error": "ledger unavailable" }`}</code>: BitGraph&rsquo;s copy could not be read. Not an answer. <code>500 {`{ "error": "Failed" }`}</code> otherwise.</li>
           </ul>
         </Endpoint>
 
@@ -593,6 +648,116 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
           <Block label="Response 200" code={`{ "epoch": "<url-safe>", "head": 4210 }`} />
           <ul>
             <li>Cached for two seconds. <code>503 {`{ "error": "rotating" }`}</code> when the enclave&rsquo;s epoch cannot be learned and none has been seen yet; during the rotation window the last epoch seen is answered, and an unchanged head means nothing new.</li>
+          </ul>
+        </Endpoint>
+
+        <h2 id="recovery">Recovery entries</h2>
+        <p>
+          Recovery is a convenience BitGraph runs, not part of verification: if an export is lost, anyone holding the file can get its proof back. For each member of a tree the maker writes up to two sealed entries, one under the file&rsquo;s own digest and one under the committed bytes&rsquo; digest, under names derived from that digest (specification, section 13). The server stores opaque envelopes, create-only, under Object Lock. It never learns which files they belong to: it never sees a digest, a proof hash, a leaf or a name. Reads are never switched off and never cached. Every answer carries <code>Cache-Control: no-store</code>.
+        </p>
+
+        <Endpoint
+          method="POST"
+          path="/api/recovery"
+          id="post-api-recovery"
+          summary="Store sealed recovery entries, create-only. Each entry is checked before any is written, so a bad batch writes nothing. A key already taken answers with the envelope already there, because only the client holding the file can tell whether that entry is its own."
+        >
+          <Block
+            label="Request"
+            code={`{
+  "entries": [                       // 1 to 500; the body's only field
+    {
+      "key": "recovery/v1/<address, 64 lowercase hex>/<entryId, 64 lowercase hex>",
+      "envelope": "<canonical standard base64 of 30 to 4,096 bytes; first byte 0x01>"
+    }
+  ]
+}`}
+          />
+          <Block
+            label="Response 200"
+            code={`{
+  "results": [                       // request order, one per entry
+    { "key": "recovery/v1/.../...", "status": "created" },
+    { "key": "recovery/v1/.../...", "status": "exists", "envelope": "<the stored envelope>" },   // the client opens it and decides whose it is
+    { "key": "recovery/v1/.../...", "status": "conflict" },   // a concurrent write on the key; try again later
+    { "key": "recovery/v1/.../...", "status": "error" }       // this entry could not be written; try again later
+  ]
+}`}
+          />
+          <ul>
+            <li><code>400 {`{ "error": "...", "code": "bad-request", "index"?: n }`}</code>, naming the first failing entry: the body is exactly <code>{`{ entries }`}</code>; each entry has exactly <code>key</code> and <code>envelope</code>; the key matches <code>recovery/v1/&lt;64 hex&gt;/&lt;64 hex&gt;</code>, lowercase; the envelope is canonical standard base64 of 30 to 4,096 bytes whose first byte is <code>0x01</code>; no key appears twice.</li>
+            <li><code>413 {`{ "code": "too-large" }`}</code> when the body is over 4,000,000 bytes, judged on the declared <code>Content-Length</code> and again on the body. <code>429 {`{ "code": "rate-limited" }`}</code> with <code>Retry-After: 30</code> past 120 requests per caller per minute. <code>503 {`{ "code": "recovery-writes-off" }`}</code> while writes are off on this site.</li>
+            <li>A <code>conflict</code> is answered after the store&rsquo;s 409 was retried a few times with a doubling wait. Nothing about keys is logged, only counts.</li>
+          </ul>
+        </Endpoint>
+
+        <Endpoint
+          method="GET"
+          path="/api/recovery/{address}"
+          id="get-api-recovery-address"
+          summary="The sealed entries under one address, ascending by entry id, a page at a time. The address is the hex SHA-256 of the string bitgraph-lookup followed by the file's raw digest, so only someone who knows the digest can name it, and only the same knowledge opens what comes back."
+        >
+          <Block label="Query" code={`GET /api/recovery/<address>?after=<entryId>&limit=100   # both optional; limit 1 to 100, default 100`} />
+          <Block
+            label="Response 200"
+            code={`{
+  "address": "<64 lowercase hex>",
+  "entries": [{ "key": "recovery/v1/<address>/<entryId>", "envelope": "<standard base64>" }],
+  "next": "<entryId>"                // the last entry id of this page when more follow; null otherwise
+}`}
+          />
+          <ul>
+            <li>Entries come strictly after <code>after</code>, at most <code>limit</code>. Pass <code>next</code> back as <code>after</code> to continue.</li>
+            <li><code>400 {`{ "code": "bad-request" }`}</code> when the address or <code>after</code> is not 64 lowercase hex characters, or <code>limit</code> is not an integer from 1 to 100. <code>429 {`{ "code": "rate-limited" }`}</code> with <code>Retry-After: 30</code> past 600 requests per caller per minute.</li>
+            <li><code>503 {`{ "code": "recovery-unavailable" }`}</code> when the store could not be read. Never an empty page: an empty page says nothing is kept for these bytes, and that is the one thing a failed read must not say.</li>
+          </ul>
+        </Endpoint>
+
+        <Endpoint
+          method="POST"
+          path="/api/recovery/lookup"
+          id="post-api-recovery-lookup"
+          summary="The first page of up to 1,000 addresses' listings in one answer, for a drop or a record of many files. The same data GET /api/recovery/<address> serves, one request instead of one per file; a longer listing is finished through that route."
+        >
+          <Block
+            label="Request"
+            code={`{
+  "addresses": ["<64 lowercase hex>", "..."]   // 1 to 1,000, no address twice; the body's only field; body at most 131,072 bytes
+}`}
+          />
+          <Block
+            label="Response 200"
+            code={`{
+  "results": [                       // request order, one per address
+    { "address": "...", "entries": [{ "key": "...", "envelope": "..." }], "next": "<entryId>" | null },   // the first page: at most 20 entries
+    { "address": "...", "truncated": true },       // not listed: the answer's byte budget was spent; list it with GET /api/recovery/<address>
+    { "address": "...", "error": "unavailable" }   // this address could not be read; not an empty page
+  ]
+}`}
+          />
+          <ul>
+            <li>The answer stays under 3,500,000 bytes. Each address&rsquo;s worst-case page is reserved against that budget before it is listed; an address the budget cannot take comes back <code>truncated</code> without being read.</li>
+            <li><code>400 {`{ "code": "bad-request", "index"?: n }`}</code>: the body is exactly <code>{`{ addresses }`}</code>, a non-empty array of at most 1,000 addresses, each 64 lowercase hex characters, none twice. <code>413 {`{ "code": "too-large" }`}</code> over 131,072 bytes. <code>429 {`{ "code": "rate-limited" }`}</code> with <code>Retry-After: 30</code> past 600 requests per caller per minute.</li>
+            <li>The addresses in one request say which files were dropped together. That stays in the request: the route logs counts, never addresses.</li>
+          </ul>
+        </Endpoint>
+
+        <h2 id="spec">The specification</h2>
+
+        <Endpoint
+          method="GET"
+          path="/spec/SPEC.md"
+          id="get-spec"
+          summary="The BitGraph specification, version 1, served byte for byte as a static file. Every tree/1 proof pins this text's SHA-256 in its signed attribution.message, so the hash in the proof says which text applies to it."
+        >
+          <Block
+            label="Check the hash"
+            code={`curl -s https://bitgraph.ing/spec/SPEC.md | openssl dgst -sha256 -binary | base64
+# QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs=   version 1`}
+          />
+          <ul>
+            <li>A verifier keeps the list of spec hashes it knows. A proof that pins a hash the verifier does not know is reported as undetermined, never as passing and never as false.</li>
+            <li>SPEC.md travels beside an export (<code>bitgraph-export/1</code>, section 12), so the rules outlive this host. The commit route accepts a tree/1 commit only when its <code>message</code> is a hash this site knows.</li>
           </ul>
         </Endpoint>
 
@@ -706,8 +871,9 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
   };
   slotAllocation?: SlotRecord;       // the position record, made before any digest was received
   agency?: unknown;                  // legacy; present on some older proofs
-  attribution?: {                    // signed; creator metadata, or the fused marker:
-                                     //   name "bitgraph-fuse/1", title placement id, message origin digest
+  attribution?: {                    // signed; creator metadata, or the marker:
+                                     //   tree/1: name "bitgraph-fuse/2", title "tree/1", message base64 SHA-256 of SPEC.md
+                                     //   earlier placements: name "bitgraph-fuse/1" or "bitgraph-fuse/2", title placement id, message origin digest
     name?: string;
     title?: string;
     message?: string;
@@ -716,7 +882,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
     artifact?: TsaToken;
     proof?: TsaToken;
   };
-  metadata?: Record<string, unknown>;   // not signed
+  metadata?: Record<string, unknown>;   // not signed; a tree/1 proof carries "bitgraph-tree/1": the root document as hex
   claims?: Record<string, unknown>;     // not signed
 }`}
         />
@@ -800,19 +966,27 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
             <thead><tr><th>Status</th><th>Cause</th><th>Body</th></tr></thead>
             <tbody>
               <tr><td className="k">400</td><td>Invalid request body or query parameters</td><td><code>{`{ "error": "..." }`}</code></td></tr>
+              <tr><td className="k">400</td><td>Invalid recovery body, address or query; <code>index</code> names the failing entry or address when there is one</td><td><code>{`{ "error": "...", "code": "bad-request", "index"?: n }`}</code></td></tr>
               <tr><td className="k">401</td><td>Missing or invalid API key, on a host configured with keys</td><td><code>{`{ "error": "unauthorized" }`}</code></td></tr>
               <tr><td className="k">404</td><td>Fuse routes on a deployment that has not enabled them</td><td><code>{`{ "error": "...", "code": "fuse-disabled" }`}</code></td></tr>
               <tr><td className="k">404</td><td>No block header witness could be found or re-encoded to match</td><td><code>{`{ "error": "witness unavailable" }`}</code></td></tr>
+              <tr><td className="k">404</td><td><code>/api/export/epoch/&lt;epochId&gt;</code>: public epoch export is disabled; every request answers this</td><td><code>{`{ "error": "not found" }`}</code></td></tr>
               <tr><td className="k">409</td><td>No anchor precedes the reserved position in its epoch (fuse commit); allocate again</td><td><code>{`{ "error": "...", "code": "no-anchor-before-slot" }`}</code></td></tr>
+              <tr><td className="k">409</td><td>The floor bound into the commitment is not the anchor before the position (fuse commit, bitgraph-fuse/2); allocate again</td><td><code>{`{ "error": "...", "code": "floor-mismatch" }`}</code></td></tr>
               <tr><td className="k">413</td><td>Payload too large</td><td><code>{`{ "error": "Request body too large. Max 1 MB." }`}</code></td></tr>
+              <tr><td className="k">413</td><td>Recovery body over its limit: 4,000,000 bytes on <code>/api/recovery</code>, 131,072 on <code>/api/recovery/lookup</code></td><td><code>{`{ "error": "...", "code": "too-large" }`}</code></td></tr>
               <tr><td className="k">429</td><td>Per-address allocation budget spent; <code>Retry-After</code> header set</td><td><code>{`{ "error": "..." }`}</code></td></tr>
+              <tr><td className="k">429</td><td>Recovery route rate limit reached; <code>Retry-After: 30</code></td><td><code>{`{ "error": "...", "code": "rate-limited" }`}</code></td></tr>
               <tr><td className="k">500</td><td>Enclave or internal error</td><td><code>{`{ "error": "..." }`}</code></td></tr>
               <tr><td className="k">502</td><td>The enclave committed under a different position (fuse commit)</td><td><code>{`{ "error": "...", "code": "slot-mismatch" }`}</code></td></tr>
-              <tr><td className="k">502</td><td>The enclave returned a different set manifest (fuse commit)</td><td><code>{`{ "error": "...", "code": "manifest-mismatch" }`}</code></td></tr>
+              <tr><td className="k">502</td><td>The enclave returned a different tree/1 root document (fuse commit)</td><td><code>{`{ "error": "...", "code": "root-mismatch" }`}</code></td></tr>
+              <tr><td className="k">502</td><td>The enclave returned a different set manifest (fuse commit, set/1 and set/2)</td><td><code>{`{ "error": "...", "code": "manifest-mismatch" }`}</code></td></tr>
               <tr><td className="k">502</td><td>The enclave host&rsquo;s allocation answer is not a position record (fuse allocate)</td><td><code>{`{ "error": "Unexpected allocation response from the boundary" }`}</code></td></tr>
               <tr><td className="k">503</td><td>Enclave restarting, not yet anchored, or unreachable; retry</td><td><code>{`{ "error": "...", "code": "tee-restarting" }`}</code></td></tr>
               <tr><td className="k">503</td><td>BitGraph&rsquo;s copy could not be read; not an answer about the bytes; retry</td><td><code>{`{ "error": "...", "code": "ledger-unavailable" }`}</code> or <code>{`{ "error": "ledger unavailable" }`}</code></td></tr>
               <tr><td className="k">503</td><td>BitGraph&rsquo;s copy cannot name the current epoch yet</td><td><code>{`{ "error": "rotating" }`}</code></td></tr>
+              <tr><td className="k">503</td><td>Recovery writes are off on this site</td><td><code>{`{ "error": "...", "code": "recovery-writes-off" }`}</code></td></tr>
+              <tr><td className="k">503</td><td>The recovery entries could not be read; never an empty page</td><td><code>{`{ "error": "...", "code": "recovery-unavailable" }`}</code></td></tr>
             </tbody>
           </table>
         </div>

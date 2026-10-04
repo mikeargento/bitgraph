@@ -33,11 +33,11 @@ export default function McpPage() {
       <dl className="terms">
         <dt>Hosted endpoint</dt>
         <dd>
-          <code>{MCP_URL}</code>, Streamable HTTP, nothing to install and no key. Four tools: <code>bitgraph_open</code>, <code>bitgraph_commit</code>, <code>bitgraph_check</code>, <code>bitgraph_get_proof</code>. The agent hashes each file where it is and builds the new file itself from a recipe. Up to 40 files per call.
+          <code>{MCP_URL}</code>, Streamable HTTP, nothing to install and no key. Four tools: <code>bitgraph_open</code>, <code>bitgraph_commit</code>, <code>bitgraph_check</code>, <code>bitgraph_get_proof</code>. The agent hashes each file where it is and builds the new file itself from a recipe; a commit returns one export (bitgraph-export/1) per tree. Up to 40 files per call.
         </dd>
         <dt>stdio package</dt>
         <dd>
-          <code>npx -y @mikeargento/bitgraph-mcp</code> (0.5.1, MIT), for clients that run on the machine that holds the files. Five tools: <code>bitgraph_record</code>, <code>bitgraph_open</code>, <code>bitgraph_commit</code>, <code>bitgraph_check</code>, <code>bitgraph_get_proof</code>. It reads files locally, folders of any size, and one call makes one BitGraph of everything in it.
+          <code>npx -y @mikeargento/bitgraph-mcp</code> (0.9.1, MIT), for clients that run on the machine that holds the files. Five tools: <code>bitgraph_record</code>, <code>bitgraph_open</code>, <code>bitgraph_commit</code>, <code>bitgraph_check</code>, <code>bitgraph_get_proof</code>. It reads files locally, folders of any size; one call makes one BitGraph of everything in it, a tree/1, and writes its export/1 beside the files with <Link href="/spec/SPEC.md">SPEC.md</Link>.
         </dd>
       </dl>
       <div className="code-block">
@@ -114,7 +114,7 @@ export default function McpPage() {
           That answer means the connection is live. Asking costs nothing and writes nothing.
         </li>
         <li>
-          <strong>A proof of a file you named comes back and is saved beside it.</strong> Name a file, ask for a BitGraph of it. The agent hashes it, opens a position, builds the new file, commits, and saves the proof next to the original: <code>&lt;name&gt;.bitgraph-fuse.json</code> for a single file, one set proof beside the originals for several. The proof is saved whole and unedited, every field, including <code>environment.attestation.reportB64</code>: a proof missing <code>slotAllocation</code>, <code>environment</code> or the attestation cannot be verified.
+          <strong>A proof of a file you named comes back and is saved beside it.</strong> Name a file, ask for a BitGraph of it. The agent hashes it, opens a position, builds the new file, commits, and saves the export next to the original: one bitgraph-export/1 per tree, named from the file, with <Link href="/spec/SPEC.md">SPEC.md</Link> beside it. The export is saved whole and unedited, every field, including the proof&rsquo;s <code>environment.attestation.reportB64</code>: a proof missing <code>slotAllocation</code>, <code>environment</code> or the attestation cannot be verified. Earlier recordings saved a proof as <code>&lt;name&gt;.bitgraph-fuse.json</code> or one set proof; those still verify.
         </li>
       </ol>
 
@@ -126,49 +126,49 @@ export default function McpPage() {
             <tr>
               <td>bitgraph_open</td>
               <td>Per file: its name, exact byte size, fingerprint (SHA-256 digest), and its first 16 bytes (up to 64), which decide the placement. Or no files at all: the task form below.</td>
-              <td>Per file: a <code>fuse_token</code>, the placement, the recipe (bytes to append after the original, or a prefix and suffix around it), the position&rsquo;s counter and epoch, and the names for the new file and its Frame. Files opened together share one position. A file BitGraph&rsquo;s copy already indexes comes back &ldquo;on record&rdquo; and is not opened unless <code>again</code> is true.</td>
+              <td>Per file: a <code>fuse_token</code>, the placement, the recipe (bytes to append after the original, or a prefix and suffix around it), the position&rsquo;s counter and epoch, and the names for the new file and its export. Files opened together share one position and become one tree. A file BitGraph&rsquo;s copy already indexes, or one found in an earlier tree through its sealed recovery entry, comes back &ldquo;on record&rdquo; and is not opened unless <code>again</code> is true; a file whose lookup did not complete is not opened either, with the reason, because unknown is not new.</td>
               <td>Allocates a position, held 120 seconds.</td>
             </tr>
             <tr>
               <td>bitgraph_commit</td>
               <td>Per entry: the <code>fuse_token</code> and the digest of the new file built from its recipe. For a task token, the digest of the task bytes, with <code>carry: "base64url"</code>.</td>
-              <td>One proof and Frame per single file; one set proof with every member&rsquo;s row for files opened together; and every position the original&rsquo;s bytes now hold. Nothing is labelled fused unless the proof came back under the named position and verified.</td>
-              <td>Commits: binds the digest and consumes the position.</td>
+              <td>One export (bitgraph-export/1) per tree in <code>exports[]</code>: the proof, the root document, and one file&rsquo;s leaf and path, or every leaf and name for several; plus every position the original&rsquo;s bytes now hold. Nothing is labelled fused unless the proof came back under the named position and verified.</td>
+              <td>Commits: binds the tree&rsquo;s root and consumes the position. After it answers, keeps a sealed recovery entry per file.</td>
             </tr>
             <tr>
               <td>bitgraph_check</td>
               <td>Up to 500 digests.</td>
-              <td>Per digest: <code>on_record</code>, every indexed position (with a set member&rsquo;s row), and a proof URL.</td>
+              <td>Per digest: <code>on_record</code>, every indexed position (with a set member&rsquo;s row), and a proof URL. A tree&rsquo;s files are not indexed by their own hash, so the digest lookup alone does not see them; since 0.9.2 the tool also asks each file&rsquo;s sealed recovery entry (for a path it verifies the file as that member; for a bare digest it reads the entry alone), so a tree member comes back on record with its leaf and the tree&rsquo;s proof page. A lookup that did not complete is said as unknown, never as not on record.</td>
               <td>Nothing. Read-only.</td>
             </tr>
             <tr>
               <td>bitgraph_get_proof</td>
               <td>A digest, or a BitGraph number in the current epoch; optionally a counter and epoch to select one position.</td>
-              <td>The proof, every indexed position the same bytes hold, and its floor: placed no earlier than a named Ethereum block.</td>
+              <td>The proof, every indexed position the same bytes hold, and its window: a floor in time (placed no earlier than a named Ethereum block) and a ceiling in position (committed before the anchoring of the next anchor, never that block&rsquo;s time).</td>
               <td>Nothing. Read-only.</td>
             </tr>
             <tr>
               <td>bitgraph_record<br /><span className="dim">package only</span></td>
-              <td>File and folder paths. The package reads them on this machine; only digests, the committed artifact and position records leave it.</td>
-              <td>One BitGraph of everything in the call, each file with its row; files already on record are returned as they are unless <code>again</code> is true.</td>
-              <td>Allocates and commits in one call.</td>
+              <td>File and folder paths, with <code>export_dir</code>, <code>exports</code> (owner, members, both, none), <code>again</code>, <code>as_is</code> and <code>recovery</code>. The package reads them on this machine; only digests, the root document, position records and each file&rsquo;s sealed recovery entry leave it.</td>
+              <td>One BitGraph of everything in the call, a tree/1, each file with its leaf (one of N), the tree&rsquo;s position and proof page, and the export&rsquo;s path: the owner&rsquo;s export (every leaf and name) by default, one per member with <code>exports</code>, written into <code>export_dir</code> (default: beside the first path given, never inside a folder) with <Link href="/spec/SPEC.md">SPEC.md</Link> beside it. Files already on record, including a file found in an earlier tree through its recovery entry, are returned as they are unless <code>again</code> is true.</td>
+              <td>Allocates and commits in one call; writes export/1 beside the files and keeps a sealed recovery entry per file (<code>recovery: false</code> keeps none but still checks them).</td>
             </tr>
           </tbody>
         </table>
       </div>
       <p>
-        Nothing else travels: only digests, sizes, a file&rsquo;s first bytes, position records and recipe bytes, to either server. File contents never do, and originals are never modified.
+        Nothing else travels: only digests, sizes, a file&rsquo;s first bytes, position records, recipe bytes and the sealed recovery entries (which reveal nothing without the file), to either server. File contents never do, and originals are never modified.
       </p>
       <p>
-        BitGraph keeps a copy of each proof the service makes, indexed by digest, so a check finds what was made through it. A miss is not a finding: the bytes may hold a BitGraph their holder keeps, so the agent is told to ask for that proof before making another.
+        BitGraph keeps a copy of each proof the service makes, indexed by digest, so a check finds what was made through it; a tree&rsquo;s files are found through their sealed recovery entries instead, which open, record and check all ask. A miss is not a finding: the bytes may hold a BitGraph their holder keeps, so the agent is told to ask for that export before making another.
       </p>
 
       <h2 id="how">How the hosted endpoint makes a BitGraph</h2>
       <p>
-        The endpoint never receives a file. If an agent can hash a file it can build the virtual new file and hash that, so the two steps are all it takes: hash the originals, open a position, build each new file exactly as its recipe says, hash it, commit them together. A batch is one position however many files it holds. Only digests, byte sizes, a file&rsquo;s first bytes, the signed position record and the recipes cross the network. Agents with code execution, ChatGPT and Claude among them, do this on any files you give them.
+        The endpoint never receives a file. If an agent can hash a file it can build the virtual new file and hash that, so the two steps are all it takes: hash the originals, open a position, build each new file exactly as its recipe says, hash it, commit them together. A batch is one position and one tree however many files it holds, and the commit returns one export per tree; the agent saves it beside the files with <Link href="/spec/SPEC.md">SPEC.md</Link>. Only digests, byte sizes, a file&rsquo;s first bytes, the signed position record and the recipes cross the network. Agents with code execution, ChatGPT and Claude among them, do this on any files you give them.
       </p>
       <p>
-        For clients that run on your machine, the stdio package does the same in one call from plain file paths, and makes one BitGraph of everything in the call: a folder of any size becomes one set under one position. Each file is read once for its digest; the new files are never written.
+        For clients that run on your machine, the stdio package does the same in one call from plain file paths, and makes one BitGraph of everything in the call: a folder of any size becomes one tree under one position, and its export is written beside the folder, never inside it. Each file is read once for its digest; the new files are never written.
       </p>
 
       <h2 id="task">The task pattern</h2>
@@ -187,10 +187,12 @@ export default function McpPage() {
 
       <h2 id="notes">Notes</h2>
       <ul>
-        <li><strong>Files are never uploaded.</strong> Only digests, byte sizes, a file&rsquo;s first bytes, signed position records and recipe bytes cross the network, to either server.</li>
-        <li><strong>Positions are permanent.</strong> A consumed position is never reused, and the anchors that floor it stay published for ten years. The proof comes back to the agent, which keeps it. Agents are instructed to make BitGraphs only of files you asked for, and never to generate content just to record it.</li>
-        <li><strong>One way.</strong> A BitGraph is new bytes built from the original under a position that existed first, so those bytes could not have been finished before the position: that is what open and commit make, one file on its own or a batch as one set. Neither server offers digest-only recording; that compatibility operation stays on the HTTP API as <code>POST /api/commit</code>.</li>
-        <li><strong>One set per call.</strong> Everything opened together shares one position and is committed in one call. A member left out cannot be added afterwards, because the position is consumed; it needs a new open.</li>
+        <li><strong>Files are never uploaded.</strong> Only digests, byte sizes, a file&rsquo;s first bytes, signed position records, recipe bytes and the sealed recovery entries cross the network, to either server.</li>
+        <li><strong>Positions are permanent.</strong> A consumed position is never reused, and the anchors that floor it stay published for ten years. The export comes back to the agent, which keeps it beside the files with <Link href="/spec/SPEC.md">SPEC.md</Link>; the proof alone commits only the tree&rsquo;s root. Agents are instructed to make BitGraphs only of files you asked for, and never to generate content just to record it.</li>
+        <li><strong>Keep the export.</strong> It holds the proof, the root document and each file&rsquo;s leaf and name, no file copies and no anchors; with the file it checks offline with nothing of BitGraph&rsquo;s. <code>bitgraph export complete</code> from the <Link href="/docs/sdk">SDK</Link> adds the floor header, the Base ceiling and the Ethereum settlement once they exist.</li>
+        <li><strong>Recovery entries.</strong> After each answer, the server keeps a sealed recovery entry per file, stored under a name derived from the file&rsquo;s hash and encrypted with a key derived from it: anyone holding the file can find and open it, nobody else. It is how a file finds its proof again when the export is lost, and how a file already in a tree is recognised before a new BitGraph is made.</li>
+        <li><strong>One way.</strong> A BitGraph is a tree of new bytes built from the originals under a position that existed first, so those bytes could not have been finished before the position: that is what open and commit make, one file as a tree of one or a batch as one tree. Neither server offers digest-only recording; that compatibility operation stays on the HTTP API as <code>POST /api/commit</code>.</li>
+        <li><strong>One tree per call.</strong> Everything opened together shares one position, becomes one tree and is committed in one call. A member left out cannot be added afterwards, because the position is consumed; it needs a new open. Earlier forms (sets, the Frame file) still verify; new recordings are tree/1.</li>
         <li><strong>One sequence.</strong> Whatever MCP makes takes its position in the same sequence as everything else, floored by the same anchors.</li>
         <li><strong>Limits and errors.</strong> 40 files per open on the hosted endpoint, 500 digests per check, a 120-second position, and a restart at 23:59 UTC every day that voids open positions. <code>no-anchor-before-slot</code> means nothing was committed and the position is still held: commit again in about 15 seconds. <code>slot-unavailable</code> means the position was consumed, expired or lost to a restart: open again and rebuild the new file from the new recipe.</li>
       </ul>

@@ -30,13 +30,13 @@ export default function ProtocolPage() {
           <dt>The record</dt>
           <dd>Any file: a trust record, a log, an evaluation result, a model output. BitGraph never receives it.</dd>
           <dt>The fingerprint</dt>
-          <dd>The record&rsquo;s SHA-256 digest, 32 bytes. The only thing about the record that is sent. Change one byte and the fingerprint changes.</dd>
+          <dd>The record&rsquo;s SHA-256 digest, 32 bytes. It becomes a leaf of a small tree, and only the hash of that tree&rsquo;s root document is sent. Change one byte and the fingerprint changes.</dd>
           <dt>The position</dt>
           <dd>A place in a signed sequence, allocated by the enclave before it has received any fingerprint. The proof&rsquo;s fields call an allocated position a <em>slot</em> (<code>slotAllocation</code>).</dd>
           <dt>The commit</dt>
           <dd>The single step that binds the fingerprint to the position, consumes the position, and signs the result. A position can be consumed once, and never reused.</dd>
           <dt>The BitGraph</dt>
-          <dd>Also called the proof: the signed result of that commit, returned to whoever asked. It carries the signed position record, both counters, the signature, a hardware attestation and the floor.</dd>
+          <dd>Also called the proof: the signed result of that commit, returned to whoever asked. It carries the signed position record, both counters, the signature, a hardware attestation and the floor. It travels in an export, one JSON file kept beside the record with <code>SPEC.md</code>.</dd>
         </dl>
         <StateFigure />
       </div>
@@ -62,6 +62,11 @@ export default function ProtocolPage() {
             <tr><td>Epoch</td><td>One enclave lifecycle: a fresh keypair at boot, a counter at zero, and a key that is destroyed at shutdown. One UTC day in production.</td></tr>
             <tr><td>Epoch identifier</td><td><code>epochId</code> = base64(SHA-256(public key + &quot;:&quot; + boot nonce)).</td></tr>
             <tr><td>Proof</td><td>A <code>bitgraph/1</code> object. See <Link href="/docs/proof-format">proof format</Link>.</td></tr>
+            <tr><td>Tree</td><td>The form of every recording since 2026-10-04, <code>tree/1</code>: one position for one or more artifacts, each a leaf named by its digest and placement; one artifact is a tree of one. Earlier forms (a single fused file, set/1, set/2) still verify. <a href="/spec/SPEC.md">SPEC.md</a> section 8.</td></tr>
+            <tr><td>Root document</td><td>84 bytes: the domain <code>bitgraph-tree/1</code>, the leaf count, the Merkle root and the position commitment. Its SHA-256 is the signed <code>artifact.digestB64</code>. Echoed unsigned in <code>metadata[&quot;bitgraph-tree/1&quot;]</code>.</td></tr>
+            <tr><td>Spec pin</td><td>The signed marker <code>attribution</code> = {"{"} name <code>bitgraph-fuse/2</code>, title <code>tree/1</code>, message base64 SHA-256 of <code>SPEC.md</code> {"}"}. A verifier that does not know the hash answers undetermined, never true.</td></tr>
+            <tr><td>Export</td><td>A <code>bitgraph-export/1</code> JSON: the proof, the root document, one member&rsquo;s leaf and path or the owner&rsquo;s whole leaf list, and the floor header, the ceiling and the settlement when they exist. No copy of any file, no anchor proofs. <code>SPEC.md</code> travels beside it.</td></tr>
+            <tr><td>Recovery entry</td><td>A sealed record of one member, stored under names derived from the artifact&rsquo;s digest, which is never itself indexed. It lets the artifact alone find its proof again. <a href="/spec/SPEC.md">SPEC.md</a> section 13.</td></tr>
             <tr><td>Boundary</td><td>The AWS Nitro enclave process. Holds the signing key, the random number generator, the counters and the pending positions.</td></tr>
             <tr><td>Measurement</td><td>The enclave image identity, PCR0, signed into every proof as <code>environment.measurement</code>.</td></tr>
             <tr><td>Attestation</td><td>A document signed by the Nitro hardware whose user data is SHA-256 of this proof&rsquo;s canonical signed body. Per proof, not per boot.</td></tr>
@@ -81,12 +86,13 @@ export default function ProtocolPage() {
       <ol className="steps">
         <li><strong>Initialisation <span className="tag">[boundary]</span></strong>The enclave boots, generates an Ed25519 keypair in memory, draws a boot nonce, computes the epoch identifier and reads PCR0. In production every boot is a fresh genesis; an epoch is never continued from a predecessor.</li>
         <li><strong>Allocation <span className="tag">[boundary]</span></strong>On request, the enclave advances the chain counter, draws a 32-byte nonce, and signs the position record: version, nonce, counter, epoch, public key, chain. Beside it, the enclave notes the chain&rsquo;s latest anchor, which it signs into the proof at commit as the floor. The position is stored as unused, keyed by nonce, with a 120-second lifetime and a ceiling of 1,000 pending positions.</li>
-        <li><strong>Digest computation</strong>Outside the boundary, the client hashes the artifact. On this site, in the SDK and in the MCP server, the bytes never leave the client.</li>
+        <li><strong>Digest computation</strong>Outside the boundary, the client derives the position commitment from the position record and the floor, builds each artifact&rsquo;s committed bytes with it, hashes them, and makes one leaf per artifact. The leaves form a Merkle tree; the tree&rsquo;s root, the leaf count and the commitment form the 84-byte root document, and its SHA-256 is the digest the commit carries. On this site, in the SDK and in the MCP server, the bytes never leave the client.</li>
         <li><strong>Commit <span className="tag">[boundary]</span></strong>The enclave looks the position up and deletes it before any asynchronous work, advances the counter again, assembles the signed body with the digest, both counters, the position record&rsquo;s hash and the previous link, adds <code>attestationFormat</code>, canonicalises, hashes, requests a Nitro attestation over that hash, and signs the same bytes with Ed25519. Attestation and signature therefore cover byte-identical input.</li>
         <li><strong>Linking <span className="tag">[boundary]</span></strong>The chain&rsquo;s stored last-proof hash becomes the hash of this proof, so the next proof&rsquo;s previous link names it.</li>
         <li><strong>Anchoring</strong>An external anchor service submits recent Ethereum block hashes. The enclave verifies the service&rsquo;s signature against a key baked into its image and commits each as an ordinary proof on the same chain.</li>
-        <li><strong>Export</strong>The proof travels as a sidecar JSON file, optionally with the artifact, both bounding anchors and their block-header witnesses.</li>
-        <li><strong>Verification</strong>Anyone repeats the checks offline. See <Link href="/docs/verification">verification</Link>.</li>
+        <li><strong>Export</strong>The client writes a <code>bitgraph-export/1</code> JSON beside the artifact: the proof, the root document, this member&rsquo;s leaf and path (or the owner&rsquo;s whole leaf list), and the floor block header. It holds no copy of the artifact and no anchor proofs. <code>SPEC.md</code>, byte for byte the text the proof pins, travels beside it. The ceiling in time and its settlement are filled in later, with <code>bitgraph export complete</code>.</li>
+        <li><strong>Recovery</strong>After the export exists, the client writes one sealed recovery entry per member under names derived from the artifact&rsquo;s digest. A later holder of the artifact alone can find the proof again. A lookup that did not complete is unknown, and unknown is not new: no client records the artifact again unless the person asks regardless.</li>
+        <li><strong>Verification</strong>Anyone repeats the checks offline, with the artifact and its export. See <Link href="/docs/verification">verification</Link>.</li>
       </ol>
       <p>Two orderings cannot be rearranged. Steps 2 and 3 must complete before step 4 begins, and within step 4 the attestation must be taken over the same bytes the signature covers. Reordering either breaks the guarantee rather than weakening it.</p>
 
@@ -105,7 +111,7 @@ export default function ProtocolPage() {
             <tr><td className="k">Epoch isolation</td><td>A new keypair per boot; the counter resets; the epoch identifier is in the signed body.</td><td>A proof under a destroyed key, which cannot exist.</td></tr>
             <tr><td className="k">Exact-bit identity</td><td>SHA-256 over raw bytes; no canonicalisation of artifact content anywhere.</td><td>A verifier that decodes, re-encodes or strips metadata before hashing.</td></tr>
             <tr><td className="k">No transformation inside the boundary</td><td>The commit path receives a digest and cannot transform anything.</td><td>An output digest that differs from what the caller believes it recorded.</td></tr>
-            <tr><td className="k">Portable verification</td><td><code>verify()</code> performs no network calls; anchors and witnesses can be bundled.</td><td>A verification step that silently requires a lookup.</td></tr>
+            <tr><td className="k">Portable verification</td><td><code>verify()</code> performs no network calls; the floor header, the ceiling and the settlement travel in the export.</td><td>A verification step that silently requires a lookup.</td></tr>
             <tr><td className="k">Explicit anchor semantics</td><td>Anchors are ordinary proofs on the chain; temporal reasoning uses the bounding anchors.</td><td>A one-sided bound presented as a timestamp.</td></tr>
             <tr><td className="k">Content claims separated from path claims</td><td>No field asserts anything about content. <code>attribution</code> is a claim; <code>metadata</code> is unsigned.</td><td>Copy or a label implying verified truth or authorship.</td></tr>
           </tbody>
@@ -156,6 +162,7 @@ export default function ProtocolPage() {
       <h2 id="next">Where next</h2>
       <ul className="doors">
         <li><Link href="/docs/proof-format">Proof format</Link><span>Every field of a bitgraph/1 proof, with what is signed and what is not.</span></li>
+        <li><a href="/spec/SPEC.md">SPEC.md</a><span>The normative text for tree/1, the export, recovery entries and verification: the file every proof pins by hash.</span></li>
         <li><Link href="/docs/trust-model">Trust model</Link><span>What is assumed, what is prevented, what is detected, and what is neither.</span></li>
         <li><Link href="/docs/verification">Verification</Link><span>The checks a verifier runs and what each result means.</span></li>
         <li><a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener">The source</a><span>The enclave, the verifier and the audit tool, readable and reproducible.</span></li>
