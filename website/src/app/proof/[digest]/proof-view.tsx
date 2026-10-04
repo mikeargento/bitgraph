@@ -133,8 +133,19 @@ export interface ProofViewModel {
   ceilingFileHref: string | null;
   checks: ChecksView;
   onConfirm: () => void;
-  downloads: DownloadView[];
+  /** ONE export per position (Mike, 2026-10-04: "a master button"): what the
+   *  button downloads depends on the kind of position, and the person makes no
+   *  choice. Null while nothing can be exported yet (a tree still binding). */
+  exportAction: DownloadView | null;
+  /** One line under the button: what the export holds. */
+  exportInside: string;
+  /** The pieces on their own, as small text links: the proof, the anchors, the
+   *  original, the BitGraphed file. For the few who want one part. */
+  pieces: DownloadView[];
   downloadNotes: string[];
+  /** "Check it anywhere": the command that matches this kind of export, or null. */
+  checkText: string | null;
+  checkCommand: string | null;
   againNode: ReactNode;
   hashes: FieldView[];
   positions: { intro: string; rows: PositionRowView[] } | null;
@@ -427,28 +438,35 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       {/* ── 4. Take it with you ── */}
       <section className="pv-card">
         <div className="pv-section-title">Take it with you</div>
-        <div className="pv-downloads">
-          {m.downloads.map((d) => (
-            <button key={d.label} type="button" onClick={d.onClick} disabled={d.busy} className={`bg-action-link pv-dl${d.primary ? " is-primary" : ""}`}>
-              <span>{d.busy ? d.busyLabel : d.label}</span>
+        {/* One button, one export, whatever the kind of position (Mike, 2026-10-04).
+            The pieces stay reachable below it as text, never as a second row of pills. */}
+        {m.exportAction && (
+          <div className="pv-downloads">
+            <button type="button" onClick={m.exportAction.onClick} disabled={m.exportAction.busy} className="bg-action-link pv-dl is-primary">
+              <span>{m.exportAction.busy ? m.exportAction.busyLabel : m.exportAction.label}</span>
             </button>
-          ))}
-          {m.ceilingFileHref && (
-            <a href={m.ceilingFileHref} download className="bg-action-link pv-dl"><span>Ceiling file</span></a>
-          )}
-        </div>
+          </div>
+        )}
+        {m.exportInside && <div className="pv-note pv-inside">{m.exportInside}</div>}
+        {(m.pieces.length > 0 || m.ceilingFileHref) && (
+          <div className="pv-pieces">
+            <span className="pv-pieces-label">On its own</span>
+            {m.pieces.map((d) => (
+              <button key={d.label} type="button" onClick={d.onClick} disabled={d.busy} className="pv-piece">{d.busy ? d.busyLabel : d.label}</button>
+            ))}
+            {m.ceilingFileHref && <a href={m.ceilingFileHref} download className="pv-piece">Ceiling file</a>}
+          </div>
+        )}
         {m.downloadNotes.length > 0 && (
           <div className="pv-note">{m.downloadNotes.map((n, i) => <div key={i}>{n}</div>)}</div>
         )}
-        {m.kind === "file" && (
+        {m.checkCommand && (
           <div className="pv-offline">
             <div className="pv-sub-title">Check it anywhere</div>
-            <div className="pv-offline-text">
-              The BitGraphed file verifies with nothing but itself, one line per claim, on any machine. The package holds the proof, the anchors with their block headers and the ceiling file, for the offline audit.
-            </div>
+            {m.checkText && <div className="pv-offline-text">{m.checkText}</div>}
             <div className="code-block pv-code">
               <div className="code-block-header"><span>Shell</span><CopyCode /></div>
-              <pre><code>{`npx @mikeargento/bitgraph-sdk verify <file>.bitgraph<ext>\nnpx @mikeargento/bitgraph-audit ./BitGraph-package/`}</code></pre>
+              <pre><code>{m.checkCommand}</code></pre>
             </div>
           </div>
         )}

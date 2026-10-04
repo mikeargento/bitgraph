@@ -1867,23 +1867,53 @@ export default function ProofPage() {
             placement: mrow.placement,
             originDigestB64: mrow.originDigestB64,
           })) : [];
-          const downloads: DownloadView[] = isEth
-            ? [{ label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false }]
+          /* ONE Export button per position (Mike, 2026-10-04: "shouldn't it just
+             be an export proof button? like a master button?"). What it downloads
+             follows the kind of position; the person chooses nothing. The pieces
+             (the proof alone, the anchors, the original, the BitGraphed file) stay
+             reachable as text under it. Before this, four pills: Export (.zip) /
+             Package (.zip) / Proof (.json) / Ethereum anchors, plus the ceiling file. */
+          const carrierPossible = Boolean(cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor);
+          const treeCount = treeBound?.count ?? 0;
+          const exportAction: DownloadView | null = isEth
+            ? { label: "Export", busyLabel: "Export", onClick: downloadProof, busy: false }
+            : isTree
+            // tree/1 leaves as export/1, never as the package a single fused file
+            // or a set member gets: no BitGraphed file, no original out of a wrapper.
+            ? (treeBound ? { label: "Export", busyLabel: "Exporting\u2026", onClick: exportTree, busy: exporting } : null)
+            : { label: "Export", busyLabel: "Exporting\u2026", onClick: exportZip, busy: exporting };
+          const exportInside = isEth
+            ? "The anchor's proof as one JSON file."
+            : isTree
+            ? (treeMember && cachedFile
+                ? `One zip: this file's own export, which proves its place in the tree of ${treeCount.toLocaleString("en-US")}, and SPEC.md, the rules the proof pins.`
+                : treeCount === 1
+                ? "One zip: the tree's export, with the proof and its times, and SPEC.md, the rules the proof pins. Drop the file in the box above first and the export carries its place too."
+                : `One zip: the tree's export, with the proof and its times, and SPEC.md, the rules the proof pins. A file's own place among the ${treeCount.toLocaleString("en-US")} files comes with that file's export: drop it in the box above first.`)
+            : `One zip: the proof, the Ethereum anchors with their block headers, the ceiling file${cachedFile ? ", the file" : ""}${carrierPossible ? " and the BitGraphed file, the file with the proof inside" : ""}, with a README that says what each is.`;
+          const pieces: DownloadView[] = isEth
+            ? []
             : isTree
             ? [
-                // tree/1 leaves as export/1, never as the package a single fused file
-                // or a set member gets: no BitGraphed file, no original out of a wrapper.
-                ...(treeBound ? [{ label: "Export (.zip)", busyLabel: "Exporting\u2026", onClick: exportTree, busy: exporting, primary: true }] : []),
                 { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false },
                 { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy },
               ]
             : [
-                ...(cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor ? [{ label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: downloadCarrier, busy: carrierBusy, primary: true }] : []),
-                { label: "Package (.zip)", busyLabel: "Exporting\u2026", onClick: exportZip, busy: exporting },
+                ...(carrierPossible ? [{ label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: downloadCarrier, busy: carrierBusy }] : []),
                 { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false },
                 ...(cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? [{ label: "Original file", busyLabel: "Recovering\u2026", onClick: downloadOriginal, busy: originBusy }] : []),
                 { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy },
               ];
+          const checkText = isEth
+            ? null
+            : isTree
+            ? "An export verifies offline beside its file, one line per claim, on any machine: the file's own export for one file, the tree's export with any of its files."
+            : "The BitGraphed file verifies with nothing but itself, one line per claim, on any machine. The package holds the proof, the anchors with their block headers and the ceiling file, for the offline audit.";
+          const checkCommand = isEth
+            ? null
+            : isTree
+            ? "npx @mikeargento/bitgraph-sdk verify <file> <export>.bitgraph.json"
+            : "npx @mikeargento/bitgraph-sdk verify <file>.bitgraph<ext>\nnpx @mikeargento/bitgraph-audit ./BitGraph-package/";
           const downloadNotes = [
             ...(originMsg ? [originMsg] : []),
             ...(carrierMsg ? [carrierMsg] : []),
@@ -1953,8 +1983,12 @@ export default function ProofPage() {
             ceilingFileHref: !isEth && baseCeiling?.anchor && proofHashField ? `/api/ceilings/${stdB64(proofHashField).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}` : null,
             checks: isTree ? treeChecks(checks) : checks,
             onConfirm: confirmAgainstNodes,
-            downloads,
+            exportAction,
+            exportInside,
+            pieces,
             downloadNotes,
+            checkText,
+            checkCommand,
             againNode: !isEth && !isInterval && cachedFile ? <BitGraphAgainButton proof={proof} cachedFile={cachedFile} /> : null,
             hashes,
             positions: showPositions ? { intro: positions.length === 1 ? "One position, with its own floor." : `${positions.length} positions. Each sits at its own place in the sequence, with its own floor.`, rows: positionRows } : null,

@@ -2591,6 +2591,13 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-dl { margin: 0 !important; min-height: 42px; }
 .pv-dl.is-primary { background: var(--btn-primary) !important; color: #fff !important; border-color: var(--btn-primary) !important; }
 .pv-dl.is-primary:hover { background: var(--btn-primary-hover) !important; }
+/* Under the one Export button: what is inside, then the pieces as text (Mike, 10-04: one master button). */
+.pv-inside { margin-top: 10px; }
+.pv-pieces { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; font-size: 13.5px; line-height: 1.55; }
+.pv-pieces-label { color: var(--dim); }
+.pv-piece { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; font-size: 13.5px; color: var(--accent); cursor: pointer; text-decoration: none; }
+.pv-piece:hover { text-decoration: underline; }
+.pv-piece:disabled { color: var(--dim); cursor: default; text-decoration: none; }
 .pv-offline { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-2); }
 .pv-offline-text { font-size: 13.5px; color: var(--dim); line-height: 1.55; margin-bottom: 10px; }
 .pv-code { margin: 0 !important; }

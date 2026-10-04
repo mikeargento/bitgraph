@@ -3530,7 +3530,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     // sits on its left. It was "Download .zip" before that,
                     // which described the plumbing rather than the contents.
                     <button onClick={() => void downloadZip()} className="bg-action-link" style={{ padding: 0 }}>
-                      <span>Export BitGraph package</span>
+                      <span>Export</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
                   )}
