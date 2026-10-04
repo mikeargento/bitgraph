@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { HomeHeadline } from "@/components/home-headline";
 import Link from "next/link";
 import { HOME_EXAMPLE_DIGEST } from "@/lib/warm";
 import { WarmExample } from "@/components/warm-example";
@@ -45,25 +44,22 @@ export default function HomePage() {
       }}
     >
 
-      {/* The category, named (Mike, 2026-09-26). A frontier model asked how to create a
-          position for records before they exist could not name one, and every scheme it
-          offered let the producer draw its own randomness, so the producer kept the option.
-          The page has to name the thing and say why giving up the option is the point.
-          "AI records", not "digital records": a category is named for its first market
-          (Certificate Transparency for TLS certificates), and everyone BitGraph is pitching
-          this month holds AI records; the mechanism stays universal in the docs. The line
-          after "for" types through the uses (Mike, 2026-09-30). */}
-      <HomeHeadline phrases={["AI records.", "AI agent actions.", "AI evaluations.", "predictions.", "sealed bids.", "chain of custody.", "any file.", "any bytes.", "any bits."]} />
+      {/* The hero, Mike's words (2026-10-03), static: no typing (Mike: "no typing"). GPS is
+          the analogy the page rests on: a receiver works out where it is from a public
+          broadcast it does not control, and anyone with the same broadcast can check the
+          fix. A BitGraph is a position checked against the public chains' blocks the same
+          way, and the file itself never travels: the drop box, the SDK and the MCP hash
+          locally and send digests. Claim discipline holds: a position is what is verified,
+          never the content, never "when". The earlier heroes ("Position commitment for AI
+          records." with the Schelling paragraph, 2026-09-26; the typing line, 2026-09-30)
+          are in the git history and in the headline file. */}
+      <h1>GPS for files.</h1>
 
-      {/* Why it matters, in Schelling's terms: a commitment is credible because it gives up
-          options. The term in game theory is "commitment" ("credible commitment", Schelling
-          1960); "position commitment" is BitGraph's application of it. Credibility attaches to
-          the POSITION, never the content (canon non-claims). */}
       <p className="lede">
-        In game theory, a commitment is an irrevocable move that gives up future options.
-        BitGraph brings commitment to records: whoever or whatever produces a record can no
-        longer choose its position. That is what makes its position&nbsp;credible.
+        A position, verified against a public broadcast. Your files never leave your&nbsp;computer.
       </p>
+
+      <p className="lede home-coordinates">Local files. Global&nbsp;coordinates.</p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}
       <div className="actions" style={{ marginBottom: 0 }}>
