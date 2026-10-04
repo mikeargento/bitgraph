@@ -2127,6 +2127,20 @@ body { background: var(--bg); }
    stay left. */
 .home { text-align: center; align-items: center; }
 .home h1, .home .lede { margin-left: auto; margin-right: auto; }
+/* The vertical scale, measured 2026-10-04 (desktop gaps were 32 / 24 / 40 / 44: four tiers,
+   one spacing, no grouping). Headline and subhead are one unit; the coordinates line is its
+   coda; the actions are a separate group; the Live line is an aside with the largest break.
+   28 / 20 / 48 / 64 on desktop, 18 / 14 / 36 / 48 on phones. */
+.home h1 { margin-top: 0 !important; margin-bottom: 28px !important; }
+.home .lede { margin-top: 0 !important; margin-bottom: 20px !important; }
+.home .home-coordinates { margin-top: 0 !important; margin-bottom: 48px !important; }
+.home .actions { margin-top: 0 !important; }
+/* The Postseason line is an appendix under the hero, not its fifth line (Mike, 2026-10-04:
+   "center the content besides postseason info and then that will be like an appended content
+   under"). Two auto margins: a spacer before the headline and the Live line's own, so the hero
+   centres in the space above the appendix and the appendix sits at the foot of the first
+   screen. Its own rule further down keeps a 52px minimum above it (64 with the actions' padding). */
+.home::before { content: ""; display: block; margin-top: auto; }
 .home .actions { justify-content: center; }
 .home .home-live { text-align: center; align-items: center; }
 .home .home-live-title { justify-content: center; }
@@ -2137,11 +2151,13 @@ body { background: var(--bg); }
    "Your"; the coordinates line and the actions keep a clear step from each other. */
 @media (max-width: 600px) {
   .home { justify-content: flex-start !important; padding-top: 12vh !important; }
-  .home h1 { font-size: clamp(34px, 11.5vw, 48px) !important; margin-bottom: 0.55em; }
+  .home h1 { font-size: clamp(34px, 11.5vw, 48px) !important; margin-bottom: 18px !important; }
   .home .lede .lede-sentence { display: block; text-wrap: balance; }
-  .home .lede { font-size: 17px !important; line-height: 1.45 !important; margin-bottom: 1.1rem; }
-  .home .home-coordinates { color: var(--dim); margin-top: 0.2rem; margin-bottom: 1.6rem; }
+  .home .lede { font-size: 17px !important; line-height: 1.45 !important; margin-bottom: 14px !important; }
+  .home .home-coordinates { color: var(--dim); margin-bottom: 36px !important; }
   .home .actions { gap: 10px; }
+  .home::before { margin-top: 0; } /* phones: the hero sits at 12vh, the appendix still drops to the foot */
+  .frame.home .home-live { padding-top: 36px; } /* 36 + the actions' 12px padding = at least 48 */
 }
 
 /* The home page's two actions are the only interactive thing on it, sitting under
@@ -2383,7 +2399,7 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 /* The live demo under the home buttons (Mike, 2026-09-29): one quiet line. A red dot that pulses
    gently, "Live now:" in ink, the sentence in the dim tone, and the destination as a blue link
    with an arrow that leaves the site. It stays secondary to the two buttons above it. */
-.home .home-live { display: flex; align-items: baseline; gap: 10px; margin: 28px 0 0 !important; font-size: 15px !important; line-height: 1.5; color: var(--dim); }
+.home .home-live { display: flex; align-items: baseline; gap: 10px; margin: auto 0 0 !important; padding-top: 52px; font-size: 15px !important; line-height: 1.5; color: var(--dim); } /* auto: the appendix drops to the foot of the first screen; 52 + the actions' 12px padding = at least the 64px aside break (2026-10-04) */
 .home .home-live strong { color: var(--ink); font-weight: 600; }
 .home .home-live a { color: var(--accent); font-weight: 600; white-space: nowrap; text-decoration: none; }
 .home .home-live a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
