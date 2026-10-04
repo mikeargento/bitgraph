@@ -74,7 +74,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   {
     q: "Can I record many files at once?",
     a: "Yes. One or more files made together become one tree (`tree/1`) at one position: each file is a leaf, and one file is a tree of one. The committed digest is the hash of a small root document holding the leaf count, the Merkle root and the position commitment. The owner's export lists every leaf; each file can also travel with a member export that holds only its own leaf and path. A file cannot be added afterwards, because the root was made with the leaves it had. Earlier recordings made as sets still verify.",
-    href: "/spec/SPEC.md", label: "SPEC.md, section 8",
+    href: "/spec", label: "SPEC.md, section 8",
   },
   {
     q: "What if someone edits the proof JSON?",
@@ -94,7 +94,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   {
     q: "I lost the export. Is the proof gone?",
     a: "No. When a BitGraph is made, each file also gets sealed recovery entries stored under names derived from the file's hash; the hash itself is never indexed. The file alone derives those names, so the drop box, the CLI (`bitgraph check`) and the MCP server can find its proof again; the proof is read from the public copy and checked in full before it counts. If the lookup does not complete, the answer is unknown, and unknown is not new: nothing records the file a second time unless you ask for that regardless.",
-    href: "/spec/SPEC.md", label: "SPEC.md, section 13",
+    href: "/spec", label: "SPEC.md, section 13",
   },
   {
     q: "What does it cost, and what is licensed?",

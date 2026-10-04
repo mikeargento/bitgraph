@@ -141,7 +141,7 @@ xxd -p sigstructure.bin | tr -d '\\n' | grep -c <user_data>   # 1: user_data is 
 }`}</Code>
       </div>
       <p>
-        <code>bitgraph-carrier/1</code> files, made before 2026-09-30, carry the first three fields only and verify exactly as before. An ordinary reader never needs to know the block is there: it sees the file it always saw. The formats inside are specified with the <Link href="/docs/proof-format">proof</Link>: the position record and its commitment, the <Link href="/docs/proof-format#ceiling">ceiling file</Link>, and settlement. <a href="/spec/SPEC.md">SPEC.md</a> is the normative text; carriers are its section 15.5.
+        <code>bitgraph-carrier/1</code> files, made before 2026-09-30, carry the first three fields only and verify exactly as before. An ordinary reader never needs to know the block is there: it sees the file it always saw. The formats inside are specified with the <Link href="/docs/proof-format">proof</Link>: the position record and its commitment, the <Link href="/docs/proof-format#ceiling">ceiling file</Link>, and settlement. <a href="/spec">SPEC.md</a> is the normative text; carriers are its section 15.5.
       </p>
 
       <h2 id="export">The BitGraphed file and the export</h2>

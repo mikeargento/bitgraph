@@ -32,7 +32,7 @@ export default function IntegrationPage() {
         <li><b>Packages</b><span><code>@mikeargento/bitgraph-sdk</code> 0.4.1 makes a BitGraph and ships the <code>bitgraph</code> command. <code>@mikeargento/bitgraph-verify</code> 1.16.0 checks one; it is MIT-licensed and makes no network call. <code>@mikeargento/bitgraph-audit</code> 0.9.0 is the deeper offline audit. The older <code>@mikeargento/bitgraph</code> package made the earlier form (set/1, set/2, the Frame file); what it made still verifies, but new integrations use the SDK.</span></li>
         <li><b>Account</b><span>None. The public endpoint at <code>https://bitgraph.ing</code> needs no key. A self-hosted enclave may require a Bearer token; see the <Link href="/api-reference">API reference</Link>.</span></li>
         <li><b>The file</b><span>Stays on your machine. What crosses the network is digests, the tree&rsquo;s 84-byte root document, the signed position record, and each file&rsquo;s sealed recovery entry. That is a property of each client on this page; the enclave never receives a file.</span></li>
-        <li><b>The spec</b><span><a href="/spec/SPEC.md">SPEC.md</a> is the normative text. Every proof pins the SHA-256 of the version it was made under, and the holder keeps a copy beside the export.</span></li>
+        <li><b>The spec</b><span><a href="/spec">SPEC.md</a> is the normative text. Every proof pins the SHA-256 of the version it was made under, and the holder keeps a copy beside the export.</span></li>
       </ul>
       <h3>Words used on this page</h3>
       <dl className="terms">
@@ -112,7 +112,7 @@ npx @mikeargento/bitgraph-sdk verify photo.jpg ./proofs/bitgraph-<counter>.bitgr
 npx @mikeargento/bitgraph-sdk export complete ./proofs/bitgraph-<counter>.bitgraph.json`}</Code>
       </div>
       <p>
-        Placements: <code>trailer/1</code> for formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, RIFF such as WebP), <code>container/2</code> for everything else (a tar with the original first; the older <code>container/1</code> stays readable). The SDK chooses the placement from the bytes. The byte layout of each placement is on the <Link href="/docs/proof-format#fused">proof format</Link> page and in <a href="/spec/SPEC.md">SPEC.md</a> section 7.
+        Placements: <code>trailer/1</code> for formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, RIFF such as WebP), <code>container/2</code> for everything else (a tar with the original first; the older <code>container/1</code> stays readable). The SDK chooses the placement from the bytes. The byte layout of each placement is on the <Link href="/docs/proof-format#fused">proof format</Link> page and in <a href="/spec">SPEC.md</a> section 7.
       </p>
 
       <h3>From the SDK</h3>
@@ -139,7 +139,7 @@ await bg.completeExport("./proofs/bitgraph-<counter>.bitgraph.json");`}</Code>
 
       <h3>Over HTTP</h3>
       <p>
-        The same two calls are <code>POST /api/fuse/allocate</code> and <code>POST /api/fuse/commit</code> on <code>https://bitgraph.ing</code>. Over HTTP you build the committed bytes, the leaves and the root document yourself: the commitment, the placements and the tree are specified in <a href="/spec/SPEC.md">SPEC.md</a> sections 6 to 8, and the SDK is a reference implementation.
+        The same two calls are <code>POST /api/fuse/allocate</code> and <code>POST /api/fuse/commit</code> on <code>https://bitgraph.ing</code>. Over HTTP you build the committed bytes, the leaves and the root document yourself: the commitment, the placements and the tree are specified in <a href="/spec">SPEC.md</a> sections 6 to 8, and the SDK is a reference implementation.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>
@@ -444,7 +444,7 @@ const proofs = await resp.json();
 
       <h2 id="next">Where next</h2>
       <ul className="doors">
-        <li><a href="/spec/SPEC.md">SPEC.md</a><span>The normative text: tree/1, the export, recovery, the floor, the ceiling and its settlement.</span></li>
+        <li><a href="/spec">SPEC.md</a><span>The normative text: tree/1, the export, recovery, the floor, the ceiling and its settlement.</span></li>
         <li><Link href="/api-reference">API reference</Link><span>Every endpoint, request, response, status code and error.</span></li>
         <li><Link href="/docs/proof-format">Proof format</Link><span>The bitgraph/1 schema field by field, the signed body, and the fused placements.</span></li>
         <li><Link href="/docs/verification">Verification</Link><span>What a verifier checks, in order, and what each result means.</span></li>

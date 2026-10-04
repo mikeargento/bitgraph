@@ -62,11 +62,11 @@ export default function ProtocolPage() {
             <tr><td>Epoch</td><td>One enclave lifecycle: a fresh keypair at boot, a counter at zero, and a key that is destroyed at shutdown. One UTC day in production.</td></tr>
             <tr><td>Epoch identifier</td><td><code>epochId</code> = base64(SHA-256(public key + &quot;:&quot; + boot nonce)).</td></tr>
             <tr><td>Proof</td><td>A <code>bitgraph/1</code> object. See <Link href="/docs/proof-format">proof format</Link>.</td></tr>
-            <tr><td>Tree</td><td>The form of every recording since 2026-10-04, <code>tree/1</code>: one position for one or more artifacts, each a leaf named by its digest and placement; one artifact is a tree of one. Earlier forms (a single fused file, set/1, set/2) still verify. <a href="/spec/SPEC.md">SPEC.md</a> section 8.</td></tr>
+            <tr><td>Tree</td><td>The form of every recording since 2026-10-04, <code>tree/1</code>: one position for one or more artifacts, each a leaf named by its digest and placement; one artifact is a tree of one. Earlier forms (a single fused file, set/1, set/2) still verify. <a href="/spec">SPEC.md</a> section 8.</td></tr>
             <tr><td>Root document</td><td>84 bytes: the domain <code>bitgraph-tree/1</code>, the leaf count, the Merkle root and the position commitment. Its SHA-256 is the signed <code>artifact.digestB64</code>. Echoed unsigned in <code>metadata[&quot;bitgraph-tree/1&quot;]</code>.</td></tr>
             <tr><td>Spec pin</td><td>The signed marker <code>attribution</code> = {"{"} name <code>bitgraph-fuse/2</code>, title <code>tree/1</code>, message base64 SHA-256 of <code>SPEC.md</code> {"}"}. A verifier that does not know the hash answers undetermined, never true.</td></tr>
             <tr><td>Export</td><td>A <code>bitgraph-export/1</code> JSON: the proof, the root document, one member&rsquo;s leaf and path or the owner&rsquo;s whole leaf list, and the floor header, the ceiling and the settlement when they exist. No copy of any file, no anchor proofs. <code>SPEC.md</code> travels beside it.</td></tr>
-            <tr><td>Recovery entry</td><td>A sealed record of one member, stored under names derived from the artifact&rsquo;s digest, which is never itself indexed. It lets the artifact alone find its proof again. <a href="/spec/SPEC.md">SPEC.md</a> section 13.</td></tr>
+            <tr><td>Recovery entry</td><td>A sealed record of one member, stored under names derived from the artifact&rsquo;s digest, which is never itself indexed. It lets the artifact alone find its proof again. <a href="/spec">SPEC.md</a> section 13.</td></tr>
             <tr><td>Boundary</td><td>The AWS Nitro enclave process. Holds the signing key, the random number generator, the counters and the pending positions.</td></tr>
             <tr><td>Measurement</td><td>The enclave image identity, PCR0, signed into every proof as <code>environment.measurement</code>.</td></tr>
             <tr><td>Attestation</td><td>A document signed by the Nitro hardware whose user data is SHA-256 of this proof&rsquo;s canonical signed body. Per proof, not per boot.</td></tr>
@@ -162,7 +162,7 @@ export default function ProtocolPage() {
       <h2 id="next">Where next</h2>
       <ul className="doors">
         <li><Link href="/docs/proof-format">Proof format</Link><span>Every field of a bitgraph/1 proof, with what is signed and what is not.</span></li>
-        <li><a href="/spec/SPEC.md">SPEC.md</a><span>The normative text for tree/1, the export, recovery entries and verification: the file every proof pins by hash.</span></li>
+        <li><a href="/spec">SPEC.md</a><span>The normative text for tree/1, the export, recovery entries and verification: the file every proof pins by hash.</span></li>
         <li><Link href="/docs/trust-model">Trust model</Link><span>What is assumed, what is prevented, what is detected, and what is neither.</span></li>
         <li><Link href="/docs/verification">Verification</Link><span>The checks a verifier runs and what each result means.</span></li>
         <li><a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener">The source</a><span>The enclave, the verifier and the audit tool, readable and reproducible.</span></li>

@@ -20,7 +20,7 @@ export default function ProofFormatPage() {
     <article className="prose">
       <h1>Proof format</h1>
       <p className="lede">
-        The <code>bitgraph/1</code> proof, field by field, for anyone writing a verifier, a reader or a producer that must interoperate with the reference implementation. The normative text is <a href="/spec/SPEC.md">SPEC.md</a> (rendered at <Link href="/spec">/spec</Link>); every tree/1 proof pins its SHA-256. What a holder keeps beside a file is not the bare proof but an export, <code>bitgraph-export/1</code>, which carries the proof with the file&rsquo;s leaf and the blocks that bound it, and SPEC.md itself.
+        The <code>bitgraph/1</code> proof, field by field, for anyone writing a verifier, a reader or a producer that must interoperate with the reference implementation. The normative text is <a href="/spec">SPEC.md</a> (rendered at <Link href="/spec">/spec</Link>); every tree/1 proof pins its SHA-256. What a holder keeps beside a file is not the bare proof but an export, <code>bitgraph-export/1</code>, which carries the proof with the file&rsquo;s leaf and the blocks that bound it, and SPEC.md itself.
       </p>
 
       <h2 id="schema">The proof</h2>
@@ -215,7 +215,7 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
         A verifier chooses the formula by the signed marker name and recomputes commitment/2 from the proof&rsquo;s own signed <code>commit.slotAnchor.blockHash</code>, so a producer can neither tighten nor loosen the floor. What /2 adds: a block hash cannot be known before its block exists, so bytes carrying commitment/2 were finished after that block by the hash alone; with /1, that step rested on the enclave&rsquo;s counter order (the anchor before the position). Placements, payloads and set documents are unchanged between the two; a set&rsquo;s documents keep the <code>bitgraph-fuse/1</code> type and metadata key, and the commitment version is the signed attribution name. A verifier that knows only /1 sees a /2 proof as an ordinary valid proof and says nothing about the file.
       </p>
       <p>
-        Every BitGraph made now is a <strong>tree/1</strong>, whether it holds one file or a hundred thousand: one position, each file a leaf. A leaf is the hash of the file&rsquo;s committed bytes with its placement code (<code>0x00</code> kept as is, <code>0x01</code> trailer/1, <code>0x02</code> container/1, <code>0x03</code> container/2), the leaves form an RFC 9162 tree, and the committed artifact is an 84-byte root document naming the root and the count; <code>artifact.digestB64</code> is its hash. The proof alone commits the root. A file proves it is in the tree with its export, which carries its leaf and path (SPEC.md <a href="/spec/SPEC.md">sections 8 and 12</a>). A verifier that does not know the pinned spec hash answers &ldquo;undetermined&rdquo;, never true. Before tree/1, two or more files were a set under one position (set/1, set/2 below); those positions still verify. Registered placements say, byte for byte, where a file&rsquo;s commitment sits:
+        Every BitGraph made now is a <strong>tree/1</strong>, whether it holds one file or a hundred thousand: one position, each file a leaf. A leaf is the hash of the file&rsquo;s committed bytes with its placement code (<code>0x00</code> kept as is, <code>0x01</code> trailer/1, <code>0x02</code> container/1, <code>0x03</code> container/2), the leaves form an RFC 9162 tree, and the committed artifact is an 84-byte root document naming the root and the count; <code>artifact.digestB64</code> is its hash. The proof alone commits the root. A file proves it is in the tree with its export, which carries its leaf and path (SPEC.md <a href="/spec">sections 8 and 12</a>). A verifier that does not know the pinned spec hash answers &ldquo;undetermined&rdquo;, never true. Before tree/1, two or more files were a set under one position (set/1, set/2 below); those positions still verify. Registered placements say, byte for byte, where a file&rsquo;s commitment sits:
       </p>
       <div className="table-scroll">
         <table className="table-k">
@@ -338,7 +338,7 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
 
       <h2 id="next">Where next</h2>
       <ul className="doors">
-        <li><Link href="/spec">SPEC.md</Link><span>The normative text, rendered, with the hash every tree/1 proof pins. The bytes are at <a href="/spec/SPEC.md">/spec/SPEC.md</a>.</span></li>
+        <li><Link href="/spec">SPEC.md</Link><span>The normative text, rendered, with the hash every tree/1 proof pins. The bytes are at <a href="/spec">/spec/SPEC.md</a>.</span></li>
         <li><Link href="/docs/verification">Verification</Link><span>What a verifier checks, in order, and what each result means.</span></li>
         <li><Link href="/api-reference">API reference</Link><span>Every endpoint that produces or reads these proofs.</span></li>
         <li><Link href="/docs/integration">Integration guide</Link><span>Make a proof from the CLI, the SDK or two HTTP calls, and keep it.</span></li>

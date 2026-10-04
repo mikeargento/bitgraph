@@ -37,7 +37,7 @@ export default function McpPage() {
         </dd>
         <dt>stdio package</dt>
         <dd>
-          <code>npx -y @mikeargento/bitgraph-mcp</code> (0.9.1, MIT), for clients that run on the machine that holds the files. Five tools: <code>bitgraph_record</code>, <code>bitgraph_open</code>, <code>bitgraph_commit</code>, <code>bitgraph_check</code>, <code>bitgraph_get_proof</code>. It reads files locally, folders of any size; one call makes one BitGraph of everything in it, a tree/1, and writes its export/1 beside the files with <Link href="/spec/SPEC.md">SPEC.md</Link>.
+          <code>npx -y @mikeargento/bitgraph-mcp</code> (0.9.1, MIT), for clients that run on the machine that holds the files. Five tools: <code>bitgraph_record</code>, <code>bitgraph_open</code>, <code>bitgraph_commit</code>, <code>bitgraph_check</code>, <code>bitgraph_get_proof</code>. It reads files locally, folders of any size; one call makes one BitGraph of everything in it, a tree/1, and writes its export/1 beside the files with <Link href="/spec">SPEC.md</Link>.
         </dd>
       </dl>
       <div className="code-block">
@@ -114,7 +114,7 @@ export default function McpPage() {
           That answer means the connection is live. Asking costs nothing and writes nothing.
         </li>
         <li>
-          <strong>A proof of a file you named comes back and is saved beside it.</strong> Name a file, ask for a BitGraph of it. The agent hashes it, opens a position, builds the new file, commits, and saves the export next to the original: one bitgraph-export/1 per tree, named from the file, with <Link href="/spec/SPEC.md">SPEC.md</Link> beside it. The export is saved whole and unedited, every field, including the proof&rsquo;s <code>environment.attestation.reportB64</code>: a proof missing <code>slotAllocation</code>, <code>environment</code> or the attestation cannot be verified. Earlier recordings saved a proof as <code>&lt;name&gt;.bitgraph-fuse.json</code> or one set proof; those still verify.
+          <strong>A proof of a file you named comes back and is saved beside it.</strong> Name a file, ask for a BitGraph of it. The agent hashes it, opens a position, builds the new file, commits, and saves the export next to the original: one bitgraph-export/1 per tree, named from the file, with <Link href="/spec">SPEC.md</Link> beside it. The export is saved whole and unedited, every field, including the proof&rsquo;s <code>environment.attestation.reportB64</code>: a proof missing <code>slotAllocation</code>, <code>environment</code> or the attestation cannot be verified. Earlier recordings saved a proof as <code>&lt;name&gt;.bitgraph-fuse.json</code> or one set proof; those still verify.
         </li>
       </ol>
 
@@ -150,7 +150,7 @@ export default function McpPage() {
             <tr>
               <td>bitgraph_record<br /><span className="dim">package only</span></td>
               <td>File and folder paths, with <code>export_dir</code>, <code>exports</code> (owner, members, both, none), <code>again</code>, <code>as_is</code> and <code>recovery</code>. The package reads them on this machine; only digests, the root document, position records and each file&rsquo;s sealed recovery entry leave it.</td>
-              <td>One BitGraph of everything in the call, a tree/1, each file with its leaf (one of N), the tree&rsquo;s position and proof page, and the export&rsquo;s path: the owner&rsquo;s export (every leaf and name) by default, one per member with <code>exports</code>, written into <code>export_dir</code> (default: beside the first path given, never inside a folder) with <Link href="/spec/SPEC.md">SPEC.md</Link> beside it. Files already on record, including a file found in an earlier tree through its recovery entry, are returned as they are unless <code>again</code> is true.</td>
+              <td>One BitGraph of everything in the call, a tree/1, each file with its leaf (one of N), the tree&rsquo;s position and proof page, and the export&rsquo;s path: the owner&rsquo;s export (every leaf and name) by default, one per member with <code>exports</code>, written into <code>export_dir</code> (default: beside the first path given, never inside a folder) with <Link href="/spec">SPEC.md</Link> beside it. Files already on record, including a file found in an earlier tree through its recovery entry, are returned as they are unless <code>again</code> is true.</td>
               <td>Allocates and commits in one call; writes export/1 beside the files and keeps a sealed recovery entry per file (<code>recovery: false</code> keeps none but still checks them).</td>
             </tr>
           </tbody>
@@ -165,7 +165,7 @@ export default function McpPage() {
 
       <h2 id="how">How the hosted endpoint makes a BitGraph</h2>
       <p>
-        The endpoint never receives a file. If an agent can hash a file it can build the virtual new file and hash that, so the two steps are all it takes: hash the originals, open a position, build each new file exactly as its recipe says, hash it, commit them together. A batch is one position and one tree however many files it holds, and the commit returns one export per tree; the agent saves it beside the files with <Link href="/spec/SPEC.md">SPEC.md</Link>. Only digests, byte sizes, a file&rsquo;s first bytes, the signed position record and the recipes cross the network. Agents with code execution, ChatGPT and Claude among them, do this on any files you give them.
+        The endpoint never receives a file. If an agent can hash a file it can build the virtual new file and hash that, so the two steps are all it takes: hash the originals, open a position, build each new file exactly as its recipe says, hash it, commit them together. A batch is one position and one tree however many files it holds, and the commit returns one export per tree; the agent saves it beside the files with <Link href="/spec">SPEC.md</Link>. Only digests, byte sizes, a file&rsquo;s first bytes, the signed position record and the recipes cross the network. Agents with code execution, ChatGPT and Claude among them, do this on any files you give them.
       </p>
       <p>
         For clients that run on your machine, the stdio package does the same in one call from plain file paths, and makes one BitGraph of everything in the call: a folder of any size becomes one tree under one position, and its export is written beside the folder, never inside it. Each file is read once for its digest; the new files are never written.
@@ -188,7 +188,7 @@ export default function McpPage() {
       <h2 id="notes">Notes</h2>
       <ul>
         <li><strong>Files are never uploaded.</strong> Only digests, byte sizes, a file&rsquo;s first bytes, signed position records, recipe bytes and the sealed recovery entries cross the network, to either server.</li>
-        <li><strong>Positions are permanent.</strong> A consumed position is never reused, and the anchors that floor it stay published for ten years. The export comes back to the agent, which keeps it beside the files with <Link href="/spec/SPEC.md">SPEC.md</Link>; the proof alone commits only the tree&rsquo;s root. Agents are instructed to make BitGraphs only of files you asked for, and never to generate content just to record it.</li>
+        <li><strong>Positions are permanent.</strong> A consumed position is never reused, and the anchors that floor it stay published for ten years. The export comes back to the agent, which keeps it beside the files with <Link href="/spec">SPEC.md</Link>; the proof alone commits only the tree&rsquo;s root. Agents are instructed to make BitGraphs only of files you asked for, and never to generate content just to record it.</li>
         <li><strong>Keep the export.</strong> It holds the proof, the root document and each file&rsquo;s leaf and name, no file copies and no anchors; with the file it checks offline with nothing of BitGraph&rsquo;s. <code>bitgraph export complete</code> from the <Link href="/docs/sdk">SDK</Link> adds the floor header, the Base ceiling and the Ethereum settlement once they exist.</li>
         <li><strong>Recovery entries.</strong> After each answer, the server keeps a sealed recovery entry per file, stored under a name derived from the file&rsquo;s hash and encrypted with a key derived from it: anyone holding the file can find and open it, nobody else. It is how a file finds its proof again when the export is lost, and how a file already in a tree is recognised before a new BitGraph is made.</li>
         <li><strong>One way.</strong> A BitGraph is a tree of new bytes built from the originals under a position that existed first, so those bytes could not have been finished before the position: that is what open and commit make, one file as a tree of one or a batch as one tree. Neither server offers digest-only recording; that compatibility operation stays on the HTTP API as <code>POST /api/commit</code>.</li>

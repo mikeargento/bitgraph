@@ -104,7 +104,7 @@ export default function OverviewPage() {
         Either way, the new bytes name the position and the position names the new bytes, and the floor the enclave fixed when it allocated the position puts a public time under them. The proof&rsquo;s signed attribution field carries the marker: the name <code>bitgraph-fuse/2</code>, the title <code>tree/1</code>, and the SHA-256 of the <code>SPEC.md</code> the proof was made under. A verifier that does not know that hash answers undetermined, never valid.
       </p>
       <p>
-        Making a BitGraph of one or more files yields one position: a <code>tree/1</code>. Each file is a leaf, named by its digest and its placement; one file is a tree of one. The committed artifact is the hash of an 84-byte root document holding the leaf count, the Merkle root and the position commitment, so the root, the count and the commitment are all signed. The owner&rsquo;s export lists every leaf and name; a member&rsquo;s export carries one file&rsquo;s leaf and its path to the root, so each file can be checked alone. Nothing can be added to a tree afterwards. Earlier recordings placed a single fused file directly, or two or more files as a set; they still verify. The <Link href="/docs/proof-format#fused">proof format</Link> page has the byte-level placements, and <a href="/spec/SPEC.md">SPEC.md</a> section 8 is the normative text.
+        Making a BitGraph of one or more files yields one position: a <code>tree/1</code>. Each file is a leaf, named by its digest and its placement; one file is a tree of one. The committed artifact is the hash of an 84-byte root document holding the leaf count, the Merkle root and the position commitment, so the root, the count and the commitment are all signed. The owner&rsquo;s export lists every leaf and name; a member&rsquo;s export carries one file&rsquo;s leaf and its path to the root, so each file can be checked alone. Nothing can be added to a tree afterwards. Earlier recordings placed a single fused file directly, or two or more files as a set; they still verify. The <Link href="/docs/proof-format#fused">proof format</Link> page has the byte-level placements, and <a href="/spec">SPEC.md</a> section 8 is the normative text.
       </p>
 
       <h2 id="time">4. Where time comes from</h2>
@@ -160,7 +160,7 @@ export default function OverviewPage() {
           </tbody>
         </table>
       </div>
-      <p className="note">Every field, its encoding and what is and is not signed: <Link href="/docs/proof-format">proof format</Link>. The same account in formal terms, with the invariants: <Link href="/docs/what-is-bitgraph">the protocol</Link>. The normative text for tree/1, the export and recovery: <a href="/spec/SPEC.md">SPEC.md</a>.</p>
+      <p className="note">Every field, its encoding and what is and is not signed: <Link href="/docs/proof-format">proof format</Link>. The same account in formal terms, with the invariants: <Link href="/docs/what-is-bitgraph">the protocol</Link>. The normative text for tree/1, the export and recovery: <a href="/spec">SPEC.md</a>.</p>
 
       <h2 id="next">Where next</h2>
       <ul className="doors">

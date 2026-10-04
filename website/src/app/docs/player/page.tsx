@@ -191,7 +191,7 @@ export default function PlayerPage() {
 
       <h2 id="spec">Specification</h2>
       <p>
-        The semantics are specified precisely enough to reimplement. Player&rsquo;s own <a href={`${GITHUB}/blob/main/packages/player/SPEC.md`} target="_blank" rel="noopener noreferrer">SPEC.md</a> (the rule language, the three answers, the verdict) is normative for Player. The proofs it reads are specified by the protocol&rsquo;s <a href="/spec/SPEC.md">SPEC.md</a>. The <a href={NPM} target="_blank" rel="noopener noreferrer">published package</a> is the MIT-licensed reference implementation, built on the same <Link href="/docs/audit">audit pipeline</Link> used to inspect a BitGraph bundle by hand. A conforming Player in any language must reach the same verdict from the same rule and the same evidence.
+        The semantics are specified precisely enough to reimplement. Player&rsquo;s own <a href={`${GITHUB}/blob/main/packages/player/SPEC.md`} target="_blank" rel="noopener noreferrer">SPEC.md</a> (the rule language, the three answers, the verdict) is normative for Player. The proofs it reads are specified by the protocol&rsquo;s <a href="/spec">SPEC.md</a>. The <a href={NPM} target="_blank" rel="noopener noreferrer">published package</a> is the MIT-licensed reference implementation, built on the same <Link href="/docs/audit">audit pipeline</Link> used to inspect a BitGraph bundle by hand. A conforming Player in any language must reach the same verdict from the same rule and the same evidence.
       </p>
 
       <h2 id="next">Where next</h2>

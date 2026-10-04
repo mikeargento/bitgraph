@@ -32,7 +32,7 @@ export default function SpecPage() {
     <div className="frame" style={{ padding: "56px 0 96px" }}>
       <article className="prose spec-doc">
         <p className="lede">
-          This is <a href="/spec/SPEC.md">SPEC.md</a>, rendered. Every tree/1 proof pins the SHA-256 of that file as its signed <code>attribution.message</code>; a verifier that does not know the hash answers &ldquo;undetermined&rdquo;, never true. The bytes are served unchanged at <a href="/spec/SPEC.md">/spec/SPEC.md</a>, which is the copy the drop box, the SDK and the hosted MCP put beside every export.
+          This is SPEC.md, rendered. Every tree/1 proof pins the SHA-256 of that file as its signed <code>attribution.message</code>; a verifier that does not know the hash answers &ldquo;undetermined&rdquo;, never true. The file itself is plain text: <a href="/spec/SPEC.md" download="SPEC.md">download the bytes</a> to check the hash, or fetch <code>/spec/SPEC.md</code>. That copy is what the drop box, the SDK and the hosted MCP put beside every export.
         </p>
         <div className="table-scroll">
           <table className="table-k">

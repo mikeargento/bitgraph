@@ -139,7 +139,7 @@ export default function VerificationPage() {
 
       <h3 id="tree">Members of a tree</h3>
       <p>
-        Every BitGraph made since 2026-10-04 is a <code>tree/1</code>: one position for one or more files, each file a leaf, one file a tree of one. Earlier recordings placed a single fused file directly, or two or more files as a set; they still verify by the rules above. For a tree the committed artifact is not the file but an 84-byte root document, so the seven checks run on the proof and four more run on the member. The rules are <a href="/spec/SPEC.md">SPEC.md</a>, section 8; the verifier states one line per claim.
+        Every BitGraph made since 2026-10-04 is a <code>tree/1</code>: one position for one or more files, each file a leaf, one file a tree of one. Earlier recordings placed a single fused file directly, or two or more files as a set; they still verify by the rules above. For a tree the committed artifact is not the file but an 84-byte root document, so the seven checks run on the proof and four more run on the member. The rules are <a href="/spec">SPEC.md</a>, section 8; the verifier states one line per claim.
       </p>
       <ol className="steps">
         <li>
@@ -349,7 +349,7 @@ Content-Type: application/json
         <li><Link href="/docs/audit">Audit a bundle</Link><span>Many proofs, their order and their anchors, checked offline with one command.</span></li>
         <li><Link href="/docs/player">Player</Link><span>Evaluate ordering rules over a set of proofs and get a verdict anyone can reproduce.</span></li>
         <li><Link href="/docs/proof-format">Proof format</Link><span>Every field, its encoding, and what is and is not signed.</span></li>
-        <li><a href="/spec/SPEC.md">SPEC.md</a><span>The normative text: tree/1, the export, recovery entries and every verification rule, byte for byte the file a proof pins.</span></li>
+        <li><a href="/spec">SPEC.md</a><span>The normative text: tree/1, the export, recovery entries and every verification rule, byte for byte the file a proof pins.</span></li>
         <li><Link href="/docs/what-bitgraph-is-not">Limits</Link><span>Truth, authorship, first creation, exact time, a universal order.</span></li>
       </ul>
     </article>
