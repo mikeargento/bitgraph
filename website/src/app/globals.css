@@ -2442,7 +2442,7 @@ a:hover > .ext-arrow { translate: 2px -2px; }
 /* The live demo, final shape (Mike, 2026-09-29: "what if link is first and says Live BitGraph
    Postseason"): a title line (the LIVE pill, then the name as the link) with the sentence under
    it in the dim tone. */
-.home .home-live { display: block !important; margin: 30px 0 0 !important; max-width: 58em; }
+.home .home-live { display: block !important; margin: auto 0 0 !important; padding-top: 30px; max-width: 58em; } /* auto for the same reason; 30px kept as padding */
 .home .home-live-title { display: inline-flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; color: var(--accent) !important; text-decoration: none !important; }
 .home .home-live-title:hover { color: var(--ink) !important; }
 .home .home-live-title:hover .home-live-name { text-decoration: underline; text-underline-offset: 3px; }
@@ -2508,7 +2508,7 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .rl-list > div::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--g-blue, #4285f4); opacity: 0.35; }
 /* Home rhythm: the live block is a separate thing from the hero's own buttons, so it stands a
    little further off them (44px) than the buttons stand from the paragraph (about 32px). */
-@media (min-width: 900px) { .home .home-live { margin-top: 44px !important; } }
+@media (min-width: 900px) { .home .home-live { margin-top: auto !important; padding-top: 44px; } } /* auto, so the appendix sits at the foot of the first screen and the hero centres above it; the fixed 44px here defeated the auto margin (found 2026-10-04) */
 /* Cap lowered (Mike, 2026-09-29: "still a bit large when browser width allows"): the headline
    stops at 96px, a step above the pre-restyle 88px; the paragraph stays capped at 24px. */
 @media (min-width: 900px) { .home h1 { font-size: min(max(72px, calc(min(90vw, 1600px) * 0.0846)), 96px) !important; } } /* never below the 72px the 899 rule hands over; 96px from 1261 wide */
