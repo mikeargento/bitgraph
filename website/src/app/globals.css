@@ -2119,6 +2119,19 @@ body { background: var(--bg); }
   .home .lede { font-size: clamp(18px, 2.3vw, 24px) !important; line-height: 1.5 !important; max-width: 36em; text-wrap: balance; }
 }
 
+/* Centred hero (Mike, 2026-10-04: "now we are centering the h1 ... it will be better now with
+   this new h1"). "GPS for files." is three words with a one-line subhead and a three-word
+   coordinates line: slogan shape, which reads on a centre axis, the same axis as the centred
+   nav above and the drop box below. The earlier heroes were left-aligned because they carried a
+   long typing line and a paragraph of argument. Only the home frame is centred; prose pages
+   stay left. */
+.home { text-align: center; align-items: center; }
+.home h1, .home .lede { margin-left: auto; margin-right: auto; }
+.home .actions { justify-content: center; }
+.home .home-live { text-align: center; align-items: center; }
+.home .home-live-title { justify-content: center; }
+.home .home-live-text { margin-left: auto; margin-right: auto; }
+
 /* The home page's two actions are the only interactive thing on it, sitting under
    an 80px headline, so the site's 32px toolbar control reads as an afterthought
    there. Scoped to .home: everywhere else the dense control is right, because it
