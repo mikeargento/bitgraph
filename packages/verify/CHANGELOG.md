@@ -2,7 +2,11 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
-## 1.16.0 (2026-10-03, prepared, not yet published)
+## 1.16.0 (2026-10-04)
+
+- **The specification is frozen.** `spec/SPEC.md` version 1, SHA-256 `QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs=` (`spec/FROZEN.json`), is the one hash every tree/1 proof signs in `attribution.message`; it is the first entry of `KNOWN_TREE_SPEC_HASHES` and never changes. A later specification is a new hash added beside it.
+- **Streaming verification** (`stream.ts`): `verifyTreeMember({ source })` and `verifyExport({ source })` check a file of any size against its leaf in one pass with flat memory (`ByteSource`, `bytesSource`, `blobSource`, `streamDigest`, `streamLeafCheck`); the whole-bytes forms stay. No size limit remains in the format: a file above tar's 8 GiB entry size takes the trailer placement (`MAX_CONTAINER_ENTRY_BYTES`).
+- **Two floors, named apart** (SPEC 8.6): the claims are `floor.record` (every member: the signed root document carries the commitment to block N) and `floor.content` (placed leaves only: the committed bytes carry it); `floorCovers` is `"content"` or `"record"`; an as-is member reads "recorded after Ethereum block N; the bytes themselves are not dated".
 
 - **tree/1** (`tree.ts`): every BitGraph is a Merkle tree under one position; a single file is a tree of one. 65-byte leaves (`placement || artifact || origin`; codes 0x00 as is, 0x01 trailer/1, 0x02 container/1, 0x03 container/2), RFC 6962 tree, 84-byte root document (`"bitgraph-tree/1" 0x00 || u32be count || root || commitment/2`) whose SHA-256 is the signed digest, signed attribution `{name: "bitgraph-fuse/2", title: "tree/1", message: B64 SHA-256(SPEC.md)}`. `verifyTreeMember` (categories TREE_MEMBER_DIRECT / FROM_ORIGIN / AS_IS, TREE_PATH_VALID, TREE_ROOT_VALID, and every refusal), `verifyTreeLeaves` (the only check of order and uniqueness), builders and parsers, `KNOWN_TREE_SPEC_HASHES` and `currentTreeSpecHash`. No enclave change.
 - **bitgraph-output-root/1** (`output-root.ts`): a Base ceiling settled on Ethereum through Base's output root and an EIP-2935 storage proof of the ceiling block's hash (or the output root's own block hash when B = P), with the Ethereum transaction carrying the claim. No blob data and no KZG. `verifyOutputRootSettlement`, `computeOutputRoot`, `historySlot`.
