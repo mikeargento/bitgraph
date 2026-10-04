@@ -53,6 +53,8 @@ const SLOT = {
 };
 
 before(async () => {
+  // Pending recovery jobs go under $BITGRAPH_HOME, never this machine's ~/.bitgraph.
+  process.env["BITGRAPH_HOME"] = await mkdtemp(join(tmpdir(), "bitgraph-sdk-home-"));
   root = await mkdtemp(join(tmpdir(), "bitgraph-sdk-"));
   freshA = join(root, "a.txt");
   freshB = join(root, "b.txt");

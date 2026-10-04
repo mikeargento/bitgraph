@@ -180,19 +180,29 @@ test("an entry already held by something else goes under its salted name, with t
   assert.equal(again.written, 0);
   assert.deepEqual(again.state.salts, w.state.salts);
 
-  // Both names held: a site answering "exists" with somebody else's bytes for every key under this address.
+  // A fresh run that lost its state (no salts): it finds its salted entry on the address and keeps it, writing nothing new.
+  const amnesiac = await writeRecoveryEntries({ proof, rootDocument, leavesBytes, names }, { baseUrl: "https://example.test", fetch: s.fetch, backoffMs: 1 });
+  assert.equal(amnesiac.written, 0, "no second salted copy");
+  assert.equal(amnesiac.salted, 1);
+  assert.deepEqual(amnesiac.state.salts, w.state.salts, "the salt is read back from the entry");
+  assert.equal(s.store.size, ENTRIES + 1);
+
+  // Both names held: a fresh site (nothing of ours there to find) answering "exists" with somebody else's bytes for every key under this address.
+  const t = site();
   const prefix = `recovery/v1/${recoveryAddress(held.digest)}/`;
   const squatting = async (url: string, init?: RequestInit): Promise<Response> => {
-    const res = await s.fetch(url, init);
-    if (new URL(url).pathname !== "/api/recovery" || init?.method !== "POST") return res;
-    const body = (await res.json()) as { results: Array<{ key: string; status: string; envelope?: string }> };
-    for (const r of body.results) if (r.key.startsWith(prefix)) Object.assign(r, { status: "exists", envelope: Buffer.from(new Uint8Array(64).fill(1)).toString("base64") });
-    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    if (new URL(url).pathname !== "/api/recovery" || init?.method !== "POST") return t.fetch(url, init);
+    // Entries under the squatted address never reach the store: every one of them "exists" with somebody else's bytes.
+    const entries = (JSON.parse(String(init.body)) as { entries: Array<{ key: string; envelope: string }> }).entries;
+    const held = entries.filter((e) => e.key.startsWith(prefix)).map((e) => ({ key: e.key, status: "exists", envelope: Buffer.from(new Uint8Array(64).fill(1)).toString("base64") }));
+    const rest = entries.filter((e) => !e.key.startsWith(prefix));
+    const results = rest.length > 0 ? ((await (await t.fetch(url, { ...init, body: JSON.stringify({ entries: rest }) })).json()) as { results: unknown[] }).results : [];
+    return new Response(JSON.stringify({ results: [...results, ...held] }), { status: 200, headers: { "content-type": "application/json" } });
   };
   const b = await writeRecoveryEntries({ proof, rootDocument, leavesBytes, names }, { baseUrl: "https://example.test", fetch: squatting, backoffMs: 1 });
   assert.equal(b.blocked, 1, "the deterministic name and then a salted one, both held");
   assert.equal(b.salted, 0);
-  assert.equal(b.alreadyThere, ENTRIES - 1, "the rest were written the first time");
+  assert.equal(b.written, ENTRIES - 1, "the rest were written");
   assert.equal(b.pending, 0);
 });
 

@@ -199,7 +199,7 @@ describe("the queue", () => {
     const squatKey = recoveryObjectKey(recoveryAddress(leaf.origin), recoveryEntryId(leaf.origin, tree.proofHash32, 1));
     server.objects.set(squatKey, await sealRecoveryEnvelope(recoveryKeyBytes(leaf.origin), squatKey, recoveryPlaintextFor(tree, 3, "note.md").bytes));
     const jobs = new MemoryRecoveryQueueStore();
-    const q = queueWith({ store: jobs, transport: serverTransport(server) });
+    const q = queueWith({ store: jobs, transport: serverTransport(server), lookupFetch: fakeFetch(server) });
     const { id } = await q.enqueueTree(input);
     await q.idle();
     assert.equal(q.fileStatus(id, 1), "recoverable");
@@ -223,6 +223,58 @@ describe("the queue", () => {
     assert.equal(byArtifact[0]!.salted, false);
   });
 
+  test("two tabs on one job end with one salt per side and one salted entry; a salted copy already there is counted and its salt kept, not duplicated", T, async () => {
+    const { v, input } = vectorInput();
+    const server = new MemoryRecoveryStore();
+    const tree = recoveryTreeFrom(input);
+    const leaf = decodeTreeLeaves(v.leavesBytes)![1]!;
+    const squatKey = recoveryObjectKey(recoveryAddress(leaf.origin), recoveryEntryId(leaf.origin, tree.proofHash32, 1));
+    server.objects.set(squatKey, await sealRecoveryEnvelope(recoveryKeyBytes(leaf.origin), squatKey, recoveryPlaintextFor(tree, 3, "note.md").bytes));
+    const jobs = new MemoryRecoveryQueueStore();
+    const lookupFetch = fakeFetch(server);
+    // Two tabs, one saved job, both working it.
+    const a = queueWith({ store: jobs, transport: serverTransport(server), lookupFetch });
+    const b = queueWith({ store: jobs, transport: serverTransport(server), lookupFetch });
+    const [ra, rb] = await Promise.all([a.enqueueTree(input), b.enqueueTree(input)]);
+    assert.equal(ra.id, rb.id);
+    await Promise.all([a.idle(), b.idle()]);
+    const saltedKeys = [...server.objects.keys()].filter((k) => k.startsWith(`recovery/v1/${recoveryAddress(leaf.origin)}/`) && k !== squatKey);
+    assert.equal(saltedKeys.length, 1, `one salted entry, not one per tab (${saltedKeys.length})`);
+    assert.equal(Object.keys(jobs.jobs.get(ra.id)!.salts ?? {}).length, 1, "one salt saved");
+    // A third tab later, with no memory of the salt (a fresh browser): it finds the salted entry already there and keeps its salt instead of writing another.
+    const fresh = new MemoryRecoveryQueueStore();
+    const c = queueWith({ store: fresh, transport: serverTransport(server), lookupFetch });
+    const { id } = await c.enqueueTree(input);
+    await c.idle();
+    assert.equal(c.fileStatus(id, 1), "recoverable");
+    assert.equal([...server.objects.keys()].filter((k) => k.startsWith(`recovery/v1/${recoveryAddress(leaf.origin)}/`)).length, 2, "still the squatter's and ours, no third");
+    assert.equal(fresh.jobs.get(id)!.salts!["1:origin"], jobs.jobs.get(ra.id)!.salts!["1:origin"], "the same salt, read back from the entry");
+  });
+
+  test("a salt that cannot be saved is never written under: the side stays pending until storage works", T, async () => {
+    const { v, input } = vectorInput();
+    const server = new MemoryRecoveryStore();
+    const tree = recoveryTreeFrom(input);
+    const leaf = decodeTreeLeaves(v.leavesBytes)![1]!;
+    const squatKey = recoveryObjectKey(recoveryAddress(leaf.origin), recoveryEntryId(leaf.origin, tree.proofHash32, 1));
+    server.objects.set(squatKey, await sealRecoveryEnvelope(recoveryKeyBytes(leaf.origin), squatKey, recoveryPlaintextFor(tree, 3, "note.md").bytes));
+    const jobs = new (class extends MemoryRecoveryQueueStore {
+      override async mergeSalts(): Promise<Record<string, string>> {
+        throw new Error("quota exceeded");
+      }
+    })();
+    const waits: number[] = [];
+    const q = queueWith({ store: jobs, transport: serverTransport(server), lookupFetch: fakeFetch(server) }, waits);
+    const { id } = await q.enqueueTree(input);
+    // Let it make its passes, then stop: no salted write without a saved salt.
+    await new Promise((r) => setTimeout(r, 30));
+    await q.stop();
+    assert.equal(q.fileStatus(id, 1), "pending");
+    assert.deepEqual(q.fileDetail(id, 1), { origin: "pending", artifact: "kept" });
+    assert.equal([...server.objects.keys()].filter((k) => k.startsWith(`recovery/v1/${recoveryAddress(leaf.origin)}/`)).length, 1, "only the squatter's entry under the original's address");
+    assert.ok(waits.length > 0, "the pass backed off instead of spinning");
+  });
+
   test("both names held blocks only that side of that file", T, async () => {
     const { v, input } = vectorInput();
     const server = new MemoryRecoveryStore();
@@ -238,7 +290,7 @@ describe("the queue", () => {
         return results;
       },
     };
-    const q = queueWith({ store: new MemoryRecoveryQueueStore(), transport });
+    const q = queueWith({ store: new MemoryRecoveryQueueStore(), transport, lookupFetch: fakeFetch(server) });
     const { id } = await q.enqueueTree(input);
     await q.idle();
     assert.equal(q.fileStatus(id, 1), "blocked");

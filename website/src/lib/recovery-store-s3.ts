@@ -136,8 +136,16 @@ export class S3RecoveryStore implements RecoveryStore {
       const envelope = bodies[i];
       if (envelope) entries.push({ key, envelope });
     });
-    const last = scanned.length > 0 ? scanned[scanned.length - 1]!.slice(prefix.length) : null;
-    return { entries, next: listed.IsTruncated && last !== null && ENTRY_ID_PATTERN.test(last) ? last : null };
+    if (!listed.IsTruncated) return { entries, next: null };
+    // More follows. The cursor is the last well-formed key on this page (a
+    // malformed key cannot be an entry id the client accepts; re-listing a few
+    // keys after it is harmless, dropping the rest of the listing is not). A
+    // truncated page with no well-formed key at all cannot be continued.
+    for (let i = scanned.length - 1; i >= 0; i--) {
+      const id = scanned[i]!.slice(prefix.length);
+      if (scanned[i]!.startsWith(prefix) && ENTRY_ID_PATTERN.test(id)) return { entries, next: id };
+    }
+    throw new Error("a truncated listing page holds no well-formed entry key to continue from");
   }
 
   /** The object's bytes, null when it is not there; any other failure throws. */

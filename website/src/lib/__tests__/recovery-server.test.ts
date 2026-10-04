@@ -90,6 +90,12 @@ describe("recovery written by the site", () => {
     assert.equal(found[0]!.salted, true);
     assert.equal(found[0]!.leafIndex, 0);
 
+    // A second request for the same tree (nothing remembered): it finds its salted entry already there and keeps it, no third copy.
+    const again = await keepTreeOnSite(input, store, { writesOn: true });
+    assert.equal(again.salted, 1);
+    assert.equal(again.written, 0);
+    assert.equal(store.objects.size, ENTRIES + 1, "no second salted copy");
+
     // Both names held (someone answering "exists" with their own bytes for every key under this address): blocked, never written, never counted.
     const squatted = new SquattedStore(recoveryAddress(held.digest));
     const b = await keepTreeOnSite(input, squatted, { writesOn: true });

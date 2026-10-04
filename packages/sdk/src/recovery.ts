@@ -18,6 +18,11 @@
  * because a member of an earlier tree would look exactly like it (SPEC
  * section 13).
  *
+ * Trees made here whose entries are not written yet (recovery-jobs.ts) are
+ * consulted too: their members are on record, and the store does not know it
+ * yet. The job holds the proof, so the file is verified against it from its
+ * own bytes without any network.
+ *
  * After a make, every member's entries are written. That happens after the
  * proof is in hand and never stands in its way; the job is saved first
  * (recovery-jobs.ts), so a site that does not take writes yet, a lost
@@ -25,11 +30,11 @@
  * result says why. The next record finishes them.
  */
 
-import { TREE_MEMBER_CATEGORIES } from "@mikeargento/bitgraph-verify";
+import { TREE_MEMBER_CATEGORIES, hexToBytes, verifyTreeMember } from "@mikeargento/bitgraph-verify";
 import { fetchRecoveredProof, recoverFromDigests, writeRecoveryEntries, type RecoveryWriteOptions, type RecoveryWriteResult } from "@mikeargento/bitgraph";
 import type { ApiConfig } from "./api.js";
 import { mapConcurrent } from "./encoding.js";
-import { RECORD_RECOVERY_BUDGET_MS, registerRecoveryJob, runRecoveryJob } from "./recovery-jobs.js";
+import { RECORD_RECOVERY_BUDGET_MS, pendingMembersFor, registerRecoveryJob, runRecoveryJob } from "./recovery-jobs.js";
 import { fileSource, type ScannedFile } from "./scan.js";
 import type { BitGraphProof, SetMemberView } from "./types.js";
 
@@ -62,17 +67,42 @@ export async function lookupRecovered(files: readonly ScannedFile[], config: Pic
   if (files.length === 0) return out;
   const lookup = { baseUrl: config.baseUrl };
   const digests = files.map((f) => Uint8Array.from(Buffer.from(f.digestB64, "base64")));
-  const answers = await recoverFromDigests(digests, undefined, lookup);
+  const [answers, pending] = await Promise.all([
+    recoverFromDigests(digests, undefined, lookup),
+    pendingMembersFor(files.map((f) => f.digestB64), config.baseUrl).catch(() => new Map<string, never[]>()),
+  ]);
   await mapConcurrent(files, 4, async (file, k) => {
     const a = answers[k]!;
+    const local = pending.get(file.digestB64) ?? [];
+    // A member of a tree made here, its entries still pending: verified against the job's own proof, from the file's bytes.
+    const rows: RecoveredRow[] = [];
+    if (local.length > 0) {
+      try {
+        const source = await fileSource(file.path);
+        for (const m of local) {
+          const rootDocument = hexToBytes(m.rootDocumentHex);
+          if (rootDocument === null) continue;
+          const check = await verifyTreeMember({ proof: m.job.proof as never, member: m.evidence, rootDocument, source });
+          if (!(TREE_MEMBER_CATEGORIES as readonly string[]).includes(check.category)) continue;
+          const proof = m.job.proof as unknown as BitGraphProof;
+          if (rows.some((r) => r.proof.commit?.counter === proof.commit?.counter && r.proof.commit?.epochId === proof.commit?.epochId)) continue;
+          rows.push({ proof, member: { index: m.evidence.index, count: m.evidence.count }, tree: true });
+        }
+      } catch {
+        /* the file could not be read now: the store's answer decides below */
+      }
+    }
     if (!a.ok) {
-      out.unknown.set(file.digestB64, a.reason);
+      if (rows.length > 0) out.found.set(file.digestB64, rows);
+      else out.unknown.set(file.digestB64, a.reason);
       return;
     }
-    if (a.entries.length === 0) return;
+    if (a.entries.length === 0) {
+      if (rows.length > 0) out.found.set(file.digestB64, rows);
+      return;
+    }
     try {
       const source = await fileSource(file.path);
-      const rows: RecoveredRow[] = [];
       for (const e of a.entries) {
         const bound = await fetchRecoveredProof(e, undefined, { ...lookup, source });
         if (bound === null) continue;
@@ -83,8 +113,9 @@ export async function lookupRecovered(files: readonly ScannedFile[], config: Pic
       }
       if (rows.length > 0) out.found.set(file.digestB64, rows);
     } catch (e) {
-      // An entry says the file is in a tree, and the proof could not be read to check it: unknown, not new.
-      out.unknown.set(file.digestB64, e instanceof Error ? e.message : String(e));
+      // An entry says the file is in a tree, and the proof could not be read to check it: unknown, not new (unless a pending job already verified it).
+      if (rows.length > 0) out.found.set(file.digestB64, rows);
+      else out.unknown.set(file.digestB64, e instanceof Error ? e.message : String(e));
     }
   });
   out.failed = out.unknown.size;

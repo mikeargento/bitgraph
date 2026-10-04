@@ -36,6 +36,7 @@ import {
   MAX_BATCH_ENTRIES,
   RECOVERY_SIDE_BITS,
   existingEntryHoldsMember,
+  findOwnRecoveryEntry,
   newRecoverySalt,
   recoverySaltKey,
   recoverySaltsFor,
@@ -236,10 +237,33 @@ export async function writeRecoveryEntries(input: RecoveryWriteInput, opts: Reco
       // "conflict", "error", or no answer: pending for the next round.
     }
     if (fallbacks.length === 0 || stopped) return;
-    for (const p of fallbacks) salts[recoverySaltKey(p.index, p.w.side)] ??= bytesToBase64(newRecoverySalt());
+    // Another member holds these keys. Before a fresh salt, the address is
+    // read: an entry of this member may already sit there under a salted name
+    // from an earlier run whose salt was not kept. Found, it counts and its
+    // salt is kept now; an address that cannot be read leaves the side
+    // pending (nothing is guessed, no second copy is written).
+    const fresh: Planned[] = [];
+    for (const p of fallbacks) {
+      let own: Awaited<ReturnType<typeof findOwnRecoveryEntry>>;
+      try {
+        own = await findOwnRecoveryEntry(p.w.digest, p.w.plaintext, f, { baseUrl: base });
+      } catch (e) {
+        reason = `the address could not be read before a salted write (${(e as Error).message})`;
+        continue;
+      }
+      if (own !== null) {
+        progress[p.index]! |= RECOVERY_SIDE_BITS[p.w.side].kept;
+        alreadyThere++;
+        if (own.salt !== null) salts[recoverySaltKey(p.index, p.w.side)] = bytesToBase64(own.salt);
+        continue;
+      }
+      fresh.push(p);
+    }
+    if (fresh.length === 0) return;
+    for (const p of fresh) salts[recoverySaltKey(p.index, p.w.side)] ??= bytesToBase64(newRecoverySalt());
     await keep();
     const resealed: Planned[] = [];
-    for (const p of fallbacks) {
+    for (const p of fresh) {
       const { writes } = await sealRecoveryMember(tree, p.index, names?.[p.index] ?? null, [p.w.side], recoverySaltsFor(salts, p.index));
       for (const w of writes) resealed.push({ index: p.index, w });
     }

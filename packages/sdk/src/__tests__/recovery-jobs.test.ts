@@ -32,12 +32,14 @@ import {
   jobFromOwnerExport,
   keepRecoveryEntries,
   listRecoveryJobs,
+  pendingMembersFor,
   recoveryJobId,
   recoveryJobsDir,
   registerRecoveryJob,
   runRecoveryJob,
   saveRecoveryJob,
 } from "../index.js";
+import { utimes } from "node:fs/promises";
 
 const VEC = JSON.parse(await readFile(fileURLToPath(new URL("../../../../spec/vectors/export-1.json", import.meta.url)), "utf8")) as {
   ownerExport: { proof: BitGraphProof; tree: { rootDocument: string; leaves: string; names: string[] } };
@@ -174,11 +176,12 @@ test("a run cut short by its budget saves its progress, and the next run writes 
   assert.deepEqual(await jobFiles(), []);
 });
 
-test("a job held by a live process is left alone; a stale lock is taken over", async () => {
+test("a job held by a live process is left alone; a stale lock (untouched for ten minutes) is taken over", async () => {
   const s = site();
   const { job, path } = await registerRecoveryJob(made, { baseUrl: BASE });
   const lock = path.replace(/\.json$/, ".lock");
-  await writeFile(lock, JSON.stringify({ pid: 1, at: Date.now() }));
+  // An empty lock, as a process that has just created it would leave for a moment: live.
+  await writeFile(lock, "");
   assert.equal(await runRecoveryJob(job, { fetch: s.fetch }), null, "held by another process");
   assert.equal(s.state.posts, 0);
   const viaKeep = await keepRecoveryEntries(made, { baseUrl: BASE }, { fetch: s.fetch });
@@ -187,11 +190,32 @@ test("a job held by a live process is left alone; a stale lock is taken over", a
   const flushed = await flushRecoveryJobs({ baseUrl: BASE }, { fetch: s.fetch });
   assert.deepEqual(flushed, { worked: [], left: 1 });
 
-  await writeFile(lock, JSON.stringify({ pid: 1, at: Date.now() - 11 * 60_000 }));
+  // Staleness is the file's age, not its contents.
+  const old = new Date(Date.now() - 11 * 60_000);
+  await utimes(lock, old, old);
   const r = await runRecoveryJob(job, { fetch: s.fetch, backoffMs: 1 });
   assert.ok(r !== null && r.done, "a stale lock belongs to a process that is gone");
   assert.deepEqual(await jobFiles(), []);
   assert.deepEqual((await readdir(recoveryJobsDir())).filter((n) => n.endsWith(".lock")), [], "the lock is released");
+});
+
+test("a file in a pending job is on record for the next record: its member comes back from the job, verified against the job's own proof", async () => {
+  const s = site();
+  s.state.writes = "off";
+  const r = await keepRecoveryEntries(made, { baseUrl: BASE }, { fetch: s.fetch, backoffMs: 1 });
+  assert.equal(r.pending, ENTRIES, "nothing written: the job waits");
+  const leaves = base64ToBytes(owner.tree.leaves)!;
+  const origin0 = bytesToBase64(leaves.subarray(1 + 32, 1 + 64));
+  const artifact0 = bytesToBase64(leaves.subarray(1, 1 + 32));
+  const pending = await pendingMembersFor([origin0, artifact0, bytesToBase64(sha256(utf8("not in any tree")))], BASE);
+  assert.equal(pending.size, 2);
+  assert.equal(pending.get(origin0)![0]!.leafIndex, 0);
+  assert.equal(pending.get(artifact0)![0]!.side, "artifact");
+  assert.equal(pending.get(origin0)![0]!.job.id, recoveryJobId(owner.proof));
+  assert.deepEqual(await pendingMembersFor([origin0], "https://other.test"), new Map(), "another site's jobs are not this site's");
+  s.state.writes = "on";
+  await flushRecoveryJobs({ baseUrl: BASE }, { fetch: s.fetch, backoffMs: 1 });
+  assert.equal((await pendingMembersFor([origin0], BASE)).size, 0, "a finished job is gone from the pending members");
 });
 
 test("a job from an owner's export is the same job; a member's export cannot write the tree's entries", async () => {
@@ -204,6 +228,8 @@ test("a job from an owner's export is the same job; a member's export cannot wri
   const r = await runRecoveryJob(job, { fetch: s.fetch, backoffMs: 1 });
   assert.ok(r !== null && r.done);
   assert.equal(s.store.size, ENTRIES);
+  // Base URLs compare without a trailing slash.
+  assert.equal(jobFromOwnerExport(owner, `${BASE}/`).baseUrl, BASE);
   assert.throws(() => jobFromOwnerExport({ proof: owner.proof, tree: { member: {} } }, BASE), /owner's export/);
   assert.throws(() => jobFromOwnerExport("nonsense", BASE), /owner's export/);
 });

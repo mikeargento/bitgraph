@@ -83,7 +83,7 @@ export const TREE_METADATA_KEY = TREE_PROFILE;
  */
 export const KNOWN_TREE_SPEC_HASHES: readonly string[] = Object.freeze([
   // SPEC.md v1 (spec/SPEC.md). Written by spec/pin-hash.mjs. Once a proof pins it, it never changes: a later spec is added beside it.
-  "JVYDtS8GpkpVkVDYqgsMGHOw/gDfH+B/2hcvntHk9eQ=",
+  "IJHz0J54r5L1xtoS5FN3JsC+wrx3AYal6tHZxi2db9s=",
 ]);
 
 /** Placement codes: the first byte of a leaf. */

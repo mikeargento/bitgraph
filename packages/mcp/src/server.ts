@@ -34,7 +34,7 @@ import {
   classifyPath, fuseTreePipeline,
   type CarrierRow, type FuseTreeFn, type FuseFileFn, type FuseSetFn, type TreeSummary,
   exportDataOf, fetchPinnedSpec, writeTreeExports, EXPORT_KINDS, type WrittenExports,
-  lookupRecovered, keepRecoveryEntries, type RecoveredRow,
+  lookupRecovered, keepRecoveryEntries, flushRecoveryJobs, FLUSH_ON_RECORD_BUDGET_MS, type RecoveredRow,
   SLOT_TTL_SECONDS, beginTask, decodeTaskToken, sealTask, writeProofBeside,
   type BitGraphProof, type ProofDetailResponse,
 } from "@mikeargento/bitgraph-sdk";
@@ -266,6 +266,12 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
 
         // 3. What is on record already. A BitGraphed file is looked up by the
         //    digest of its committed bytes, never by the envelope's.
+        // Entries an earlier record left pending (a site that took no writes,
+        // a run cut short) are finished first, inside a small budget.
+        if (recovery !== false) {
+          report(0, 1, "finishing earlier recovery entries");
+          await flushRecoveryJobs(config, { budgetMs: FLUSH_ON_RECORD_BUDGET_MS });
+        }
         report(0, 1, "checking BitGraph's copy");
         const carrierInner = [...new Set(carriers.filter((c) => c.innerDigestB64 !== null).map((c) => c.innerDigestB64 as string))];
         const lookups = [...new Set([...unique, ...carrierInner])];

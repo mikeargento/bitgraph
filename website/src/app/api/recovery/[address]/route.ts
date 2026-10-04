@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { handleRecoveryList } from "@/lib/recovery-store";
+import { RECOVERY_LIST_RATE, RateLimiter, handleRecoveryList } from "@/lib/recovery-store";
 import { s3RecoveryStore } from "@/lib/recovery-store-s3";
 
 export const dynamic = "force-dynamic";
+
+const limiter = new RateLimiter(RECOVERY_LIST_RATE.max, RECOVERY_LIST_RATE.windowMs);
 
 /**
  * GET /api/recovery/<address>?after=<entryId>&limit=<1..100>: the sealed
@@ -16,6 +18,10 @@ export const dynamic = "force-dynamic";
  * empty page.
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ address: string }> }) {
+  const caller = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+  if (limiter.limited(caller)) {
+    return NextResponse.json({ error: "too many recovery listings; try again shortly", code: "rate-limited" }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "30" } });
+  }
   const { address } = await params;
   const r = await handleRecoveryList(address, req.nextUrl.searchParams, s3RecoveryStore());
   return NextResponse.json(r.body, { status: r.status, headers: { "Cache-Control": "no-store" } });

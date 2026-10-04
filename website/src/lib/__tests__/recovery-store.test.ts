@@ -12,13 +12,19 @@ import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, type S3Client
 import { bytesToBase64 } from "@mikeargento/bitgraph-verify";
 import { MAX_BATCH_ENTRIES, MAX_BODY_BYTES, MAX_ENVELOPE_BYTES, MIN_ENVELOPE_BYTES } from "../recovery.ts";
 import {
+  LOOKUP_PAGE,
   MemoryRecoveryStore,
   RateLimiter,
   handleRecoveryList,
+  handleRecoveryLookup,
   handleRecoveryPost,
   recoveryWritesOn,
   type PostOptions,
 } from "../recovery-store.ts";
+import { createHash } from "node:crypto";
+
+const sha256 = (b: Uint8Array): Uint8Array => new Uint8Array(createHash("sha256").update(b).digest());
+const utf8 = (s: string): Uint8Array => new TextEncoder().encode(s);
 import { S3RecoveryStore } from "../recovery-store-s3.ts";
 
 const A = "a1".repeat(32);
@@ -187,6 +193,56 @@ describe("GET listing", () => {
     assert.equal(r.status, 503);
     assert.equal(r.body.code, "recovery-unavailable");
     assert.equal("entries" in r.body, false);
+  });
+});
+
+describe("the lookup route", () => {
+  test("one request lists each address once with a short first page, stops listing once the budget is spent, and answers the rest truncated", async () => {
+    const store = new (class extends MemoryRecoveryStore {
+      lists = 0;
+      override async list(address: string, after: string | null, limit: number) {
+        this.lists++;
+        assert.equal(limit, LOOKUP_PAGE, "the first page is short");
+        return super.list(address, after, limit);
+      }
+    })();
+    // Fifty addresses, each holding 30 big entries.
+    const addresses: string[] = [];
+    for (let a = 0; a < 50; a++) {
+      const hex = Buffer.from(sha256(utf8(`address ${a}`))).toString("hex");
+      addresses.push(hex);
+      for (let i = 0; i < 30; i++) store.objects.set(`recovery/v1/${hex}/${Buffer.from(sha256(utf8(`e ${a} ${i}`))).toString("hex")}`, new Uint8Array(4000).fill(1));
+    }
+    const r = await handleRecoveryLookup(JSON.stringify({ addresses }), store, { log: () => {}, maxBytes: 200_000 });
+    assert.equal(r.status, 200);
+    const results = r.body["results"] as Array<Record<string, unknown>>;
+    assert.equal(results.length, 50);
+    const listed = results.filter((x) => Array.isArray(x["entries"]));
+    const truncated = results.filter((x) => x["truncated"] === true);
+    assert.ok(listed.length >= 1 && truncated.length >= 1, `${listed.length} listed, ${truncated.length} truncated`);
+    assert.equal(listed.length + truncated.length, 50);
+    for (const x of listed) {
+      assert.equal((x["entries"] as unknown[]).length, LOOKUP_PAGE, "a short first page, the rest through the listing route");
+      assert.match(String(x["next"]), /^[0-9a-f]{64}$/, "more follows");
+    }
+    assert.equal(store.lists, listed.length, "a truncated address was never listed: the budget bounds the work, not only the answer");
+    const bytes = JSON.stringify(r.body).length;
+    assert.ok(bytes < 200_000 + 8 * 120_000, `the answer stays near its budget (${bytes} bytes)`);
+  });
+
+  test("the lookup body: shape, count, addresses, no address twice; a store that fails answers unavailable per address, never empty", async () => {
+    const store = new MemoryRecoveryStore();
+    const a = Buffer.from(sha256(utf8("a"))).toString("hex"), b = Buffer.from(sha256(utf8("b"))).toString("hex");
+    for (const [body, why] of [["nope", "json"], ["[]", "object"], ['{"addresses":[]}', "empty"], ['{"addresses":["zz"]}', "hex"], [`{"addresses":["${a}","${a}"]}`, "twice"], [`{"addresses":["${a}"],"x":1}`, "one field"]] as const) {
+      const r = await handleRecoveryLookup(body, store, { log: () => {} });
+      assert.equal(r.status, 400, why);
+    }
+    const ok = await handleRecoveryLookup(JSON.stringify({ addresses: [a, b] }), store, { log: () => {} });
+    assert.deepEqual(ok.body, { results: [{ address: a, entries: [], next: null }, { address: b, entries: [], next: null }] });
+    store.failing = true;
+    const down = await handleRecoveryLookup(JSON.stringify({ addresses: [a] }), store, { log: () => {} });
+    assert.equal(down.status, 200);
+    assert.deepEqual(down.body, { results: [{ address: a, error: "unavailable" }] });
   });
 });
 

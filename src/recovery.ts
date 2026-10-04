@@ -798,7 +798,37 @@ export async function existingEntryHoldsMember(digest32: Uint8Array, objectKey: 
   const plain = await openRecoveryEnvelope(recoveryKeyBytes(digest32), objectKey, envelope);
   if (plain === null) return false;
   const found = parseRecoveryPlaintext(plain);
-  return found !== null && sameRecoveryMember(found, expected);
+  if (found === null || !sameRecoveryMember(found, expected)) return false;
+  // And it must sit under the name its own plaintext derives, exactly as a
+  // reader demands: this member's plaintext with a salt in it, parked at the
+  // deterministic name, is nobody's entry (no reader accepts it), and a
+  // writer that took it for its own would never write the copy that works.
+  const parsed = parseRecoveryObjectKey(objectKey);
+  return parsed !== null && recoveryEntryIdOf(digest32, found) === parsed.entryId;
+}
+
+/**
+ * This member's own entry under its address, if one is already there under
+ * any name: the deterministic one, or a salted one from an earlier run whose
+ * salt was lost (a job finished and removed, a browser tab's save that
+ * failed). Returns the entry's key and, for a salted one, its salt, so the
+ * writer counts it kept and reuses the salt instead of leaving a second copy.
+ * Null when none is there; raises RecoveryUnavailableError when the address
+ * cannot be read (then the writer must not guess).
+ */
+export async function findOwnRecoveryEntry(digest32: Uint8Array, expected: RecoveryPlaintext, fetchFn: FetchLike = defaultFetch, opts: RecoveryLookupOptions = {}): Promise<{ objectKey: string; salt: Uint8Array | null } | null> {
+  checkDigest(digest32);
+  const address = recoveryAddress(digest32);
+  const key = await importKey(recoveryKeyBytes(digest32));
+  const entries = await collectPages(address, digest32, key, null, fetchFn, opts, false);
+  for (const e of entries) {
+    const found: RecoveryPlaintext = { format: RECOVERY_FORMAT, proofHash: e.proofHash, leafIndex: e.leafIndex, rootDocument: e.rootDocument, member: e.member, proof: e.proof };
+    if (!sameRecoveryMember(found, expected)) continue;
+    if (!e.salted) return { objectKey: e.objectKey, salt: null };
+    const salt = e.salt !== null ? base64ToBytes(e.salt) : null;
+    if (salt !== null && salt.length === SALT_BYTES) return { objectKey: e.objectKey, salt };
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -810,6 +840,8 @@ export interface RecoveredEntry {
   entryId: string;
   /** True when the entry sits under its salted name (its deterministic one was held by another entry). */
   salted: boolean;
+  /** The salted entry's salt, base64; null under the deterministic name. */
+  salt: string | null;
   /** Which of the leaf's digests the looked-up digest is: "as-is" when the leaf has one. */
   matched: RecoverySide;
   /** base64 computeProofHash(proof) of the recording. */
@@ -877,7 +909,7 @@ function dedupeRecovered(entries: RecoveredEntry[]): RecoveredEntry[] {
  * followed to its end, or the lookup fails: a partial listing is never an
  * answer.
  */
-async function collectPages(address: string, digest32: Uint8Array, key: CryptoKey, first: ListingPage | null, fetchFn: FetchLike, opts: RecoveryLookupOptions): Promise<RecoveredEntry[]> {
+async function collectPages(address: string, digest32: Uint8Array, key: CryptoKey, first: ListingPage | null, fetchFn: FetchLike, opts: RecoveryLookupOptions, emptyOn404 = true): Promise<RecoveredEntry[]> {
   const base = opts.baseUrl ?? "";
   const maxPages = opts.maxPages ?? 1000;
   const out: RecoveredEntry[] = [];
@@ -891,8 +923,10 @@ async function collectPages(address: string, digest32: Uint8Array, key: CryptoKe
       try {
         const res = await fetchFn(url, { headers: { accept: "application/json" } });
         // A site without the route keeps no entries at all: that is an
-        // answer (nothing is kept here), not a failed read.
-        if ((res.status === 404 || res.status === 405 || res.status === 501) && after === null && first === null) return [];
+        // answer (nothing is kept here), not a failed read. Only a 404, only
+        // on the first page, and never for an address already known to hold
+        // entries (emptyOn404 false: the batch route named it).
+        if (res.status === 404 && after === null && first === null && emptyOn404) return [];
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         body = await res.json();
       } catch (e) {
@@ -1021,7 +1055,8 @@ export async function recoverFromDigests(digests: readonly Uint8Array[], fetchFn
           if (r["error"] !== undefined) throw new RecoveryUnavailableError(`the site could not read this address (${String(r["error"])})`);
           if (r["truncated"] !== true) first = checkPage(r);
         }
-        answerAll(address, { ok: true, entries: await collectPages(address, digest32, key, first, fetchFn, opts) });
+        // Through the batch route the site has recovery; a 404 on a page is then a failed read, never "nothing kept".
+        answerAll(address, { ok: true, entries: await collectPages(address, digest32, key, first, fetchFn, opts, oneByOne) });
       } catch (e) {
         answerAll(address, { ok: false, reason: messageOf(e) });
       }
@@ -1050,6 +1085,7 @@ async function openListed(item: unknown, digest32: Uint8Array, address: string, 
     objectKey: item["key"],
     entryId: parsedKey.entryId,
     salted: p.salt !== undefined,
+    salt: p.salt ?? null,
     matched: leaf.placement === LEAF_AS_IS ? "as-is" : isOrigin ? "origin" : "artifact",
     proofHash: p.proofHash,
     leafIndex: p.leafIndex,
@@ -1103,6 +1139,10 @@ export async function fetchRecoveredProof(
     throw new RecoveryUnavailableError("GET /api/proofs/<artifact digest>", e);
   }
   const proofs = isPlainObject(body) && Array.isArray(body["proofs"]) ? (body["proofs"] as unknown[]) : [];
+  // The route says so itself when a miss is not a finding: the ledger no longer
+  // indexes proofs by digest. The entry may well name a real proof; nothing here
+  // can read it, so this is unavailable, never "not this file's recording".
+  if (proofs.length === 0 && isPlainObject(body) && body["discovery"] === "retired") throw new RecoveryUnavailableError("the ledger's index of proofs by digest is retired; the entry's proof cannot be read through this route");
   const rootDocument = hexToBytes(entry.rootDocument);
   if (rootDocument === null) return null;
   for (const item of proofs) {

@@ -40,10 +40,10 @@ import { expandPaths, fileSource, scanFile, sniffC2paBytes, type ScannedFile } f
 import { carrierWindowView, type CarrierWindowView } from "./carrier-io.js";
 import { beginTask, decodeTaskToken, sealTask, writeProofBeside, SLOT_TTL_SECONDS, type Begun, type SealedTask } from "./task.js";
 import { buildBitGraphedFile, completeBitGraphedFile, type BuiltCarrier, type CompletedCarrier } from "./carrier-build.js";
-import { completeExportFile, exportDataOf, fetchPinnedSpec, memberExportOf, ownerExportOf, writeTreeExports, type CompletedExportFile, type ExportKind, type TreeExportData, type WrittenExports } from "./exports.js";
+import { completeExportFile, exportDataOf, fetchPinnedSpec, memberExportOf, ownerExportOf, writeTreeExports, type CompletedExportFile, type ExportKind, type TreeExportData, type WrittenExports, treeNames } from "./exports.js";
 import type { FuseTreeProgress } from "@mikeargento/bitgraph";
 import { keepRecoveryEntries, lookupRecovered, type KeptRecovery, type RecoveredRow } from "./recovery.js";
-import { FLUSH_ON_RECORD_BUDGET_MS, flushRecoveryJobs } from "./recovery-jobs.js";
+import { FLUSH_ON_RECORD_BUDGET_MS, flushRecoveryJobs, registerRecoveryJob } from "./recovery-jobs.js";
 import type { BitGraphProof, ProofDetailResponse, SetMemberView } from "./types.js";
 
 export interface BitGraphOptions {
@@ -246,16 +246,23 @@ export class BitGraph {
     const exportOf = new Map<number, string>();
     if (toMint.length > 0) {
       const tree = await this.fuseTree(toMint, this.config, { ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}), ...(opts.asIs === true ? { asIs: true } : {}) });
+      // The recovery job is saved the moment the tree exists, before anything
+      // that can take time or fail (the floor header, the export, the
+      // entries): from here on a stopped command loses nothing of this tree.
+      if (opts.recovery !== false) {
+        await registerRecoveryJob({ proof: tree.proof, rootDocumentHex: tree.rootDocumentHex, leavesB64: tree.leavesB64, names: treeNames(tree, toMint.map((f) => f.path)) }, this.config).catch(() => null);
+      }
       made = await this.madeFrom(tree, toMint);
-      // The tree's recovery entries, written after the proof is in hand and never in its way.
-      if (opts.recovery !== false) made.recovery = await keepRecoveryEntries({ proof: made.proof, rootDocumentHex: made.rootDocument, leavesB64: made.leaves, names: made.names }, this.config);
       for (const m of tree.members) memberOf.set((toMint[m.index] as ScannedFile).digestB64, m);
+      // The export first: it is the record, and it does not wait behind the recovery writes.
       const kind = opts.exports ?? "owner";
       if (opts.exportDir !== undefined && kind !== "none") {
         const spec = await fetchPinnedSpec(this.config, made.proof.attribution?.message ?? "");
         made.exports = await writeTreeExports(made, { dir: opts.exportDir, kind, spec });
         for (const m of made.exports.members) exportOf.set(m.leafIndex, m.path);
       }
+      // Then the tree's recovery entries, never in the way of the proof or the export.
+      if (opts.recovery !== false) made.recovery = await keepRecoveryEntries({ proof: made.proof, rootDocumentHex: made.rootDocument, leavesB64: made.leaves, names: made.names }, this.config);
     }
 
     const out: RecordedFile[] = [];

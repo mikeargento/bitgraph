@@ -88,7 +88,7 @@ describe("recovery fold", () => {
       if (Buffer.from(digest32).toString("hex") !== Buffer.from(d).toString("hex")) return [];
       const index = TREE.files.findIndex((f) => f.name === t.names[0]) >= 0 ? t.names.indexOf(TREE.files[0]!.name) : 0;
       const { plaintext } = recoveryPlaintextFor(tree, index, t.names[index]);
-      return [{ salted: false, matched: "origin" as const, proofHash: plaintext.proofHash, leafIndex: plaintext.leafIndex, rootDocument: plaintext.rootDocument, member: plaintext.member, proof: plaintext.proof, name: plaintext.name ?? null }];
+      return [{ salted: false, salt: null, matched: "origin" as const, proofHash: plaintext.proofHash, leafIndex: plaintext.leafIndex, rootDocument: plaintext.rootDocument, member: plaintext.member, proof: plaintext.proof, name: plaintext.name ?? null }];
     };
     const r = await recoverRows([row(file)], { fetch: fakeFetch(empty, { proofs: [t.proof] }), local });
     assert.equal(r.unknown.size, 0);
@@ -99,6 +99,11 @@ describe("recovery fold", () => {
     const down = await recoverRows([row(file)], { fetch: fakeFetch(empty, { proofs: [t.proof] }), local });
     assert.equal(down.found.size, 1);
     assert.equal(down.unknown.size, 0);
+    // The store down and the local entry's proof not readable yet: unknown, never new (the cold review's finding 3a).
+    const noProofs = fakeFetch(empty, { proofs: [] });
+    const masked = await recoverRows([row(file)], { fetch: noProofs, local });
+    assert.equal(masked.found.size, 0);
+    assert.equal(masked.unknown.size, 1);
   });
 
   test("a store that cannot be read, or a proof route that is down, leaves the row unknown, never new", async () => {

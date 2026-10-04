@@ -60,6 +60,7 @@ import {
   RECOVERY_SIDE_BITS,
   RecoveryInputError,
   existingEntryHoldsMember,
+  findOwnRecoveryEntry,
   leavesBytesOf,
   newRecoverySalt,
   recoveryDigestOf,
@@ -135,7 +136,14 @@ export interface RecoveryQueueStore {
   loadProgress(id: string): Promise<Uint8Array | null>;
   /** OR `progress` into what is stored, store the result, and return it. */
   mergeProgress(id: string, progress: Uint8Array): Promise<Uint8Array>;
+  /** Add `salts` to the stored job's salts, a salt already stored winning (two tabs never end up with two salts for one side), and return the merged table. */
+  mergeSalts(id: string, salts: Record<string, string>): Promise<Record<string, string>>;
   deleteJob(id: string): Promise<void>;
+}
+
+/** The stored salts win: a salt already saved may already name an entry. */
+export function mergeSaltTables(stored: Record<string, string> | undefined, incoming: Record<string, string>): Record<string, string> {
+  return { ...incoming, ...(stored ?? {}) };
 }
 
 const cloneJob = (j: RecoveryJobRecord): RecoveryJobRecord => structuredClone(j);
@@ -166,6 +174,14 @@ export class MemoryRecoveryQueueStore implements RecoveryQueueStore {
     const merged = mergeProgressBytes(this.progress.get(id), progress);
     this.progress.set(id, merged);
     return merged.slice();
+  }
+  async mergeSalts(id: string, salts: Record<string, string>): Promise<Record<string, string>> {
+    this.check();
+    const job = this.jobs.get(id);
+    if (job === undefined) throw new Error("no such job");
+    const merged = mergeSaltTables(job.salts, salts);
+    this.jobs.set(id, { ...job, salts: merged });
+    return { ...merged };
   }
   async deleteJob(id: string): Promise<void> {
     this.check();
@@ -264,6 +280,23 @@ export class IndexedDbRecoveryQueueStore implements RecoveryQueueStore {
       r.onsuccess = () => {
         const merged = mergeProgressBytes(r.result, progress);
         store.put(merged, id);
+        set(merged);
+      };
+    });
+  }
+
+  mergeSalts(id: string, salts: Record<string, string>): Promise<Record<string, string>> {
+    return this.run<Record<string, string>>([JOBS], "readwrite", (tx, set) => {
+      const store = tx.objectStore(JOBS);
+      const r = store.get(id);
+      r.onsuccess = () => {
+        const job = r.result as RecoveryJobRecord | undefined;
+        if (job === undefined) {
+          tx.abort();
+          return;
+        }
+        const merged = mergeSaltTables(job.salts, salts);
+        store.put({ ...job, salts: merged }, id);
         set(merged);
       };
     });
@@ -382,6 +415,9 @@ export interface RecoveryTreeStatus {
 export interface RecoveryQueueOptions {
   store: RecoveryQueueStore;
   transport: RecoveryTransport;
+  /** Reads the recovery routes (GET /api/recovery/<address>) before a salted write, to find an entry of the member already there. Default: fetch on this origin. */
+  lookupFetch?: FetchLike;
+  baseUrl?: string;
   /** Entries per request; at most MAX_BATCH_ENTRIES. */
   maxBatchEntries?: number;
   baseDelayMs?: number;
@@ -654,6 +690,7 @@ export class RecoveryQueue {
         const { plaintext } = recoveryPlaintextFor(tree, i, job.rec.names?.[i] ?? null);
         out.push({
           salted: false,
+          salt: null,
           matched: sides[0]!,
           proofHash: plaintext.proofHash,
           leafIndex: plaintext.leafIndex,
@@ -877,24 +914,63 @@ export class RecoveryQueue {
           // name. The side stays pending until then.
           this.log(`[recovery] member ${w.index} of ${batch.job.rec.id.slice(0, 12)}: its ${w.write.side} key holds another entry; trying a salted name`);
           toSalt.push({ index: w.index, side: w.write.side });
+          continue;
         }
         progressed = true;
       }
       // "conflict" and "error" leave the entry pending for the next pass.
     }
-    if (toSalt.length > 0) await this.saltFor(batch.job, toSalt);
+    if (toSalt.length > 0 && (await this.saltFor(batch.job, toSalt))) progressed = true;
     return progressed;
   }
 
-  /** Choose (and save, before any write under them) salts for sides whose deterministic key is held. A side that already has one keeps it. */
-  private async saltFor(job: LiveJob, sides: ReadonlyArray<{ index: number; side: RecoverySide }>): Promise<void> {
-    const salts = { ...(job.rec.salts ?? {}) };
-    for (const s of sides) salts[recoverySaltKey(s.index, s.side)] ??= bytesToBase64(newRecoverySalt());
-    job.rec = { ...job.rec, salts };
+  /**
+   * Salts for sides whose deterministic key is held, chosen and SAVED before
+   * any write under them. First the address is read: an entry of the member
+   * may already sit under a salted name (a tab whose save failed, a job
+   * finished and gone); found, it counts and its salt is kept. The save
+   * merges, so two tabs end with one salt per side. False when nothing could
+   * be settled (the address unreadable, the save failed): the sides stay
+   * pending and the pass backs off, and no salted write goes out unsaved.
+   */
+  private async saltFor(job: LiveJob, sides: ReadonlyArray<{ index: number; side: RecoverySide }>): Promise<boolean> {
+    const tree = this.treeOf(job);
+    if (tree === null) return false;
+    const chosen: Record<string, string> = {};
+    let settled = false;
+    for (const s of sides) {
+      const key = recoverySaltKey(s.index, s.side);
+      if (job.rec.salts?.[key] !== undefined) continue;
+      const digest = recoveryDigestOf(tree, s.index, s.side);
+      const { plaintext } = recoveryPlaintextFor(tree, s.index, job.rec.names?.[s.index] ?? null);
+      let own: Awaited<ReturnType<typeof findOwnRecoveryEntry>>;
+      try {
+        own = await findOwnRecoveryEntry(digest, plaintext, this.opts.lookupFetch ?? ((u, i) => fetch(u, i)), this.opts.baseUrl !== undefined ? { baseUrl: this.opts.baseUrl } : {});
+      } catch (e) {
+        this.log(`[recovery] member ${s.index} of ${job.rec.id.slice(0, 12)}: the address could not be read before a salted write (${(e as Error).message})`);
+        continue;
+      }
+      if (own !== null) {
+        this.setBits(job, s.index, RECOVERY_SIDE_BITS[s.side].kept);
+        settled = true;
+        if (own.salt !== null) chosen[key] = bytesToBase64(own.salt);
+        continue;
+      }
+      chosen[key] = bytesToBase64(newRecoverySalt());
+    }
+    if (Object.keys(chosen).length === 0) return settled;
+    if (!job.persisted) {
+      // A job that runs in memory only (no storage): its salts live with it; a reload loses the tree anyway.
+      job.rec = { ...job.rec, salts: mergeSaltTables(job.rec.salts, chosen) };
+      return true;
+    }
     try {
-      await this.opts.store.saveJob(job.rec);
+      const merged = await this.opts.store.mergeSalts(job.rec.id, chosen);
+      job.rec = { ...job.rec, salts: merged };
+      return true;
     } catch (e) {
-      this.log(`[recovery] salts of ${job.rec.id.slice(0, 12)} could not be saved; they live in memory only: ${(e as Error).message}`);
+      this.log(`[recovery] salts of ${job.rec.id.slice(0, 12)} could not be saved; no salted write until they are: ${(e as Error).message}`);
+      return settled;
     }
   }
 

@@ -30,6 +30,7 @@ import {
   RECOVERY_SIDE_BITS,
   existingEntryHoldsMember,
   fetchRecoveredProof,
+  findOwnRecoveryEntry,
   newRecoverySalt,
   recoverFromDigests,
   recoverySaltKey,
@@ -127,6 +128,8 @@ export async function keepTreeOnSite(
     }
     const s = typeof store === "function" ? store() : store;
     const retries = opts.conflictRetries ?? 3;
+    // The site reading its own store, for the look before a salted write.
+    const lookupFetch = inProcessRecoveryFetch(s, async () => []);
     // The pending sides of every member, sealed as the work reaches them (a
     // thousand members are two thousand envelopes; not all at once).
     const members: number[] = [];
@@ -169,11 +172,30 @@ export async function keepTreeOnSite(
               } else if (w.salted) {
                 progress[index]! |= bits.blocked;
               } else {
-                // Another member's entry holds the deterministic key: the same entry, under its salted name, joins the work.
-                const salt = newRecoverySalt();
-                salts[recoverySaltKey(index, w.side)] = Buffer.from(salt).toString("base64");
-                const again = await sealRecoveryMember(tree, index, input.names?.[index] ?? null, [w.side], { [w.side]: salt });
-                for (const sw of again.writes) work.push({ w: sw, plaintext: again.plaintext, index });
+                // Another member's entry holds the deterministic key. An entry
+                // of this member may already sit under a salted name (an
+                // earlier request that answered before finishing): found, it
+                // counts and its salt is kept; an address that cannot be read
+                // leaves the side pending; otherwise the same entry, under a
+                // fresh salted name, joins the work.
+                let own: Awaited<ReturnType<typeof findOwnRecoveryEntry>> | undefined;
+                try {
+                  own = await findOwnRecoveryEntry(w.digest, plaintext, lookupFetch);
+                } catch {
+                  own = undefined;
+                }
+                if (own === undefined) {
+                  result.reason ??= "an address could not be read before a salted write";
+                } else if (own !== null) {
+                  progress[index]! |= bits.kept;
+                  result.alreadyThere++;
+                  if (own.salt !== null) salts[recoverySaltKey(index, w.side)] = Buffer.from(own.salt).toString("base64");
+                } else {
+                  const salt = newRecoverySalt();
+                  salts[recoverySaltKey(index, w.side)] = Buffer.from(salt).toString("base64");
+                  const again = await sealRecoveryMember(tree, index, input.names?.[index] ?? null, [w.side], { [w.side]: salt });
+                  for (const sw of again.writes) work.push({ w: sw, plaintext: again.plaintext, index });
+                }
               }
               break;
             }
@@ -185,8 +207,12 @@ export async function keepTreeOnSite(
         }
       }
     }));
+    const earlier = result.reason;
     settle();
     if (result.pending > 0 && result.reason === null) result.reason = outOfTime ? BUDGET_REASON : "some entries met a concurrent write every time";
+    if (result.pending === 0) result.reason = null;
+    else if (outOfTime) result.reason = BUDGET_REASON;
+    else if (earlier !== null) result.reason = earlier;
   } catch (e) {
     result.reason = `recovery entries were not written: ${e instanceof Error ? e.message : String(e)}`;
     result.pending = Math.max(0, result.entries - result.kept - result.blocked);
@@ -253,7 +279,13 @@ export function inProcessRecoveryFetch(store: RecoveryStore, proofsByDigest: (ur
   };
 }
 
-/** The trees these digests are already members of, by their recovery entries, read in this process. Never throws. */
+/**
+ * The trees these digests are already members of, by their recovery entries,
+ * read in this process. With no bytes in hand the most a member can show is a
+ * valid path from a leaf naming the digest to the signed root
+ * (TREE_PATH_VALID): "these bytes are named by a recorded tree", the same
+ * strength as the ledger's index of set members. Never throws.
+ */
 export async function recoveredOnSite(digestsB64: readonly string[], fetchFn: FetchLike): Promise<SiteRecoveryLookup> {
   const out: SiteRecoveryLookup = { found: new Map(), unknown: new Map() };
   const digests: Uint8Array[] = [];

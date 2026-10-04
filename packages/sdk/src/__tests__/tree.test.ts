@@ -284,7 +284,8 @@ test("a boundary that returns no floor makes nothing: the tree needs fuse/2", as
 
 test("cli: record a folder writes the owner's export; verify <file> <export> states every claim; exit 2 on the stub attestation alone", async () => {
   const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-out-"));
-  const rec = await run([cliPath, "record", folder, "--out", out, "--json", "--base-url", baseUrl]);
+  // Its own home: the suite's earlier records of this folder left pending jobs (the site takes no recovery writes), and a member of a pending job is on record, not new.
+  const rec = await run([cliPath, "record", folder, "--out", out, "--json", "--base-url", baseUrl], { BITGRAPH_HOME: await mkdtemp(join(tmpdir(), "bitgraph-sdk-home-cli-")) });
   assert.equal(rec.code, 0, rec.stderr);
   const r = JSON.parse(rec.stdout) as { made: { count: number; counter: string; epoch: string; artifactDigest: string; exports: { owner: string; membersDir: string | null } }; files: Array<{ path: string; member: number }> };
   assert.equal(r.made.count, 3);

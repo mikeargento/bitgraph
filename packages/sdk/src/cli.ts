@@ -36,7 +36,7 @@ import { ApiError, configFromEnv } from "./api.js";
 import { carrierLine } from "./carrier-io.js";
 import { SLOT_TTL_SECONDS } from "./task.js";
 import { recoveryLine } from "./recovery.js";
-import { flushRecoveryJobs, jobFromOwnerExport, listRecoveryJobs, runRecoveryJob, saveRecoveryJob } from "./recovery-jobs.js";
+import { flushRecoveryJobs, jobFromOwnerExport, listRecoveryJobs, registerRecoveryJob, runRecoveryJob } from "./recovery-jobs.js";
 import { EXPORT_KINDS, looksLikeExport, memberExportFileName, memberExportFromOwner, readExportFile, type ExportKind } from "./exports.js";
 
 /** BitGraph's published ceiling writer on Base mainnet (bitgraph.ing/ceilings). */
@@ -144,7 +144,7 @@ async function main(): Promise<void> {
   const opts: { baseUrl?: string; apiKey?: string } = {};
   const baseUrl = flags.get("base-url");
   const apiKey = flags.get("api-key");
-  if (typeof baseUrl === "string") opts.baseUrl = baseUrl;
+  if (typeof baseUrl === "string") opts.baseUrl = baseUrl.replace(/\/+$/, "");
   if (typeof apiKey === "string") opts.apiKey = apiKey;
   const bg = new BitGraph(opts);
   const out = (value: unknown, human: () => string) => {
@@ -211,8 +211,9 @@ async function main(): Promise<void> {
       if (sub === "keep") {
         const target = args[1];
         if (target === undefined) fail("usage: bitgraph recovery keep <owner-export.json>");
-        const job = jobFromOwnerExport(JSON.parse(await readFile(target, "utf8")), config.baseUrl);
-        await saveRecoveryJob(job);
+        const fresh = jobFromOwnerExport(JSON.parse(await readFile(target, "utf8")), config.baseUrl);
+        // A job already saved for this recording (with its progress and salts) is the one to finish; only a new one is written.
+        const { job } = await registerRecoveryJob({ proof: fresh.proof, rootDocumentHex: fresh.rootDocumentHex, leavesB64: fresh.leavesB64, ...(fresh.names !== null ? { names: fresh.names } : {}) }, config);
         const r = await runRecoveryJob(job, { budgetMs: 10 * 60_000 });
         out(r, () => (r === null ? "another process is writing this tree's entries" : `#${job.proof.commit?.counter ?? "?"} · ${recoveryLine({ ...r, job: r.done ? null : target })}`));
         return;

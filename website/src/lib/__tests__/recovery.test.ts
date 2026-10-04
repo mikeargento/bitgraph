@@ -32,6 +32,9 @@ import {
   encodeRecoveryPlaintext,
   existingEntryHoldsMember,
   fetchRecoveredProof,
+  findOwnRecoveryEntry,
+  newRecoverySalt,
+  recoveryObjectKeyFor,
   openRecoveryEnvelope,
   parseRecoveryObjectKey,
   parseRecoveryPlaintext,
@@ -553,5 +556,51 @@ describe("lookup", () => {
     const junk = new Uint8Array(100);
     junk[0] = 1;
     assert.ok(!(await existingEntryHoldsMember(w.digest, w.objectKey, junk, mine.plaintext)), "bytes that do not open");
+    // The cold review's hole (10-03): this member's own plaintext WITH a salt, parked at the deterministic name.
+    // Same member, so the first rule passes; but no reader accepts it there (its name is the salted one), so it is nobody's entry.
+    const salted = recoveryPlaintextFor(tree, 1, "hello.txt", newRecoverySalt()).bytes;
+    assert.ok(!(await existingEntryHoldsMember(w.digest, w.objectKey, await sealAt(salted), mine.plaintext)), "a salted plaintext at the deterministic name is not this entry");
+    // And the reverse: the unsalted plaintext parked at a salted name.
+    const salt = newRecoverySalt();
+    const saltedKey = recoveryObjectKeyFor(tree, 1, "origin", salt);
+    const sealSalted = (pt: Uint8Array) => sealRecoveryEnvelope(recoveryKeyBytes(w.digest), saltedKey, pt);
+    assert.ok(!(await existingEntryHoldsMember(w.digest, saltedKey, await sealSalted(encodeRecoveryPlaintext(mine.plaintext)), mine.plaintext)), "the unsalted plaintext at a salted name is not this entry");
+    assert.ok(await existingEntryHoldsMember(w.digest, saltedKey, await sealSalted(recoveryPlaintextFor(tree, 1, "hello.txt", salt).bytes), mine.plaintext), "the salted plaintext under the name its salt derives is");
+  });
+
+  test("findOwnRecoveryEntry: the member's entry under any of its names, with the salt to reuse; nothing for another member; unavailable when the address cannot be read", async () => {
+    const v = vectorTree();
+    const tree = recoveryTreeFrom({ proof: v.proof, rootDocument: v.rootDocument, leavesBytes: v.leavesBytes });
+    const store = new MemoryRecoveryStore();
+    const d = sha256(v.memberFile);
+    const { plaintext } = recoveryPlaintextFor(tree, 1, "hello.txt");
+    assert.equal(await findOwnRecoveryEntry(d, plaintext, fakeFetch(store)), null, "nothing there yet");
+    // A squatter at the deterministic name, and our entry under a salted one from an earlier run.
+    const squatKey = recoveryObjectKey(recoveryAddress(d), recoveryEntryId(d, tree.proofHash32, 1));
+    store.objects.set(squatKey, await sealRecoveryEnvelope(recoveryKeyBytes(d), squatKey, recoveryPlaintextFor(tree, 3, "note.md").bytes));
+    const salt = newRecoverySalt();
+    const ours = (await sealRecoveryMember(tree, 1, "hello.txt", ["origin"], { origin: salt })).writes[0]!;
+    store.objects.set(ours.objectKey, ours.envelope);
+    const found = await findOwnRecoveryEntry(d, plaintext, fakeFetch(store));
+    assert.ok(found !== null);
+    assert.equal(found.objectKey, ours.objectKey);
+    assert.deepEqual(found.salt, salt, "the salt comes back so a writer reuses it instead of leaving another copy");
+    // Another member's plaintext finds nothing of its own here.
+    assert.equal(await findOwnRecoveryEntry(d, recoveryPlaintextFor(tree, 3, "note.md").plaintext, fakeFetch(store)), null);
+    store.failing = true;
+    await assert.rejects(findOwnRecoveryEntry(d, plaintext, fakeFetch(store)), RecoveryUnavailableError);
+  });
+
+  test("a proof route whose index is retired is unavailable, never 'not this file's recording'", async () => {
+    const v = vectorTree();
+    const store = new MemoryRecoveryStore();
+    const { tree } = await writeTree(store, v);
+    const [entry] = await recoverFromDigest(sha256(v.memberFile), fakeFetch(store));
+    assert.ok(entry);
+    const retired = async (u: string, init?: RequestInit) => (u.startsWith("/api/proofs/") ? new Response(JSON.stringify({ proofs: [], discovery: "retired", note: "a miss here is not a finding" }), { status: 200 }) : fakeFetch(store)(u, init));
+    await assert.rejects(fetchRecoveredProof(entry!, retired), RecoveryUnavailableError);
+    // A plain empty answer from a live index is an answer: no such proof.
+    assert.equal(await fetchRecoveredProof(entry!, fakeFetch(store, { proofs: [] })), null);
+    void tree;
   });
 });

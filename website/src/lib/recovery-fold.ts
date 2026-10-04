@@ -87,6 +87,8 @@ export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: 
       // The file is checked as a stream: a 40 GB file is a 40 GB file.
       const source = blobSource(r.file);
       const trees: RecoveredTree[] = [];
+      // A failed server lookup is unknown unless a local entry verifies below: "could not tell" is never "new".
+      if (!a.ok) out.unknown.set(i, a.reason);
       for (const e of entries) {
         const bound = await fetchRecoveredProof(e, opts.fetch, { ...lookupOpts, source });
         if (!bound || !(TREE_MEMBER_CATEGORIES as readonly string[]).includes(bound.check.category)) continue;
@@ -96,7 +98,10 @@ export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: 
         if (trees.some((t) => t.proofKey === key)) continue;
         trees.push({ proofKey: key, proof: bound.proof, rootDocument, rootDocumentHex: e.rootDocument, evidence: e.member });
       }
-      if (trees.length) out.found.set(i, trees);
+      if (trees.length) {
+        out.found.set(i, trees);
+        out.unknown.delete(i);
+      }
     } catch (e) {
       // An entry says the file is in a tree, and the proof could not be read to check it: unknown, not new.
       out.unknown.set(i, e instanceof Error ? e.message : String(e));

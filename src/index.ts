@@ -79,6 +79,7 @@ export type { RecoveryWriteInput, RecoveryWriteOptions, RecoveryWriteResult, Rec
 export {
   recoveryAddress, recoveryEntryId, recoverySaltedEntryId, recoveryEntryIdOf, newRecoverySalt, recoveryKeyBytes, recoveryObjectKey,
   sealRecoveryEnvelope, openRecoveryEnvelope, encodeRecoveryPlaintext, parseRecoveryPlaintext, recoveryTreeFrom, sealRecoveryMember, recoveryObjectKeyFor,
+  recoveryPlaintextFor, recoveryDigestOf, recoverySidesOf, existingEntryHoldsMember, findOwnRecoveryEntry,
   recoverFromDigest, recoverFromDigests, fetchRecoveredProof,
   RECOVERY_SIDE_BITS, recoveryMemberStatus, recoverySideState, recoverySideResolved, recoverySaltKey, recoverySaltsFor,
   RECOVERY_FORMAT, RECOVERY_PREFIX, SALT_BYTES, MAX_LOOKUP_ADDRESSES,

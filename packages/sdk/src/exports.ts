@@ -60,12 +60,18 @@ export interface TreeExportData {
  * carried, and completing the export fetches it later. Never throws for the
  * header.
  */
-export async function exportDataOf(tree: TreeSummary, paths: readonly string[], config: ApiConfig, fetcher: typeof fetch = fetch): Promise<TreeExportData> {
-  const counter = tree.proof.commit?.counter ?? null;
-  const epochId = tree.proof.commit?.epochId ?? null;
+/** A name per leaf, tree order: each file's path under the deepest folder holding them all. */
+export function treeNames(tree: Pick<TreeSummary, "count" | "members">, paths: readonly string[]): string[] {
   const rel = relativeNames(paths);
   const names = new Array<string>(tree.count).fill("");
   for (const m of tree.members) names[m.leafIndex] = rel[m.index] ?? "";
+  return names;
+}
+
+export async function exportDataOf(tree: TreeSummary, paths: readonly string[], config: ApiConfig, fetcher: typeof fetch = fetch): Promise<TreeExportData> {
+  const counter = tree.proof.commit?.counter ?? null;
+  const epochId = tree.proof.commit?.epochId ?? null;
+  const names = treeNames(tree, paths);
   let header: string | null = null;
   try {
     header = (await fetchFloorHeader(tree.proof as unknown as Parameters<typeof fetchFloorHeader>[0], fetcher, { baseUrl: config.baseUrl }))?.header ?? null;
