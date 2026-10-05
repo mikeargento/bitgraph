@@ -2924,8 +2924,11 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
    typing line's own (the GPS curve was too wide for "Position commitment" on a phone). */
 .home.home-typing { text-align: left; align-items: stretch; }
 .home.home-typing .actions { justify-content: flex-start; }
-.home.home-typing h1 { margin-left: 0 !important; margin-right: auto !important; width: 100%; }
-.home.home-typing .lede { margin-left: 0 !important; margin-right: auto !important; text-wrap: pretty; }
+/* Desktop: the docs pages' centred reading column, text left aligned inside it, so the home and every
+   docs page share one content edge (Mike, 10-05). Narrower than the column, the edge is the frame's. */
+.home.home-typing h1, .home.home-typing .lede, .home.home-typing .actions { margin-left: max(0px, calc((100% - var(--measure)) / 2)) !important; margin-right: auto !important; }
+.home.home-typing h1 { width: auto; max-width: var(--measure); }
+.home.home-typing .lede { text-wrap: pretty; }
 @media (max-width: 600px) { .home.home-typing h1 { font-size: clamp(28px, 9.2vw, 72px) !important; } }
 @media (min-width: 601px) and (max-width: 899px) { .home.home-typing h1 { font-size: 9.2vw !important; } }
 @media (min-width: 900px) { .home.home-typing h1 { font-size: min(calc(min(90vw, 1600px) * 0.0846), 96px) !important; } }
