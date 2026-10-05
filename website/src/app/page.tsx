@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { HOME_EXAMPLE_DIGEST } from "@/lib/warm";
 import { WarmExample } from "@/components/warm-example";
+import { HomeHeadline } from "@/components/home-headline";
 
 /**
  * Home, written as the scene (Mike, 2026-09-20: "sell me this pen"). The order is
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div
-      className="frame home prose"
+      className="frame home home-typing prose"
       style={{
         /* Vertically centred in what is left after the bar and the footer. A min-height, not a
            fixed one, so a phone can still scroll if the headline wraps further than expected.
@@ -49,26 +50,21 @@ export default function HomePage() {
       }}
     >
 
-      {/* The hero, Mike's words (2026-10-03), static: no typing (Mike: "no typing"). GPS is
-          the analogy the page rests on: a receiver works out where it is from a public
-          broadcast it does not control, and anyone with the same broadcast can check the
-          fix. A BitGraph is a position checked against the public chains' blocks the same
-          way, and the file itself never travels: the drop box, the SDK and the MCP hash
-          locally and send digests. Claim discipline holds: a position is what is verified,
-          never the content, never "when". The earlier heroes ("Position commitment for AI
-          records." with the Schelling paragraph, 2026-09-26; the typing line, 2026-09-30)
-          are in the git history and in the headline file. */}
-      <h1>GPS for files.</h1>
+      {/* The hero (Mike, 2026-10-05): the typing line of 2026-09-30 and the game theory paragraph of
+          2026-09-26, left aligned, after a day of trying shorter heroes ("GPS for files.", "The
+          position comes first.", "First the position. Then the file."; all in the git history).
+          Claim discipline holds: a position is what is verified, never the content, never "when". */}
+      <HomeHeadline phrases={["AI records.", "AI agent actions.", "AI evaluations.", "predictions.", "sealed bids.", "chain of custody.", "any file.", "any bytes.", "any bits."]} />
 
-      {/* The literal statement under the metaphor (Mike, 2026-10-05), replacing "Use blockchain
-          without sending the file.": GPS for files, BitGraph gives files a verifiable position,
-          local files, global coordinates. The object is concrete (files take positions;
-          processes do not), and the claim is the position, never the content or a time. */}
+      {/* Why it matters, in Schelling's terms: a commitment is credible because it gives up
+          options. The term in game theory is "commitment" ("credible commitment", Schelling
+          1960); "position commitment" is BitGraph's application of it. Credibility attaches to
+          the POSITION, never the content (canon non-claims). */}
       <p className="lede">
-        <span className="lede-sentence">BitGraph gives files a verifiable&nbsp;position.</span>
+        In game theory, a commitment is an irrevocable move that gives up future options.
+        BitGraph brings commitment to records: whoever or whatever produces a record can no
+        longer choose its position. That is what makes its position&nbsp;credible.
       </p>
-
-      <p className="lede home-coordinates">Local files. Global&nbsp;coordinates.</p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}
       <div className="actions" style={{ marginBottom: 0 }}>
