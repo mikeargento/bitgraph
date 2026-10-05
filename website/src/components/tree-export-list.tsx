@@ -20,8 +20,12 @@ import { useWindowedRows } from "@/components/windowed-rows";
 import { fmtRowWhen } from "@/components/folder-list";
 import type { TreeExportRow } from "@/lib/folder-check";
 
-/** One row: five lines of type and the padding around them. */
-const ROW_H = 118;
+/** One row: five lines of type and the padding around them. Phones wrap each line instead of
+ *  cutting it off (Mike, 2026-10-05: "it cuts off"), so their rows are taller; still one fixed
+ *  height per screen, which is what the windowing needs. */
+const ROW_H_WIDE = 118;
+const ROW_H_PHONE = 236;
+const phoneWidth = () => typeof window !== "undefined" && window.matchMedia("(max-width: 560px)").matches;
 
 const verdictWord = (r: TreeExportRow): { text: string; color: string } =>
   r.verdict === "TRUE"
@@ -80,6 +84,8 @@ function whereLine(r: TreeExportRow): string {
 }
 
 export function TreeExportList({ rows, onOpen }: { rows: TreeExportRow[]; onOpen: (r: TreeExportRow) => void }) {
+  const phone = phoneWidth();
+  const ROW_H = phone ? ROW_H_PHONE : ROW_H_WIDE;
   const { ref, first, last } = useWindowedRows(rows.length, ROW_H);
   const files = rows.filter((r) => r.scope === "file");
   const verified = files.filter((r) => r.verdict === "TRUE").length;
@@ -87,7 +93,9 @@ export function TreeExportList({ rows, onOpen }: { rows: TreeExportRow[]; onOpen
   const alone = rows.length - files.length;
   const spec = rows.some((r) => r.spec === "other") ? "other" : rows.some((r) => r.spec === "pinned") ? "pinned" : null;
   const label = { fontSize: 12, color: "var(--faint)", width: 72, flexShrink: 0 } as const;
-  const line = { fontSize: 12.5, color: "var(--dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const;
+  const line = phone
+    ? ({ fontSize: 12.5, color: "var(--dim)", minWidth: 0, lineHeight: 1.4 } as const)
+    : ({ fontSize: 12.5, color: "var(--dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const);
   return (
     <div style={{ border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden", background: "var(--bg)" }}>
       <div style={{ background: "var(--panel)", padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
@@ -123,7 +131,8 @@ export function TreeExportList({ rows, onOpen }: { rows: TreeExportRow[]; onOpen
             >
               <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 15, color: "var(--ink)" }}>{r.fileName ?? r.exportName}</span>
-                <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: v.color }}>{v.text}</span>
+                {/* The row opens the proof: say so (Mike, 2026-10-05: "no indication you can click"). */}
+                <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: v.color }}>{v.text}<span aria-hidden style={{ marginLeft: 6, color: "var(--faint)", fontWeight: 400 }}>&rsaquo;</span></span>
               </div>
               <div style={{ ...line, color: r.verdict === "FALSE" ? "var(--err)" : "var(--dim)" }}>{whereLine(r)}</div>
               <div style={{ display: "flex", gap: 8 }}><span style={label}>Floor</span><span style={line}>{floorLine(r)}</span></div>
