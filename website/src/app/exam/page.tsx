@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   description:
     "Six models from three vendors sat a paper derived from a value that did not exist before a fixed public moment. Each sitting is a folder you verify offline, with nothing but Node, in three commands.",
   openGraph: {
-    title: "Freshness is a claim. This is a check.",
+    title: "A benchmark you can prove is fresh.",
     description:
       "Six models from three vendors sat a paper derived from a value that did not exist before a fixed public moment. Each sitting is a folder you verify offline, with nothing but Node, in three commands.",
     type: "website",
@@ -32,10 +32,9 @@ export default function ExamPage() {
   return (
     <div className="frame" style={{ padding: "56px 0 96px" }}>
       <article className="prose">
-        <h1>
-          <span className="nowrap">Freshness is a claim.</span>{" "}
-          <span className="nowrap">This is a check.</span>
-        </h1>
+        {/* Mike, 2026-10-05: the old "Freshness is a claim. This is a check." read as sassy. Plain, the ML
+            world's own word ("fresh"), and the claim the "Proves / Does not prove" box below bounds. */}
+        <h1>A benchmark you can prove is&nbsp;fresh.</h1>
         <p className="lede">
           Six models from three vendors sat the same kind of paper on 12 and 13 September 2026. Each paper was derived from a value that came into existence at a signed position on a public chain, and each sitting is a folder you verify with nothing but Node, offline, in three commands. The pair below is the whole claim, and this package asks you to attack it. Everything else is running code and real evidence.
         </p>
@@ -45,7 +44,7 @@ export default function ExamPage() {
           <li><b>Does not prove</b><span>that the template families are unfamiliar to the model; that the model worked alone, without tools, or quickly; when the answers were produced beyond their own floor. The answer sheet has a floor, not a ceiling.</span></li>
         </ul>
 
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, margin: "1.5rem 0 0.75rem" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, margin: "1.5rem auto 0.75rem", maxWidth: "var(--measure)" }}>
           {REPO_URL !== null ? (
             <a className="btn is-primary" href={REPO_URL} target="_blank" rel="noopener">
               Read the source on GitHub
