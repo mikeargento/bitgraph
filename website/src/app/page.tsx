@@ -60,11 +60,11 @@ export default function HomePage() {
           are in the git history and in the headline file. */}
       <h1>GPS for files.</h1>
 
-      {/* Two sentences. On a desktop they balance into one line each; on a phone each
-          sentence is its own balanced block, so no line ends on a stub like "Your". */}
+      {/* One sentence (Mike, 2026-10-04), replacing "A position verified against a public
+          broadcast. Your files never leave your computer.": the blockchain and the file staying
+          home, said once. Balanced, with "the file" kept together so no line ends on "the". */}
       <p className="lede">
-        <span className="lede-sentence">A position verified against a public broadcast.</span>{" "}
-        <span className="lede-sentence">Your files never leave your&nbsp;computer.</span>
+        <span className="lede-sentence">Use the blockchain without sending the&nbsp;file.</span>
       </p>
 
       <p className="lede home-coordinates">Local files. Global&nbsp;coordinates.</p>
