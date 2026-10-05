@@ -1792,13 +1792,18 @@ export default function ProofPage() {
             ? { counter: causalWindow.anchorBefore.counter, blockNumber: causalWindow.anchorBefore.blockNumber, blockTime: causalWindow.anchorBefore.blockTime ?? null, digestB64: causalWindow.anchorBefore.digestB64 ?? null }
             : null;
           // The file pane: the preview, the drop box, or the anchor's block row.
+          // Every file pane is the same outlined box with a name row and an Open pill (Mike,
+          // 2026-10-05: "make it the uniform for any file"): text and other files (FileCard),
+          // images (PhotoCard), and an anchor's Ethereum block here.
           const filePane: React.ReactNode = isEth ? (
-            <div className="pv-file-row">
-              <span className="pv-file-name">
-                <strong>Ethereum block {ethBlockNum ? `#${Number(ethBlockNum).toLocaleString("en-US")}` : "#?"}</strong>
-                {anchorBlock?.blockTime ? <span className="pv-file-meta"> · mined {attestedMs !== null && sameDayTz(new Date(anchorBlock.blockTime), new Date(attestedMs)) ? timeTz(new Date(anchorBlock.blockTime)) : stampTz(new Date(anchorBlock.blockTime))}</span> : null}
-              </span>
-              {attr?.title && <a href={attr.title} target="_blank" rel="noopener" className="pv-list-link">Open <span aria-hidden>&#8599;</span></a>}
+            <div className="pv-filecard">
+              <div className="pv-filecard-head">
+                <span className="pv-filecard-name">
+                  <strong>Ethereum block {ethBlockNum ? `#${Number(ethBlockNum).toLocaleString("en-US")}` : "#?"}</strong>
+                  {anchorBlock?.blockTime ? <> · mined {attestedMs !== null && sameDayTz(new Date(anchorBlock.blockTime), new Date(attestedMs)) ? timeTz(new Date(anchorBlock.blockTime)) : stampTz(new Date(anchorBlock.blockTime))}</> : null}
+                </span>
+                {attr?.title && <a href={attr.title} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}><span>Open</span><span className="arrow" aria-hidden>&#8599;</span></a>}
+              </div>
             </div>
           ) : isInterval ? null : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
             <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={heldLabel} />

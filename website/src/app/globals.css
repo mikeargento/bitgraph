@@ -2857,3 +2857,6 @@ html { background: #ffffff !important; }
    (Mike, 2026-10-05: "this section seems messy"); Open is a pill like every other action. */
 .pv-filecard { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-top: 16px; }
 .pv-filecard .pv-open .arrow { display: inline !important; margin-left: 6px; color: var(--dim); }
+.pv-filecard-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+.pv-filecard-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--dim); }
+.pv-filecard-name strong { color: var(--ink); font-weight: 600; }
