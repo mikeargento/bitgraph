@@ -2176,6 +2176,9 @@ function BringYourFile({
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [readCount, setReadCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  /* Folded until asked (Mike, 2026-10-05: "instead of the giant blank window, a button asking if you want
+     to locate the file"): the empty 16:9 box opens from a button, or from a file dragged onto it. */
+  const [open, setOpen] = useState(false);
 
   /* Dash geometry lives in use-dashed-edges now, shared with FileDrop: the
      doctrine (2026-08-06) is that EVERY drop target wears the dashed edge —
@@ -2395,6 +2398,15 @@ function BringYourFile({
     } catch {
       setState("mismatch");
     }
+  }
+
+  if (!open && state === "idle") {
+    return (
+      <div className="pv-locate" onDragEnter={(e) => { e.preventDefault(); setOpen(true); setDragOver(true); }} onDragOver={(e) => { e.preventDefault(); setOpen(true); setDragOver(true); }}>
+        <button type="button" className="bg-action-link pv-pill" onClick={() => setOpen(true)}>Locate the file</button>
+        <span className="pv-locate-note">Have a copy? Check it against this BitGraph. Nothing is uploaded.</span>
+      </div>
+    );
   }
 
   const mismatch = state === "mismatch";

@@ -2883,3 +2883,8 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .xp-head .cl-writer { white-space: nowrap; font-size: min(14px, calc(90vw / 25.6)); }
 /* Phones: a block hash squeezed to a stub ("0x") says nothing; the proof page shows it whole. */
 @media (max-width: 640px) { main .xp-row .xp-hash { display: none !important; } main .xp-row .xp-when { margin-left: auto; } }
+
+/* The proof page's file check, folded to one button until asked (Mike, 2026-10-05). */
+.pv-locate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.pv-locate .bg-action-link { margin: 0; }
+.pv-locate-note { font-size: 14px; color: var(--dim); }
