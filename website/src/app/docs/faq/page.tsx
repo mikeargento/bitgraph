@@ -64,7 +64,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "If the enclave were compromised, would my old proofs be worthless?",
-    a: "No. A compromise can sign only under the live epoch's key. Earlier epochs were signed by keys that no longer exist. The affected epoch is identified permanently by its identifier and can be quarantined; every other epoch is untouched. A forgery within the live epoch, by code running inside the enclave, is not detectable from the proofs.",
+    a: "No. A compromise can sign only under the live epoch's key. Earlier epochs were signed by keys that no longer exist, so a compromise that begins later cannot reach them. The affected epoch is identified permanently by its identifier and can be quarantined; epochs that were not themselves compromised are unaffected. A restart ends a foothold inside the enclave but not the flaw that allowed it, and proofs already forged stay valid. A forgery within the live epoch, by code running inside the enclave, is not detectable from the proofs.",
     href: "/docs/trust-model#threats", label: "Trust model",
   },
   {

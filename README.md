@@ -126,11 +126,11 @@ Ethereum is not asked to be a good source of randomness, and it is not asked to 
 
 BitGraph assumes the boundary can be compromised and bounds the damage instead of claiming it cannot happen.
 
-The signing key exists only in enclave memory. Every restart destroys it and begins a new epoch with a fresh key and a fresh counter. Proofs from prior epochs were signed by keys that no longer exist, so a compromise cannot reach backward.
+The signing key exists only in enclave memory. Every restart destroys it and begins a new epoch with a fresh key and a fresh counter. Proofs from prior epochs were signed by keys that no longer exist, so a compromise that begins later cannot reach backward.
 
-Forgery requires more than key theft. Every proof carries a hardware attestation whose user_data must equal the hash of that exact proof body, and only the enclave's secure module can produce one. A useful breach must execute inside the running enclave, and it dies at the next restart.
+Forgery requires more than key theft. Every proof carries a hardware attestation whose user_data must equal the hash of that exact proof body, and only the enclave's secure module can produce one. A useful breach must execute inside the running enclave. A restart ends that foothold but not the flaw that allowed it: the same flaw could be used again in a later epoch, and proofs already forged stay valid.
 
-Damage control is precise. Every proof names its epoch permanently, so a suspect window is identified exactly: rotate the epoch, publish the affected epochId as quarantined, and every other epoch is untouched. Verifiers that pin measurements and track epochs account for the gap.
+Damage control is precise. Every proof names its epoch permanently, so a suspect window is identified exactly: rotate the epoch, publish the affected epochId as quarantined; epochs that were not themselves compromised are unaffected. Verifiers that pin measurements and track epochs account for the gap.
 
 The production deployment makes rotation routine rather than exceptional: the boundary restarts every day at 23:59 UTC, destroying the epoch key and starting a fresh one, so a normally operating epoch runs about a day. An unexpected restart ends one early and a failed rotation extends one; either way the boundary is recorded in the proofs themselves. A breach that depends on staying resident inside the enclave cannot outlive its epoch without freshly re-compromising a new one. The schedule is deliberately public: rotation times are visible in BitGraph's public copy regardless, and the protection comes from the key dying, not from anyone guessing when.
 

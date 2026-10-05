@@ -8,7 +8,7 @@ import { Arrow, Chip, Fig, Svg, T } from "./fig";
 export function FusedFigure() {
   const caption = (
     <>
-      The commitment is SHA-256 over a fixed label, the hash of the signed position record and the position&rsquo;s nonce. It is derived on your device and only the commitment enters the new file, never the nonce. For formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF, BMP, WebP) the commitment rides in a 48-byte trailer; for everything else the original is wrapped, unchanged, in a small tar container. Either way the original plus the proof rebuilds the new file byte for byte, so the new file need not be kept.
+      The commitment is SHA-256 over a fixed label, the hash of the position record&rsquo;s signed fields (not its signature), the position&rsquo;s nonce and the hash of the floor block, which ties the new bytes to that block. It is derived on your device and only the commitment enters the new file, never the nonce. For formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF, BMP, WebP) the commitment rides in a 48-byte trailer; for everything else the original is wrapped, unchanged, in a small tar container. Either way the original plus the proof rebuilds the new file byte for byte, so the new file need not be kept.
     </>
   );
 

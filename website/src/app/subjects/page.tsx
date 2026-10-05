@@ -148,7 +148,7 @@ export default function UseCasesPage() {
 
         <h2 id="next">Where next</h2>
         <ul className="doors">
-          <li><Link href="/docs/try">Make a BitGraph</Link><span>Drop any file in your browser. Only its fingerprint leaves your machine, and the proof comes back to you.</span></li>
+          <li><Link href="/docs/try">Make a BitGraph</Link><span>Drop any file in your browser. The file never leaves your machine, and the proof comes back to you.</span></li>
           <li><Link href="/docs/integration">Integration guide</Link><span>Record from your own systems: SDK, CLI, or two HTTP calls.</span></li>
           <li><Link href="/docs/mcp">MCP server</Link><span>Connect an agent with one URL.</span></li>
           <li><Link href="/contact">Contact</Link><span>Licensing and evaluation, with Michael Argento.</span></li>
