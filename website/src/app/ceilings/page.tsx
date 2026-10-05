@@ -81,18 +81,20 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
           .cl-when { margin-left: auto; }
         }
       `}</style>
-      <h1 className="bg-page-title" style={{ margin: 0 }}>Ceilings</h1>
-      {day && <div style={{ fontSize: 14, color: "var(--dim)", marginTop: 2 }}>{`${longLabel(day)} (UTC)`}</div>}
-      <p className="lede" style={{ margin: "10px 0 0" }}>
-        Each row is one Base transaction carrying a Merkle root over the records made since the last one. Every record under it existed by the time of its block, read from the block itself, in UTC, with the block linked to Basescan.
-      </p>
-      <p style={{ margin: "12px 0 0", fontSize: 14, color: "var(--dim)" }}>
-        Sent from BitGraph&rsquo;s ceiling address:{" "}
-        <a className="cl-writer" href={`${BASESCAN}/address/${CEILING_WRITER}`} target="_blank" rel="noopener">
-          {CEILING_WRITER} <span aria-hidden style={{ fontSize: 10 }}>&#8599;</span>
-        </a>
-        . It sends nothing but ceiling writes, each a zero-value transaction to itself, and each names the SHA-256 of the one before, so its full history lists every ceiling.
-      </p>
+      <div className="xp-head">
+        <p className="xp-chain">Base</p>
+        <div className="xp-head-text">
+          <h1 className="bg-page-title" style={{ margin: 0 }}>Ceilings</h1>
+          {day && <p style={{ fontSize: 14, color: "var(--dim)", margin: "2px 0 0" }}>{`${longLabel(day)} (UTC)`}</p>}
+          <p className="lede" style={{ margin: "10px 0 0" }}>
+            Each row is one Base transaction carrying a Merkle root over the records made since the last one. Every record under it existed by the time of its block, read from the block itself, in UTC, with the block linked to Basescan.
+          </p>
+          <p style={{ margin: "12px 0 0", fontSize: 14, color: "var(--dim)" }}>
+            Sent from BitGraph&rsquo;s ceiling address:{" "}
+            <a className="cl-writer" href={`${BASESCAN}/address/${CEILING_WRITER}`} target="_blank" rel="noopener">{CEILING_WRITER}</a>
+          </p>
+        </div>
+      </div>
 
       <div style={{ display: "flex", gap: 12, margin: "28px 0 20px" }}>
         {prev >= EARLIEST_DAY && (
@@ -117,12 +119,12 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
             const d = new Date(w.blockTimestamp * 1000).toISOString().slice(0, 10);
             const detail = `/ceilings/write?day=${d}&block=${w.blockNumber}&tx=${w.txHash}`;
             return (
-              <div key={w.txHash} className="xp-row cl-row">
+              <div key={w.txHash} className="xp-row xp-row-base cl-row">
                 <a href={detail} className="cl-records" style={{ textDecoration: "none" }}>
                   {w.records === 1 ? "1 record" : `${fmt(w.records)} records`}
                 </a>
                 <a href={`${BASESCAN}/tx/${w.txHash}`} target="_blank" rel="noopener" style={{ flexShrink: 0, fontWeight: 600, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                  block {fmt(w.blockNumber)} <span aria-hidden style={{ fontSize: 10 }}>&#8599;</span>
+                  block {fmt(w.blockNumber)}
                 </a>
                 <a href={detail} className="cl-pos" style={{ textDecoration: "none" }}>
                   {w.firstPos === w.lastPos ? `#${fmt(w.firstPos)}` : `#${fmt(w.firstPos)} to #${fmt(w.lastPos)}`}
@@ -130,7 +132,7 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
                 <StatusChip status={w.status} />
                 {w.settlement && (
                   <a href={`https://etherscan.io/block/${w.settlement.l1BlockNumber}`} target="_blank" rel="noopener" className="cl-eth" title="The Ethereum block carrying the batch data that holds this Base block">
-                    Ethereum {fmt(w.settlement.l1BlockNumber)} <span aria-hidden style={{ fontSize: 10 }}>&#8599;</span>
+                    Ethereum {fmt(w.settlement.l1BlockNumber)}
                   </a>
                 )}
                 <a href={detail} className="cl-when" style={{ textDecoration: "none" }}>

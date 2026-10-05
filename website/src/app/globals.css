@@ -2860,3 +2860,24 @@ html { background: #ffffff !important; }
 .pv-filecard-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
 .pv-filecard-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--dim); }
 .pv-filecard-name strong { color: var(--ink); font-weight: 600; }
+
+/* The chain each row names, by its mark (Mike, 2026-10-05): Ethereum's diamond on Floors, Base's square
+   on Ceilings, in place of the generic blue square (which read as Base's mark on the Ethereum page). */
+main .xp-row.xp-row-eth::before { width: 11px; height: 18px; border-radius: 0; background: url("/logos/ethereum.svg") center / contain no-repeat; }
+main .xp-row.xp-row-base::before { width: 14px; height: 14px; border-radius: 0; background: url("/logos/base.svg") center / contain no-repeat; }
+.pv-chain { display: inline-block; vertical-align: -2px; margin-right: 6px; background: center / contain no-repeat; }
+.pv-chain-eth { width: 8px; height: 13px; background-image: url("/logos/ethereum.svg"); }
+.pv-chain-base { width: 11px; height: 11px; background-image: url("/logos/base.svg"); vertical-align: -1px; }
+/* Phones: an anchor row (mark, counter, block, time, chevron) ran ~20px past a 375px screen; tighter
+   side padding and gaps keep the time and the chevron in view. */
+@media (max-width: 480px) { main .xp-row { padding: 14px 12px !important; gap: 8px !important; } }
+
+/* The Floors and Ceilings headers start at the rows' left edge, not in the centred reading column
+   (Mike, 2026-10-04: "aligned to content is the rule"): on a list page the rows are the content.
+   The chain is named in a word above the title, not a logo (Mike, 2026-10-04: "instead of logos
+   in the titles we should just have the word written"). */
+main .xp-head :is(h1, p) { margin-left: 0 !important; margin-right: 0 !important; }
+main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.xp-head .cl-writer { overflow-wrap: anywhere; }
+/* Phones: a block hash squeezed to a stub ("0x") says nothing; the proof page shows it whole. */
+@media (max-width: 640px) { main .xp-row .xp-hash { display: none !important; } main .xp-row .xp-when { margin-left: auto; } }

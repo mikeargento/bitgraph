@@ -390,7 +390,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
 
           {!isAnchor && m.floor && (
             <Moment
-              label="Floor in time"
+              label="Floor in time" chain="eth"
               title={<>Recorded after Ethereum block #{fmtNum(m.floor.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"> · mined {whenBeside(floorMs, attested)}</span> : null}</>}
               note={<>Fixed by the enclave when the position opened and signed into the proof; a block hash cannot be known before its block exists.{m.floor.recordedMs !== null ? <> Recorded as anchor #{fmtNum(m.floor.counter)} at {whenBeside(m.floor.recordedMs, attested)}.</> : null}{m.commitAfter ? <> The commit also follows anchor #{fmtNum(m.commitAfter.counter)}, Ethereum block #{fmtNum(m.commitAfter.blockNumber)}{m.commitAfter.blockTime ? <> (mined {whenBeside(new Date(m.commitAfter.blockTime).getTime(), attested)})</> : null}, by the chain of proof hashes: a tighter bound on the commit, not on the bytes.</> : null}{m.floorNote ? <> {m.floorNote}</> : null}</>}
             >
@@ -410,7 +410,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
 
           {!isAnchor && ct && ct.anchor && ctMs !== null && (
             <Moment
-              label="Ceiling in time"
+              label="Ceiling in time" chain="base"
               title={<>Existed by Base block #{fmtNum(ct.anchor.blockNumber)}<span className="pv-moment-dim"> · {whenBeside(ctMs, attested)}</span></>}
               note={<>
                 A Merkle root over this record&rsquo;s proof hash, in that block.{" "}
@@ -426,12 +426,12 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             </Moment>
           )}
           {!isAnchor && ct && !ct.anchor && (
-            <Moment label="Ceiling in time" title={<span className="pv-moment-dim">Queued for the next Base write<span className="pv-dots" aria-hidden /></span>} note="The writer puts a root over new records on Base seconds after each commit. This page keeps asking." />
+            <Moment label="Ceiling in time" chain="base" title={<span className="pv-moment-dim">Queued for the next Base write<span className="pv-dots" aria-hidden /></span>} note="The writer puts a root over new records on Base seconds after each commit. This page keeps asking." />
           )}
 
           {!isAnchor && m.ceilingPos && (
             <Moment
-              label="Ceiling in position"
+              label="Ceiling in position" chain="eth"
               title={<>Committed before anchor #{fmtNum(m.ceilingPos.counter)}{m.ceilingPos.recordedMs !== null ? <span className="pv-moment-dim"> · recorded {whenBeside(m.ceilingPos.recordedMs, attested)}</span> : null}</>}
               note={<>The next anchor in the sequence, carrying Ethereum block #{fmtNum(m.ceilingPos.blockNumber)}{posMined !== null ? <> (mined {whenBeside(posMined, attested)})</> : null}. A bound in position, not a clock time: an anchor is made after the block it carries.</>}
             >
@@ -440,7 +440,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             </Moment>
           )}
           {!isAnchor && !m.ceilingPos && m.ethWait && (
-            <Moment label="Ceiling in position" title={<span className="pv-moment-dim">Waiting for the next anchor<span className="pv-dots" aria-hidden /></span>} note="An anchor lands about every 12 seconds. This page keeps asking." />
+            <Moment label="Ceiling in position" chain="eth" title={<span className="pv-moment-dim">Waiting for the next anchor<span className="pv-dots" aria-hidden /></span>} note="An anchor lands about every 12 seconds. This page keeps asking." />
           )}
           {isAnchor && attested !== null && (
             <Moment label="Recorded" title={<>{whenBeside(attested, blockMs)}{sinceBlock !== null ? <span className="pv-moment-dim"> · {sinceBlock} s after the block</span> : null}</>} note="The instant the enclave signed this anchor, per the enclave platform's signed clock: after the block it carries." accent />
@@ -573,12 +573,12 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   );
 }
 
-function Moment({ label, title, note, children, accent }: { label: string; title: ReactNode; note?: ReactNode; children?: ReactNode; accent?: boolean }) {
+function Moment({ label, title, note, children, accent, chain }: { label: string; title: ReactNode; note?: ReactNode; children?: ReactNode; accent?: boolean; chain?: "eth" | "base" }) {
   return (
     <div className={`pv-moment${accent ? " is-accent" : ""}`}>
       <div className="pv-moment-rail" aria-hidden><span className="pv-moment-dot" /></div>
       <div className="pv-moment-body">
-        <div className="pv-moment-label">{label}</div>
+        <div className="pv-moment-label">{chain && <span className={`pv-chain pv-chain-${chain}`} role="img" aria-label={chain === "eth" ? "Ethereum" : "Base"} />}{label}</div>
         <div className="pv-moment-title">{title}</div>
         {note && <div className="pv-moment-note">{note}</div>}
         {children && <div className="pv-moment-actions">{children}</div>}

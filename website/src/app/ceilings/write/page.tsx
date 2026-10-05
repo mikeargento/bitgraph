@@ -38,6 +38,9 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
           <a href={`/ceilings?day=${day}`} className="bg-action-link bg-proof-top">All ceilings</a>
         </div>
       </div>
+      {/* One column (Mike, 2026-10-04: "thats not aligned right"): the title and "Records" sat in the
+          centred reading measure while the cards ran the full frame, so neither edge lined up. */}
+      <div style={{ maxWidth: "var(--measure)", margin: "0 auto" }}>
       <h1 className="bg-page-title" style={{ margin: 0 }}>Base block {fmt(w.blockNumber)}</h1>
       <p className="lede" style={{ margin: "10px 0 0" }}>
         {w.records === 1 ? "This record" : `These ${fmt(w.records)} records`} existed by {time}, the time of the Base block that includes this transaction.
@@ -46,11 +49,11 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
         <Row label="Status"><StatusChip status={w.status} /></Row>
         {w.settlement && (
           <Row label="On Ethereum">
-            block <a href={`https://etherscan.io/block/${w.settlement.l1BlockNumber}`} target="_blank" rel="noopener">{fmt(w.settlement.l1BlockNumber)} &#8599;</a>, {new Date(w.settlement.l1BlockTimestamp * 1000).toISOString().replace("T", " ").slice(0, 19)} UTC: the batch data holding this Base block, in <a href={`https://etherscan.io/tx/${w.settlement.l1TxHash}`} target="_blank" rel="noopener" style={mono}>{w.settlement.l1TxHash.slice(0, 18)}&hellip;</a>
+            block <a href={`https://etherscan.io/block/${w.settlement.l1BlockNumber}`} target="_blank" rel="noopener">{fmt(w.settlement.l1BlockNumber)}</a>, {new Date(w.settlement.l1BlockTimestamp * 1000).toISOString().replace("T", " ").slice(0, 19)} UTC: the batch data holding this Base block, in <a href={`https://etherscan.io/tx/${w.settlement.l1TxHash}`} target="_blank" rel="noopener" style={mono}>{w.settlement.l1TxHash.slice(0, 18)}&hellip;</a>
           </Row>
         )}
         <Row label="Block time">{time}</Row>
-        <Row label="Block"><a href={`${BASESCAN}/block/${w.blockNumber}`} target="_blank" rel="noopener">{fmt(w.blockNumber)} &#8599;</a></Row>
+        <Row label="Block"><a href={`${BASESCAN}/block/${w.blockNumber}`} target="_blank" rel="noopener">{fmt(w.blockNumber)}</a></Row>
         <Row label="Transaction"><a href={`${BASESCAN}/tx/${w.txHash}`} target="_blank" rel="noopener" style={mono}>{w.txHash}</a></Row>
         <Row label="Writer"><a href={`${BASESCAN}/address/${CEILING_WRITER}`} target="_blank" rel="noopener" style={mono}>{CEILING_WRITER}</a></Row>
         <Row label="Positions">{w.firstPos === w.lastPos ? `#${fmt(w.firstPos)}` : `#${fmt(w.firstPos)} to #${fmt(w.lastPos)}`}</Row>
@@ -70,6 +73,7 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
             ? <a key={i.proofHash} href={href} className="xp-row" style={{ display: "flex", gap: 12, alignItems: "center" }}>{inner}</a>
             : <div key={i.proofHash} className="xp-row" style={{ display: "flex", gap: 12, alignItems: "center" }}>{inner}</div>;
         })}
+      </div>
       </div>
     </div>
   );

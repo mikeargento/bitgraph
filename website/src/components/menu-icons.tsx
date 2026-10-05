@@ -8,7 +8,6 @@ const ICON: Record<string, string> = {
   "https://live.bitgraph.ing": "sports_baseball",
   "/exam": "assignment_turned_in",
   "/docs/try": "add_box",
-  "/ceilings": "deployed_code",
   "/docs/overview": "schema",
   "/subjects": "work",
   "/docs/trust-model": "verified_user",
@@ -45,10 +44,19 @@ function EthMark() {
   );
 }
 
+/** Ceilings are Base blocks: Base's mark, the Square, in the block's one colour like the Ethereum mark. */
+function BaseMark() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="5" y="5" width="14" height="14" rx="2.6" />
+    </svg>
+  );
+}
+
 export function MenuIcon({ href, index = 0 }: { href: string; index?: number }) {
   return (
     <span className={`menu-block g-${TINTS[index % TINTS.length]}`} aria-hidden="true">
-      {href === "/ledger" ? <EthMark /> : <span className="material-symbols-rounded">{ICON[href] ?? "circle"}</span>}
+      {href === "/ledger" ? <EthMark /> : href === "/ceilings" ? <BaseMark /> : <span className="material-symbols-rounded">{ICON[href] ?? "circle"}</span>}
     </span>
   );
 }

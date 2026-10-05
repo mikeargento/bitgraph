@@ -594,7 +594,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                than one link with a link inside it: the position opens its
                proof; the block opens Etherscan, where the hash is matched. */
             return (
-              <div key={rowId(e)} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`} style={{ overflow: "hidden" }}>
+              <div key={rowId(e)} className={`xp-row${isInterval ? " xp-row-interval" : " xp-row-eth"}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`} style={{ overflow: "hidden" }}>
                 {/* A fixed-width counter, so "block …" starts on the same x in
                     every row and the blocks read as a column (Mike,
                     2026-09-11: "should block number be left aligned like
@@ -614,7 +614,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                 )}
                 {e.etherscanUrl && (
                   <a href={e.etherscanUrl} target="_blank" rel="noopener" style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                    {e.blockNumber != null ? `block ${fmt(e.blockNumber)}` : "block"} <span aria-hidden style={{ fontSize: 10 }}>&#8599;</span>
+                    {e.blockNumber != null ? `block ${fmt(e.blockNumber)}` : "block"}
                   </a>
                 )}
                 {/* The hash and the time open the proof too (Mike, 2026-09-11:
@@ -623,11 +623,11 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                     Etherscan, is the proof. Links, not a row-wide onClick, so
                     nothing nests inside the block's own anchor. */}
                 {e.blockHash && (
-                  <a href={proofHref} style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--dim)", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" }} title={e.blockHash}>
+                  <a href={proofHref} className="xp-hash" style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--dim)", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" }} title={e.blockHash}>
                     {e.blockHash}
                   </a>
                 )}
-                <a href={proofHref} style={{ flex: e.blockHash ? "0 0 auto" : 1, minWidth: 0, fontSize: 12.5, color: "var(--dim)", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums", textDecoration: "none" }}>
+                <a href={proofHref} className="xp-when" style={{ flex: e.blockHash ? "0 0 auto" : 1, minWidth: 0, fontSize: 12.5, color: "var(--dim)", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums", textDecoration: "none" }}>
                   <span className="bg-day-long">{fmtWhen(e.at)}</span>
                   <span className="bg-day-short">{fmtWhenShort(e.at)}</span>
                 </a>

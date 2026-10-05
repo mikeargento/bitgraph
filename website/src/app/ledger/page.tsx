@@ -119,7 +119,9 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
             </a>
           }
           title={
-            <div>
+            <div className="xp-head">
+              <p className="xp-chain">Ethereum</p>
+              <div className="xp-head-text">
               {/* .bg-page-title: the one page-title size, site-wide. */}
               {/* Ethereum anchors, and only them (Mike, 2026-09-09). The
                   bucket keeps only anchors; this is the system's wall clock,
@@ -127,22 +129,21 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
                   Etherscan and take the day's anchors away as a file. */}
               {/* "Floors" and "Ceilings", side by side in the nav (Mike, 2026-09-29).
                   The lede keeps saying Ethereum, so the pair never reads as one chain. */}
-              <h1 className="bg-page-title" style={{ margin: 0 }}>
-                Floors
-              </h1>
+              <h1 className="bg-page-title" style={{ margin: 0 }}>Floors</h1>
               {/* No line under the live title: the rows say what they are
                   (Mike, 2026-09-09: "it doesnt need to say this"). A past day
                   keeps its date, which is the one thing the rows cannot say. */}
               {day && (
-                <div style={{ fontSize: 14, fontWeight: 400, color: "var(--dim)", marginTop: 2 }}>
+                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--dim)", margin: "2px 0 0" }}>
                   {`${longLabel(day)} (UTC)`}
-                </div>
+                </p>
               )}
               {/* How to read the rows. The title is rendered by the Explorer,
                   so the one place between it and the rows is this slot. */}
               <p className="lede" style={{ margin: "10px 0 0" }}>
                 Each row is an anchor: a position whose file is the hash of the Ethereum block it names, with the block linked to Etherscan and the time read from the block itself, in UTC. These are the floors every position that day rests on.
               </p>
+              </div>
             </div>
           }
           // The day-flip stepper — back before forward, sitting together on
