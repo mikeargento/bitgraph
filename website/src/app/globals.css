@@ -2579,15 +2579,13 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-moment-title { font-size: 15.5px; font-weight: 600; color: var(--ink); margin-top: 2px; line-height: 1.4; }
 .pv-moment-dim { color: var(--dim); font-weight: 400; white-space: nowrap; }
 .pv-moment-note { font-size: 13.5px; color: var(--dim); line-height: 1.5; margin-top: 3px; }
-/* Two per row, each moment's evidence as a pair (Mike, 2026-10-05), and the arrow kept at every width:
+/* Each moment's evidence as a pair (Mike, 2026-10-05), and the arrow kept at every width:
    ↗ leaves the site (Etherscan, Basescan), → stays on bitgraph.ing (an anchor's proof). */
-.pv-moment-actions { display: grid; grid-template-columns: repeat(2, max-content); gap: 8px; margin-top: 8px; }
+/* One button per row at every width (Mike, 2026-10-05: desktop the same as mobile), label left and
+   arrow right, no wider than a comfortable button on a wide screen. */
+.pv-moment-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 8px; max-width: 420px; }
+.pv-moment-actions .pv-pill { display: flex !important; width: 100%; justify-content: space-between; }
 .pv-moment-actions .pv-pill .arrow { display: inline !important; margin-left: 6px; color: var(--dim); }
-/* Phones: one button per row, full width, label left and arrow right. */
-@media (max-width: 599px) {
-  .pv-moment-actions { grid-template-columns: 1fr; }
-  .pv-moment-actions .pv-pill { display: flex !important; width: 100%; justify-content: space-between; }
-}
 .pv-pill { margin: 0 !important; }
 .pv-dots::after { content: "…"; animation: pv-dots 1.6s steps(3, end) infinite; }
 @keyframes pv-dots { 0% { content: ""; } 33% { content: "."; } 66% { content: ".."; } 100% { content: "..."; } }
