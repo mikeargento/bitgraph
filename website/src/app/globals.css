@@ -2885,6 +2885,8 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 @media (max-width: 640px) { main .xp-row .xp-hash { display: none !important; } main .xp-row .xp-when { margin-left: auto; } }
 
 /* The proof page's file check, folded to one button until asked (Mike, 2026-10-05). */
-.pv-locate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+/* Small pill with its note beside it, on the card's own content edge: the negative margin cancels the
+   16px frame the unfolded drop box needs. */
+.pv-locate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: -16px; }
 .pv-locate .bg-action-link { margin: 0; }
 .pv-locate-note { font-size: 14px; color: var(--dim); }
