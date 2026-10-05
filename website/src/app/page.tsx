@@ -60,11 +60,12 @@ export default function HomePage() {
           are in the git history and in the headline file. */}
       <h1>GPS for files.</h1>
 
-      {/* One sentence (Mike, 2026-10-04), replacing "A position verified against a public
-          broadcast. Your files never leave your computer.": the blockchain and the file staying
-          home, said once. Balanced, with "the file" kept together so no line ends on "the". */}
+      {/* The literal statement under the metaphor (Mike, 2026-10-05), replacing "Use blockchain
+          without sending the file.": GPS for files, BitGraph gives files a verifiable position,
+          local files, global coordinates. The object is concrete (files take positions;
+          processes do not), and the claim is the position, never the content or a time. */}
       <p className="lede">
-        <span className="lede-sentence">Use blockchain without sending the&nbsp;file.</span>
+        <span className="lede-sentence">BitGraph gives files a verifiable&nbsp;position.</span>
       </p>
 
       <p className="lede home-coordinates">Local files. Global&nbsp;coordinates.</p>
