@@ -228,10 +228,11 @@ function usePhone(): boolean {
 function ChecksGroup({ title, rows }: { title: string; rows: CarrierClaim[] }) {
   const failed = rows.filter((x) => x.result === "FALSE").length;
   const held = rows.filter((x) => x.result === "TRUE").length;
-  const unjudged = rows.length - held - failed;
+  const byAudit = rows.filter(auditOnly).length;
+  const unjudged = rows.length - held - failed - byAudit;
   const [open, setOpen] = useState<boolean | null>(null);
   const isOpen = open ?? failed > 0;
-  const tally = failed ? <>{failed} fail{failed === 1 ? "s" : ""}</> : <>{held} hold{unjudged ? <span className="pv-checks-unjudged"> · {unjudged} not judged</span> : null}</>;
+  const tally = failed ? <>{failed} fail{failed === 1 ? "s" : ""}</> : <>{held} hold{byAudit ? <span className="pv-checks-unjudged"> · {byAudit} by the audit tool</span> : null}{unjudged ? <span className="pv-checks-unjudged"> · {unjudged} not judged</span> : null}</>;
   return (
     <details className="pv-checks-group" open={isOpen} onToggle={(e) => { const o = (e.currentTarget as HTMLDetailsElement).open; if (o !== isOpen) setOpen(o); }}>
       <summary className="pv-checks-group-title">
@@ -596,9 +597,16 @@ function Moment({ label, title, note, children, accent, chain }: { label: string
   );
 }
 
+/* Claims a browser cannot judge by design, only the audit tool can: said plainly, not as a question mark
+   (Mike, 2026-10-05: "is this one supposed to be there still?"). Still listed, so every claim is shown. */
+const AUDIT_ONLY: Record<string, string> = {
+  "settlement.blobs.decoded": "This needs Base's raw batch data from Ethereum, which the audit tool checks with the data kept beside each download. The browser holds only the pointer to it.",
+};
+const auditOnly = (x: CarrierClaim) => x.result === "UNDETERMINED" && x.id in AUDIT_ONLY;
+
 function ClaimRow({ x }: { x: CarrierClaim }) {
   const [open, setOpen] = useState(false);
-  const glyph = x.result === "TRUE" ? "✓" : x.result === "FALSE" ? "✗" : x.result === "NOT_CARRIED" ? "–" : "?";
+  const glyph = x.result === "TRUE" ? "✓" : x.result === "FALSE" ? "✗" : x.result === "NOT_CARRIED" || auditOnly(x) ? "–" : "?";
   return (
     <div className={`pv-claim pv-claim-${x.result.toLowerCase().replace("_", "-")}${open ? " is-open" : ""}`}>
       <button type="button" className="pv-claim-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
@@ -606,11 +614,11 @@ function ClaimRow({ x }: { x: CarrierClaim }) {
         <span className="pv-claim-name">{x.name}</span>
         {x.result === "TRUE" && x.restsOn ? <span className="pv-claim-rests">{x.restsOn}</span> : null}
         {x.result === "NOT_CARRIED" ? <span className="pv-claim-rests">not carried</span> : null}
-        {x.result === "UNDETERMINED" ? <span className="pv-claim-rests">not judged</span> : null}
+        {x.result === "UNDETERMINED" ? <span className="pv-claim-rests">{auditOnly(x) ? "checked by the audit tool" : "not judged"}</span> : null}
         {x.result === "FALSE" ? <span className="pv-claim-rests">fails</span> : null}
         <svg className="pv-chevron pv-claim-chev" width="18" height="18" viewBox="0 0 24 24" aria-hidden><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
-      {open && <div className="pv-claim-detail">{x.detail}</div>}
+      {open && <div className="pv-claim-detail">{auditOnly(x) ? AUDIT_ONLY[x.id] : x.detail}</div>}
     </div>
   );
 }
