@@ -28,7 +28,7 @@
  * "proves when".
  */
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { TimeChip, stampTz, timeTz, sameDayTz } from "@/lib/format-time";
 import type { BitGraphProof } from "@/lib/bitgraph";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
@@ -209,6 +209,56 @@ function Fold({ title, children, count }: { title: string; children: ReactNode; 
   );
 }
 
+/** True on a phone-width screen, read after mount (the server renders the wide layout). */
+function usePhone(): boolean {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const q = window.matchMedia("(max-width: 599px)");
+    const on = () => setPhone(q.matches);
+    on();
+    q.addEventListener("change", on);
+    return () => q.removeEventListener("change", on);
+  }, []);
+  return phone;
+}
+
+/** One group of checks, folded to its title and tally at every width (Mike, 2026-10-05: the list
+ *  was 3,700px tall at 375px, "collapse like that for neatness on desktop too"); a group holding
+ *  a failed check always starts open, so a failure is never folded away. */
+function ChecksGroup({ title, rows }: { title: string; rows: CarrierClaim[] }) {
+  const failed = rows.filter((x) => x.result === "FALSE").length;
+  const held = rows.filter((x) => x.result === "TRUE").length;
+  const unjudged = rows.length - held - failed;
+  const [open, setOpen] = useState<boolean | null>(null);
+  const isOpen = open ?? failed > 0;
+  const tally = failed ? <>{failed} fail{failed === 1 ? "s" : ""}</> : <>{held} hold{unjudged ? <span className="pv-checks-unjudged"> · {unjudged} not judged</span> : null}</>;
+  return (
+    <details className="pv-checks-group" open={isOpen} onToggle={(e) => { const o = (e.currentTarget as HTMLDetailsElement).open; if (o !== isOpen) setOpen(o); }}>
+      <summary className="pv-checks-group-title">
+        <span>{title}</span>
+        <span className={`pv-checks-tally${failed ? " is-fail" : ""}`}>{tally}</span>
+      </summary>
+      {rows.map((x) => <ClaimRow key={x.id} x={x} />)}
+    </details>
+  );
+}
+
+/** The verdict in words. ISO times never break mid-stamp; on a phone it shows a few lines first. */
+function Reading({ text, isFalse }: { text: string; isFalse: boolean }) {
+  const phone = usePhone();
+  const [all, setAll] = useState(false);
+  const parts = text.split(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)/);
+  const clamp = phone && !all && text.length > 260;
+  return (
+    <div className={`pv-reading${isFalse ? " is-false" : ""}`}>
+      <div className={clamp ? "pv-reading-clamp" : undefined}>
+        {parts.map((p, i) => (i % 2 === 1 ? <span key={i} className="pv-nowrap">{p}</span> : p))}
+      </div>
+      {clamp && <button type="button" className="pv-reading-more" onClick={() => setAll(true)}>Show all</button>}
+    </div>
+  );
+}
+
 function Pill({ href, children, external, download }: { href: string; children: ReactNode; external?: boolean; download?: boolean }) {
   return (
     <a href={href} className="bg-action-link pv-pill" {...(external ? { target: "_blank", rel: "noopener" } : {})} {...(download ? { download: true } : {})}>
@@ -289,7 +339,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
 
         {m.c2pa?.present && <ContentCredentials c2pa={m.c2pa} />}
 
-        {m.set && m.set.kind === "tree/1" && (
+        {/* A tree of one whose file is shown above needs no Files list: it would only repeat it. */}
+        {m.set && m.set.kind === "tree/1" && !(m.set.count === 1 && m.set.rows.length === 1) && (
           <div className="pv-sub">
             <div className="pv-sub-title">Files</div>
             {m.set.rows.length === 0 ? (
@@ -371,7 +422,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               </>}
             >
               <Pill href={`https://basescan.org/tx/${ct.anchor.txHash}`} external>Basescan</Pill>
-              <Pill href={`/ceilings?day=${new Date(ctMs).toISOString().slice(0, 10)}`}>All ceilings</Pill>
               {settle?.txHash && <Pill href={`https://etherscan.io/tx/${settle.txHash}`} external>Ethereum batch</Pill>}
             </Moment>
           )}
@@ -410,18 +460,11 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               <span className={`pv-verdict pv-verdict-${(c.verdict ?? "UNDETERMINED").toLowerCase()}`}>{c.verdict === "TRUE" ? "Holds" : c.verdict === "FALSE" ? "Does not hold" : "Undetermined"}</span>
               <span className="pv-checks-count">{okCount} checks passed{badCount ? `, ${badCount} failed` : ""}{c.bytesInHand ? "" : m.set ? " · the set's root document is not in hand, so the two checks that need its bytes are not run here" : " · the file's own bytes are not in hand, so the two checks that need them are not run here"}</span>
             </div>
-            {c.reading && (
-              <div className={`pv-reading${c.verdict === "FALSE" ? " is-false" : ""}`}>{c.reading}</div>
-            )}
+            {c.reading && <Reading text={c.reading} isFalse={c.verdict === "FALSE"} />}
             {groups.map(([title, pick]) => {
               const rows = c.claims.filter((x) => pick(x.id));
               if (rows.length === 0) return null;
-              return (
-                <div key={title} className="pv-checks-group">
-                  <div className="pv-checks-group-title">{title}</div>
-                  {rows.map((x) => <ClaimRow key={x.id} x={x} />)}
-                </div>
-              );
+              return <ChecksGroup key={title} title={title} rows={rows} />;
             })}
             <div className="pv-checks-actions">
               {!c.confirmed ? (

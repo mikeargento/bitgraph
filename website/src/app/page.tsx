@@ -64,7 +64,7 @@ export default function HomePage() {
           broadcast. Your files never leave your computer.": the blockchain and the file staying
           home, said once. Balanced, with "the file" kept together so no line ends on "the". */}
       <p className="lede">
-        <span className="lede-sentence">Use the blockchain without sending the&nbsp;file.</span>
+        <span className="lede-sentence">Use blockchain without sending the&nbsp;file.</span>
       </p>
 
       <p className="lede home-coordinates">Local files. Global&nbsp;coordinates.</p>

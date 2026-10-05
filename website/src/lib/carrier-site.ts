@@ -45,14 +45,39 @@ function commitOf(proof: CarrierProof): { counter: string; epochId: string; slot
   return { counter, epochId, slotCounter, slotAnchor };
 }
 
-async function fetchAnchorSide(counter: string, epochId: string, side: "before" | "after"): Promise<AnchorSideAnswer> {
+/* One answer per page for what cannot change (2026-10-05): the proof page rebuilds its evidence each
+   time the ceiling or the anchor window arrives, and fetched the same anchors, headers and ceiling
+   4 or 5 times per load. A settled answer is kept and shared, a request in flight is shared, and
+   only what may still change is asked again: a "pending" closing anchor, a ceiling not yet written,
+   and any failure. */
+const settled = new Map<string, Promise<unknown>>();
+function shareSettled<T>(key: string, load: () => Promise<T>, keep: (v: T) => boolean): Promise<T> {
+  const hit = settled.get(key) as Promise<T> | undefined;
+  if (hit) return hit;
+  const p = load().then(
+    (v) => { if (!keep(v)) settled.delete(key); return v; },
+    (e) => { settled.delete(key); throw e; },
+  );
+  settled.set(key, p);
+  return p;
+}
+
+function fetchAnchorSide(counter: string, epochId: string, side: "before" | "after"): Promise<AnchorSideAnswer> {
+  return shareSettled(`anchor|${counter}|${epochId}|${side}`, () => fetchAnchorSideOnce(counter, epochId, side), (a) => a.bound?.state !== "pending");
+}
+
+async function fetchAnchorSideOnce(counter: string, epochId: string, side: "before" | "after"): Promise<AnchorSideAnswer> {
   const q = `counter=${encodeURIComponent(counter)}&epoch=${encodeURIComponent(epochId)}&${side === "before" ? "before=1" : "limit=1"}`;
   const r = await fetch(`/api/proofs/anchors?${q}`);
   if (!r.ok) throw new Error(`the ledger read for the ${side === "before" ? "floor" : "closing"} anchor failed (${r.status}); nothing was concluded from it`);
   return (await r.json()) as AnchorSideAnswer;
 }
 
-async function fetchWitness(blockNumber: number, blockHash: string): Promise<CarrierWitness> {
+function fetchWitness(blockNumber: number, blockHash: string): Promise<CarrierWitness> {
+  return shareSettled(`witness|${blockNumber}|${blockHash}`, () => fetchWitnessOnce(blockNumber, blockHash), () => true);
+}
+
+async function fetchWitnessOnce(blockNumber: number, blockHash: string): Promise<CarrierWitness> {
   const r = await fetch(`/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`);
   if (!r.ok) throw new Error(`the block-header witness for block ${blockNumber} could not be fetched (${r.status})`);
   const w = (await r.json()) as { headerRlpHex?: string; blockNumber?: number; blockHash?: string };
@@ -115,8 +140,12 @@ function isZipFamily(bytes: Uint8Array): boolean {
  * transaction); a sidecar that does not verify throws, since a carrier is
  * never built on a guess.
  */
-async function fetchCeilingInTime(proof: BitGraphProof): Promise<{ sidecar: Record<string, unknown> | null; pending: boolean }> {
+function fetchCeilingInTime(proof: BitGraphProof): Promise<{ sidecar: Record<string, unknown> | null; pending: boolean }> {
   const ph = (proof as { proofHash?: string }).proofHash ?? computeProofHash(proof);
+  return shareSettled(`ceiling|${ph}`, () => fetchCeilingInTimeOnce(proof, ph), (c) => !c.pending);
+}
+
+async function fetchCeilingInTimeOnce(proof: BitGraphProof, ph: string): Promise<{ sidecar: Record<string, unknown> | null; pending: boolean }> {
   const r = await fetch(`/api/ceilings/${encodeURIComponent(toUrlSafeB64(ph))}`);
   if (r.status === 404) return { sidecar: null, pending: true };
   if (!r.ok) throw new Error(`the ceiling read failed (${r.status}); nothing was concluded from it`);

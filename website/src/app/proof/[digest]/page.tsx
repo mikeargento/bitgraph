@@ -2858,7 +2858,7 @@ function FileCard({ cachedFile, label, preview, pending }: {
   const openable = !pending && (kind === "text" || kind === "pdf");
   const hasPreview = pending ? kind === "text" : kind === "text" || kind === "video" || kind === "audio" || (kind === "docx" && !!docx);
   return (
-    <div style={{ background: "var(--panel)" }}>
+    <div className="pv-filecard">
       {/* The identity row, and it HEADS the file rather than closing it (Mike,
           2026-09-26: people may think the file's contents are part of the proof).
           The proof's own header ends in "epoch <base64>", and a text file that
@@ -2875,8 +2875,8 @@ function FileCard({ cachedFile, label, preview, pending }: {
           {label ? <>{" · "}{label}</> : null}
         </span>
         {openable && url && (
-          <a href={url} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-            Open
+          <a href={url} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}>
+            <span>Open</span><span className="arrow" aria-hidden>&#8599;</span>
           </a>
         )}
       </div>

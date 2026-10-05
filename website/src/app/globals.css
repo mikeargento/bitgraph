@@ -2563,7 +2563,7 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-list-dim { color: var(--dim); white-space: nowrap; }
 .pv-list-viewing { color: var(--dim); font-size: 13px; }
 .pv-list-link { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
-@media (max-width: 640px) { .pv-list-row { grid-template-columns: 1fr auto; } .pv-list-dim { display: none; } .pv-list-mid { grid-column: 1 / -1; } }
+@media (max-width: 640px) { .pv-list-row { grid-template-columns: auto minmax(0, 1fr) auto; } .pv-list-dim { display: none; } }
 /* The window: a rail of moments, top to bottom in the order they happened. */
 .pv-moments { display: grid; gap: 0; }
 .pv-moment { display: grid; grid-template-columns: 22px 1fr; gap: 14px; }
@@ -2579,7 +2579,15 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-moment-title { font-size: 15.5px; font-weight: 600; color: var(--ink); margin-top: 2px; line-height: 1.4; }
 .pv-moment-dim { color: var(--dim); font-weight: 400; white-space: nowrap; }
 .pv-moment-note { font-size: 13.5px; color: var(--dim); line-height: 1.5; margin-top: 3px; }
-.pv-moment-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+/* Two per row, each moment's evidence as a pair (Mike, 2026-10-05), and the arrow kept at every width:
+   ↗ leaves the site (Etherscan, Basescan), → stays on bitgraph.ing (an anchor's proof). */
+.pv-moment-actions { display: grid; grid-template-columns: repeat(2, max-content); gap: 8px; margin-top: 8px; }
+.pv-moment-actions .pv-pill .arrow { display: inline !important; margin-left: 6px; color: var(--dim); }
+/* Phones: one button per row, full width, label left and arrow right. */
+@media (max-width: 599px) {
+  .pv-moment-actions { grid-template-columns: 1fr; }
+  .pv-moment-actions .pv-pill { display: flex !important; width: 100%; justify-content: space-between; }
+}
 .pv-pill { margin: 0 !important; }
 .pv-dots::after { content: "…"; animation: pv-dots 1.6s steps(3, end) infinite; }
 @keyframes pv-dots { 0% { content: ""; } 33% { content: "."; } 66% { content: ".."; } 100% { content: "..."; } }
@@ -2592,7 +2600,17 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-verdict-false { background: #fce8e6; color: #c5221f; }
 .pv-verdict-undetermined { background: #fef7e0; color: #b06000; }
 .pv-checks-group { border-top: 1px solid var(--line-2); padding: 10px 0 2px; }
-.pv-checks-group-title { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--dim); margin: 4px 0 4px; }
+.pv-checks-group-title { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--dim); margin: 4px 0 4px; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; padding: 4px 0; }
+.pv-checks-group-title::-webkit-details-marker { display: none; }
+.pv-checks-group-title::after { content: ""; width: 7px; height: 7px; border-right: 1.5px solid var(--dim); border-bottom: 1.5px solid var(--dim); transform: rotate(45deg); margin: 0 4px 3px 0; transition: transform 0.15s ease; flex: none; }
+.pv-checks-group[open] > .pv-checks-group-title::after { transform: rotate(225deg); margin-bottom: -3px; }
+.pv-checks-tally { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; color: #188038; }
+.pv-checks-tally.is-fail { color: var(--err); }
+.pv-checks-unjudged { color: var(--dim); }
+.pv-nowrap { white-space: nowrap; }
+.pv-reading-clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.pv-reading-more { appearance: none; border: 0; background: none; padding: 4px 0 0; font: inherit; font-size: 14px; font-weight: 600; color: var(--accent); cursor: pointer; }
+@media (max-width: 599px) { .pv-code pre, .pv-code code { white-space: pre-wrap !important; word-break: normal; overflow-wrap: anywhere; } }
 .pv-claim + .pv-claim { border-top: 1px solid var(--line-2); }
 .pv-claim-head { display: grid; grid-template-columns: 22px 1fr auto 18px; gap: 10px; align-items: baseline; width: 100%; padding: 8px 0; background: none; border: 0; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
 /* Each claim row opens (Mike, 09-30: "it isnt clear that these open"): the same chevron as the Details folds. */
@@ -2836,3 +2854,8 @@ html { background: #ffffff !important; }
 .spec-doc table { display: block; overflow-x: auto; max-width: var(--measure); margin-left: auto !important; margin-right: auto !important; }
 .spec-doc h1 { font-size: 32px !important; }
 .spec-doc h2 { margin-top: 48px !important; }
+
+/* The file in hand on a proof page: an outlined box, so its inner padding reads as the box's own
+   (Mike, 2026-10-05: "this section seems messy"); Open is a pill like every other action. */
+.pv-filecard { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-top: 16px; }
+.pv-filecard .pv-open .arrow { display: inline !important; margin-left: 6px; color: var(--dim); }
