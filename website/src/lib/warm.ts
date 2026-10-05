@@ -92,7 +92,7 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
 
 /** The home page's "See a real BitGraph" target. Its own constant rather than
  *  EXAMPLE_PROOF, which is the ChatGPT image used elsewhere: the home example is
- *  a text file that explains itself. The digest lives here because it was
+ *  a one-line text file (since 2026-10-05, BitGraph #1,281). The digest lives here because it was
  *  previously written out in both the home link and the proof page's
  *  EXAMPLE_FILES, and the two are only useful when they agree.
  *
@@ -100,7 +100,7 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
  *  ?counter/?epoch, so the proof page computes proofFeedKey(digest, null, null).
  *  Warming any other shape stores a response nobody reads, which is exactly the
  *  failure LEDGER_FEED_KEY below was written to stop happening twice. */
-export const HOME_EXAMPLE_DIGEST = "FFlsXXYqWJYNAeVrevpw-Jir4OU2P-lC19JRAIa9nIg";
+export const HOME_EXAMPLE_DIGEST = "y9znJvceEa38Exw6SKY0uul3M7IjIu3OleynLsg9soc";
 
 /** The ledger feed's initial (files-only, no-cursor) URL. This MUST stay byte-
  *  identical to Explorer's `feedUrl()` with its default state, because warm

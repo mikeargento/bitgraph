@@ -111,13 +111,17 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
   [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
-  // The home page's "See a real BitGraph": a text file that explains itself for a reader
+  // The home page's "See a real BitGraph" since 2026-10-05 (Mike: "extremely simple and short"): one line,
+  // "This file was recorded with BitGraph.", a tree/1 of one (BitGraph #1,281, container/2).
+  [HOME_EXAMPLE_DIGEST]:
+    { path: "/example/bitgraph-sample.txt", name: "bitgraph-sample.txt", mime: "text/plain" },
+  // The home example of 2026-09-30 (#4,546): a text file that explains itself for a reader
   // who knows nothing about BitGraph, in the TRACE doc's words: it carries its position
   // commitment and the link to the anchor BitGraph recorded right after its position
   // opened, so it names both of the things it came after, and since 2026-09-30 the Base
   // block that came after it (BitGraph #4,546). Served so the preview shows without the
   // reader having to find the file.
-  [HOME_EXAMPLE_DIGEST]:
+  "FFlsXXYqWJYNAeVrevpw-Jir4OU2P-lC19JRAIa9nIg":
     { path: "/example/bitgraph-demonstration-4.txt", name: "bitgraph-demonstration.txt", mime: "text/plain" },
   // The home example of 2026-09-27 (#3,178, before Base ceilings); kept so old links still show it.
   "pCAk_zQCEgu7EU4ErgfST3lmM7JwUojNCUBb8PH51nc":
@@ -470,10 +474,13 @@ export default function ProofPage() {
         if (!r.ok || cancelled) return;
         const name = r.headers.get("X-Record-Name") ?? example.name;
         const data = await (await r.blob()).arrayBuffer();
-        // Same guard the IDB path uses: only show bytes that hash to this proof.
+        // Same guard the IDB path uses: only show bytes that hash to this proof. A file this
+        // site hosts itself (EXAMPLE_FILES) is exempt: under tree/1 the digest is the tree's
+        // root document, not the file's hash, and the page checks the file against the tree
+        // (treeMember below) exactly as it checks a dropped one.
         let digestB64 = decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
         while (digestB64.length % 4 !== 0) digestB64 += "=";
-        if ((await hashBytes(new Uint8Array(data))) !== digestB64) return;
+        if (!Object.hasOwn(EXAMPLE_FILES, d) && (await hashBytes(new Uint8Array(data))) !== digestB64) return;
         if (cancelled) return;
         settled = true;
         setCachedFile({ name, data });
