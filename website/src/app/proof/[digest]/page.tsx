@@ -2670,9 +2670,10 @@ function PhotoCard({
   // first. Long and short edges get the same breathing room either way.
   return (
     <div
-      style={{
+      className={bare ? "pv-filecard" : undefined}
+      style={bare ? undefined : {
         background: "var(--panel)",
-        border: bare ? "none" : "1px solid var(--line)",
+        border: "1px solid var(--line)",
         borderRadius: "var(--radius-card)",
       }}
     >
@@ -2690,8 +2691,8 @@ function PhotoCard({
             {label ? <>{" · "}{label}</> : null}
           </span>
           {openUrl && (
-            <a href={openUrl} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-              Open
+            <a href={openUrl} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}>
+              <span>Open</span><span className="arrow" aria-hidden>&#8599;</span>
             </a>
           )}
         </div>
