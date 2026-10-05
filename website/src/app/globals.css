@@ -2878,6 +2878,8 @@ main .xp-row.xp-row-base::before { width: 14px; height: 14px; border-radius: 0; 
    in the titles we should just have the word written"). */
 main .xp-head :is(h1, p) { margin-left: 0 !important; margin-right: 0 !important; }
 main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
-.xp-head .cl-writer { overflow-wrap: anywhere; }
+/* The writer address never wraps (Mike, 2026-10-04): on a narrow phone its 42 mono characters
+   shrink to the frame's width (90vw; measured ~25.2em wide at this face) instead of breaking a line. */
+.xp-head .cl-writer { white-space: nowrap; font-size: min(14px, calc(90vw / 25.6)); }
 /* Phones: a block hash squeezed to a stub ("0x") says nothing; the proof page shows it whole. */
 @media (max-width: 640px) { main .xp-row .xp-hash { display: none !important; } main .xp-row .xp-when { margin-left: auto; } }
