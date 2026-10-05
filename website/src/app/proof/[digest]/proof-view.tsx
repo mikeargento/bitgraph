@@ -466,18 +466,27 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               if (rows.length === 0) return null;
               return <ChecksGroup key={title} title={title} rows={rows} />;
             })}
-            <div className="pv-checks-actions">
-              {!c.confirmed ? (
-                <button type="button" className="bg-action-link pv-pill" onClick={m.onConfirm} disabled={c.confirming}>
-                  <span>{c.confirming ? "Asking the nodes…" : "Confirm the blocks against public nodes"}</span>
-                </button>
-              ) : null}
-              <span className="pv-checks-hint">
-                {c.confirmed
-                  ? "Each block hash was compared with what a public Ethereum node and a public Base node report, from this browser."
-                  : "Offline, each block is taken from its header, which hashes to the hash the evidence names. Confirming asks ethereum-rpc.publicnode.com and mainnet.base.org from this browser for the same block."}
-              </span>
-            </div>
+            {/* The blocks against the chains, asked automatically (no button): one line says how it went. */}
+            {(() => {
+              const online = c.claims.filter((x) => x.level === "confirmed");
+              const bad = online.some((x) => x.result === "FALSE");
+              const unanswered = online.some((x) => x.result === "UNDETERMINED");
+              const state = !c.confirmed || c.confirming ? "asking" : bad ? "mismatch" : unanswered ? "unreached" : "confirmed";
+              return (
+                <div className={`pv-confirm pv-confirm-${state}`}>
+                  {state === "asking" && <span>Checking the blocks with Ethereum and Base…</span>}
+                  {state === "confirmed" && <span><span aria-hidden>&#10003; </span><span className="pv-wide">Blocks c</span><span className="pv-narrow">C</span>onfirmed with Ethereum and&nbsp;Base</span>}
+                  {state === "mismatch" && <span>A block does not match what Ethereum or Base reports</span>}
+                  {state === "unreached" && (
+                    <>
+                      <span>Couldn&rsquo;t reach the public nodes just now. The offline checks still hold.</span>
+                      <button type="button" className="pv-confirm-retry" onClick={m.onConfirm}>Try again</button>
+                    </>
+                  )}
+                  {(state === "confirmed" || state === "mismatch") && <span className="pv-confirm-src">Asked from this browser: <span className="pv-host">ethereum-rpc.publicnode.com</span> and <span className="pv-host">mainnet.base.org</span>.</span>}
+                </div>
+              );
+            })()}
           </>
         )}
       </section>

@@ -340,6 +340,14 @@ export default function ProofPage() {
     };
     void runChecks({ ethereumBlockHash: rpc("https://ethereum-rpc.publicnode.com"), baseBlockHash: rpc("https://mainnet.base.org") });
   };
+  /* Confirmed by default (Mike, 2026-10-05: "remove the button and run the check automatically"): once the
+     offline checks are done, the page asks the public nodes itself. A re-run of the offline checks (a
+     ceiling landing, a file arriving) resets confirmed, so the new evidence is confirmed too; a node that
+     does not answer still counts as asked, so nothing loops. */
+  useEffect(() => {
+    if (checks.state === "done" && !checks.confirmed && !checks.confirming) confirmAgainstNodes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checks.state, checks.confirmed, checks.confirming]);
   // The manifest row the file in hand belongs to, when this is a set proof:
   // named by the verifier, which is also what decides the role below.
   const [heldMember, setHeldMember] = useState<SetMemberRow | null>(null);

@@ -2895,3 +2895,20 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .pv-locate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: -16px; }
 .pv-locate .bg-action-link { margin: 0; }
 .pv-locate-note { font-size: 14px; color: var(--dim); }
+/* The proof page's small capital headings in ink, like every heading (Mike, 2026-10-05: "should those be
+   darker black"): the check groups ("THE FLOOR") and the timeline's labels ("FLOOR IN TIME"). The tally
+   beside a group title keeps the dim tone; it is a count, not a heading. */
+.pv-checks-group-title, .pv-moment-label { color: var(--ink); }
+.pv-checks-group-title .pv-checks-tally:not(.is-fail) { color: var(--dim); }
+/* The automatic block confirmation: one line under the checks (2026-10-05). */
+.pv-confirm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-top: 14px; font-size: 14.5px; font-weight: 600; }
+.pv-confirm-asking { color: var(--dim); font-weight: 500; }
+.pv-confirm-confirmed { color: #188038; }
+.pv-confirm-mismatch { color: var(--err); }
+.pv-confirm-unreached { color: var(--dim); font-weight: 500; }
+.pv-confirm-src { flex-basis: 100%; font-size: 13px; font-weight: 400; color: var(--dim); }
+.pv-confirm-retry { appearance: none; border: 0; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--accent); cursor: pointer; }
+.pv-confirm-retry:hover { text-decoration: underline; }
+.pv-host { white-space: nowrap; }
+.pv-narrow { display: none; }
+@media (max-width: 560px) { .pv-confirm .pv-wide { display: none; } .pv-confirm .pv-narrow { display: inline; } }
