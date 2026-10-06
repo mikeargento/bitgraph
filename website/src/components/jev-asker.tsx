@@ -273,12 +273,9 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
       {record && shown && q && t && (
         <div className="art-result">
           {/* What just happened, for someone who has never heard of BitGraph. */}
-          <p className="art-explain">
-            {restored
-              ? "Someone asked Jev, an AI, two questions that did not exist until they clicked. BitGraph opened a new position, and its code chose the questions, so nobody, Jev included, could have seen them before."
-              : "You just asked Jev, an AI, two questions that did not exist until you clicked. BitGraph opened a new position, and its code chose the questions, so nobody, Jev included, could have seen them before."}{" "}
-            Jev&rsquo;s answers were recorded in that same position as <a href={proofHref}>BitGraph #{n(record.counter)}</a>. Check them yourself against the code.
-          </p>
+          {/* One line, the left side of the chart (Mike, 10-06: "can the paragraph not wrap? can we make it more
+              right or left of chart"): the proof is one click away, on See the full proof. */}
+          <p className="art-explain art-explain-one">Jev answered two questions that did not exist until {restored ? "someone" : "you"}&nbsp;clicked.</p>
 
           <div className="jev-card">
             <div className="jev-card-label">The code</div>

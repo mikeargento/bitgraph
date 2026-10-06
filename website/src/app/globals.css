@@ -3160,3 +3160,5 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-page h1.jev-title { display: flex; align-items: center; justify-content: center; gap: clamp(12px, 2vw, 18px); margin-bottom: 18px !important; }
 .jev-mark { width: clamp(40px, 5vw, 52px); height: clamp(40px, 5vw, 52px); flex: none; }
 .art-page .jev-lede { font-size: clamp(18px, 2.2vw, 22px) !important; line-height: 1.45 !important; color: var(--text); max-width: 30em; margin: 0 auto 32px !important; text-wrap: balance; }
+.art-result .art-explain-one { font-size: 20px !important; font-weight: 600; color: var(--ink); text-align: center; margin: 0 0 20px !important; text-wrap: balance; }
+@media (max-width: 600px) { .art-result .art-explain-one { font-size: 18px !important; } }
