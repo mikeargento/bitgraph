@@ -3078,3 +3078,7 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
   .art-result .art-actions .bg-action-link { justify-content: center; }
 }
 .art-result .art-actions .bg-action-link { font-size: 15px !important; } /* the three actions one size */
+
+/* A proof reads at the site's measure, centred (Mike, 10-06: "should proofs not extend so wide on desk?"):
+   at 1600px its notes ran ~200 characters a line. Same 1040px column as the docs and the home text. */
+.pv { max-width: var(--measure); margin-left: auto; margin-right: auto; }
