@@ -348,8 +348,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {m.set.rows.length === 0 ? (
               <div className="pv-sub-note">
                 {m.set.count === 1
-                  ? <>One file under this position, tree root <span className="pv-mono">{truncateHash(m.set.root ?? "", 16)}</span>. Drop the file above to check it: a tree of one needs nothing else.</>
-                  : <>{fmtNum(m.set.count)} files under one position, tree root <span className="pv-mono">{truncateHash(m.set.root ?? "", 16)}</span>. A file&rsquo;s own export, or its recovery entry, shows whether it is one of them: drop the file with its export above.</>}
+                  ? <>One file under this position. Drop the file above to check it: a tree of one needs nothing else.</>
+                  : <>{fmtNum(m.set.count)} files under one position. A file&rsquo;s own export, or its recovery entry, shows whether it is one of them: drop the file with its export above.</>}
+                {/* The root on a line of its own, so a shortened hash never runs into a full stop ("869d….", Mike, 10-06). */}
+                <div className="pv-sub-root">Tree root <span className="pv-mono">{truncateHash(m.set.root ?? "", 16)}</span></div>
               </div>
             ) : m.set.rows.map((r) => (
               <div key={r.key} className="pv-list-row">
