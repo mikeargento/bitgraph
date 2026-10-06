@@ -3027,3 +3027,16 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
   .art-timeline li { flex-direction: column; gap: 2px; }
   .art-timeline li > span:last-child { white-space: normal; }
 }
+
+/* /image as a demo (Mike, 10-06: "the progress bar can be the only thing that appears on the user's
+   screen middle/middle and then the image fades in with the dead simple paragraph"). While it runs
+   .art keeps its full height, so the steps sit in the middle of the screen; the result fades in. */
+.art-result { width: 100%; display: flex; flex-direction: column; align-items: center; animation: art-fade 0.9s cubic-bezier(0.2, 0, 0, 1) both; }
+@keyframes art-fade { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.art-explain { max-width: 640px; margin: 0 0 4px !important; font-size: 19px !important; line-height: 1.55 !important; color: var(--ink); text-align: left; text-wrap: pretty; }
+.art-result .art-canvas { margin-top: 24px; }
+.art-keep { margin: 14px 0 0 !important; font-size: 14px !important; color: var(--dim); }
+.art-restoring { margin: 0 !important; color: var(--dim); }
+.art-details .art-timeline { margin-top: 12px !important; }
+@media (max-width: 600px) { .art-explain { font-size: 17px !important; } }
+@media (prefers-reduced-motion: reduce) { .art-result { animation: none; } }

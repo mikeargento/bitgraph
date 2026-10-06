@@ -17,12 +17,11 @@
  * protocol's unpredictability assumptions.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { createArtImage, ArtError, type ArtStage, type MadeArtImage, type OpenedPosition } from "@/lib/art-position";
+import { createArtImage, restoreArtImage, ArtError, type ArtStage, type MadeArtImage } from "@/lib/art-position";
 import { buildCarrierForProof } from "@/lib/carrier-site";
 import { recordedMsOf } from "@/lib/recorded-time";
-import { ART_ALGORITHM, artRecipe, artSize, fromBase64Url } from "@/lib/commitment-art";
 
-const { width: ART_WIDTH, height: ART_HEIGHT } = artSize(ART_ALGORITHM);
+
 
 const STEPS: Array<{ key: ArtStage; label: string }> = [
   { key: "opening", label: "Opening position" },
@@ -37,54 +36,42 @@ const utc = (ms: number) => new Date(ms).toISOString().slice(11, 19) + " UTC";
 
 type Built = { bytes: Uint8Array; fileName: string; existedBy: { blockNumber: number; timestamp: number } | null; floorTs: number | null };
 
-/** Paint the canonical pixels onto the canvas, cell by cell, then the whole image exactly. */
-function reveal(canvas: HTMLCanvasElement, pixels: Uint8Array, grid: number, instant: boolean): () => void {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return () => {};
-  const img = new ImageData(new Uint8ClampedArray(pixels), ART_WIDTH, ART_HEIGHT);
-  if (instant) { ctx.putImageData(img, 0, 0); return () => {}; }
-  const side = 960 / grid;
-  ctx.fillStyle = `rgb(${pixels[0]},${pixels[1]},${pixels[2]})`;
-  ctx.fillRect(0, 0, ART_WIDTH, ART_HEIGHT);
-  const steps: Array<[number, number, number, number]> = [];
-  // Cell by cell for a 6 x 6 grid; a 16 x 16 maze grows row by row, so it still takes about a second.
-  if (grid <= 6) for (let r = 0; r < grid; r++) for (let k = 0; k < grid; k++) steps.push([32 + k * side, 32 + r * side, side, side]);
-  else for (let r = 0; r < grid; r++) steps.push([32, 32 + r * side, 960, side]);
-  steps.push([0, 0, ART_WIDTH, ART_HEIGHT]); // and the whole, exactly
-  let i = 0, timer = 0;
-  const per = Math.max(16, Math.floor(1000 / steps.length));
-  const tick = () => {
-    const s = steps[i++];
-    if (!s) return;
-    ctx.putImageData(img, 0, 0, s[0], s[1], s[2], s[3]);
-    timer = window.setTimeout(tick, per);
-  };
-  tick();
-  return () => window.clearTimeout(timer);
+/** Paint the canonical pixels onto the canvas, exactly. */
+function paint(canvas: HTMLCanvasElement, pixels: Uint8Array, width: number, height: number): void {
+  canvas.getContext("2d")?.putImageData(new ImageData(new Uint8ClampedArray(pixels), width, height), 0, 0);
 }
 
+/** How long the finished stepper stays, all green, before it gives way to the image. */
+const SHOW_AFTER_MS = 700;
+
 /**
- * `children` is the page's headline and sentence. They fold away on the first click (Mike, 10-06:
- * "a smooth animation when you click that sort of removes the content in the way and makes room
- * for image"), and stay folded while there is an image or a run on the page.
+ * `children` is the page's headline. The demo, for someone who has no idea what is happening (Mike,
+ * 10-06: "we never want to be in the middle of this chart for these demos"): the headline and one
+ * button; on the click everything folds away and only the progress steps stay, in the middle of the
+ * screen; when the image is recorded the steps give way and the image fades in under one plain
+ * paragraph saying what just happened. The numbers, the timeline and the precise claim sit under
+ * "Technical details", closed.
+ *
+ * A finished image is never lost by leaving the page: the address becomes /image?p=<digest>, and
+ * that address rebuilds the same image from its proof (restoreArtImage), byte for byte.
  */
 export function ArtMaker({ children }: { children?: ReactNode } = {}) {
   const [stage, setStage] = useState<ArtStage | null>(null);
   const [failedAt, setFailedAt] = useState(-1);
-  const [position, setPosition] = useState<OpenedPosition | null>(null);
   const [made, setMade] = useState<MadeArtImage | null>(null);
+  const [shown, setShown] = useState(false);
+  const [restored, setRestored] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<{ message: string; recorded: boolean } | null>(null);
   const [built, setBuilt] = useState<Built | null>(null);
   const [building, setBuilding] = useState(false);
-  const [drawn, setDrawn] = useState(false);
   const busy = useRef(false);
   const stageRef = useRef<ArtStage | null>(null);
-  const positionRef = useRef<OpenedPosition | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
-  const stopReveal = useRef<() => void>(() => {});
+  const showTimer = useRef(0);
   const buildPromise = useRef<Promise<Built | null> | null>(null);
 
-  useEffect(() => () => stopReveal.current(), []);
+  useEffect(() => () => window.clearTimeout(showTimer.current), []);
 
   /** The image with its proof inside, built from what followed the commit (anchors, the Base block). */
   const buildDownload = useCallback((m: MadeArtImage): Promise<Built | null> => {
@@ -112,33 +99,56 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     return buildPromise.current;
   }, []);
 
+  // Coming back: /image?p=<digest> rebuilds the recorded image from its proof.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("p");
+    if (!p) return;
+    let cancelled = false;
+    setRestoring(true);
+    (async () => {
+      try {
+        const r = await fetch(`/api/proofs/digest/${encodeURIComponent(p)}`);
+        const d = r.ok ? await r.json() : null;
+        const list: Array<{ proof?: unknown }> = Array.isArray(d?.proofs) ? d.proofs : [];
+        for (const item of list) {
+          const m = item.proof ? await restoreArtImage(item.proof as never) : null;
+          if (m && !cancelled) { setMade(m); setRestored(true); setShown(true); void buildDownload(m); return; }
+        }
+        if (!cancelled) { setError({ message: "That image could not be found. Make a new one below.", recorded: false }); window.history.replaceState(null, "", "/image"); }
+      } catch {
+        if (!cancelled) setError({ message: "That image could not be opened right now. Try reloading the page.", recorded: false });
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [buildDownload]);
+
+  // The image appears once it is shown: painted exactly, faded in by CSS.
+  useEffect(() => {
+    if (shown && made && canvas.current) paint(canvas.current, made.pixels, made.manifest.width, made.manifest.height);
+  }, [shown, made]);
+
   const create = useCallback(async () => {
     if (busy.current) return; // one image at a time
     busy.current = true;
-    stopReveal.current();
-    // The last image leaves the frame before the new position opens: nothing old is shown as new.
-    canvas.current?.getContext("2d")?.clearRect(0, 0, ART_WIDTH, ART_HEIGHT);
+    window.clearTimeout(showTimer.current);
     buildPromise.current = null;
-    positionRef.current = null;
-    setError(null); setMade(null); setBuilt(null); setPosition(null); setFailedAt(-1); setDrawn(false);
+    window.history.replaceState(null, "", "/image");
+    setError(null); setMade(null); setShown(false); setRestored(false); setBuilt(null); setFailedAt(-1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
     try {
       const r = await createArtImage({
-        onStage: (s, p) => { stageRef.current = s; setStage(s); if (p) { positionRef.current = p; setPosition(p); } },
-        onDrawn: (px) => {
-          setDrawn(true);
-          const c = positionRef.current ? fromBase64Url(positionRef.current.commitment) : null;
-          const grid = c ? artRecipe(c).grid : 16;
-          const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-          requestAnimationFrame(() => { if (canvas.current) stopReveal.current = reveal(canvas.current, px, grid, reduce); });
-        },
+        onStage: (s) => { stageRef.current = s; setStage(s); },
       });
       setMade(r);
+      // The address now opens this image again, so leaving the page loses nothing.
+      window.history.replaceState(null, "", `/image?p=${urlSafe(r.digestB64)}`);
       void buildDownload(r); // ready the download and the Base block in the background
+      showTimer.current = window.setTimeout(() => setShown(true), SHOW_AFTER_MS);
     } catch (e) {
       setFailedAt(stepIndex(stageRef.current));
       setStage(null);
-      // An image that was not recorded is not shown as if it were: it leaves the page.
-      if (!(e instanceof ArtError && e.recorded)) { stopReveal.current(); setDrawn(false); }
       setError(e instanceof ArtError ? { message: e.message, recorded: e.recorded } : { message: e instanceof Error ? e.message : String(e), recorded: false });
     } finally {
       busy.current = false;
@@ -156,22 +166,19 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }, [made, buildDownload]);
 
-
-
-  const running = stage !== null && stage !== "ready";
+  const running = stage !== null && !shown && failedAt < 0;
   const at = stepIndex(stage);
   const recordedMs = made ? recordedMsOf(made.proof) : null;
+  const counter = made ? n(made.proof.commit.counter ?? 0) : "";
 
   return (
-    <div className={`art${stage !== null || failedAt >= 0 || made ? " is-active" : ""}`}>
+    <div className={`art${shown ? " is-active" : ""}`}>
       {children && (
-        <div className={`art-hero${stage !== null || failedAt >= 0 || made ? " is-away" : ""}`}>
+        <div className={`art-hero${stage !== null || failedAt >= 0 || shown || restoring ? " is-away" : ""}`}>
           <div className="art-hero-inner">{children}</div>
         </div>
       )}
-      {/* The first button folds away with the headline on the click; after a failure it comes back as
-          "Try again". "Make another" lives with the other actions under the image (Mike, 10-06). */}
-      <div className={`art-hero art-go-wrap${running || made ? " is-away" : ""}`}>
+      <div className={`art-hero art-go-wrap${running || shown || restoring ? " is-away" : ""}`}>
         <div className="art-hero-inner">
           <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running}>
             {failedAt >= 0 ? "Try again" : "Create a BitGraph image"}
@@ -179,8 +186,9 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         </div>
       </div>
 
-      {(stage !== null || failedAt >= 0) && (
-        <ol className="art-stepper" aria-label="Progress">
+      {/* While it runs, the steps are the only thing on the screen, in its middle. */}
+      {(stage !== null || failedAt >= 0) && !shown && (
+        <ol className={`art-stepper${made ? " is-finishing" : ""}`} aria-label="Progress">
           {STEPS.map((s, i) => {
             const state = i === failedAt ? "failed" : i < at || i < failedAt || stage === "ready" ? "done" : i === at ? "now" : "todo";
             return (
@@ -196,6 +204,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           })}
         </ol>
       )}
+      {restoring && <p className="art-restoring" role="status">Opening the image&hellip;</p>}
 
       {error && (
         <div className="art-error" role="alert">
@@ -204,76 +213,66 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         </div>
       )}
 
-      {/* The frame is held from the click, blank until the image draws into it, so nothing below
-          jumps; the code sits under it as its caption (Mike, 10-06: "under image?"). */}
-      <div className={`art-canvas${drawn ? " is-drawn" : ""}`} hidden={!(drawn || (running && failedAt < 0))}>
-        <canvas ref={canvas} width={ART_WIDTH} height={ART_HEIGHT} role="img" aria-label={made ? `Abstract geometric image drawn from position commitment ${made.position.commitment}` : "The image, drawing"} />
-      </div>
-
-      {position && (
-        <div className="art-code">
-          <span className="art-code-note art-code-caption">Drawn from this code,<br className="art-phone-break" /> which did not exist until you&nbsp;clicked.</span>
-          <code className="art-code-value">{position.commitment}</code>
-        </div>
-      )}
-
-      {made && (
-        <>
-          {/* No success sentence (Mike, 10-06: "redundant"): the headline and the caption under the
-              image already say it; "Ready", the actions and the timeline say it is done. */}
+      {made && shown && (
+        <div className="art-result">
+          {/* What just happened, for someone who has never heard of BitGraph. RED: new copy, staged. */}
+          <p className="art-explain" style={{ color: "#d93025" }}>
+            {restored
+              ? <>This image never existed before it was made. When someone clicked the button, BitGraph opened a new position with a code that did not exist until that moment. </>
+              : <>You just made an image that never existed before. When you clicked, BitGraph opened a new position with a code that did not exist until that moment. </>}
+            The image was drawn from that code, so it could not have been made any earlier, and it was recorded in that same position as BitGraph #{counter}. Change a single pixel and it no longer matches its proof.
+          </p>
+          <div className="art-canvas">
+            <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`Abstract image drawn from the code ${made.position.commitment}`} />
+          </div>
+          <div className="art-code">
+            <span className="art-code-note">The code it was drawn from</span>
+            <code className="art-code-value">{made.position.commitment}</code>
+          </div>
           <div className="actions art-actions">
             <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image and proof"}</button>
-            {/* A link to the full proof, not a button that checks itself here (Mike, 10-06: "a trust
-                me bro button when you can just link to full proof"). The proof page shows every
-                field, checks against Ethereum and Base, and redraws the image on its own. */}
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>
-            <button type="button" className="bg-action-link" onClick={create} disabled={running}>Create another image</button>
+            <button type="button" className="bg-action-link" onClick={create}>Create another image</button>
           </div>
-          <ol className="art-timeline">
-            <li><span>Ethereum block {n(made.position.floorBlock)}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
-            <li><span>Position {n(made.position.slotCounter)} opened, commitment issued</span><span>after the floor</span></li>
-            <li><span>Image drawn from the commitment</span><span>{made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
-            <li><span>Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{n(made.proof.commit.counter ?? 0)}</a></span><span>{recordedMs ? utc(recordedMs) : ""}</span></li>
-            <li className={built?.existedBy ? "" : "is-pending"}><span>{built?.existedBy ? `Existed by Base block ${n(built.existedBy.blockNumber)}` : "Base block"}</span><span>{built?.existedBy ? utc(built.existedBy.timestamp * 1000) : building ? "waiting for it" : "not in yet"}</span></li>
-          </ol>
-        </>
+          <p className="art-keep" style={{ color: "#d93025" }}>This page&rsquo;s address now opens this image, so you can bookmark it or share it.</p>
+
+          <details className="art-details">
+            <summary>Technical details</summary>
+            <ol className="art-timeline">
+              <li><span>Ethereum block {made.position.floorBlock ? n(made.position.floorBlock) : ""}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
+              <li><span>Position {n(made.position.slotCounter)} opened, commitment issued</span><span>after the floor</span></li>
+              <li><span>Image drawn from the commitment</span><span>{made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
+              <li><span>Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{counter}</a></span><span>{recordedMs ? utc(recordedMs) : ""}</span></li>
+              <li className={built?.existedBy ? "" : "is-pending"}><span>{built?.existedBy ? `Existed by Base block ${n(built.existedBy.blockNumber)}` : "Base block"}</span><span>{built?.existedBy ? utc(built.existedBy.timestamp * 1000) : building ? "waiting for it" : "not in yet"}</span></li>
+            </ol>
+            <div className="art-detail-parts">
+              <h3>What it proves</h3>
+              <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier.</p>
+              <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
+              <h3>How it was drawn</h3>
+              <p>{made.manifest.algorithm === "bitgraph-art/6"
+                ? <>Every shape, pattern, colour and mood comes from the code ({made.manifest.algorithm}). The code is woven into the art itself: a hidden grid of 256 tiles, one bit each, where the pattern on top shifts slightly inside its tile so the tile&rsquo;s centre lands on the colour its bit calls for. That is the faint stitching you can see at the tile edges. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/5"
+                ? <>Every shape, pattern, colour and mood comes from the code ({made.manifest.algorithm}): which shapes, where, filled with which line fields, rings, bursts, dots or checks, whether calm or loud. The tick marks around the frame spell the code&rsquo;s 256 bits, one tick per bit, so two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/4"
+                ? <>The picture spells the code. Each of its 256 tiles is one bit: the arcs turn one way for a 0 and the other for a 1, and join into one pattern. So two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>
+                : <>The picture spells the code. Each of its 36 cells carries 7 of the code&rsquo;s 256 bits, the palette and the frame carry the rest, so two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>} Anyone can redraw it and compare, pixel for pixel.</p>
+              <h3>What it does not prove</h3>
+              <p>Who made it, whether it is original, or anything about the computer it was made on.</p>
+              <h3>The numbers</h3>
+            </div>
+            <dl>
+              <dt>Algorithm</dt><dd><code>{made.manifest.algorithm}</code>, {made.manifest.width} x {made.manifest.height}</dd>
+              <dt>Record</dt><dd>BitGraph #{counter}</dd>
+              <dt>Position</dt><dd>opened at {n(made.position.slotCounter)}, epoch <code>{made.position.epochId.slice(0, 8)}</code>{made.position.floorBlock ? <>, after Ethereum block {n(made.position.floorBlock)}</> : null}</dd>
+              <dt>Commitment</dt><dd><code className="break">{made.position.commitment}</code></dd>
+              <dt>Recipe SHA-256</dt><dd><code className="break">{made.manifest.recipeSha256}</code></dd>
+              <dt>Pixels SHA-256</dt><dd><code className="break">{made.manifest.pixelsSha256}</code></dd>
+              <dt>Recorded file SHA-256</dt><dd><code className="break">{made.digestB64}</code> (base64)</dd>
+            </dl>
+          </details>
+        </div>
       )}
-
-      {made && (
-        <details className="art-details">
-          <summary>Technical details</summary>
-          <div className="art-detail-parts">
-            <h3>What it proves</h3>
-            <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier.</p>
-            <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
-            <h3>How it was drawn</h3>
-            <p>{made.manifest.algorithm === "bitgraph-art/6"
-              ? <>Every shape, pattern, colour and mood comes from the code ({made.manifest.algorithm}). The code is woven into the art itself: a hidden grid of 256 tiles, one bit each, where the pattern on top shifts slightly inside its tile so the tile&rsquo;s centre lands on the colour its bit calls for. That is the faint stitching you can see at the tile edges. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
-              : made.manifest.algorithm === "bitgraph-art/5"
-              ? <>Every shape, pattern, colour and mood comes from the code ({made.manifest.algorithm}): which shapes, where, filled with which line fields, rings, bursts, dots or checks, whether calm or loud. The tick marks around the frame spell the code&rsquo;s 256 bits, one tick per bit, so two different codes can never make the same image, and the code can be read back from the picture alone.</>
-              : made.manifest.algorithm === "bitgraph-art/4"
-              ? <>The picture spells the code. Each of its 256 tiles is one bit: the arcs turn one way for a 0 and the other for a 1, and join into one pattern. So two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>
-              : <>The picture spells the code. Each of its 36 cells carries 7 of the code&rsquo;s 256 bits, the palette and the frame carry the rest, so two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>} Anyone can redraw it and compare, pixel for pixel.</p>
-            <h3>What it does not prove</h3>
-            <p>Who made it, whether it is original, or anything about the computer it was made on.</p>
-            <h3>The numbers</h3>
-          </div>
-          <dl>
-            <dt>Algorithm</dt><dd><code>{made.manifest.algorithm}</code>, {made.manifest.width} x {made.manifest.height}</dd>
-            <dt>Record</dt><dd>BitGraph #{n(made.proof.commit.counter ?? 0)}</dd>
-            <dt>Position</dt><dd>opened at {n(made.position.slotCounter)}, epoch <code>{made.position.epochId.slice(0, 8)}</code>, after Ethereum block {n(made.position.floorBlock)}</dd>
-            <dt>Commitment</dt><dd><code className="break">{made.position.commitment}</code></dd>
-            <dt>Recipe SHA-256</dt><dd><code className="break">{made.manifest.recipeSha256}</code></dd>
-            <dt>Pixels SHA-256</dt><dd><code className="break">{made.manifest.pixelsSha256}</code></dd>
-            <dt>Recorded file SHA-256</dt><dd><code className="break">{made.digestB64}</code> (base64)</dd>
-          </dl>
-        </details>
-      )}
-
-
-      {/* No "check a downloaded image" here (Mike, 10-06: "what is this for?"): this page makes;
-          a received image is checked where files are checked, the drop box and its proof page,
-          which redraws it from the commitment and compares it byte for byte. */}
     </div>
   );
 }

@@ -127,3 +127,19 @@ test("the proof page can rebuild the exact recorded file from the proof alone, a
   const notInline = { ...made.proof, attribution: { name: "bitgraph-fuse/2", title: "tree/1" } };
   assert.equal(await redrawRecordedArt(notInline as never), null);
 });
+
+test("coming back: the made image is rebuilt from its proof alone, the same bytes and the same code", async () => {
+  const { restoreArtImage } = await import("../art-position.ts");
+  const stub = await makeStub();
+  const made = await createArtImage({ transport: { fetch: stub.fetch } });
+  const back = await restoreArtImage(made.proof);
+  assert.ok(back);
+  assert.equal(back!.digestB64, made.digestB64);
+  assert.equal(bytesToBase64(sha256(back!.png)), made.digestB64);
+  assert.equal(back!.position.commitment, made.position.commitment);
+  assert.equal(back!.position.slotCounter, made.position.slotCounter);
+  assert.equal(back!.manifest.algorithm, made.manifest.algorithm);
+  // A proof whose digest is not a drawing of its commitment rebuilds nothing.
+  const other = { ...made.proof, artifact: { ...made.proof.artifact, digestB64: bytesToBase64(sha256(new TextEncoder().encode("not an image"))) } };
+  assert.equal(await restoreArtImage(other), null);
+});

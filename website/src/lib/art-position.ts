@@ -220,3 +220,27 @@ export async function redrawRecordedArt(proof: BitGraphProof): Promise<{ png: Ui
   }
   return null;
 }
+
+/* ── Coming back to an image (Mike, 2026-10-06: "if you navigate away from the page the image is gone
+ * forever"). It never was: the recorded file is a function of its proof. /image?p=<digest> reads the
+ * proof back by digest and rebuilds the whole made image from it, byte for byte, or gives nothing. */
+export async function restoreArtImage(proof: BitGraphProof): Promise<MadeArtImage | null> {
+  const redrawn = await redrawRecordedArt(proof);
+  if (!redrawn || !proof.slotAllocation) return null;
+  const commitment = commitmentForProof(proof, proof.slotAllocation);
+  const art = await makeArt(commitment, redrawn.algorithm);
+  const checks = await checkArt(art.png, commitment);
+  const slot = proof.slotAllocation as unknown as { counter: string | number; epochId: string };
+  const floor = (proof.commit as unknown as { slotAnchor?: { blockNumber: number } }).slotAnchor;
+  return {
+    position: { slotCounter: String(slot.counter), epochId: String(slot.epochId), floorBlock: floor?.blockNumber ?? 0, commitment: toBase64Url(commitment) },
+    png: art.png,
+    digestB64: proof.artifact!.digestB64,
+    proof,
+    recipe: art.recipe,
+    pixels: art.pixels,
+    manifest: art.manifest,
+    checks,
+    recovered: false,
+  };
+}
