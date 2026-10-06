@@ -225,10 +225,8 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           <div className="art-canvas">
             <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`Abstract image drawn from the code ${made.position.commitment}`} />
           </div>
-          <div className="art-code">
-            <span className="art-code-note">The code it was drawn from</span>
-            <code className="art-code-value">{made.position.commitment}</code>
-          </div>
+          {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
+              was drawn from a code; the code itself is under Technical details (Commitment). */}
           <div className="actions art-actions">
             <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image and proof"}</button>
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>
