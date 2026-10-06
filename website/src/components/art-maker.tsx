@@ -186,15 +186,13 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         </ol>
       )}
 
+      {/* The code, in plain words (Mike, 10-06: "feels like this whole section is jargon"): the
+          position and block numbers are in the timeline under the image; here, only the idea. */}
       {position && (
-        <div className="art-ticket">
-          <div className="art-ticket-head">
-            <span>Position {n(position.slotCounter)}</span>
-            <span>after Ethereum block {n(position.floorBlock)}</span>
-          </div>
-          <Barcode commitment={position.commitment} />
-          <code className="art-ticket-code">{position.commitment}</code>
-          <div className="art-ticket-foot">The position commitment: the drawing&rsquo;s only input. Its 256 bits become the strip along the bottom of the image.</div>
+        <div className="art-code">
+          <span className="art-code-note" style={{ color: "#d93025" }}>This code did not exist until you clicked.</span>
+          <code className="art-code-value">{position.commitment}</code>
+          <span className="art-code-note" style={{ color: "#d93025" }}>The image is drawn from it alone.</span>
         </div>
       )}
 
@@ -259,18 +257,5 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           a received image is checked where files are checked, the drop box and its proof page,
           which redraws it from the commitment and compares it byte for byte. */}
     </div>
-  );
-}
-
-/** The commitment's 256 bits as bars, most significant bit of the first byte on the left: the same strip the image ends with. */
-function Barcode({ commitment }: { commitment: string }) {
-  const bytes = fromBase64Url(commitment);
-  if (!bytes || bytes.length !== 32) return null;
-  const bars: number[] = [];
-  for (let i = 0; i < 256; i++) if ((bytes[i >> 3]! >> (7 - (i & 7))) & 1) bars.push(i);
-  return (
-    <svg className="art-barcode" viewBox="0 0 256 14" preserveAspectRatio="none" role="img" aria-label="The commitment's 256 bits">
-      {bars.map((x) => <rect key={x} x={x} y={0} width={1} height={14} />)}
-    </svg>
   );
 }
