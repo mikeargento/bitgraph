@@ -16,7 +16,7 @@
  * commitment-bearing file could not have been completed before the commitment existed, under the
  * protocol's unpredictability assumptions.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createArtImage, verifyArtFile, ArtError, type ArtStage, type ArtVerification, type MadeArtImage, type OpenedPosition } from "@/lib/art-position";
 import { buildCarrierForProof } from "@/lib/carrier-site";
 import { PUBLISHED_PCR0S } from "@/lib/enclave-measurements";
@@ -62,7 +62,12 @@ function reveal(canvas: HTMLCanvasElement, pixels: Uint8Array, grid: number, ins
   return () => window.clearTimeout(timer);
 }
 
-export function ArtMaker() {
+/**
+ * `children` is the page's headline and sentence. They fold away on the first click (Mike, 10-06:
+ * "a smooth animation when you click that sort of removes the content in the way and makes room
+ * for image"), and stay folded while there is an image or a run on the page.
+ */
+export function ArtMaker({ children }: { children?: ReactNode } = {}) {
   const [stage, setStage] = useState<ArtStage | null>(null);
   const [failedAt, setFailedAt] = useState(-1);
   const [position, setPosition] = useState<OpenedPosition | null>(null);
@@ -177,6 +182,11 @@ export function ArtMaker() {
 
   return (
     <div className="art">
+      {children && (
+        <div className={`art-hero${stage !== null || failedAt >= 0 || made ? " is-away" : ""}`}>
+          <div className="art-hero-inner">{children}</div>
+        </div>
+      )}
       <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running}>
         {made ? "Make another" : "Make a BitGraph image"}
       </button>
@@ -212,7 +222,7 @@ export function ArtMaker() {
           <p className="art-success" style={{ color: "#d93025" }}>These exact bytes did not exist until you clicked, and now you have proof.</p>
           <div className="actions art-actions">
             <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image and proof"}</button>
-            <button type="button" className="bg-action-link" onClick={verifyThis} disabled={checking}>{checking ? "Verifying" : "Verify"}</button>
+            <button type="button" className="bg-action-link" onClick={verifyThis} disabled={checking}><span style={{ color: "#d93025" }}>{checking ? "Checking" : "Check the proof"}</span></button>
           </div>
           <ol className="art-timeline">
             <li><span>Ethereum block {n(made.position.floorBlock)}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
@@ -227,9 +237,16 @@ export function ArtMaker() {
       {made && (
         <details className="art-details">
           <summary>Technical details</summary>
-          <p>This image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
-          <p>The commitment is the drawing&rsquo;s only input. Every shape, colour and position is read from a SHA-256 stream over it, with the algorithm, the size and the palettes fixed by {made.manifest.algorithm}. The strip along the bottom spells the commitment&rsquo;s 256 bits, one 4-pixel cell each. Anyone can redraw the image from the commitment and compare it pixel for pixel; nobody could have drawn it before the commitment existed.</p>
-          <p>This says nothing about who made the image, whether it is original, or what any program or browser did. It shows when, at the earliest, these bytes could have been finished, and the position they were recorded in.</p>
+          <div className="art-detail-parts" style={{ color: "#d93025" }}>
+            <h3>What it proves</h3>
+            <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier.</p>
+            <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
+            <h3>How it was drawn</h3>
+            <p>Every shape and colour comes from the commitment, through fixed rules ({made.manifest.algorithm}). The barcode along the bottom spells the commitment itself. Anyone can redraw the image from it and compare, pixel for pixel.</p>
+            <h3>What it does not prove</h3>
+            <p>Who made it, whether it is original, or anything about the computer it was made on.</p>
+            <h3>The numbers</h3>
+          </div>
           <dl>
             <dt>Algorithm</dt><dd><code>{made.manifest.algorithm}</code>, {made.manifest.width} x {made.manifest.height}</dd>
             <dt>Record</dt><dd>BitGraph #{n(made.proof.commit.counter ?? 0)}</dd>
