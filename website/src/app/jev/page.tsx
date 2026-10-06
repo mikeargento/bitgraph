@@ -12,7 +12,7 @@ export default function JevPage() {
   return (
     <div className="frame prose art-page">
       <JevAsker>
-        <h1 style={{ color: "#d93025" }}>One click asks an AI two questions that never existed before, and BitGraph proves&nbsp;it.</h1>
+        <h1>One click asks an AI two questions that never existed before, and BitGraph proves&nbsp;it.</h1>
       </JevAsker>
     </div>
   );

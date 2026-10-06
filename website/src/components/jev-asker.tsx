@@ -258,7 +258,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
           <button type="button" className="bg-action-link is-make art-go" onClick={ask} disabled={running} aria-busy={running}>
             {failedAt >= 0 ? "Try again" : "Ask Jev two new questions"}
           </button>
-          {tally && tally.answered > 0 && <p className="jev-tally" style={{ color: "#d93025" }}>Jev so far: both right on {n(tally.bothRight)} of {n(tally.answered)}.</p>}
+          {tally && tally.answered > 0 && <p className="jev-tally">Jev so far: both right on {n(tally.bothRight)} of {n(tally.answered)}.</p>}
         </div>
       </div>
 
@@ -284,8 +284,8 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
 
       {record && shown && q && t && (
         <div className="art-result">
-          {/* What just happened, for someone who has never heard of BitGraph. RED: new copy, staged. */}
-          <p className="art-explain" style={{ color: "#d93025" }}>
+          {/* What just happened, for someone who has never heard of BitGraph. */}
+          <p className="art-explain">
             {restored
               ? "Someone asked Jev, an AI, two questions that did not exist until they clicked. BitGraph opened a new position, and its code chose the questions, so nobody, Jev included, could have seen them before."
               : "You just asked Jev, an AI, two questions that did not exist until you clicked. BitGraph opened a new position, and its code chose the questions, so nobody, Jev included, could have seen them before."}{" "}
@@ -335,16 +335,16 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
             </ol>
             <div className="art-detail-parts">
               {/* Mike, 10-06: "how will people know the QUESTION is truly random?", "that has to be proven AFTER
-                  position opens or this is dumb". RED: new copy, staged. */}
-              <h3 style={{ color: "#d93025" }}>How these questions were chosen</h3>
-              <p style={{ color: "#d93025" }}><strong>1. The code comes from the position.</strong> It is worked out from the record BitGraph&rsquo;s enclave signed when the position opened, together with the hash of an Ethereum block bound into it, so it could not be computed before the position opened. Checked here, in your browser, from the proof on bitgraph.ing:</p>
+                  position opens or this is dumb". */}
+              <h3>How these questions were chosen</h3>
+              <p><strong>1. The code comes from the position.</strong> It is worked out from the record BitGraph&rsquo;s enclave signed when the position opened, together with the hash of an Ethereum block bound into it, so it could not be computed before the position opened. Checked here, in your browser, from the proof on bitgraph.ing:</p>
               <p className={`jev-check is-${codeCheck?.status ?? "checking"}`}>
                 {codeCheck === null || codeCheck.status === "checking" ? "Checking the proof\u2026"
                   : codeCheck.status === "ok" ? <>BitGraph #{n(codeCheck.counter)}: signature and attestation valid; the code recomputed from position {n(codeCheck.position)}{codeCheck.floorBlock !== null ? <> and Ethereum block {n(codeCheck.floorBlock)}</> : null} matches the code above.</>
                   : codeCheck.status === "mismatch" ? <>The code recomputed from the proof does not match: <code className="break">{codeCheck.recomputed}</code>.</>
                   : <>The proof could not be checked just now ({codeCheck.reason}). The full proof page checks it too.</>}
               </p>
-              <p style={{ color: "#d93025" }}><strong>2. The questions come from the code,</strong> by a public rule with no choice in it. Anyone can redo this with any SHA-256 tool:</p>
+              <p><strong>2. The questions come from the code,</strong> by a public rule with no choice in it. Anyone can redo this with any SHA-256 tool:</p>
               <Working q={q} />
               <h3>What it proves</h3>
               <p>The questions were made from the position&rsquo;s code, and that code did not exist until the position opened. So no one could have seen these questions, or their answers, before the click. Jev&rsquo;s answers were recorded in that same position.</p>
