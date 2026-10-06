@@ -3201,3 +3201,6 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
    headline folding away behind it cannot shift it; it only fades in. */
 .art-wait { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 5; animation: art-wait-in 0.25s ease-out both; }
 @keyframes art-wait-in { from { opacity: 0; } to { opacity: 1; } }
+/* The space before " · " is collapsed inside an inline-block (my 10-06 wrap fix showed "#26,135,587· mined"):
+   put it back as padding, so the dot sits apart from the bold text whether or not the part wraps. */
+.pv-moment-dim { padding-left: 0.3em; }
