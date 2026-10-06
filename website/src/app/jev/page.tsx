@@ -12,7 +12,10 @@ export default function JevPage() {
   return (
     <div className="frame prose art-page">
       <JevAsker>
-        <h1>One click asks an AI two questions that never existed before, and BitGraph proves&nbsp;it.</h1>
+        {/* Mike, 10-06: "this should be 'ask Jev' h1 and logo to jev and then a smaller description and no win count".
+            Jev's mark as BitGraph Predictions used it: plain, beside the name. */}
+        <h1 className="jev-title"><img src="/jev-mark.png" alt="" className="jev-mark" width={52} height={52} />Ask Jev</h1>
+        <p className="lede jev-lede">One click asks Jev, an AI, two questions that never existed before, and BitGraph proves&nbsp;it.</p>
       </JevAsker>
     </div>
   );

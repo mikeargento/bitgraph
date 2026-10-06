@@ -142,17 +142,13 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [tally, setTally] = useState<{ answered: number; bothRight: number } | null>(null);
   const [codeCheck, setCodeCheck] = useState<CodeCheck | null>(null);
   const busy = useRef(false);
   const stageRef = useRef<Stage | null>(null);
   const showTimer = useRef(0);
   const startedAt = useRef(0);
 
-  const readTally = useCallback(() => {
-    fetch(`${LIVE}/api/stats`).then((r) => (r.ok ? r.json() : null)).then((t) => { if (t && typeof t.answered === "number") setTally(t); }).catch(() => {});
-  }, []);
-  useEffect(() => { readTally(); return () => window.clearTimeout(showTimer.current); }, [readTally]);
+  useEffect(() => () => window.clearTimeout(showTimer.current), []);
 
   // Coming back: /jev?p=<record id> reads the record back from the service.
   useEffect(() => {
@@ -225,7 +221,6 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
       if (!done) throw new Error("the service stopped before the answers were recorded");
       setRecord(done);
       window.history.replaceState(null, "", `/jev?p=${done.id}`);
-      readTally();
       showTimer.current = window.setTimeout(() => setShown(true), Math.max(0, MIN_WAIT_MS - (performance.now() - startedAt.current)));
     } catch (e) {
       setFailedAt(stepIndex(stageRef.current));
@@ -234,7 +229,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
     } finally {
       busy.current = false;
     }
-  }, [readTally]);
+  }, []);
 
   const copyLink = useCallback(async () => {
     try { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* nothing to do */ }
@@ -261,7 +256,6 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
           <button type="button" className="bg-action-link is-make art-go" onClick={ask} disabled={running} aria-busy={running}>
             {failedAt >= 0 ? "Try again" : "Ask Jev two new questions"}
           </button>
-          {tally && tally.answered > 0 && <p className="jev-tally">Jev so far: both right on {n(tally.bothRight)} of {n(tally.answered)}.</p>}
         </div>
       </div>
 
