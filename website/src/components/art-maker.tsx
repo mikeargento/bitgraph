@@ -215,16 +215,16 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
 
       {made && shown && (
         <div className="art-result">
+          {/* What just happened, for someone who has never heard of BitGraph, above the image (Mike, 10-06, after trying it below: "i suppose this paragraph should be on top eh?": a square image fills the screen, so text under it sits below the fold). */}
+          <p className="art-explain">
+            {restored ? "This image never existed before it was made. It was drawn from a code that did not exist until someone clicked, so it could not have been made any earlier." : "You just made an image that never existed before. It was drawn from a code that did not exist until you clicked, so it could not have been made any earlier."}{" "}
+            Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{counter}</a>. Change one pixel and it no longer matches its proof.
+          </p>
           <div className="art-canvas">
             <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`Abstract image drawn from the code ${made.position.commitment}`} />
           </div>
           {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
               was drawn from a code; the code itself is under Technical details (Commitment). */}
-          {/* What just happened, for someone who has never heard of BitGraph, under the image (Mike, 10-06: "should be on bottom"). */}
-          <p className="art-explain">
-            {restored ? "This image never existed before it was made. It was drawn from a code that did not exist until someone clicked, so it could not have been made any earlier." : "You just made an image that never existed before. It was drawn from a code that did not exist until you clicked, so it could not have been made any earlier."}{" "}
-            Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{counter}</a>. Change one pixel and it no longer matches its proof.
-          </p>
           <div className="actions art-actions">
             <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image and proof"}</button>
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>

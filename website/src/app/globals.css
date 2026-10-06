@@ -3093,3 +3093,7 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 @media (hover: hover) { .art-result .art-details > .art-details-title:hover { color: var(--accent); } }
 .art-result .art-details[open] > .art-details-title { border-bottom: 1px solid var(--line-2); margin-bottom: 4px; }
 .art-result .art-canvas { animation: none; } /* the result fades as one; no second zoom on the image */
+/* The gap from the floor block reads as part of the time, not a side note (Mike, 10-06: "make the 39 s
+   after the floor block darker"). Ink, not green: it is a measurement, not a passed check. */
+.pv-moment-since { color: var(--ink); }
+.art-result .art-explain { margin: 0 0 22px !important; } /* above the image now */

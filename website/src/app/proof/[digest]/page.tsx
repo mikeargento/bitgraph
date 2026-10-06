@@ -1807,7 +1807,13 @@ export default function ProofPage() {
             counter: e.counter, blockNumber: e.blockNumber, blockHash: e.blockHash, etherscanUrl: `https://etherscan.io/block/${e.blockNumber}`,
             blockTime: e.timestamp !== null ? new Date(e.timestamp * 1000).toISOString() : null, digestB64: e.digestB64, recordedMs: e.recordedMs,
           } : null;
-          const floorView = fromEvidence(evidenceSides.floor) ?? side(causalWindow?.anchorBefore ?? null, anchorRecordedMs.before);
+          // Until the signed evidence lands, the window's anchor stands in for the floor ONLY when it is
+          // the anchor the proof signed (commit.slotAnchor). The window's "anchor before" is the one
+          // just before the COMMIT, often a later block: shown as the floor it said "17 s after the
+          // floor block" for a 29 s floor on #9,855 (Mike, 2026-10-06). The floor waits instead.
+          const signedFloor = (commit as { slotAnchor?: { counter?: string | number } } | null | undefined)?.slotAnchor;
+          const windowFloor = side(causalWindow?.anchorBefore ?? null, anchorRecordedMs.before);
+          const floorView = fromEvidence(evidenceSides.floor) ?? (windowFloor && (!signedFloor || String(windowFloor.counter) === String(signedFloor.counter)) ? windowFloor : null);
           const ceilView = fromEvidence(evidenceSides.ceiling) ?? side(causalWindow?.anchorAfter ?? null, anchorRecordedMs.after);
           // The anchor before the commit, when it is a later anchor than the signed floor: a
           // tighter bound on the commit itself, by hash order, said as a note.

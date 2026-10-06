@@ -406,7 +406,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {!isAnchor && attested !== null && (
             <Moment
               label="Recorded"
-              title={<>{whenBeside(attested, floorMs)}{sinceFloor !== null ? <span className="pv-moment-dim"> · {sinceFloor} s after the floor block</span> : null}</>}
+              title={<>{whenBeside(attested, floorMs)}{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"> · {sinceFloor} s after the floor block</span> : null}</>}
               note="The instant of the commit, per the enclave platform's signed clock, carried in the attestation under Details."
               accent
             />
@@ -447,7 +447,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <Moment label="Ceiling in position" chain="eth" title={<span className="pv-moment-dim">Waiting for the next anchor<span className="pv-dots" aria-hidden /></span>} note="An anchor lands about every 12 seconds. This page keeps asking." />
           )}
           {isAnchor && attested !== null && (
-            <Moment label="Recorded" title={<>{whenBeside(attested, blockMs)}{sinceBlock !== null ? <span className="pv-moment-dim"> · {sinceBlock} s after the block</span> : null}</>} note="The instant the enclave signed this anchor, per the enclave platform's signed clock: after the block it carries." accent />
+            <Moment label="Recorded" title={<>{whenBeside(attested, blockMs)}{sinceBlock !== null ? <span className="pv-moment-dim pv-moment-since"> · {sinceBlock} s after the block</span> : null}</>} note="The instant the enclave signed this anchor, per the enclave platform's signed clock: after the block it carries." accent />
           )}
         </div>
       </section>
