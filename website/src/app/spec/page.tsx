@@ -28,9 +28,17 @@ export default function SpecPage() {
   const bytes = readFileSync(SPEC_PATH);
   const sha256B64 = createHash("sha256").update(bytes).digest("base64");
   const text = bytes.toString("utf8");
+  /* The file's own title leads the page (Mike, 10-05: the page opened on the intro paragraph and
+     looked broken). Only where the first line is drawn changes; the Markdown below is the rest of
+     the file, in order, and the bytes served at /spec/SPEC.md are untouched. */
+  const firstBreak = text.indexOf("\n");
+  const hasTitle = text.startsWith("# ") && firstBreak > 0;
+  const title = hasTitle ? text.slice(2, firstBreak).trim() : "BitGraph Specification";
+  const body = hasTitle ? text.slice(firstBreak + 1) : text;
   return (
     <div className="frame" style={{ padding: "56px 0 96px" }}>
       <article className="prose spec-doc">
+        <h1>{title}</h1>
         <p className="lede">
           This is SPEC.md, rendered. Every tree/1 proof pins the SHA-256 of that file as its signed <code>attribution.message</code>; a verifier that does not know the hash answers &ldquo;undetermined&rdquo;, never true. The file itself is plain text: <a href="/spec/SPEC.md" download="SPEC.md">download the bytes</a> to check the hash, or fetch <code>/spec/SPEC.md</code>. That copy is what the drop box, the SDK and the hosted MCP put beside every export.
         </p>
@@ -44,7 +52,7 @@ export default function SpecPage() {
             </tbody>
           </table>
         </div>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
       </article>
     </div>
   );

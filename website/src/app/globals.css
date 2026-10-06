@@ -2857,6 +2857,11 @@ html { background: #ffffff !important; }
 .spec-doc table { display: block; overflow-x: auto; max-width: var(--measure); margin-left: auto !important; margin-right: auto !important; }
 .spec-doc h1 { font-size: 32px !important; }
 .spec-doc h2 { margin-top: 48px !important; }
+/* Mike, 10-05 ("what is this broken page"): two long inline snippets (a JSON example, an RLP layout) were
+   nowrap like every inline code and pushed the page 160px wider than a 1024 screen; they wrap here.
+   Tables got no space under them, so the next paragraph touched the card. */
+.spec-doc p code, .spec-doc li code, .spec-doc td code { white-space: normal !important; overflow-wrap: anywhere; }
+.spec-doc table { margin-top: 1.25rem !important; margin-bottom: 1.5rem !important; }
 
 /* The file in hand on a proof page: an outlined box, so its inner padding reads as the box's own
    (Mike, 2026-10-05: "this section seems messy"); Open is a pill like every other action. */
