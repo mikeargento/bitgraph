@@ -61,12 +61,12 @@ export default function HomePage() {
       {/* Mike's line (2026-10-05), replacing the Schelling paragraph and then the six-item list; "Other proofs", not "Every other proof" (no absolute: Chainpoint rule, 09-21)
           ("Signatures, timestamps, append-only logs, write-once storage, notarizations, and
           blockchain hashes all come after the record...", 8d4968ff). "Arrives", never "exists":
-          first existence is not claimed (an old file can take a new position). "Nobody has to
-          host it" is TRACE #321's point: the proof is evidence carried with the record, not a
-          fact held somewhere and looked up. */}
+          first existence is not claimed (an old file can take a new position). Then "Other proofs
+          come after the record. BitGraph begins before it arrives. The proof travels with the
+          record, and nobody has to host it." (2048aed6, 0f1cac1c), distilled to one sentence
+          (Mike, 10-05). */}
       <p className="lede">
-        Other proofs come after the record. BitGraph begins before it arrives. The proof
-        travels with the record, and nobody has to host&nbsp;it.
+        BitGraph begins the proof before the record&nbsp;arrives.
       </p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}

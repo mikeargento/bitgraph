@@ -7,6 +7,10 @@
 
 ---
 
+**Position commitment for AI records.**
+
+BitGraph begins the proof before the record arrives.
+
 BitGraphs are not labels or metadata added after the fact. They are new computations created when your file's hash *fills* a pre-existing, cryptographically reserved position, constraining the commitment so it cannot be made after the fact. The commit happens off-chain, inside the enclave, and produces a proof permanently bound to that exact digital state. Seconds later, a Merkle root over new records' proof hashes is written to Base, so each record also gets a ceiling in time.
 
 Provenance can be enforced or it can be claimed. Most systems claim it: they bind a statement about the content to the content itself. That binding can be cryptographically strong, and it can be made at the moment of capture rather than afterward, so the weakness is not timing. The weakness is that a claim is something a trusted signer can attach to any artifact at all. The artifact does not have to satisfy any prior condition to receive one.

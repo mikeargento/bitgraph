@@ -2919,19 +2919,15 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 @media (hover: hover) { .pv-checks-group-title:hover { background: var(--panel-2); } }
 .pv-checks-group[open] > .pv-checks-group-title { background: var(--panel-2); margin-bottom: 8px; }
 
-/* 2026-10-05 (Mike): the typing headline and the game theory paragraph are back, LEFT aligned, so the
-   typed line grows from a fixed edge instead of re-centring on every letter. Headline sizes are the
-   typing line's own (the GPS curve was too wide for "Position commitment" on a phone). */
-.home.home-typing { text-align: left; align-items: stretch; }
-.home.home-typing .actions { justify-content: flex-start; }
-/* Desktop: the docs pages' centred reading column, text left aligned inside it, so the home and every
-   docs page share one content edge (Mike, 10-05). Narrower than the column, the edge is the frame's. */
-.home.home-typing h1, .home.home-typing .lede, .home.home-typing .actions { margin-left: max(0px, calc((100% - var(--measure)) / 2)) !important; margin-right: auto !important; }
-.home.home-typing h1 { width: auto; max-width: var(--measure); }
-.home.home-typing .lede { text-wrap: pretty; }
+/* 2026-10-05 (Mike): "Position commitment / for AI records." and one sentence, CENTRED ("center align",
+   after a left-aligned day while the headline typed). Headline sizes are the typing line's own (the GPS
+   curve was too wide for "Position commitment" on a phone). */
+.home.home-typing { text-align: center; align-items: center; }
+.home.home-typing .actions { justify-content: center; }
+.home.home-typing h1, .home.home-typing .lede { margin-left: auto !important; margin-right: auto !important; }
+.home.home-typing .lede { text-wrap: balance; }
 @media (max-width: 600px) { .home.home-typing h1 { font-size: clamp(28px, 9.2vw, 72px) !important; } }
-@media (min-width: 601px) and (max-width: 899px) { .home.home-typing h1 { font-size: 9.2vw !important; } }
-@media (min-width: 900px) { .home.home-typing h1 { font-size: min(calc(min(90vw, 1600px) * 0.0846), 96px) !important; } }
+@media (min-width: 601px) { .home.home-typing h1 { font-size: min(9.2vw, 72px) !important; } } /* 72px cap on desktop (Mike, 10-05: 96 "too big on desk"): two centred lines over one sentence, 3:1 to the 24px lede */
 /* 2026-10-05 (Mike: "the nav bar should be right aligned"): with the home left aligned, the four
    groups leave the middle of the bar (10-02) and sit on the right, beside Make a BitGraph. */
 @media (min-width: 961px) { .nav2-cats { position: relative; left: auto; transform: none; margin-right: 8px; } }
