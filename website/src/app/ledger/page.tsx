@@ -88,7 +88,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
   const initial = await firstPage(day);
 
   return (
-    <div className="frame" style={{ padding: "56px 0 96px" }}>
+    <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>{/* the 1040px column every record page reads at (Mike, 10-06: "floors and ceilings are the only contents that load wide now") */}
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
         /* The nav line is one stratum and must never wrap: on phones the day

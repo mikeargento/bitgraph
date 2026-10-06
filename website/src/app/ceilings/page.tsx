@@ -57,7 +57,7 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
   try { writes = await writesForDay(shown); } catch { failed = true; }
 
   return (
-    <div className="frame" style={{ padding: "56px 0 96px" }}>
+    <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>{/* the 1040px column every record page reads at (Mike, 10-06: "floors and ceilings are the only contents that load wide now") */}
       <style>{`
         .cl-rows { display: flex; flex-direction: column; }
         .cl-row { display: flex; align-items: center; gap: 12px; }

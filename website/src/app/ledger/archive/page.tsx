@@ -57,7 +57,7 @@ export default function ArchivePage() {
   const months = buildMonths(todayISO);
 
   return (
-    <div className="frame" style={{ padding: "56px 0 96px" }}>
+    <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
       `}</style>

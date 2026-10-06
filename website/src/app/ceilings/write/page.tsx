@@ -30,7 +30,7 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
   const time = new Date(w.blockTimestamp * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
 
   return (
-    <div className="frame" style={{ padding: "96px 0 96px" }}>
+    <div className="frame" style={{ padding: "96px 0 96px", maxWidth: "var(--measure)" }}>{/* the column, so "All ceilings" sits on its right edge, not the wide frame's */}
       {/* The same corner and size as a proof page's "All floors" (96px top
           margin: 28px, the 44px pill, 24px), so a write reads like a proof. */}
       <div style={{ position: "relative" }}>

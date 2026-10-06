@@ -3097,3 +3097,8 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
    after the floor block darker"). Ink, not green: it is a measurement, not a passed check. */
 .pv-moment-since { color: var(--ink); }
 .art-result .art-explain { margin: 0 0 22px !important; } /* above the image now */
+/* The three actions one width, a third of the column each, stacked on phones (Mike, 10-06: "these
+   buttons should be same width and then stack on mobile"). */
+.art-result .art-actions { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.art-result .art-actions .bg-action-link { width: 100%; justify-content: center; padding: 10px 8px !important; white-space: nowrap; }
+@media (max-width: 720px) { .art-result .art-actions { grid-template-columns: 1fr; } }
