@@ -2991,7 +2991,7 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 @keyframes art-ring { from { box-shadow: 0 0 0 0 rgba(26, 115, 232, 0.45); } to { box-shadow: 0 0 0 10px rgba(26, 115, 232, 0); } }
 @media (prefers-reduced-motion: reduce) { .art-stepper li.is-now .art-dot { animation: none; } }
 /* The code: one plain idea, no jargon (Mike, 10-06). */
-.art-code { margin-top: 26px; display: flex; flex-direction: column; align-items: center; gap: 8px; animation: art-in 0.45s cubic-bezier(0.2, 0, 0, 1) both; max-width: 100%; }
+.art-code { margin-top: 18px; display: flex; flex-direction: column; align-items: center; gap: 8px; animation: art-in 0.45s cubic-bezier(0.2, 0, 0, 1) both; max-width: 100%; }
 .art-code-note { font-size: 14px; color: var(--dim); }
 .art-code-value { font-size: 17px !important; padding: 8px 14px !important; background: var(--paper) !important; border-radius: 10px; box-shadow: var(--shadow-card); color: var(--ink); overflow-wrap: anywhere; max-width: 100%; box-sizing: border-box; }
 .art-label { font-size: 13px !important; color: var(--dim); margin: 0 !important; }
@@ -3000,9 +3000,9 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-error p + p { margin-top: 8px !important; }
 .art-canvas { width: 100%; margin-top: 28px; }
 .art-canvas[hidden] { display: none; }
-.art-canvas canvas { display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: var(--shadow-card); background: var(--paper); }
+.art-canvas canvas { display: block; width: 100%; height: auto; aspect-ratio: 1024 / 1056; border-radius: 12px; box-shadow: var(--shadow-card); background: var(--paper); }
 .art-success { margin: 24px 0 0 !important; font-weight: 600; color: var(--ink); text-wrap: balance; }
-.art-actions { justify-content: center; margin: 18px 0 0 !important; }
+.art-actions { justify-content: center; margin: 22px 0 0 !important; }
 .art-actions .bg-action-link { width: 16rem; min-height: 44px; justify-content: center; box-sizing: border-box; } /* the two actions one size (Mike, 10-06: the check button was small) */
 @media (max-width: 600px) { .art-actions { flex-direction: column; align-items: stretch; width: 100%; } .art-actions .bg-action-link { width: auto; } }
 .art-timeline { list-style: none; padding: 0; margin: 28px 0 0 !important; width: 100%; text-align: left; font-size: 14px; border-top: 1px solid var(--line-2); }

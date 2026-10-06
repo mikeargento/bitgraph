@@ -10,8 +10,8 @@
  * starts (lib/commitment-art.ts) and before the commit (lib/art-position.ts); the reveal paints them,
  * it does not compute them, and "Ready" waits for the recorded proof, never for the animation.
  *
- * Claims, exactly: the success line (Mike, 10-06) says these exact bytes did not exist until the
- * click, bounded by the click because the position opens after it; the technical details say the
+ * Claims, exactly: the caption under the image says the code it is drawn from did not exist until
+ * the click, bounded by the click because the position opens after it; the technical details say the
  * image was generated from its position commitment and recorded in that position, and that the
  * commitment-bearing file could not have been completed before the commitment existed, under the
  * protocol's unpredictability assumptions.
@@ -113,6 +113,8 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     if (busy.current) return; // one image at a time
     busy.current = true;
     stopReveal.current();
+    // The last image leaves the frame before the new position opens: nothing old is shown as new.
+    canvas.current?.getContext("2d")?.clearRect(0, 0, ART_WIDTH, ART_HEIGHT);
     buildPromise.current = null;
     positionRef.current = null;
     setError(null); setMade(null); setBuilt(null); setPosition(null); setFailedAt(-1); setDrawn(false);
@@ -192,16 +194,6 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         </ol>
       )}
 
-      {/* The code, in plain words (Mike, 10-06: "feels like this whole section is jargon"): the
-          position and block numbers are in the timeline under the image; here, only the idea. */}
-      {position && (
-        <div className="art-code">
-          <span className="art-code-note" style={{ color: "#d93025" }}>This code did not exist until you clicked.</span>
-          <code className="art-code-value">{position.commitment}</code>
-          <span className="art-code-note" style={{ color: "#d93025" }}>The image is drawn from it alone.</span>
-        </div>
-      )}
-
       {error && (
         <div className="art-error" role="alert">
           <p>{error.message}</p>
@@ -209,13 +201,23 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         </div>
       )}
 
-      <div className={`art-canvas${drawn ? " is-drawn" : ""}`} hidden={!drawn}>
+      {/* The frame is held from the click, blank until the image draws into it, so nothing below
+          jumps; the code sits under it as its caption (Mike, 10-06: "under image?"). */}
+      <div className={`art-canvas${drawn ? " is-drawn" : ""}`} hidden={!(drawn || (running && failedAt < 0))}>
         <canvas ref={canvas} width={ART_WIDTH} height={ART_HEIGHT} role="img" aria-label={made ? `Abstract geometric image drawn from position commitment ${made.position.commitment}` : "The image, drawing"} />
       </div>
 
+      {position && (
+        <div className="art-code">
+          <span className="art-code-note" style={{ color: "#d93025" }}>Drawn from this code, which did not exist until you clicked.</span>
+          <code className="art-code-value">{position.commitment}</code>
+        </div>
+      )}
+
       {made && (
         <>
-          <p className="art-success" style={{ color: "#d93025" }}>These exact bytes did not exist until you clicked, and now you have proof.</p>
+          {/* No success sentence (Mike, 10-06: "redundant"): the headline and the caption under the
+              image already say it; "Ready", the actions and the timeline say it is done. */}
           <div className="actions art-actions">
             <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image and proof"}</button>
             {/* A link to the full proof, not a button that checks itself here (Mike, 10-06: "a trust
