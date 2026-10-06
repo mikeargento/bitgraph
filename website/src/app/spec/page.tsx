@@ -22,6 +22,31 @@ export const metadata: Metadata = {
    later specification is a new file beside this one, never an edit of it. */
 
 const SPEC_PATH = join(process.cwd(), "public", "spec", "SPEC.md");
+
+/* Phones (Mike, 10-05: "fixes for mobile"): a three-column table of sentences squeezed to one word
+   per line (the time-claims table ran 1,600px tall). Tables with three or more columns and long text
+   outside the last column get class "stack", and every cell gets its column's header as data-label,
+   so the CSS can lay each row out as a block with the header above each value. Short tables (byte
+   offsets, placement codes) keep their grid. Rendering only: no cell is reworded or reordered. */
+type HastNode = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] };
+const textOf = (n: HastNode): string => n.type === "text" ? n.value ?? "" : (n.children ?? []).map(textOf).join("");
+const kids = (n: HastNode, tag: string): HastNode[] => (n.children ?? []).filter((c) => c.type === "element" && c.tagName === tag);
+function stackTables() {
+  const visit = (n: HastNode) => {
+    if (n.type === "element" && n.tagName === "table") {
+      const rows = [...kids(n, "thead"), ...kids(n, "tbody")].flatMap((g) => kids(g, "tr"));
+      const head = rows[0] ? [...kids(rows[0], "th"), ...kids(rows[0], "td")].map(textOf) : [];
+      const body = rows.slice(1);
+      const longOutsideLast = body.some((r) => kids(r, "td").slice(0, -1).some((c) => textOf(c).length > 14));
+      if (head.length >= 3 && longOutsideLast) {
+        n.properties = { ...n.properties, className: ["stack"] };
+        for (const r of body) kids(r, "td").forEach((c, i) => { c.properties = { ...c.properties, dataLabel: head[i] ?? "" }; });
+      }
+    }
+    (n.children ?? []).forEach(visit);
+  };
+  return (tree: HastNode) => visit(tree);
+}
 const FROZEN_ON = "2026-10-04";
 
 export default function SpecPage() {
@@ -52,7 +77,7 @@ export default function SpecPage() {
             </tbody>
           </table>
         </div>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[stackTables]}>{body}</ReactMarkdown>
       </article>
     </div>
   );
