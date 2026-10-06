@@ -3040,3 +3040,20 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-details .art-timeline { margin-top: 12px !important; }
 @media (max-width: 600px) { .art-explain { font-size: 17px !important; } }
 @media (prefers-reduced-motion: reduce) { .art-result { animation: none; } }
+
+/* /image, 10-06 (Mike): the paragraph under the image; "Technical details" as the site's raised white
+   card with the proof page's disclosure row; the Create button exactly the home page's button. */
+.art-result .art-explain { margin: 24px 0 0 !important; }
+.art-details { background: var(--paper); border-radius: 12px; box-shadow: var(--shadow-card); padding: 6px 20px; margin-top: 28px; box-sizing: border-box; }
+.art-details[open] { padding-bottom: 20px; }
+.art-details > .art-details-title { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; padding: 10px 12px; margin: 0 -12px; border-radius: 8px; transition: background-color 0.12s; }
+.art-details > .art-details-title::-webkit-details-marker { display: none; }
+.art-details > .art-details-title::after { content: ""; width: 7px; height: 7px; border-right: 1.5px solid var(--dim); border-bottom: 1.5px solid var(--dim); transform: rotate(45deg); margin: 0 4px 3px 0; transition: transform 0.15s ease; flex: none; }
+.art-details[open] > .art-details-title::after { transform: rotate(225deg); margin-bottom: -3px; }
+@media (hover: hover) { .art-details > .art-details-title:hover { background: var(--panel-2); } }
+.art-details[open] > .art-details-title { background: var(--panel-2); margin-bottom: 8px; }
+/* the home's sizes as they render (globals rules at 1785, 2172, 2182, 2396): 16px / 12px 22px, 12px 14px
+   under 721px, 17px / 14px 28px from 900px, line height 20px ("font: inherit" above would reset it) */
+.art .art-go { font-size: 16px !important; line-height: 20px !important; padding: 12px 22px !important; margin: 0 !important; }
+@media (max-width: 720px) { .art .art-go { padding: 12px 14px !important; } }
+@media (min-width: 900px) { .art .art-go { font-size: 17px !important; padding: 14px 28px !important; } }

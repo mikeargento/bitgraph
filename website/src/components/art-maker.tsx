@@ -215,18 +215,18 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
 
       {made && shown && (
         <div className="art-result">
-          {/* What just happened, for someone who has never heard of BitGraph. RED: new copy, staged. */}
+          <div className="art-canvas">
+            <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`Abstract image drawn from the code ${made.position.commitment}`} />
+          </div>
+          {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
+              was drawn from a code; the code itself is under Technical details (Commitment). */}
+          {/* What just happened, for someone who has never heard of BitGraph, under the image (Mike, 10-06: "should be on bottom"). RED: new copy, staged. */}
           <p className="art-explain" style={{ color: "#d93025" }}>
             {restored
               ? <>This image never existed before it was made. When someone clicked the button, BitGraph opened a new position with a code that did not exist until that moment. </>
               : <>You just made an image that never existed before. When you clicked, BitGraph opened a new position with a code that did not exist until that moment. </>}
             The image was drawn from that code, so it could not have been made any earlier, and it was recorded in that same position as BitGraph #{counter}. Change a single pixel and it no longer matches its proof.
           </p>
-          <div className="art-canvas">
-            <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`Abstract image drawn from the code ${made.position.commitment}`} />
-          </div>
-          {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
-              was drawn from a code; the code itself is under Technical details (Commitment). */}
           <div className="actions art-actions">
             <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image and proof"}</button>
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>
@@ -235,7 +235,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           <p className="art-keep" style={{ color: "#d93025" }}>This page&rsquo;s address now opens this image, so you can bookmark it or share it.</p>
 
           <details className="art-details">
-            <summary>Technical details</summary>
+            <summary className="art-details-title">Technical details</summary>
             <ol className="art-timeline">
               <li><span>Ethereum block {made.position.floorBlock ? n(made.position.floorBlock) : ""}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
               <li><span>Position {n(made.position.slotCounter)} opened, commitment issued</span><span>after the floor</span></li>
