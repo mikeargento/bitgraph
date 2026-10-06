@@ -18,7 +18,7 @@ export default function ImagePage() {
   return (
     <div className="frame prose art-page">
       <ArtMaker>
-        <h1 style={{ color: "#d93025" }}>One click creates an image that never existed before, and BitGraph proves&nbsp;it.</h1>
+        <h1>One click creates an image that never existed before, and BitGraph proves&nbsp;it.</h1>
       </ArtMaker>
     </div>
   );

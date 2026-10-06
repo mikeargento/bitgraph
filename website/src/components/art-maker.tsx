@@ -210,7 +210,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
 
       {position && (
         <div className="art-code">
-          <span className="art-code-note" style={{ color: "#d93025" }}>Drawn from this code, which did not exist until you clicked.</span>
+          <span className="art-code-note">Drawn from this code, which did not exist until you clicked.</span>
           <code className="art-code-value">{position.commitment}</code>
         </div>
       )}
@@ -224,7 +224,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
             {/* A link to the full proof, not a button that checks itself here (Mike, 10-06: "a trust
                 me bro button when you can just link to full proof"). The proof page shows every
                 field, checks against Ethereum and Base, and redraws the image on its own. */}
-            <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span style={{ color: "#d93025" }}>See the full proof</span></a>
+            <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>
             <button type="button" className="bg-action-link" onClick={create} disabled={running}>Create another image</button>
           </div>
           <ol className="art-timeline">
@@ -240,7 +240,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       {made && (
         <details className="art-details">
           <summary>Technical details</summary>
-          <div className="art-detail-parts" style={{ color: "#d93025" }}>
+          <div className="art-detail-parts">
             <h3>What it proves</h3>
             <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier.</p>
             <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
