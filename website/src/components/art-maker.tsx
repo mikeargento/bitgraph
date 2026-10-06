@@ -171,7 +171,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       <div className={`art-hero art-go-wrap${running || made ? " is-away" : ""}`}>
         <div className="art-hero-inner">
           <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running}>
-            {failedAt >= 0 ? "Try again" : "Make a BitGraph image"}
+            {failedAt >= 0 ? "Try again" : "Create a BitGraph image"}
           </button>
         </div>
       </div>
@@ -224,7 +224,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
                 me bro button when you can just link to full proof"). The proof page shows every
                 field, checks against Ethereum and Base, and redraws the image on its own. */}
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span style={{ color: "#d93025" }}>See the full proof</span></a>
-            <button type="button" className="bg-action-link" onClick={create} disabled={running}>Make another image</button>
+            <button type="button" className="bg-action-link" onClick={create} disabled={running}>Create another image</button>
           </div>
           <ol className="art-timeline">
             <li><span>Ethereum block {n(made.position.floorBlock)}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
