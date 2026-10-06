@@ -125,6 +125,22 @@ test("an image made with version 1 still verifies, and is not mistaken for versi
   assert.match(r.regenerated.detail, /bitgraph-art\/1/);
 });
 
+test("a version 2 file is a pure function of its commitment: same bytes every time, pinned, standard zlib", async () => {
+  const a = await makeArt(C1, "bitgraph-art/2");
+  const b = await makeArt(C1, "bitgraph-art/2");
+  assert.equal(toHex(sha256(a.png)), toHex(sha256(b.png)));
+  // Pinned on first run (2026-10-06). A failure here means the version 2 file changed: make /3 instead.
+  assert.equal(toHex(sha256(a.png)), "1ec1f49a5e040df293c2103774b8e10a7dd8c75cfbfd5b98a0b1ab6cb59f138b");
+  // Any standard inflate reads it: node's zlib, not this module's decoder.
+  const { inflateSync } = await import("node:zlib");
+  const d = await decodePng(a.png);
+  assert.equal(toHex(sha256(d.rgba)), toHex(sha256(a.pixels)));
+  let at = 8, idat: Uint8Array[] = [];
+  for (;;) { const len = new DataView(a.png.buffer, a.png.byteOffset + at).getUint32(0); const type = new TextDecoder().decode(a.png.subarray(at + 4, at + 8)); if (type === "IDAT") idat.push(a.png.subarray(at + 8, at + 8 + len)); if (type === "IEND") break; at += 12 + len; }
+  const raw = inflateSync(Buffer.concat(idat.map((x) => Buffer.from(x))));
+  assert.equal(raw.length, ART_HEIGHT * (1 + ART_WIDTH * 3));
+});
+
 const PINNED_RECIPE_V2 = "bed07f7098cb5820302060c4716bbdb9e142513e1095dfa73cae3f98c4576b31";
 const PINNED_PIXELS_V2 = "529f41e977edf3f34ec839f10c0b60bc310b747c707bff9979ef3feed795366f";
 const PINNED_RECIPE = "57ba907bc7a76ea0412c3e98f644605c984ca135e7497c1724fc5ae5382d1f2e";

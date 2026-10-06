@@ -17,9 +17,8 @@
  * protocol's unpredictability assumptions.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { createArtImage, verifyArtFile, ArtError, type ArtStage, type ArtVerification, type MadeArtImage, type OpenedPosition } from "@/lib/art-position";
+import { createArtImage, ArtError, type ArtStage, type MadeArtImage, type OpenedPosition } from "@/lib/art-position";
 import { buildCarrierForProof } from "@/lib/carrier-site";
-import { PUBLISHED_PCR0S } from "@/lib/enclave-measurements";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { ART_HEIGHT, ART_WIDTH, artRecipe, fromBase64Url } from "@/lib/commitment-art";
 
@@ -31,7 +30,6 @@ const STEPS: Array<{ key: ArtStage; label: string }> = [
 ];
 const stepIndex = (s: ArtStage | null) => (s === null ? -1 : s === "verifying" ? 2 : STEPS.findIndex((x) => x.key === s));
 const urlSafe = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-const RESULT_WORD: Record<string, string> = { TRUE: "Passes", FALSE: "Fails", UNDETERMINED: "Not yet" };
 const n = (x: number | string) => Number(x).toLocaleString("en-US");
 const utc = (ms: number) => new Date(ms).toISOString().slice(11, 19) + " UTC";
 
@@ -75,14 +73,11 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
   const [error, setError] = useState<{ message: string; recorded: boolean } | null>(null);
   const [built, setBuilt] = useState<Built | null>(null);
   const [building, setBuilding] = useState(false);
-  const [verification, setVerification] = useState<{ result: ArtVerification; source: string } | null>(null);
-  const [checking, setChecking] = useState(false);
   const [drawn, setDrawn] = useState(false);
   const busy = useRef(false);
   const stageRef = useRef<ArtStage | null>(null);
   const positionRef = useRef<OpenedPosition | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
-  const fileInput = useRef<HTMLInputElement | null>(null);
   const stopReveal = useRef<() => void>(() => {});
   const buildPromise = useRef<Promise<Built | null> | null>(null);
 
@@ -120,7 +115,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     stopReveal.current();
     buildPromise.current = null;
     positionRef.current = null;
-    setError(null); setMade(null); setBuilt(null); setVerification(null); setPosition(null); setFailedAt(-1); setDrawn(false);
+    setError(null); setMade(null); setBuilt(null); setPosition(null); setFailedAt(-1); setDrawn(false);
     try {
       const r = await createArtImage({
         onStage: (s, p) => { stageRef.current = s; setStage(s); if (p) { positionRef.current = p; setPosition(p); } },
@@ -156,32 +151,14 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }, [made, buildDownload]);
 
-  const verifyThis = useCallback(async () => {
-    if (!made) return;
-    setChecking(true);
-    try {
-      const b = await buildDownload(made);
-      if (b) setVerification({ result: await verifyArtFile(b.bytes, PUBLISHED_PCR0S), source: "this image, with its proof inside" });
-    } finally {
-      setChecking(false);
-    }
-  }, [made, buildDownload]);
 
-  const verifyDropped = useCallback(async (file: File) => {
-    setChecking(true);
-    try {
-      setVerification({ result: await verifyArtFile(new Uint8Array(await file.arrayBuffer()), PUBLISHED_PCR0S), source: file.name });
-    } finally {
-      setChecking(false);
-    }
-  }, []);
 
   const running = stage !== null && stage !== "ready";
   const at = stepIndex(stage);
   const recordedMs = made ? recordedMsOf(made.proof) : null;
 
   return (
-    <div className="art">
+    <div className={`art${stage !== null || failedAt >= 0 || made ? " is-active" : ""}`}>
       {children && (
         <div className={`art-hero${stage !== null || failedAt >= 0 || made ? " is-away" : ""}`}>
           <div className="art-hero-inner">{children}</div>
@@ -192,18 +169,33 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       </button>
 
       {(stage !== null || failedAt >= 0) && (
-        <ol className="art-steps" aria-label="Progress">
-          {STEPS.map((s, i) => (
-            <li key={s.key} className={i === failedAt ? "failed" : i < at || i < failedAt || stage === "ready" ? "done" : i === at ? "now" : ""}>{s.label}</li>
-          ))}
+        <ol className="art-stepper" aria-label="Progress">
+          {STEPS.map((s, i) => {
+            const state = i === failedAt ? "failed" : i < at || i < failedAt || stage === "ready" ? "done" : i === at ? "now" : "todo";
+            return (
+              <li key={s.key} className={`is-${state}`} aria-current={state === "now" ? "step" : undefined}>
+                <span className="art-dot" aria-hidden>
+                  {state === "done" ? <svg viewBox="0 0 16 16" width="14" height="14"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    : state === "failed" ? <svg viewBox="0 0 16 16" width="12" height="12"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
+                    : i + 1}
+                </span>
+                <span className="art-step-label">{s.label}</span>
+              </li>
+            );
+          })}
         </ol>
       )}
 
       {position && (
-        <p className="art-commitment">
-          <span className="art-label">Position {n(position.slotCounter)} opened after Ethereum block {n(position.floorBlock)}. Its commitment, the drawing&rsquo;s only input:</span>
-          <code className="break">{position.commitment}</code>
-        </p>
+        <div className="art-ticket">
+          <div className="art-ticket-head">
+            <span>Position {n(position.slotCounter)}</span>
+            <span>after Ethereum block {n(position.floorBlock)}</span>
+          </div>
+          <Barcode commitment={position.commitment} />
+          <code className="art-ticket-code">{position.commitment}</code>
+          <div className="art-ticket-foot">The position commitment: the drawing&rsquo;s only input. Its 256 bits become the strip along the bottom of the image.</div>
+        </div>
       )}
 
       {error && (
@@ -222,7 +214,10 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           <p className="art-success" style={{ color: "#d93025" }}>These exact bytes did not exist until you clicked, and now you have proof.</p>
           <div className="actions art-actions">
             <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image and proof"}</button>
-            <button type="button" className="bg-action-link" onClick={verifyThis} disabled={checking}><span style={{ color: "#d93025" }}>{checking ? "Checking" : "Check the proof"}</span></button>
+            {/* A link to the full proof, not a button that checks itself here (Mike, 10-06: "a trust
+                me bro button when you can just link to full proof"). The proof page shows every
+                field, checks against Ethereum and Base, and redraws the image on its own. */}
+            <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span style={{ color: "#d93025" }}>See the full proof</span></a>
           </div>
           <ol className="art-timeline">
             <li><span>Ethereum block {n(made.position.floorBlock)}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
@@ -259,39 +254,23 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         </details>
       )}
 
-      {verification && <VerificationReport v={verification.result} source={verification.source} />}
 
-      {/* A quiet link, not the browser's raw file control (Mike, 10-06: "wtf is this"). */}
-      <button type="button" className="art-check-link" onClick={() => fileInput.current?.click()} disabled={checking}>
-        Check a downloaded image
-      </button>
-      <input ref={fileInput} type="file" accept="image/png,.png" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void verifyDropped(f); e.target.value = ""; }} />
+      {/* No "check a downloaded image" here (Mike, 10-06: "what is this for?"): this page makes;
+          a received image is checked where files are checked, the drop box and its proof page,
+          which redraws it from the commitment and compares it byte for byte. */}
     </div>
   );
 }
 
-function VerificationReport({ v, source }: { v: ArtVerification; source: string }) {
-  const rows: Array<{ name: string; result: string; detail: string }> = [
-    { name: "The exact file matches its recorded digest", result: v.digest.result, detail: v.digest.detail },
-    { name: "The position, the binding, the signatures and the anchors pass the published verifier", result: v.protocol.result, detail: v.protocol.ceiling === "present" ? v.protocol.detail : `${v.protocol.detail} The closing anchor or the Base block is not in this file yet, so anchoring is pending.` },
-    { name: "Regenerating the image from the authenticated commitment gives these pixels", result: v.regenerated.result, detail: v.regenerated.detail },
-    { name: "The pixel strip decodes to that same commitment", result: v.strip.result, detail: v.strip.detail },
-  ];
-  const headline = v.overall === "complete" ? "Every check passes." : v.overall === "pending" ? "Not complete yet: nothing fails, and at least one check is still pending." : "This file does not verify.";
+/** The commitment's 256 bits as bars, most significant bit of the first byte on the left: the same strip the image ends with. */
+function Barcode({ commitment }: { commitment: string }) {
+  const bytes = fromBase64Url(commitment);
+  if (!bytes || bytes.length !== 32) return null;
+  const bars: number[] = [];
+  for (let i = 0; i < 256; i++) if ((bytes[i >> 3]! >> (7 - (i & 7))) & 1) bars.push(i);
   return (
-    <section className={`art-verify art-verify-${v.overall}`} aria-live="polite">
-      <h2>{headline}</h2>
-      <p className="art-label">Checked on this machine: {source}</p>
-      <ul>
-        {rows.map((r) => (
-          <li key={r.name}>
-            <span className={`art-result-word art-${r.result.toLowerCase()}`}>{RESULT_WORD[r.result] ?? r.result}</span>
-            <span className="art-check-name">{r.name}</span>
-            <span className="art-check-detail">{r.detail}</span>
-          </li>
-        ))}
-      </ul>
-      {v.commitment && <p className="art-label">Authenticated commitment: <code className="break">{v.commitment}</code></p>}
-    </section>
+    <svg className="art-barcode" viewBox="0 0 256 14" preserveAspectRatio="none" role="img" aria-label="The commitment's 256 bits">
+      {bars.map((x) => <rect key={x} x={x} y={0} width={1} height={14} />)}
+    </svg>
   );
 }

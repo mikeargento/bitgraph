@@ -7,7 +7,7 @@ import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToBase64, verifyFuse } from "@mikeargento/bitgraph-verify";
-import { createArtImage, verifyArtFile, ArtError, type ArtStage } from "../art-position.ts";
+import { createArtImage, verifyArtFile, redrawRecordedArt, ArtError, type ArtStage } from "../art-position.ts";
 import { decodeStrip, decodePng, ART_WIDTH, ART_HEIGHT, toBase64Url } from "../commitment-art.ts";
 import { makeStub } from "./tree1-helpers.ts";
 
@@ -112,4 +112,17 @@ test("a file with no proof block is not reported as verified", async () => {
   const r = await verifyArtFile(made.png, []);
   assert.equal(r.overall, "failed");
   assert.notEqual(r.protocol.result, "TRUE");
+});
+
+test("the proof page can rebuild the exact recorded file from the proof alone, and nothing else", async () => {
+  const stub = await makeStub();
+  const made = await createArtImage({ transport: { fetch: stub.fetch } });
+  const r = await redrawRecordedArt(made.proof);
+  assert.ok(r, "a version 2 image is rebuilt from its proof");
+  assert.equal(bytesToBase64(sha256(r!.png)), made.digestB64, "byte for byte the recorded file");
+  // A proof whose digest is not a drawing of its commitment gives nothing to show.
+  const other = { ...made.proof, artifact: { ...made.proof.artifact, digestB64: bytesToBase64(sha256(new TextEncoder().encode("not an image"))) } };
+  assert.equal(await redrawRecordedArt(other), null);
+  const notInline = { ...made.proof, attribution: { name: "bitgraph-fuse/2", title: "tree/1" } };
+  assert.equal(await redrawRecordedArt(notInline as never), null);
 });

@@ -25,6 +25,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
   try { return fusedMarkerOf(p)?.originDigestB64 ?? null; } catch { return null; }
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
+import { redrawRecordedArt } from "@/lib/art-position";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpackSetMember, checkInline, isInlineProof, makeTreeHere, treeInputOf } from "@/lib/fuse-client";
 import { SPEC_FILE_NAME, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, rootOnlyTree, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource, type BoundTree } from "@/lib/fuse-tree";
 import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence } from "@/lib/carrier-site";
@@ -209,6 +210,20 @@ export default function ProofPage() {
      emptiness is not a claim about these bytes. */
   const [retired, setRetired] = useState(false);
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
+  // A BitGraph image (/image) opens with its proof: the page redraws it from the commitment the
+  // proof authenticates and holds it as the file in hand only when it hashes to the recorded
+  // digest (Mike, 2026-10-06: "cant the proof page open up and display image?"). Nothing is stored.
+  const [redrawn, setRedrawn] = useState(false);
+  useEffect(() => {
+    if (!proof || cachedFile || !isInlineProof(proof)) return;
+    let live = true;
+    void redrawRecordedArt(proof as never).then((r) => {
+      if (!live || !r) return;
+      setCachedFile({ name: `bitgraph-image-${proof.commit?.counter ?? ""}.png`, data: r.png.slice().buffer as ArrayBuffer });
+      setRedrawn(true);
+    }).catch(() => { /* not an image this page can redraw: the drop box stays */ });
+    return () => { live = false; };
+  }, [proof, cachedFile]);
   // Re-render every printed time when the viewer flips the zone toggle.
   useTimeZoneMode();
   // Which file the page holds for a fused proof: the original (accepted by
@@ -1814,7 +1829,7 @@ export default function ProofPage() {
               </div>
             </div>
           ) : isInterval ? null : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
-            <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={heldLabel} />
+            <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "redrawn from its commitment" : heldLabel} />
           ) : cachedFile ? (
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
           ) : (

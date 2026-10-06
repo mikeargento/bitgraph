@@ -7,7 +7,9 @@
  * of an old one, and every version stays here so every image ever made still redraws.
  *   bitgraph-art/1 (2026-10-05, BitGraph #2,285): one sample per pixel, hard edges.
  *   bitgraph-art/2 (2026-10-06, Mike: "can you add some kind of antialiasing"): the same rules,
- *     its own stream label, and 4 x 4 supersampling inside the art square (below). No clock, no Math.random, no viewport, no user input,
+ *     its own stream label, 4 x 4 supersampling inside the art square (below), and a fixed
+ *     deflate (encodeArtPng), so the whole recorded FILE, not only its pixels, is a function of
+ *     the commitment and the proof page can redraw it byte for byte. No clock, no Math.random, no viewport, no user input,
  * no truncated seed: every value is read from a SHA-256 stream over the full 32 bytes.
  *
  * Deterministic generation is kept apart from presentation: this module produces a
@@ -331,11 +333,74 @@ const concat = (parts: Uint8Array[]): Uint8Array => {
  * it for the verifier (bitgraph-fuse/2, carry "base64url"). The deflate stream is the
  * platform's, so these bytes may differ between browsers; the pixels they decode to do not.
  */
+/* ── A fixed deflate, so a version-2 file is a pure function of its commitment ─────────
+ * Browsers compress the same pixels to different bytes, so a version-1 file could only be
+ * checked by its pixels. Version 2 writes its own zlib stream (Mike, 2026-10-06: the proof page
+ * should open the image): one final block with the fixed Huffman codes of RFC 1951, built
+ * greedily from two candidates only, the previous pixel (distance 3) and the pixel above
+ * (distance = one row, 1 + 3W bytes), the longer match winning and distance 3 on a tie; a
+ * match shorter than 3 is a literal. zlib header 78 01, Adler-32 at the end. The same pixels
+ * always give the same bytes, so the proof page can redraw the exact recorded file.
+ */
+const LEN_BASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+const LEN_EXTRA = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
+const DIST_BASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
+const DIST_EXTRA = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
+
+function fixedDeflate(raw: Uint8Array, rowLen: number): Uint8Array {
+  const out: number[] = [0x78, 0x01];
+  let acc = 0, nbits = 0;
+  const bits = (value: number, count: number) => { // least significant bit first
+    for (let i = 0; i < count; i++) { acc |= ((value >> i) & 1) << nbits; nbits++; if (nbits === 8) { out.push(acc); acc = 0; nbits = 0; } }
+  };
+  const huff = (code: number, len: number) => { for (let i = len - 1; i >= 0; i--) bits((code >> i) & 1, 1); }; // most significant bit first
+  const sym = (s: number) => {
+    if (s <= 143) huff(0x30 + s, 8);
+    else if (s <= 255) huff(0x190 + (s - 144), 9);
+    else if (s <= 279) huff(s - 256, 7);
+    else huff(0xc0 + (s - 280), 8);
+  };
+  const lengthOf = (i: number, d: number): number => {
+    if (i < d) return 0;
+    let L = 0;
+    while (L < 258 && i + L < raw.length && raw[i + L] === raw[i + L - d]) L++;
+    return L;
+  };
+  bits(1, 1); bits(1, 2); // BFINAL = 1, BTYPE = 01 (fixed Huffman)
+  for (let i = 0; i < raw.length;) {
+    const a = lengthOf(i, 3), b = lengthOf(i, rowLen);
+    const L = Math.max(a, b), d = a >= b ? 3 : rowLen;
+    if (L < 3) { sym(raw[i]!); i++; continue; }
+    let lc = LEN_BASE.length - 1;
+    while (LEN_BASE[lc]! > L) lc--;
+    sym(257 + lc); bits(L - LEN_BASE[lc]!, LEN_EXTRA[lc]!);
+    let dc = DIST_BASE.length - 1;
+    while (DIST_BASE[dc]! > d) dc--;
+    huff(dc, 5); bits(d - DIST_BASE[dc]!, DIST_EXTRA[dc]!);
+    i += L;
+  }
+  sym(256);
+  if (nbits > 0) out.push(acc);
+  let s1 = 1, s2 = 0;
+  for (let i = 0; i < raw.length; i++) { s1 = (s1 + raw[i]!) % 65521; s2 = (s2 + s1) % 65521; }
+  const adler = ((s2 << 16) | s1) >>> 0;
+  out.push((adler >>> 24) & 0xff, (adler >>> 16) & 0xff, (adler >>> 8) & 0xff, adler & 0xff);
+  return Uint8Array.from(out);
+}
+
+/**
+ * An RGB PNG of the canonical pixels with the manifest in a tEXt chunk before the image data.
+ * The manifest holds the commitment as base64url text, which is how the recorded file carries
+ * it for the verifier (bitgraph-fuse/2, carry "base64url"). Version 2 uses the fixed deflate
+ * above, so its bytes are the same everywhere; version 1 used the platform's deflate, so its
+ * bytes could differ between browsers while the pixels they decode to could not.
+ */
 export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promise<Uint8Array> {
   const w = ART_WIDTH, h = ART_HEIGHT;
-  const raw = new Uint8Array(h * (1 + w * 3));
+  const rowLen = 1 + w * 3;
+  const raw = new Uint8Array(h * rowLen);
   for (let y = 0; y < h; y++) {
-    const o = y * (1 + w * 3); // filter byte 0 (None)
+    const o = y * rowLen; // filter byte 0 (None)
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
       raw[o + 1 + x * 3] = px[i]!; raw[o + 2 + x * 3] = px[i + 1]!; raw[o + 3 + x * 3] = px[i + 2]!;
@@ -345,7 +410,7 @@ export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promi
   ihdr.set(u32be(w), 0); ihdr.set(u32be(h), 4);
   ihdr[8] = 8; ihdr[9] = 2; // 8-bit truecolour, no alpha; compression, filter, interlace 0
   const text = concat([te.encode(ART_MANIFEST_KEYWORD), Uint8Array.of(0), te.encode(manifestJson(manifest))]);
-  const idat = await pipe(raw, new CompressionStream("deflate"));
+  const idat = manifest.algorithm === ART_ALGORITHM_V1 ? await pipe(raw, new CompressionStream("deflate")) : fixedDeflate(raw, rowLen);
   return concat([PNG_SIG, chunk("IHDR", ihdr), chunk("tEXt", text), chunk("IDAT", idat), chunk("IEND", new Uint8Array(0))]);
 }
 
