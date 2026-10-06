@@ -46,6 +46,8 @@ export interface AnchorClaimRequest {
 export interface AllocateSlotRequest {
   type: "allocateSlot";
   chainId?: string;
+  /** Enclave v10: the newest Base block header (raw RLP, base64), fixed as the slot's floor. */
+  baseFloorHeaderB64?: string;
 }
 
 export interface KeyRequest {

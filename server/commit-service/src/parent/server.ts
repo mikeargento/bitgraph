@@ -32,6 +32,7 @@ import { requestTimestamp } from "./tsa-client.js";
 import { getClientIp, tryConsumeDigests, rateLimitConfig, allocationLimiter } from "./rate-limit.js";
 import { createAuthPolicy, describeAuthPolicy, type AuthPolicy } from "./auth.js";
 import { enqueueCeiling, ceilingQueueEnabled } from "./ceiling-queue.js";
+import { BaseHeadFeed, baseFloorEnabled } from "./base-head.js";
 
 const PORT = Number(
   process.argv.find((a) => a.startsWith("--port="))?.split("=")[1]
@@ -54,6 +55,20 @@ const FUSE_ENABLED = process.env["FUSE_ENABLED"] === "true";
 const SLOT_ID_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
 
 if (ceilingQueueEnabled()) console.log(`[parent] ceiling queue enabled: ${process.env["CEILING_QUEUE_PATH"]}`);
+
+// Enclave v10: the newest Base header goes with every allocation and becomes
+// the slot's floor. Off until BASE_FLOOR=on, so this parent can run ahead of
+// the v10 enclave (an older enclave ignores the field).
+const baseHead = baseFloorEnabled() ? BaseHeadFeed.fromEnv() : undefined;
+if (baseHead) {
+  baseHead.start();
+  console.log("[parent] Base floor enabled: the newest Base header goes with every allocation");
+}
+/** The header to fix as the floor of the next slot, when the Base floor is on and a header has been read. */
+function baseFloorField(): { baseFloorHeaderB64?: string } {
+  const h = baseHead?.latest();
+  return h ? { baseFloorHeaderB64: h.headerB64 } : {};
+}
 if (LEDGER_BUCKET) {
   console.log(`[parent] S3 ledger enabled: ${LEDGER_BUCKET}`);
 } else {
@@ -376,7 +391,7 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
     if (heldSlotId !== undefined) {
       slotId = heldSlotId;
     } else {
-      const slotResult = await enclaveClient.send({ type: "allocateSlot", chainId: body.chainId });
+      const slotResult = await enclaveClient.send({ type: "allocateSlot", chainId: body.chainId, ...baseFloorField() });
       if (!slotResult.ok || !slotResult.data) {
         sendError(res, 500, slotResult.error ?? "slot allocation failed");
         return;
@@ -581,13 +596,14 @@ async function handleAllocateSlot(req: IncomingMessage, res: ServerResponse): Pr
   }
 
   try {
-    const result = await enclaveClient.send({ type: "allocateSlot", chainId });
+    const result = await enclaveClient.send({ type: "allocateSlot", chainId, ...baseFloorField() });
     if (!result.ok || !result.data) {
       sendError(res, 500, result.error ?? "allocateSlot failed");
       return;
     }
-    // { slotId, slot, chainId }: slotId is the slot's nonce, the bearer
-    // ticket the caller must not disclose before commit.
+    // { slotId, slot, chainId, anchor?, floor? }: slotId is the slot's nonce,
+    // the bearer ticket the caller must not disclose before commit; floor
+    // (v10) is the Base block a fused file binds.
     sendJson(res, 200, result.data);
   } catch (err) {
     sendError(res, 500, `Failed to allocate slot: ${err instanceof Error ? err.message : String(err)}`);

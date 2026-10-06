@@ -5,6 +5,9 @@ import { sha256 } from "@noble/hashes/sha256";
 import { connect } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createServer, type Server } from "node:http";
+import { keccak_256 } from "@noble/hashes/sha3";
+import { encodeBaseHeaderRlp, type RpcBlock } from "../src/parent/base-head.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -63,7 +66,82 @@ async function waitKey(url: string, ms = 30_000): Promise<void> {
   throw new Error("parent never answered /key");
 }
 
-export async function startStack(opts: { enclavePort?: number; parentPort?: number; parentEnv?: Record<string, string>; quiet?: boolean; anchor?: boolean } = {}): Promise<Stack> {
+/**
+ * A stand-in Base node (enclave v10): answers eth_getBlockByNumber("latest")
+ * with a real-format OP Stack header whose hash is its true keccak, one block
+ * every 2 s of wall time, each naming its parent. Drivers can freeze the head
+ * (a halt) or skew the next block's stamp (a header from the future).
+ */
+export interface FakeBase {
+  url: string;
+  /** The block "latest" returns now. */
+  head(): RpcBlock;
+  /** Stop producing blocks (a halt); resume() picks up at wall time, refilling with past-stamped blocks. */
+  halt(): void;
+  resume(): void;
+  /** Add this many seconds to every stamp from now on (negative: past). */
+  skew(seconds: number): void;
+  close(): void;
+}
+
+const hex = (u: Uint8Array) => "0x" + Buffer.from(u).toString("hex");
+const zeros = (n: number) => "0x" + "00".repeat(n);
+
+export async function startFakeBase(startNumber = 36_000_000): Promise<FakeBase> {
+  const t0 = Math.floor(Date.now() / 1000);
+  let halted = false;
+  let haltedAt = 0;
+  let skewS = 0;
+  const chain: RpcBlock[] = [];
+  const blockAt = (n: number, parentHash: string, ts: number): RpcBlock => {
+    const b: RpcBlock = {
+      hash: "", parentHash, sha3Uncles: hex(keccak_256(Uint8Array.of(0xc0))), miner: zeros(20),
+      stateRoot: hex(keccak_256(utf8(`state-${n}`))), transactionsRoot: hex(keccak_256(utf8(`tx-${n}`))),
+      receiptsRoot: hex(keccak_256(utf8(`rc-${n}`))), logsBloom: zeros(256), difficulty: "0x0",
+      number: "0x" + n.toString(16), gasLimit: "0x" + (240_000_000).toString(16), gasUsed: "0x" + (12_345_678).toString(16),
+      timestamp: "0x" + ts.toString(16), extraData: "0x", mixHash: hex(keccak_256(utf8(`mix-${n}`))), nonce: zeros(8),
+      baseFeePerGas: "0x" + (1_000_000).toString(16), withdrawalsRoot: hex(keccak_256(utf8(`w-${n}`))),
+      blobGasUsed: "0x0", excessBlobGas: "0x0", parentBeaconBlockRoot: hex(keccak_256(utf8(`pb-${n}`))),
+      requestsHash: hex(keccak_256(utf8(`rq-${n}`))),
+    };
+    b.hash = hex(keccak_256(encodeBaseHeaderRlp(b)));
+    return b;
+  };
+  chain.push(blockAt(startNumber, hex(keccak_256(utf8("genesis-parent"))), t0));
+  // Base stamps by height: block n is t0 + 2(n - start). The head is the block for wall time.
+  const advance = () => {
+    const wall = halted ? haltedAt : Math.floor(Date.now() / 1000);
+    const want = startNumber + Math.floor((wall - t0) / 2);
+    while (startNumber + chain.length - 1 < want) {
+      const prev = chain[chain.length - 1]!;
+      const n = parseInt(prev.number, 16) + 1;
+      chain.push(blockAt(n, prev.hash, t0 + 2 * (n - startNumber) + skewS));
+    }
+    return chain[chain.length - 1]!;
+  };
+  const server: Server = createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      const j = JSON.parse(body || "{}") as { id?: number; method?: string; params?: unknown[] };
+      const result = j.method === "eth_getBlockByNumber" ? { ...advance(), transactions: [] } : null;
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify(result ? { jsonrpc: "2.0", id: j.id ?? 1, result } : { jsonrpc: "2.0", id: j.id ?? 1, error: { message: "unsupported" } }));
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const port = (server.address() as { port: number }).port;
+  return {
+    url: `http://127.0.0.1:${port}`,
+    head: () => advance(),
+    halt() { advance(); halted = true; haltedAt = Math.floor(Date.now() / 1000); },
+    resume() { halted = false; },
+    skew(seconds: number) { skewS = seconds; },
+    close() { server.close(); },
+  };
+}
+
+export async function startStack(opts: { enclavePort?: number; parentPort?: number; parentEnv?: Record<string, string>; quiet?: boolean; anchor?: boolean; base?: FakeBase | false } = {}): Promise<Stack & { base?: FakeBase }> {
   const enclavePort = opts.enclavePort ?? 59000 + Math.floor(Math.random() * 500);
   const parentPort = opts.parentPort ?? 58000 + Math.floor(Math.random() * 500);
   const stdio = opts.quiet ? "ignore" : "inherit";
@@ -74,13 +152,18 @@ export async function startStack(opts: { enclavePort?: number; parentPort?: numb
   if (anchorSeed) enclaveEnv["HARNESS_ANCHOR_PUBKEY_B64"] = b64(await getPublicKeyAsync(anchorSeed));
   const enclave = spawn(process.execPath, [join(here, "run-local-enclave.mjs")], { stdio, env: enclaveEnv });
   await waitTcp(enclavePort);
+  // Enclave v10: allocations on the anchored chain need a Base header, so every
+  // stack gets a stand-in Base node unless a driver passes base: false.
+  const base = opts.base === false ? undefined : (opts.base ?? await startFakeBase());
+  const baseEnv: Record<string, string> = base ? { BASE_FLOOR: "on", BASE_FLOOR_RPC_URLS: base.url, BASE_FLOOR_POLL_MS: "250" } : {};
   const parent = spawn(process.execPath, [join(here, "run-local-parent.mjs")], {
-    stdio, env: { ...process.env, ENCLAVE_PORT: String(enclavePort), PORT: String(parentPort), ...(opts.parentEnv ?? {}) },
+    stdio, env: { ...process.env, ENCLAVE_PORT: String(enclavePort), PORT: String(parentPort), ...baseEnv, ...(opts.parentEnv ?? {}) },
   });
   const parentUrl = `http://127.0.0.1:${parentPort}`;
   await waitKey(parentUrl);
+  if (base) await sleep(600); // let the parent read its first Base header
   if (anchorSeed) await landFirstAnchor(parentUrl, anchorSeed, 25_000_000);
-  return { enclave, parent, parentUrl, stop() { parent.kill(); enclave.kill(); } };
+  return { enclave, parent, parentUrl, base, stop() { parent.kill(); enclave.kill(); if (base && opts.base === undefined) base.close(); } };
 }
 
 export async function post(url: string, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number; json: any; headers: Headers }> {

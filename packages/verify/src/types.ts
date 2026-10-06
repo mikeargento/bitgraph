@@ -184,6 +184,27 @@ export interface BitGraphProof {
     };
 
     /**
+     * Enclave v10 (2026-10-06). The Base block fixed as this proof's floor
+     * when its slot was ALLOCATED: the parent hands the enclave the newest Base
+     * header, and the enclave hashes it (keccak-256), reads the number and time
+     * from the same bytes, refuses a block lower than the chain's last floor or
+     * stamped ahead of its own clock, and SIGNS the result here. It names its
+     * chain, so a verifier never reads it as an Ethereum floor. Proofs with
+     * slotAnchor and no slotFloor have an Ethereum floor. Verify it with the
+     * Base header: keccak(header) must equal blockHash and the block must be
+     * on Base (one lookup).
+     */
+    slotFloor?: {
+      chain: "base";
+      chainId: 8453;
+      blockNumber: number;
+      /** 0x-prefixed lowercase hex, 32 bytes. */
+      blockHash: string;
+      /** Unix seconds, read from the header. */
+      blockTimestamp: number;
+    };
+
+    /**
      * Epoch lineage link — present only on the FIRST proof of a new epoch.
      *
      * Establishes cryptographic succession: this epoch consumed the final

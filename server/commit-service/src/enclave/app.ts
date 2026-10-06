@@ -97,6 +97,7 @@ console.log(`[enclave] publicKey: ${publicKeyB64}`);
 // ---------------------------------------------------------------------------
 
 import { NitroHost, DefaultNsmClient } from "@bitgraph/adapter-nitro";
+import { checkBaseFloorHeader, type BaseFloor } from "./base-floor.js";
 
 const nsmClient = new DefaultNsmClient();
 const nitroHost = new NitroHost({
@@ -148,6 +149,8 @@ interface ChainState {
   pendingEpochLink: BitGraphProof["commit"]["epochLink"] | undefined;
   /** Latest authenticated Ethereum anchor committed on this chain this epoch (enclave v7). */
   latestAnchor: AnchorMark | undefined;
+  /** Latest Base floor fixed on this chain this epoch (enclave v10): block numbers never go down. */
+  latestBaseFloor: BaseFloor | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -254,7 +257,7 @@ function getChain(chainId?: string): ChainState {
   const id = chainId ?? DEFAULT_CHAIN;
   let chain = chains.get(id);
   if (!chain) {
-    chain = { counter: 0n, lastProofHashB64: undefined, pendingEpochLink: undefined, latestAnchor: undefined };
+    chain = { counter: 0n, lastProofHashB64: undefined, pendingEpochLink: undefined, latestAnchor: undefined, latestBaseFloor: undefined };
     chains.set(id, chain);
     console.log(`[enclave] chain created: ${id}`);
   }
@@ -334,6 +337,8 @@ interface SlotEntry {
   expiresAt: number;
   /** The chain's latest authenticated anchor when the slot was allocated (enclave v7). */
   anchorAtAllocation: AnchorMark | undefined;
+  /** The Base block fixed as this slot's floor at allocation (enclave v10). */
+  baseFloorAtAllocation: BaseFloor | undefined;
 }
 
 const pendingSlots = new Map<string, SlotEntry>(); // nonceB64 → SlotEntry
@@ -361,16 +366,35 @@ function cleanExpiredSlots(): void {
  * The signed slot record is embedded in the resulting proof so that any
  * verifier can confirm the nonce existed before the artifact was bound.
  */
-async function handleAllocateSlot(chainId?: string): Promise<{ slotId: string; slot: SlotAllocation; chainId: string; anchor?: AnchorMark }> {
+async function handleAllocateSlot(
+  chainId?: string,
+  baseFloorHeaderB64?: unknown,
+): Promise<{ slotId: string; slot: SlotAllocation; chainId: string; anchor?: AnchorMark; floor?: BaseFloor }> {
   cleanExpiredSlots();
 
   if (pendingSlots.size >= MAX_PENDING_SLOTS) {
     throw new Error("Too many pending slots — try again later");
   }
 
-  // 1. Get or create the chain, then increment its counter.
+  // 0. Enclave v10: the Base floor, checked before anything is spent. On the
+  // anchored chain a slot without one is refused here, at allocation, so no
+  // floorless proof can follow it (this replaces v8's wait for the epoch's
+  // first anchor). Other chains take a floor when one is offered.
   const chain = getChain(chainId);
+  const resolvedChainIdForFloor = chainId ?? DEFAULT_CHAIN;
+  let baseFloor: BaseFloor | undefined;
+  if (baseFloorHeaderB64 !== undefined) {
+    baseFloor = checkBaseFloorHeader(baseFloorHeaderB64, chain.latestBaseFloor, Date.now());
+  } else if (resolvedChainIdForFloor === ANCHORED_CHAIN_ID) {
+    throw new Error(
+      `no-base-floor: an allocation on ${ANCHORED_CHAIN_ID} must carry the newest Base block header, ` +
+        "and none was sent. The parent has no Base header yet; try again in a few seconds.",
+    );
+  }
+
+  // 1. Increment the chain's counter.
   chain.counter += 1n;
+  if (baseFloor) chain.latestBaseFloor = baseFloor;
 
   // 2. Generate fresh nonce from NSM hardware RNG
   const nonceBytes = await nitroHost.getFreshNonce();
@@ -404,6 +428,7 @@ async function handleAllocateSlot(chainId?: string): Promise<{ slotId: string; s
     chainId: resolvedChainId,
     expiresAt: Date.now() + SLOT_TTL_MS,
     anchorAtAllocation: chain.latestAnchor,
+    baseFloorAtAllocation: baseFloor,
   });
 
   console.log(`[enclave] slot allocated: chain=${resolvedChainId} counter=${record.counter} (${pendingSlots.size} pending)`);
@@ -417,6 +442,8 @@ async function handleAllocateSlot(chainId?: string): Promise<{ slotId: string; s
     slot: record,
     chainId: resolvedChainId,
     ...(chain.latestAnchor ? { anchor: { ...chain.latestAnchor } } : {}),
+    // v10: the Base floor, for the same reason: a fused file binds its hash.
+    ...(baseFloor ? { floor: { ...baseFloor } } : {}),
   };
 }
 
@@ -652,7 +679,9 @@ async function handleCommit(req: {
   // dependency: if the anchor service is down when an epoch begins, the
   // anchored chain refuses commits until it returns. That is the intended
   // trade: no floorless proofs on the chain whose proofs claim floors.
-  if (!anchorMark && chainId === ANCHORED_CHAIN_ID && !slotEntry.anchorAtAllocation) {
+  // v10: a slot with a Base floor has its floor; v10 refuses floorless slots on
+  // this chain at allocation, so this now only bites a slot from before that.
+  if (!anchorMark && chainId === ANCHORED_CHAIN_ID && !slotEntry.anchorAtAllocation && !slotEntry.baseFloorAtAllocation) {
     throw new Error(
       "no-anchor-floor: this slot was allocated before an authenticated anchor existed on " +
         `${ANCHORED_CHAIN_ID} in epoch ${epochId.slice(0, 12)}…, so its proof would carry no floor. ` +
@@ -746,6 +775,10 @@ async function handleCommit(req: {
   }
   if (anchorMark) {
     commitFields.anchor = { blockNumber: anchorMark.blockNumber, blockHash: anchorMark.blockHash };
+  }
+  // Enclave v10: the Base floor fixed at allocation.
+  if (slotEntry.baseFloorAtAllocation) {
+    commitFields.slotFloor = { ...slotEntry.baseFloorAtAllocation };
   }
 
   // Include chainId in commit fields (omit for global/default chain for backward compat)
@@ -1034,7 +1067,7 @@ async function handleRequest(req: Record<string, unknown>): Promise<unknown> {
     }
     case "allocateSlot": {
       const slotChainId = (req as { chainId?: string }).chainId;
-      return await handleAllocateSlot(slotChainId);
+      return await handleAllocateSlot(slotChainId, (req as { baseFloorHeaderB64?: unknown }).baseFloorHeaderB64);
     }
     case "challenge": {
       return await handleChallenge();
