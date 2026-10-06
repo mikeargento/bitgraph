@@ -3139,3 +3139,13 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .jev-check { font-size: 14px !important; padding: 10px 12px; border-radius: 8px; background: var(--panel-2); }
 .jev-check.is-ok { background: #e6f4ea; color: #137333; }
 .jev-check.is-mismatch { background: #fce8e6; color: #c5221f; }
+
+/* The steps stand up on phones (Mike, 10-06: "it looks bad on mobile for both especially during the
+   green checks during creation. it may have to go vertical on phones"): one step per row, the dot on
+   the left, the label beside it, a vertical line joining the dots. Both demos share it. */
+@media (max-width: 600px) {
+  .art-stepper { grid-template-columns: 1fr; width: auto; max-width: 240px; margin: 0 auto !important; }
+  .art-stepper li { flex-direction: row; align-items: center; gap: 14px; height: 52px; font-size: 16px; }
+  .art-stepper li + li::before { top: -12px; left: 13px; right: auto; width: 2px; height: 24px; }
+  .art-step-label { text-align: left; white-space: nowrap; padding: 0; }
+}
