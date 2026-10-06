@@ -7,9 +7,10 @@
  *
  * The drawing takes a few seconds on this thread; the button says so while it works.
  */
-import { ART_ALGORITHM_V6, ART_ALGORITHM_V7, encodePrintPng, fromBase64Url } from "./commitment-art.ts";
+import { ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, artSize, encodePrintPng, fromBase64Url } from "./commitment-art.ts";
 import { planV6, renderV6At } from "./commitment-art-v6.ts";
 import { planV7, renderV7At } from "./commitment-art-v7.ts";
+import { planV8, renderV8At } from "./commitment-art-v8.ts";
 
 export const PRINT_SCALE = 4;
 export const PRINT_SIZE = 1024 * PRINT_SCALE;
@@ -17,7 +18,10 @@ export const PRINT_SIZE = 1024 * PRINT_SCALE;
 export interface PrintRequest { commitment: string; counter: number; digestB64: string; algorithm?: string }
 
 /** The versions that can be redrawn larger. */
-export const PRINTABLE: readonly string[] = [ART_ALGORITHM_V6, ART_ALGORITHM_V7];
+export const PRINTABLE: readonly string[] = [ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8];
+/** How much larger each version is drawn for print: version 8 is landscape and already 1600 wide, so 3 times (4800 x 3072). */
+export const printScaleOf = (algorithm: string): number => (algorithm === ART_ALGORITHM_V8 ? 3 : PRINT_SCALE);
+export const printSizeOf = (algorithm: string): { width: number; height: number } => { const { width, height } = artSize(algorithm); const s = printScaleOf(algorithm); return { width: width * s, height: height * s }; };
 
 /** Draw and encode, wherever this runs. */
 export async function drawPrint(req: PrintRequest): Promise<Uint8Array> {
@@ -25,12 +29,14 @@ export async function drawPrint(req: PrintRequest): Promise<Uint8Array> {
   if (!c || c.length !== 32) throw new Error("not a position commitment");
   const algorithm = req.algorithm ?? ART_ALGORITHM_V6;
   if (!PRINTABLE.includes(algorithm)) throw new Error(`${algorithm} has no larger drawing`);
-  const px = algorithm === ART_ALGORITHM_V7 ? renderV7At(planV7(c), c, PRINT_SCALE) : renderV6At(planV6(c), c, PRINT_SCALE);
-  return encodePrintPng(px, PRINT_SIZE, PRINT_SIZE, {
+  const S = printScaleOf(algorithm), size = printSizeOf(algorithm);
+  const px = algorithm === ART_ALGORITHM_V8 ? renderV8At(planV8(c), c, S) : algorithm === ART_ALGORITHM_V7 ? renderV7At(planV7(c), c, S) : renderV6At(planV6(c), c, S);
+  const rec = artSize(algorithm);
+  return encodePrintPng(px, size.width, size.height, {
     what: `A larger redrawing, for print, of BitGraph #${req.counter}`,
-    recordedFile: `sha256 ${req.digestB64}, ${algorithm}, 1024 x 1024`,
-    scale: PRINT_SCALE,
-    note: "The proof covers the recorded 1024 x 1024 file. This one is drawn from the same code at four times the size.",
+    recordedFile: `sha256 ${req.digestB64}, ${algorithm}, ${rec.width} x ${rec.height}`,
+    scale: S,
+    note: `The proof covers the recorded ${rec.width} x ${rec.height} file. This one is drawn from the same code at ${S} times the size.`,
   });
 }
 

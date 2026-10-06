@@ -80,7 +80,7 @@ test("one changed pixel is caught; a corrupted byte is caught", async () => {
   const art = await makeArt(C1);
   const d = await decodePng(art.png);
   const px = d.rgba.slice();
-  const i = (500 * ART_WIDTH + 500) * 4;
+  const i = (500 * d.width + 500) * 4; // the current version's own width (version 8 is 1600 wide)
   px[i] = px[i]! ^ 1;
   const { encodeArtPng, artManifest } = await import("../commitment-art.ts");
   const altered = await encodeArtPng(px, artManifest(artRecipe(C1), px));
@@ -303,6 +303,39 @@ test("version 7 is pinned, its file is a function of the code, and both image ch
 });
 
 const PINNED_PIXELS_V7 = "56f51bb964f11ac8c9bc50d0677d88457f45ee45467aff92f69b6623cf267f58";
+
+// ── Version 8: landscape, mostly solid, the code in 256 reading pixels ─────────────────────
+test("version 8: landscape 1600 x 1024, and the art alone spells the code, for many codes", async () => {
+  const { decodeV8 } = await import("../commitment-art-v8.ts");
+  const cs = [new Uint8Array(32), new Uint8Array(32).fill(255), C1, C2];
+  for (let k = 0; k < 12; k++) cs.push(sha256(new TextEncoder().encode(`bitgraph-art/8 readback ${k}`)));
+  for (const c of cs) {
+    const px = renderArt(artRecipe(c, "bitgraph-art/8"));
+    assert.equal(px.length, 1600 * 1024 * 4);
+    assert.deepEqual(decodeV8(px, 1600, 1024), c);
+  }
+});
+
+test("version 8: only the 256 reading pixels carry the code; two codes with the same plan differ nowhere else", async () => {
+  const { planV8, renderV8 } = await import("../commitment-art-v8.ts");
+  const plan = planV8(C1), a = renderV8(plan, new Uint8Array(32)), b = renderV8(plan, new Uint8Array(32).fill(255));
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 4) if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2]) diff++;
+  assert.equal(diff, 256);
+});
+
+test("version 8 is pinned, its file is a function of the code, and both image checks pass", async () => {
+  const a = await makeArt(C1, "bitgraph-art/8");
+  const b = await makeArt(C1, "bitgraph-art/8");
+  assert.equal(toHex(sha256(a.png)), toHex(sha256(b.png)));
+  assert.equal(toHex(sha256(a.pixels)), PINNED_PIXELS_V8);
+  const r = await checkArt(a.png, C1);
+  assert.equal(r.regenerated.result, "TRUE");
+  assert.equal(r.strip.result, "TRUE");
+  assert.match(r.strip.detail, /the art reads/);
+});
+
+const PINNED_PIXELS_V8 = "951740031b6bae47efb7249f8486c8c1148818f5f77cf46f7a76c94671bf5891";
 
 test("version 3 is pinned, and its file is a pure function of the commitment", async () => {
   const a = await makeArt(C1, "bitgraph-art/3");

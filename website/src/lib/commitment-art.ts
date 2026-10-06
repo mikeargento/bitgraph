@@ -61,12 +61,13 @@ import { sha256 } from "@noble/hashes/sha256";
 import { planV5, renderV5, decodeV5, type V5Plan } from "./commitment-art-v5.ts";
 import { planV6, renderV6, decodeV6, type V6Plan } from "./commitment-art-v6.ts";
 import { planV7, renderV7, decodeV7 } from "./commitment-art-v7.ts";
+import { planV8, renderV8, decodeV8, V8_WIDTH, V8_HEIGHT, type V8Plan } from "./commitment-art-v8.ts";
 
 export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
 /** What a new image is drawn with: version 3 from 2026-10-06 (Mike: "lose barcode use version 3"),
  *  version 4 (the Truchet maze) the same night (Mike: "build the truchet maze as version 4"). */
-export const ART_ALGORITHM = "bitgraph-art/7"; // version 7 from 2026-10-06 (Mike: "stay square, but make it less jagged"): version 6's picture, unbroken; version 6 before it
+export const ART_ALGORITHM = "bitgraph-art/8"; // version 8 from 2026-10-06 (Mike: "less lines ... make the image landscape"); version 7 before it
 /** Built 2026-10-06 for a side-by-side look (Mike: "build it and show me side by side"): the art spells the commitment. */
 export const ART_ALGORITHM_V3 = "bitgraph-art/3";
 /** Built 2026-10-06 (Mike: "build the truchet maze as version 4"): every tile is one bit. */
@@ -77,9 +78,12 @@ export const ART_ALGORITHM_V5 = "bitgraph-art/5";
 export const ART_ALGORITHM_V6 = "bitgraph-art/6";
 /** Version 6's picture with nothing broken at the tile edges: the code in colour twins (commitment-art-v7.ts). */
 export const ART_ALGORITHM_V7 = "bitgraph-art/7";
-export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7];
+/** Landscape (1600 x 1024), mostly solid shapes, the code in 256 reading pixels (commitment-art-v8.ts). */
+export const ART_ALGORITHM_V8 = "bitgraph-art/8";
+export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8];
 /** Each version's canvas: 1 and 2 carry a strip under the art; 3 is the art square and its frame. */
 export function artSize(algorithm: string): { width: number; height: number } {
+  if (algorithm === ART_ALGORITHM_V8) return { width: V8_WIDTH, height: V8_HEIGHT };
   return algorithm === ART_ALGORITHM_V3 || algorithm === ART_ALGORITHM_V4 || algorithm === ART_ALGORITHM_V5 || algorithm === ART_ALGORITHM_V6 || algorithm === ART_ALGORITHM_V7 ? { width: 1024, height: 1024 } : { width: 1024, height: 1056 };
 }
 export const ART_WIDTH = 1024;
@@ -130,6 +134,8 @@ export interface ArtRecipe {
   v6?: V6Plan;
   /** Version 7 only: version 6's plan, drawn without the weave. */
   v7?: V6Plan;
+  /** Version 8 only: the landscape plan (commitment-art-v8.ts). */
+  v8?: V8Plan;
   cells: ArtCell[];
 }
 
@@ -202,6 +208,10 @@ export function artRecipe(commitment: Uint8Array, algorithm: string = ART_ALGORI
   if (!ART_ALGORITHMS.includes(algorithm)) throw new TypeError(`unknown art algorithm ${algorithm}`);
   if (algorithm === ART_ALGORITHM_V3) return recipeV3(commitment);
   if (algorithm === ART_ALGORITHM_V4) return recipeV4(commitment);
+  if (algorithm === ART_ALGORITHM_V8) {
+    const v8 = planV8(commitment);
+    return { algorithm, width: V8_WIDTH, height: V8_HEIGHT, commitment: toBase64Url(commitment), palette: v8.palette, grid: 16, cells: [], v8 };
+  }
   if (algorithm === ART_ALGORITHM_V7) {
     const v7 = planV7(commitment);
     return { algorithm, width: 1024, height: 1024, commitment: toBase64Url(commitment), palette: v7.palette, grid: 16, cells: [], v7 };
@@ -342,6 +352,7 @@ export function decodeArtV4(px: Uint8Array, width: number, height: number): Uint
 /** The recipe's JSON, keys in this fixed order: the bytes the recipe digest is taken over. */
 export function recipeJson(r: ArtRecipe): string {
   const cells = r.cells.map((c) => `[${c.shape},${c.turn},${c.fg},${c.bg}]`).join(",");
+  if (r.v8) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v8)}}`;
   if (r.v7) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v7)}}`;
   if (r.v6) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v6)}}`;
   if (r.v5) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v5)}}`;
@@ -410,6 +421,7 @@ export function renderArt(r: ArtRecipe): Uint8Array {
   const commitment = fromBase64Url(r.commitment);
   if (commitment === null) throw new TypeError("the recipe's commitment is not base64url");
   requireCommitment(commitment);
+  if (r.v8) return renderV8(r.v8, commitment);
   if (r.v7) return renderV7(r.v7, commitment);
   if (r.v6) return renderV6(r.v6, commitment);
   if (r.v5) return renderV5(r.v5, commitment);
@@ -776,12 +788,12 @@ export async function checkArt(pngBytes: Uint8Array, authenticatedCommitment: Ui
       : { result: "FALSE", detail: `the first differing pixel is at (${(firstDiff >> 2) % W}, ${Math.floor((firstDiff >> 2) / W)})` };
 
   // Read the commitment back from the pixels: the strip for versions 1 and 2, the art itself for 3.
-  const v6 = algorithm === ART_ALGORITHM_V6, v7 = algorithm === ART_ALGORITHM_V7;
+  const v6 = algorithm === ART_ALGORITHM_V6, v7 = algorithm === ART_ALGORITHM_V7, v8 = algorithm === ART_ALGORITHM_V8;
   const v5 = algorithm === ART_ALGORITHM_V5;
   const v4 = algorithm === ART_ALGORITHM_V4;
   const v3 = algorithm === ART_ALGORITHM_V3 || v4;
-  const read = v7 ? decodeV7(decoded.rgba, decoded.width, decoded.height) : v6 ? decodeV6(decoded.rgba, decoded.width, decoded.height) : v5 ? decodeV5(decoded.rgba, decoded.width, decoded.height) : v4 ? decodeArtV4(decoded.rgba, decoded.width, decoded.height) : v3 ? decodeArtV3(decoded.rgba, decoded.width, decoded.height) : decodeStrip(decoded.rgba, decoded.width, decoded.height);
-  const what = v5 ? "the plate mark" : v3 || v6 || v7 ? "the art" : "the 256-cell strip";
+  const read = v8 ? decodeV8(decoded.rgba, decoded.width, decoded.height) : v7 ? decodeV7(decoded.rgba, decoded.width, decoded.height) : v6 ? decodeV6(decoded.rgba, decoded.width, decoded.height) : v5 ? decodeV5(decoded.rgba, decoded.width, decoded.height) : v4 ? decodeArtV4(decoded.rgba, decoded.width, decoded.height) : v3 ? decodeArtV3(decoded.rgba, decoded.width, decoded.height) : decodeStrip(decoded.rgba, decoded.width, decoded.height);
+  const what = v5 ? "the plate mark" : v3 || v6 || v7 || v8 ? "the art" : "the 256-cell strip";
   const strip: ArtChecks["strip"] = read === null
     ? { result: "FALSE", detail: v3 ? `the picture does not read as a ${algorithm} spelling of any commitment` : "the image is not this algorithm's size, so it has no strip to read" }
     : read.every((b, i) => b === authenticatedCommitment[i])

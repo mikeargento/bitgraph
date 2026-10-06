@@ -56,3 +56,16 @@ test("version 7's print drawing is the same picture: averaged back to 1024 it ma
   }
   assert.ok(diff / (1024 * 1024 * 3) < 2, `mean difference ${(diff / (1024 * 1024 * 3)).toFixed(2)} of 255`);
 });
+
+test("version 8's print drawing (3x, 4800 x 3072) is the same picture as the recorded one", async () => {
+  const { planV8, renderV8, renderV8At } = await import("../commitment-art-v8.ts");
+  const c = code("print v8"), plan = planV8(c), S = 3;
+  const a = renderV8(plan, c), b = renderV8At(plan, c, S), W = 1600 * S;
+  let diff = 0;
+  for (let y = 0; y < 1024; y++) for (let x = 0; x < 1600; x++) for (let ch = 0; ch < 3; ch++) {
+    let s = 0;
+    for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) s += b[((y * S + j) * W + x * S + i) * 4 + ch]!;
+    diff += Math.abs(s / (S * S) - a[(y * 1600 + x) * 4 + ch]!);
+  }
+  assert.ok(diff / (1600 * 1024 * 3) < 2, `mean difference ${(diff / (1600 * 1024 * 3)).toFixed(2)} of 255`);
+});

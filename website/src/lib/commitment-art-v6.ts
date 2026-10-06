@@ -419,4 +419,4 @@ export function renderV6At(plan: V6Plan, commitment: Uint8Array, S: number): Uin
 }
 
 /** Shared with version 7 (commitment-art-v7.ts), which draws this same plan without the weave. */
-export { PALETTES as PALETTES_V6, FRAME as FRAME_V6, TILE as TILE_V6, READ as READ_V6, idiv, imod, inShape, ink, topAt, scaleShape, scaleFill, BASE_SHAPE };
+export { PALETTES as PALETTES_V6, FRAME as FRAME_V6, TILE as TILE_V6, READ as READ_V6, idiv, imod, inShape, ink, topAt, scaleShape, scaleFill, BASE_SHAPE, SIN as SIN_V6 };

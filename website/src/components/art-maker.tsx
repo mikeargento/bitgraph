@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createArtImage, restoreArtImage, ArtError, type ArtStage, type MadeArtImage } from "@/lib/art-position";
 import { buildCarrierForProof } from "@/lib/carrier-site";
-import { makePrint, PRINTABLE, PRINT_SIZE } from "@/lib/art-print";
+import { makePrint, PRINTABLE, printSizeOf } from "@/lib/art-print";
 import { recordedMsOf } from "@/lib/recorded-time";
 
 
@@ -177,7 +177,8 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       const bytes = await makePrint({ commitment: made.position.commitment, counter, digestB64: made.digestB64, algorithm: made.manifest.algorithm });
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/png" }));
       const a = document.createElement("a");
-      a.href = url; a.download = `bitgraph-image-${counter}-print-${PRINT_SIZE}.png`;
+      const ps = printSizeOf(made.manifest.algorithm);
+      a.href = url; a.download = `bitgraph-image-${counter}-print-${ps.width}x${ps.height}.png`;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (e) {
@@ -262,7 +263,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
             <ol className="art-timeline">
               <li><span>Ethereum block {made.position.floorBlock ? n(made.position.floorBlock) : ""}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
               <li><span>Position {n(made.position.slotCounter)} opened, commitment issued</span><span>after the floor</span></li>
-              <li><span>Image drawn from the commitment</span><span>{made.recipe.v7 ? `${made.recipe.v7.layers.length} layers, ${made.recipe.v7.loud ? "loud" : "calm"}, 256 bits in its colours` : made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
+              <li><span>Image drawn from the commitment</span><span>{made.recipe.v8 ? `${made.recipe.v8.layers.length} shapes, ${made.recipe.v8.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v7 ? `${made.recipe.v7.layers.length} layers, ${made.recipe.v7.loud ? "loud" : "calm"}, 256 bits in its colours` : made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
               <li><span>Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{counter}</a></span><span>{recordedMs ? utc(recordedMs) : ""}</span></li>
               <li className={built?.existedBy ? "" : "is-pending"}><span>{built?.existedBy ? `Existed by Base block ${n(built.existedBy.blockNumber)}` : "Base block"}</span><span>{built?.existedBy ? utc(built.existedBy.timestamp * 1000) : building ? "waiting for it" : "not in yet"}</span></li>
             </ol>
@@ -271,7 +272,9 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
               <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier.</p>
               <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
               <h3>How it was drawn</h3>
-              <p>{made.manifest.algorithm === "bitgraph-art/7"
+              <p>{made.manifest.algorithm === "bitgraph-art/8"
+                ? <>Every shape, pattern, colour and mood comes from the code ({made.manifest.algorithm}). The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its colour when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/7"
                 ? <>Every shape, pattern, colour and mood comes from the code ({made.manifest.algorithm}). The code is also written into the picture&rsquo;s colours: a hidden grid of 256 tiles, one bit each, where a tile whose bit is 1 is drawn in colours one shade away from the palette&rsquo;s, too close to see. Nothing in the picture moves to carry it, yet two different codes can never make the same image, and the code can be read back from the picture alone.</>
                 : made.manifest.algorithm === "bitgraph-art/6"
                 ? <>Every shape, pattern, colour and mood comes from the code ({made.manifest.algorithm}). The code is woven into the art itself: a hidden grid of 256 tiles, one bit each, where the pattern on top shifts slightly inside its tile so the tile&rsquo;s centre lands on the colour its bit calls for. That is the faint stitching you can see at the tile edges. So two different codes can never make the same image, and the code can be read back from the picture alone.</>

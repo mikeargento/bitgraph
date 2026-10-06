@@ -3105,3 +3105,5 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 /* Four actions, two and two (Mike, 10-06), one column on phones. */
 .art-result .art-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 720px) { .art-result .art-actions { grid-template-columns: 1fr; } }
+/* A landscape image reads better a little wider: the result column, and the Jev demo's with it, 760px. */
+.art-result { max-width: 760px; }
