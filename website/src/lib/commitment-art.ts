@@ -63,7 +63,13 @@ export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
 /** What a new image is drawn with. */
 export const ART_ALGORITHM = ART_ALGORITHM_V2;
-export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2];
+/** Built 2026-10-06 for a side-by-side look (Mike: "build it and show me side by side"): the art spells the commitment. */
+export const ART_ALGORITHM_V3 = "bitgraph-art/3";
+export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3];
+/** Each version's canvas: 1 and 2 carry a strip under the art; 3 is the art square and its frame. */
+export function artSize(algorithm: string): { width: number; height: number } {
+  return algorithm === ART_ALGORITHM_V3 ? { width: 1024, height: 1024 } : { width: 1024, height: 1056 };
+}
 export const ART_WIDTH = 1024;
 export const ART_HEIGHT = 1056;
 const ART_X = 32, ART_Y = 32, ART_SIDE = 960;
@@ -86,6 +92,12 @@ const PALETTES: readonly (readonly RGB[])[] = [
   ["#f6f6f2", "#264653", "#2a9d8f", "#e9c46a", "#e76f51"],
   ["#f9f7f3", "#5f0f40", "#9a031e", "#fb8b24", "#0f4c5c"],
 ].map((p) => p.map(hex));
+/**
+ * Version 3's palettes: version 1's, with palette 1's ground and dark colour changed so that every
+ * palette's ground is unique and every palette's dark colour (index 4) is unique and darker than any
+ * ground. The frame alone then names the palette and the frame bit.
+ */
+const PALETTES_V3: readonly (readonly RGB[])[] = PALETTES.map((p, i) => (i === 1 ? [hex("#f1f7f3"), p[1]!, p[2]!, p[3]!, hex("#17301f")] : p));
 const INK: RGB = hex("#202124");
 const PAPER: RGB = hex("#f8f9fa");
 
@@ -98,6 +110,8 @@ export interface ArtRecipe {
   commitment: string;
   palette: number;
   grid: number;
+  /** Version 3 only: 0 = the frame is the palette's ground, 1 = its dark colour. */
+  frame?: number;
   cells: ArtCell[];
 }
 
@@ -168,6 +182,7 @@ class Stream {
 export function artRecipe(commitment: Uint8Array, algorithm: string = ART_ALGORITHM): ArtRecipe {
   requireCommitment(commitment);
   if (!ART_ALGORITHMS.includes(algorithm)) throw new TypeError(`unknown art algorithm ${algorithm}`);
+  if (algorithm === ART_ALGORITHM_V3) return recipeV3(commitment);
   const s = new Stream(commitment, algorithm);
   const grid = GRIDS[s.pick(GRIDS.length)]!;
   const palette = s.pick(PALETTES.length);
@@ -181,10 +196,52 @@ export function artRecipe(commitment: Uint8Array, algorithm: string = ART_ALGORI
   return { algorithm, width: ART_WIDTH, height: ART_HEIGHT, commitment: toBase64Url(commitment), palette, grid, cells };
 }
 
+/* ── Version 3: the art spells the commitment ─────────────────────────────────────────
+ * No stream: the commitment is already a SHA-256 output, so its bits are used directly, and
+ * every bit lands in the picture. Read most significant bit of byte 0 first:
+ *   bits 0..251    36 cells, row-major in a 6 x 6 grid, 7 bits each:
+ *                  3 bits SHAPE: split, disc, quarter, half, triangle, ring, bars, dot
+ *                  4 bits LOOK:  for split, quarter, half, triangle, bars (shapes with a direction):
+ *                                turn = LOOK >> 2, fg = 1 + (LOOK & 3), bg = 1 + ((LOOK + 1) & 3);
+ *                                for disc, ring, dot (no direction): (fg, bg) = PAIRS[LOOK], the 16
+ *                                ordered pairs of palette colours with fg in 1..4 and bg != fg
+ *   bits 252..254  the palette (PALETTES_V3)
+ *   bit  255       the frame: 0 = the palette's ground, 1 = its dark colour (index 4)
+ * Within a palette the 128 cell looks are pixel-distinct, and the frame names the palette and
+ * the frame bit, so the picture is a one-to-one spelling of the commitment: two commitments can
+ * never draw the same image, and decodeArtV3 reads the commitment back from the pixels alone.
+ * 1024 x 1024, the art square at (32, 32), smoothed as version 2, written with the fixed deflate.
+ */
+const V3_SHAPES = [8, 1, 2, 3, 4, 5, 6, 7]; // split, disc, quarter, half, triangle, ring, bars, dot (inside() ids)
+const V3_ROUND = new Set([1, 5, 7]);
+const V3_PAIRS: ReadonlyArray<readonly [number, number]> = (() => {
+  const out: Array<[number, number]> = [];
+  for (let a = 1; a <= 4; a++) for (let b = 0; b <= 4; b++) if (b !== a) out.push([a, b]);
+  return out; // 16
+})();
+const bitAt = (c: Uint8Array, i: number) => (c[i >> 3]! >> (7 - (i & 7))) & 1;
+function v3Cell(code: number): ArtCell {
+  const shape = V3_SHAPES[code >> 4]!, look = code & 15;
+  if (V3_ROUND.has(shape)) { const [fg, bg] = V3_PAIRS[look]!; return { shape, turn: 0, fg, bg }; }
+  return { shape, turn: look >> 2, fg: 1 + (look & 3), bg: 1 + ((look + 1) & 3) };
+}
+function recipeV3(commitment: Uint8Array): ArtRecipe {
+  const cells: ArtCell[] = [];
+  for (let k = 0; k < 36; k++) {
+    let code = 0;
+    for (let b = 0; b < 7; b++) code = (code << 1) | bitAt(commitment, 7 * k + b);
+    cells.push(v3Cell(code));
+  }
+  const palette = (bitAt(commitment, 252) << 2) | (bitAt(commitment, 253) << 1) | bitAt(commitment, 254);
+  const { width, height } = artSize(ART_ALGORITHM_V3);
+  return { algorithm: ART_ALGORITHM_V3, width, height, commitment: toBase64Url(commitment), palette, grid: 6, frame: bitAt(commitment, 255), cells };
+}
+
 /** The recipe's JSON, keys in this fixed order: the bytes the recipe digest is taken over. */
 export function recipeJson(r: ArtRecipe): string {
   const cells = r.cells.map((c) => `[${c.shape},${c.turn},${c.fg},${c.bg}]`).join(",");
-  return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"palette":${r.palette},"grid":${r.grid},"cells":[${cells}]}`;
+  const frame = r.algorithm === ART_ALGORITHM_V3 ? `,"frame":${r.frame ?? 0}` : "";
+  return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"palette":${r.palette},"grid":${r.grid}${frame},"cells":[${cells}]}`;
 }
 
 function inside(shape: number, u: number, v: number, S: number): boolean {
@@ -198,68 +255,123 @@ function inside(shape: number, u: number, v: number, S: number): boolean {
     case 5: { const r = (u - S) ** 2 + (v - S) ** 2; return 4 * r > S * S && r <= S * S; }
     case 6: return Math.floor((4 * u) / D) % 2 === 0;
     case 7: return 4 * ((u - S) ** 2 + (v - S) ** 2) <= S * S;
+    case 8: return v <= S; // split (version 3): the frame's top half
     default: return false;
   }
 }
 
-function put(px: Uint8Array, x: number, y: number, c: RGB): void {
-  const i = (y * ART_WIDTH + x) * 4;
+function put(px: Uint8Array, width: number, x: number, y: number, c: RGB): void {
+  const i = (y * width + x) * 4;
   px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2]; px[i + 3] = 255;
 }
+
+/**
+ * One cell of side S, drawn into a buffer of the given width at (x0, y0): one sample per pixel, or
+ * (smooth) 16 samples blended with integers. Shared by renderArt and the version 3 reader.
+ */
+function drawCell(px: Uint8Array, width: number, x0: number, y0: number, S: number, cell: ArtCell, fg: RGB, bg: RGB, smooth: boolean): void {
+  const H = smooth ? 4 * S : S; // the half-size in sample units
+  const D = 2 * H;
+  const mix: number[] = [0, 0, 0];
+  for (let ly = 0; ly < S; ly++) {
+    for (let lx = 0; lx < S; lx++) {
+      if (!smooth) {
+        let u = 2 * lx + 1, v = 2 * ly + 1;
+        for (let t = 0; t < cell.turn; t++) { const nu = v; v = D - u; u = nu; }
+        put(px, width, x0 + lx, y0 + ly, inside(cell.shape, u, v, S) ? fg : bg);
+        continue;
+      }
+      let c = 0;
+      for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+        let u = 8 * lx + 2 * i + 1, v = 8 * ly + 2 * j + 1;
+        for (let t = 0; t < cell.turn; t++) { const nu = v; v = D - u; u = nu; }
+        if (inside(cell.shape, u, v, H)) c++;
+      }
+      if (c === 16) put(px, width, x0 + lx, y0 + ly, fg);
+      else if (c === 0) put(px, width, x0 + lx, y0 + ly, bg);
+      else {
+        for (let k = 0; k < 3; k++) mix[k] = (fg[k]! * c + bg[k]! * (16 - c) + 8) >> 4;
+        put(px, width, x0 + lx, y0 + ly, mix as unknown as RGB);
+      }
+    }
+  }
+}
+
+const paletteOf = (r: ArtRecipe): readonly RGB[] => (r.algorithm === ART_ALGORITHM_V3 ? PALETTES_V3 : PALETTES)[r.palette]!;
 
 /** The canonical RGBA buffer for a recipe. Integer arithmetic only. */
 export function renderArt(r: ArtRecipe): Uint8Array {
   const commitment = fromBase64Url(r.commitment);
   if (commitment === null) throw new TypeError("the recipe's commitment is not base64url");
   requireCommitment(commitment);
-  const pal = PALETTES[r.palette]!;
-  const px = new Uint8Array(ART_WIDTH * ART_HEIGHT * 4);
-  for (let y = 0; y < ART_HEIGHT; y++) for (let x = 0; x < ART_WIDTH; x++) put(px, x, y, pal[0]!);
+  const { width, height } = artSize(r.algorithm);
+  const pal = paletteOf(r);
+  const v3 = r.algorithm === ART_ALGORITHM_V3;
+  const ground = v3 && r.frame === 1 ? pal[4]! : pal[0]!;
+  const px = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) put(px, width, x, y, ground);
 
-  const S = ART_SIDE / r.grid; // GRIDS all divide 960
-  const smooth = r.algorithm === ART_ALGORITHM_V2;
-  const H = smooth ? 4 * S : S; // the half-size in sample units
-  const D = 2 * H;
-  const turned = (u0: number, v0: number, turn: number): [number, number] => {
-    let u = u0, v = v0;
-    for (let t = 0; t < turn; t++) { const nu = v; v = D - u; u = nu; }
-    return [u, v];
-  };
-  const mix: number[] = [0, 0, 0];
+  const S = ART_SIDE / r.grid; // every grid divides 960
+  const smooth = r.algorithm !== ART_ALGORITHM_V1;
   for (let row = 0; row < r.grid; row++) {
     for (let col = 0; col < r.grid; col++) {
       const cell = r.cells[row * r.grid + col]!;
-      const fg = pal[cell.fg]!, bg = pal[cell.bg]!;
-      for (let ly = 0; ly < S; ly++) {
-        for (let lx = 0; lx < S; lx++) {
-          const x = ART_X + col * S + lx, y = ART_Y + row * S + ly;
-          if (!smooth) {
-            const [u, v] = turned(2 * lx + 1, 2 * ly + 1, cell.turn);
-            put(px, x, y, inside(cell.shape, u, v, S) ? fg : bg);
-            continue;
-          }
-          let c = 0;
-          for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
-            const [u, v] = turned(8 * lx + 2 * i + 1, 8 * ly + 2 * j + 1, cell.turn);
-            if (inside(cell.shape, u, v, H)) c++;
-          }
-          if (c === 16) put(px, x, y, fg);
-          else if (c === 0) put(px, x, y, bg);
-          else {
-            for (let k = 0; k < 3; k++) mix[k] = (fg[k]! * c + bg[k]! * (16 - c) + 8) >> 4;
-            put(px, x, y, mix as unknown as RGB);
-          }
-        }
-      }
+      drawCell(px, width, ART_X + col * S, ART_Y + row * S, S, cell, pal[cell.fg]!, pal[cell.bg]!, smooth);
     }
   }
 
-  for (let i = 0; i < 256; i++) {
-    const bit = (commitment[i >> 3]! >> (7 - (i & 7))) & 1;
-    const c = bit === 1 ? INK : PAPER;
-    for (let y = STRIP_Y; y < STRIP_Y + STRIP_ROWS; y++) for (let x = i * STRIP_CELL; x < (i + 1) * STRIP_CELL; x++) put(px, x, y, c);
+  if (!v3) {
+    for (let i = 0; i < 256; i++) {
+      const c = bitAt(commitment, i) === 1 ? INK : PAPER;
+      for (let y = STRIP_Y; y < STRIP_Y + STRIP_ROWS; y++) for (let x = i * STRIP_CELL; x < (i + 1) * STRIP_CELL; x++) put(px, width, x, y, c);
+    }
   }
   return px;
+}
+
+/**
+ * Version 3: read the commitment back from the picture alone. The frame pixel (0, 0) names the
+ * palette and the frame bit; each 160 px cell is matched exactly against the 128 looks drawn in
+ * that palette. Returns null when the pixels are not a version 3 image.
+ */
+export function decodeArtV3(px: Uint8Array, width: number, height: number): Uint8Array | null {
+  const size = artSize(ART_ALGORITHM_V3);
+  if (width !== size.width || height !== size.height || px.length !== width * height * 4) return null;
+  const at = (x: number, y: number): RGB => { const i = (y * width + x) * 4; return [px[i]!, px[i + 1]!, px[i + 2]!]; };
+  const same = (a: RGB, b: RGB) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+  const corner = at(0, 0);
+  let palette = -1, frame = -1;
+  PALETTES_V3.forEach((p, i) => { if (same(p[0]!, corner)) { palette = i; frame = 0; } else if (same(p[4]!, corner)) { palette = i; frame = 1; } });
+  if (palette < 0) return null;
+  const pal = PALETTES_V3[palette]!;
+  const S = ART_SIDE / 6;
+  const looks: Uint8Array[] = [];
+  for (let code = 0; code < 128; code++) {
+    const cell = v3Cell(code);
+    const buf = new Uint8Array(S * S * 4);
+    drawCell(buf, S, 0, 0, S, cell, pal[cell.fg]!, pal[cell.bg]!, true);
+    looks.push(buf);
+  }
+  const bits: number[] = [];
+  for (let k = 0; k < 36; k++) {
+    const x0 = ART_X + (k % 6) * S, y0 = ART_Y + Math.floor(k / 6) * S;
+    let found = -1;
+    for (let code = 0; code < 128 && found < 0; code++) {
+      const look = looks[code]!;
+      let ok = true;
+      for (let y = 0; y < S && ok; y++) {
+        const row = ((y0 + y) * width + x0) * 4, lrow = y * S * 4;
+        for (let x = 0; x < S * 4; x++) if (px[row + x] !== look[lrow + x]) { ok = false; break; }
+      }
+      if (ok) found = code;
+    }
+    if (found < 0) return null;
+    for (let b = 6; b >= 0; b--) bits.push((found >> b) & 1);
+  }
+  bits.push((palette >> 2) & 1, (palette >> 1) & 1, palette & 1, frame);
+  const out = new Uint8Array(32);
+  bits.forEach((b, i) => { if (b) out[i >> 3]! |= 1 << (7 - (i & 7)); });
+  return out;
 }
 
 /**
@@ -396,7 +508,7 @@ function fixedDeflate(raw: Uint8Array, rowLen: number): Uint8Array {
  * bytes could differ between browsers while the pixels they decode to could not.
  */
 export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promise<Uint8Array> {
-  const w = ART_WIDTH, h = ART_HEIGHT;
+  const { width: w, height: h } = artSize(manifest.algorithm);
   const rowLen = 1 + w * 3;
   const raw = new Uint8Array(h * rowLen);
   for (let y = 0; y < h; y++) {
@@ -517,20 +629,24 @@ export async function checkArt(pngBytes: Uint8Array, authenticatedCommitment: Ui
   // either, the pixels must come from the authenticated commitment, or the check fails.
   const algorithm = manifest && ART_ALGORITHMS.includes(manifest.algorithm) ? manifest.algorithm : ART_ALGORITHM;
   const expected = renderArt(artRecipe(authenticatedCommitment, algorithm));
-  const sameSize = decoded.width === ART_WIDTH && decoded.height === ART_HEIGHT && decoded.rgba.length === expected.length;
+  const { width: W, height: Hh } = artSize(algorithm);
+  const sameSize = decoded.width === W && decoded.height === Hh && decoded.rgba.length === expected.length;
   let firstDiff = -1;
   if (sameSize) for (let i = 0; i < expected.length; i++) if (expected[i] !== decoded.rgba[i]) { firstDiff = i; break; }
   const regenerated: ArtChecks["regenerated"] = !sameSize
-    ? { result: "FALSE", detail: `the image is ${decoded.width} x ${decoded.height}; ${algorithm} draws ${ART_WIDTH} x ${ART_HEIGHT}` }
+    ? { result: "FALSE", detail: `the image is ${decoded.width} x ${decoded.height}; ${algorithm} draws ${W} x ${Hh}` }
     : firstDiff === -1
-      ? { result: "TRUE", detail: `regenerated with ${algorithm} from the authenticated commitment, all ${(ART_WIDTH * ART_HEIGHT).toLocaleString("en-US")} pixels match (SHA-256 ${toHex(sha256(expected))})` }
-      : { result: "FALSE", detail: `the first differing pixel is at (${(firstDiff >> 2) % ART_WIDTH}, ${Math.floor((firstDiff >> 2) / ART_WIDTH)})` };
+      ? { result: "TRUE", detail: `regenerated with ${algorithm} from the authenticated commitment, all ${(W * Hh).toLocaleString("en-US")} pixels match (SHA-256 ${toHex(sha256(expected))})` }
+      : { result: "FALSE", detail: `the first differing pixel is at (${(firstDiff >> 2) % W}, ${Math.floor((firstDiff >> 2) / W)})` };
 
-  const read = decodeStrip(decoded.rgba, decoded.width, decoded.height);
+  // Read the commitment back from the pixels: the strip for versions 1 and 2, the art itself for 3.
+  const v3 = algorithm === ART_ALGORITHM_V3;
+  const read = v3 ? decodeArtV3(decoded.rgba, decoded.width, decoded.height) : decodeStrip(decoded.rgba, decoded.width, decoded.height);
+  const what = v3 ? "the art" : "the 256-cell strip";
   const strip: ArtChecks["strip"] = read === null
-    ? { result: "FALSE", detail: "the image is not this algorithm's size, so it has no strip to read" }
+    ? { result: "FALSE", detail: v3 ? "the picture does not read as a version 3 spelling of any commitment" : "the image is not this algorithm's size, so it has no strip to read" }
     : read.every((b, i) => b === authenticatedCommitment[i])
-      ? { result: "TRUE", detail: `the 256-cell strip reads ${toBase64Url(read)}, the authenticated commitment` }
-      : { result: "FALSE", detail: `the strip reads ${toBase64Url(read)}, not the authenticated commitment ${toBase64Url(authenticatedCommitment)}` };
+      ? { result: "TRUE", detail: `${what} reads ${toBase64Url(read)}, the authenticated commitment` }
+      : { result: "FALSE", detail: `${what} reads ${toBase64Url(read)}, not the authenticated commitment ${toBase64Url(authenticatedCommitment)}` };
   return { regenerated, strip, manifest };
 }

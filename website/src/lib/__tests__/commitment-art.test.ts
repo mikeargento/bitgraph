@@ -5,7 +5,7 @@ import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import {
-  ART_HEIGHT, ART_WIDTH, artRecipe, recipeJson, renderArt, decodeStrip, makeArt, decodePng, checkArt, toHex, toBase64Url,
+  ART_HEIGHT, ART_WIDTH, decodeArtV3, artSize, artRecipe, recipeJson, renderArt, decodeStrip, makeArt, decodePng, checkArt, toHex, toBase64Url,
 } from "../commitment-art.ts";
 
 const C1 = sha256(new TextEncoder().encode("bitgraph-art test commitment one"));
@@ -141,6 +141,56 @@ test("a version 2 file is a pure function of its commitment: same bytes every ti
   assert.equal(raw.length, ART_HEIGHT * (1 + ART_WIDTH * 3));
 });
 
+// ── Version 3: the art spells the commitment ──────────────────────────────────────────
+test("version 3: the code reads back from the art alone, for many commitments", () => {
+  for (let k = 0; k < 12; k++) {
+    const c = sha256(new TextEncoder().encode(`bitgraph-art/3 readback ${k}`));
+    const px = renderArt(artRecipe(c, "bitgraph-art/3"));
+    const { width, height } = artSize("bitgraph-art/3");
+    assert.equal(px.length, width * height * 4);
+    assert.deepEqual(decodeArtV3(px, width, height), c);
+  }
+  for (const c of [new Uint8Array(32), new Uint8Array(32).fill(255)]) {
+    assert.deepEqual(decodeArtV3(renderArt(artRecipe(c, "bitgraph-art/3")), 1024, 1024), c);
+  }
+});
+
+test("version 3: one changed bit anywhere gives a different picture", () => {
+  const c = sha256(new TextEncoder().encode("bitgraph-art/3 flip"));
+  const base = toHex(sha256(renderArt(artRecipe(c, "bitgraph-art/3"))));
+  for (const bit of [0, 6, 7, 100, 251, 252, 254, 255]) {
+    const d = c.slice();
+    d[bit >> 3] = d[bit >> 3]! ^ (1 << (7 - (bit & 7)));
+    assert.notEqual(toHex(sha256(renderArt(artRecipe(d, "bitgraph-art/3")))), base, `bit ${bit}`);
+  }
+});
+
+test("version 3: all 128 cell looks are distinct in every palette, and every frame names its palette", () => {
+  // Spell every code 0..127 in every palette and read it back: a look equal to another would read
+  // back as the other, so a clean round trip for all of them is the distinctness proof.
+  const setBit = (c: Uint8Array, i: number, v: number) => { if (v) c[i >> 3] = c[i >> 3]! | (1 << (7 - (i & 7))); };
+  for (let palette = 0; palette < 8; palette++) {
+    for (let chunk = 0; chunk < 4; chunk++) {
+      const c = new Uint8Array(32);
+      for (let k = 0; k < 36; k++) { const code = (chunk * 36 + k) % 128; for (let b = 0; b < 7; b++) setBit(c, 7 * k + b, (code >> (6 - b)) & 1); }
+      setBit(c, 252, (palette >> 2) & 1); setBit(c, 253, (palette >> 1) & 1); setBit(c, 254, palette & 1); setBit(c, 255, chunk & 1);
+      assert.deepEqual(decodeArtV3(renderArt(artRecipe(c, "bitgraph-art/3")), 1024, 1024), c, `palette ${palette}, chunk ${chunk}`);
+    }
+  }
+});
+
+test("version 3 is pinned, and its file is a pure function of the commitment", async () => {
+  const a = await makeArt(C1, "bitgraph-art/3");
+  const b = await makeArt(C1, "bitgraph-art/3");
+  assert.equal(toHex(sha256(a.png)), toHex(sha256(b.png)));
+  assert.equal(toHex(sha256(a.pixels)), PINNED_PIXELS_V3);
+  const r = await checkArt(a.png, C1);
+  assert.equal(r.regenerated.result, "TRUE");
+  assert.equal(r.strip.result, "TRUE");
+  assert.match(r.strip.detail, /the art reads/);
+});
+
+const PINNED_PIXELS_V3 = "f3eb607003d241f8fa6608c2616a5d0ebf0e5b4cb5c3f0ebd66ec3ef25919dc6";
 const PINNED_RECIPE_V2 = "bed07f7098cb5820302060c4716bbdb9e142513e1095dfa73cae3f98c4576b31";
 const PINNED_PIXELS_V2 = "529f41e977edf3f34ec839f10c0b60bc310b747c707bff9979ef3feed795366f";
 const PINNED_RECIPE = "57ba907bc7a76ea0412c3e98f644605c984ca135e7497c1724fc5ae5382d1f2e";
