@@ -3085,3 +3085,11 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 /* No word left alone on a line anywhere in a proof (Mike, 10-06: "check for awkward wrapping"). */
 .pv { text-wrap: pretty; }
 .pv-sub-root { margin-top: 8px; color: var(--dim); }
+/* Technical details as a defined, quiet card (Mike, 10-06: "should this be better defined?"): the
+   proof page's raised white card at the image's width, sentence-case title, chevron, a tint on hover. */
+.art-result .art-details { background: var(--paper); box-shadow: var(--shadow-card); border-top: 0; border-radius: 12px; padding: 0 18px; margin-top: 32px; }
+.art-result .art-details[open] { padding-bottom: 18px; }
+.art-result .art-details > .art-details-title { padding: 14px 0; }
+@media (hover: hover) { .art-result .art-details > .art-details-title:hover { color: var(--accent); } }
+.art-result .art-details[open] > .art-details-title { border-bottom: 1px solid var(--line-2); margin-bottom: 4px; }
+.art-result .art-canvas { animation: none; } /* the result fades as one; no second zoom on the image */
