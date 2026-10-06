@@ -624,6 +624,33 @@ export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promi
   return concat([PNG_SIG, chunk("IHDR", ihdr), chunk("tEXt", text), chunk("IDAT", idat), chunk("IEND", new Uint8Array(0))]);
 }
 
+/**
+ * A PNG of any size, for the print redrawing (Mike, 2026-10-06: "make a download high resolution
+ * button"). Not a recorded file and never made into one: the platform's deflate, the Sub filter
+ * (the larger drawing is mostly flat runs), 300 dpi in pHYs, and a tEXt chunk saying what it is.
+ * It carries no manifest and no commitment, so it is never mistaken for the recorded image.
+ */
+export async function encodePrintPng(px: Uint8Array, w: number, h: number, note: Record<string, string | number>): Promise<Uint8Array> {
+  const rowLen = 1 + w * 3;
+  const raw = new Uint8Array(h * rowLen);
+  for (let y = 0; y < h; y++) {
+    const o = y * rowLen;
+    raw[o] = 1; // filter Sub: each byte minus the one three to its left
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) raw[o + 1 + x * 3 + c] = (px[i + c]! - (x > 0 ? px[i - 4 + c]! : 0)) & 0xff;
+    }
+  }
+  const ihdr = new Uint8Array(13);
+  ihdr.set(u32be(w), 0); ihdr.set(u32be(h), 4);
+  ihdr[8] = 8; ihdr[9] = 2;
+  const phys = new Uint8Array(9);
+  phys.set(u32be(11811), 0); phys.set(u32be(11811), 4); phys[8] = 1; // 300 dots per inch, in dots per metre
+  const text = concat([te.encode("bitgraph-art-print"), Uint8Array.of(0), te.encode(JSON.stringify(note))]);
+  const idat = await pipe(raw, new CompressionStream("deflate"));
+  return concat([PNG_SIG, chunk("IHDR", ihdr), chunk("pHYs", phys), chunk("tEXt", text), chunk("IDAT", idat), chunk("IEND", new Uint8Array(0))]);
+}
+
 export interface DecodedPng { width: number; height: number; rgba: Uint8Array; texts: Record<string, string> }
 
 /**
