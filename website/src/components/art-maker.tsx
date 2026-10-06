@@ -232,7 +232,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         <div className="art-result">
           {/* What just happened, for someone who has never heard of BitGraph, above the image (Mike, 10-06, after trying it below: "i suppose this paragraph should be on top eh?": a square image fills the screen, so text under it sits below the fold). */}
           {/* One line, the same as /jev's (Mike, 10-06: "can the paragraph not wrap?"). */}
-          <p className="art-explain art-explain-one">{restored ? "This image did not exist until someone clicked." : <>You made an image that did not exist until you&nbsp;clicked.</>}</p>
+          <p className="art-explain art-explain-one">{restored ? "This image did not exist until someone clicked." : <>You just made an image that did not exist until you&nbsp;clicked.</>}</p>
           <div className="art-canvas">
             <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`Abstract image drawn from the code ${made.position.commitment}`} />
           </div>
