@@ -302,7 +302,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
           </div>
 
           {/* The caption under the image (Mike, 10-06: "it should caption under image"). */}
-          <p className="art-explain art-explain-one art-caption">{restored ? <>Jev answered questions that didn&rsquo;t exist until someone clicked, and you have&nbsp;proof.</> : <>Jev answered questions that didn&rsquo;t exist until you clicked, and you have&nbsp;proof.</>}</p>
+          <p className="art-explain art-explain-one art-caption">{/* The same claim as /image's caption (Mike, 10-06: "do both"). */}The proof for these questions began before the questions&nbsp;existed.</p>
           <div className="actions art-actions">
             <a className="bg-action-link is-make" href={proofHref}><span>See the full proof</span></a>
             <a className="bg-action-link" href={`${LIVE}/api/result/${record.id}/download`}><span>Download the record</span></a>
