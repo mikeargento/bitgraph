@@ -201,21 +201,21 @@ function inShape(shape: number[], poly: number[], x: number, y: number): boolean
 }
 
 /** The pattern's scalar at a point, before any phase: the quantity its stripes, rings or wedges repeat in. */
-function lineValue(fill: number[], x: number, y: number): number {
+function lineValue(fill: number[], x: number, y: number, S = 1): number {
   const [kind, , , p1, , , p4] = fill as [number, number, number, number, number, number, number];
   let d = -x * SIN[p1]! + y * COS(p1);
   if (kind === 1) {
-    const amp = Math.floor(p4 / 8192), wave = p4 % 8192;
+    const amp = Math.floor(p4 / 8192) * S, wave = (p4 % 8192) * S;
     const t = x * COS(p1) + y * SIN[p1]!;
     d += amp * SIN[imod(idiv(t * 64, wave * 1024), 1024)]!;
   }
   return d;
 }
 
-function ink(fill: number[], shape: number[], x: number, y: number, pa: number, pb: number): boolean {
+function ink(fill: number[], shape: number[], x: number, y: number, pa: number, pb: number, S = 1): boolean {
   const [kind, , , p1, p2, p3, p4] = fill as [number, number, number, number, number, number, number];
   switch (kind) {
-    case 0: case 1: case 7: return imod(lineValue(fill, x, y) + pa * 16384, p2 * 16384) < p3 * 16384;
+    case 0: case 1: case 7: return imod(lineValue(fill, x, y, S) + pa * 16384, p2 * 16384) < p3 * 16384;
     case 2: case 3: {
       const dx = x - shape[1]!, dy = y - shape[2]!;
       const dist = kind === 2 ? isqrt(dx * dx + dy * dy) : Math.max(Math.abs(dx), Math.abs(dy));
@@ -226,7 +226,7 @@ function ink(fill: number[], shape: number[], x: number, y: number, pa: number, 
       const g = p1, xx = x + pa, yy = y + pb;
       const cxc = idiv(xx, g) * g + (g >> 1), cyc = idiv(yy, g) * g + (g >> 1);
       const dist = isqrt((cxc - p2) ** 2 + (cyc - p3) ** 2);
-      const phase = (Math.floor(p4 / 16) + idiv(dist * (p4 % 16) * 1024, U)) & 1023;
+      const phase = (Math.floor(p4 / 16) + idiv(dist * (p4 % 16) * 1024, U * S)) & 1023;
       const rr = idiv(g * 48 * (15 * 16384 + 85 * Math.abs(SIN[phase]!)), 100 * 100 * 16384);
       return (xx - cxc) ** 2 + (yy - cyc) ** 2 <= rr * rr;
     }
@@ -274,9 +274,7 @@ function topAt(plan: V6Plan, x: number, y: number): number {
   return -1;
 }
 
-export function renderV6(plan: V6Plan, commitment: Uint8Array): Uint8Array {
-  const W = 1024, pal = PALETTES[plan.palette]!;
-  // Per tile: the layer that carries its bit, and that layer's phase inside the tile.
+function tilePhases(plan: V6Plan, commitment: Uint8Array): { tLayer: Int16Array; tA: Float64Array; tB: Float64Array } {
   const tLayer = new Int16Array(256), tA = new Float64Array(256), tB = new Float64Array(256);
   for (let k = 0; k < 256; k++) {
     const r = k >> 4, c = k & 15;
@@ -288,6 +286,13 @@ export function renderV6(plan: V6Plan, commitment: Uint8Array): Uint8Array {
     const [pa, pb] = phaseFor(layer.fill, layer.shape, x0, y0, want);
     tLayer[k] = l; tA[k] = pa; tB[k] = pb;
   }
+  return { tLayer, tA, tB };
+}
+
+export function renderV6(plan: V6Plan, commitment: Uint8Array): Uint8Array {
+  const W = 1024, pal = PALETTES[plan.palette]!;
+  // Per tile: the layer that carries its bit, and that layer's phase inside the tile.
+  const { tLayer, tA, tB } = tilePhases(plan, commitment);
   const colourAt = (x: number, y: number): number => {
     const k = (idiv(y >> 3, TILE) << 4) + idiv(x >> 3, TILE);
     const l = topAt(plan, x, y);
@@ -345,3 +350,73 @@ export function decodeV6(px: Uint8Array, width: number, height: number): Uint8Ar
   }
   return null;
 }
+
+/* ── A larger drawing, for print (Mike, 2026-10-06: "make a download high resolution button") ───
+ * The same geometry at S times the resolution: every length in the plan and every tile phase is
+ * multiplied by S (an angle is not), a pixel is still 8 units, so lines, rings and the weave are
+ * drawn sharper, not enlarged. This is a REDRAWING of the recorded image for print, not the recorded
+ * file: the proof covers the 1024 px file; anyone can redraw this one from the same code. The 1024 px
+ * path above is untouched (its pixels are pinned by the tests). */
+function scaleShape(shape: number[], poly: number[], S: number): { shape: number[]; poly: number[] } {
+  const [kind, cx, cy, r, a, b, c] = shape as [number, number, number, number, number, number, number];
+  // ring: a is a radius; band: a is an angle, b a half width; half: a is a side; rect: b a half height
+  const sa = kind === 1 ? a * S : a;
+  const sb = kind === 4 || kind === 5 ? b * S : b;
+  return { shape: [kind, cx * S, cy * S, r * S, sa, sb, c], poly: poly.map((v) => v * S) };
+}
+function scaleFill(fill: number[], S: number): number[] {
+  const [kind, ink1, under, p1, p2, p3, p4] = fill as [number, number, number, number, number, number, number];
+  switch (kind) {
+    case 0: case 1: case 7: return [kind, ink1, under, p1, p2 * S, p3 * S, p4]; // wavy's p4 is scaled where it is read
+    case 2: case 3: return [kind, ink1, under, p1, p2 * S, p3 * S, p4];
+    case 5: return [kind, ink1, under, p1 * S, p2 * S, p3 * S, p4];
+    case 6: return [kind, ink1, under, p1 * S, p2, p3, p4];
+    default: return fill.slice();
+  }
+}
+
+export function renderV6At(plan: V6Plan, commitment: Uint8Array, S: number): Uint8Array {
+  const W = 1024 * S, AS = ART * S, TS = TILE * S, pal = PALETTES[plan.palette]!;
+  const { tLayer, tA, tB } = tilePhases(plan, commitment);
+  const base = scaleFill(plan.base, S);
+  const layers = plan.layers.map((l) => ({ ...scaleShape(l.shape, l.poly, S), fill: scaleFill(l.fill, S) }));
+  const phase = (fill: number[], a: number, b: number): [number, number] => (fill[0] === 4 ? [a, b] : [a * S, b * S]);
+  const colourAt = (x: number, y: number): number => {
+    const k = (idiv(y >> 3, TS) << 4) + idiv(x >> 3, TS);
+    let l = layers.length - 1;
+    for (; l >= 0; l--) if (inShape(layers[l]!.shape, layers[l]!.poly, x, y)) break;
+    const layer = l < 0 ? { fill: base, shape: BASE_SHAPE } : layers[l]!;
+    const [pa, pb] = tLayer[k] === l ? phase(layer.fill, tA[k]!, tB[k]!) : [0, 0];
+    return ink(layer.fill, layer.shape, x, y, pa, pb, S) ? layer.fill[1]! : layer.fill[2]!;
+  };
+  const px = new Uint8Array(W * W * 4);
+  for (let i = 0; i < W * W; i++) { px[4 * i] = FRAME[0]; px[4 * i + 1] = FRAME[1]; px[4 * i + 2] = FRAME[2]; px[4 * i + 3] = 255; }
+  const shiftOf = (y: number): number => { const yo = idiv(y, S); let dx = 0; for (const [y0, h, d] of plan.glitch) if (yo >= y0! && yo < y0! + h!) dx = d! * S; return dx; };
+  const id = new Uint8Array(AS * AS);
+  for (let y = 0; y < AS; y++) {
+    const dx = shiftOf(y);
+    for (let x = 0; x < AS; x++) id[y * AS + x] = colourAt(8 * imod(x - dx, AS) + 4, 8 * y + 4);
+  }
+  for (let y = 0; y < AS; y++) {
+    const dx = shiftOf(y), scanned = plan.scan && idiv(y, S) % 12 < 2;
+    for (let x = 0; x < AS; x++) {
+      const c = id[y * AS + x]!;
+      const same = (x === 0 || id[y * AS + x - 1] === c) && (x === AS - 1 || id[y * AS + x + 1] === c) && (y === 0 || id[(y - 1) * AS + x] === c) && (y === AS - 1 || id[(y + 1) * AS + x] === c);
+      let col: RGB;
+      if (same) col = pal[c]!;
+      else {
+        const sx = imod(x - dx, AS);
+        let r = 0, g = 0, b = 0;
+        for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { const p = pal[colourAt(8 * sx + 2 * i + 1, 8 * y + 2 * j + 1)]!; r += p[0]; g += p[1]; b += p[2]; }
+        col = [(r + 8) >> 4, (g + 8) >> 4, (b + 8) >> 4];
+      }
+      if (scanned) { const bg = pal[0]!; col = [Math.floor((2 * col[0] + bg[0]) / 3), Math.floor((2 * col[1] + bg[1]) / 3), Math.floor((2 * col[2] + bg[2]) / 3)]; }
+      const i = ((OFF * S + y) * W + OFF * S + x) * 4;
+      px[i] = col[0]; px[i + 1] = col[1]; px[i + 2] = col[2];
+    }
+  }
+  return px;
+}
+
+/** Shared with version 7 (commitment-art-v7.ts), which draws this same plan without the weave. */
+export { PALETTES as PALETTES_V6, FRAME as FRAME_V6, TILE as TILE_V6, READ as READ_V6, idiv, imod, inShape, ink, topAt, scaleShape, scaleFill, BASE_SHAPE };

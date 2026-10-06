@@ -266,6 +266,44 @@ test("version 6 is pinned, its file is a function of the code, and both image ch
 
 const PINNED_PIXELS_V6 = "2ec7115f2eb8ea7c5ed0b84bd4514bf930a2fb52f90ed1f5a66690ce405393c1";
 
+// ── Version 7: version 6's picture, unbroken; the code in colour twins ──────────────────
+test("version 7: the art alone spells the code, for many codes, all zeros and all ones", async () => {
+  const { decodeV7 } = await import("../commitment-art-v7.ts");
+  const cs = [new Uint8Array(32), new Uint8Array(32).fill(255), C1, C2];
+  for (let k = 0; k < 12; k++) cs.push(sha256(new TextEncoder().encode(`bitgraph-art/7 readback ${k}`)));
+  for (const c of cs) assert.deepEqual(decodeV7(renderArt(artRecipe(c, "bitgraph-art/7")), 1024, 1024), c);
+});
+
+test("version 7: every colour and twin is distinct, within a palette and across palettes", async () => {
+  const { PALETTES_V7, TWINS_V7 } = await import("../commitment-art-v7.ts");
+  const all = PALETTES_V7.flatMap((p, i) => [...p, ...TWINS_V7[i]!].map((c) => c.join(",")));
+  assert.equal(new Set(all).size, all.length);
+});
+
+test("version 7 draws version 6's composition, without the breaks at the tile edges", async () => {
+  const { renderV6, planV6 } = await import("../commitment-art-v6.ts");
+  const { renderV7 } = await import("../commitment-art-v7.ts");
+  // At most one level per channel apart where version 6 kept its pattern in place; where version 6
+  // shifted a pattern to carry a bit, the two differ, and version 7's is the unbroken one.
+  const v6 = renderV6(planV6(C1), C1), v7 = renderV7(planV6(C1), C1);
+  let near = 0;
+  for (let i = 0; i < v6.length; i += 4) if (Math.abs(v6[i]! - v7[i]!) <= 1 && Math.abs(v6[i + 1]! - v7[i + 1]!) <= 1 && Math.abs(v6[i + 2]! - v7[i + 2]!) <= 1) near++;
+  assert.ok(near / (v6.length / 4) > 0.5, `the same picture: ${(near / (v6.length / 4) * 100).toFixed(1)}% of pixels within one level`);
+});
+
+test("version 7 is pinned, its file is a function of the code, and both image checks pass", async () => {
+  const a = await makeArt(C1, "bitgraph-art/7");
+  const b = await makeArt(C1, "bitgraph-art/7");
+  assert.equal(toHex(sha256(a.png)), toHex(sha256(b.png)));
+  assert.equal(toHex(sha256(a.pixels)), PINNED_PIXELS_V7);
+  const r = await checkArt(a.png, C1);
+  assert.equal(r.regenerated.result, "TRUE");
+  assert.equal(r.strip.result, "TRUE");
+  assert.match(r.strip.detail, /the art reads/);
+});
+
+const PINNED_PIXELS_V7 = "56f51bb964f11ac8c9bc50d0677d88457f45ee45467aff92f69b6623cf267f58";
+
 test("version 3 is pinned, and its file is a pure function of the commitment", async () => {
   const a = await makeArt(C1, "bitgraph-art/3");
   const b = await makeArt(C1, "bitgraph-art/3");

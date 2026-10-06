@@ -3102,3 +3102,6 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-result .art-actions { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .art-result .art-actions .bg-action-link { width: 100%; justify-content: center; padding: 10px 8px !important; white-space: nowrap; }
 @media (max-width: 720px) { .art-result .art-actions { grid-template-columns: 1fr; } }
+/* Four actions, two and two (Mike, 10-06), one column on phones. */
+.art-result .art-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 720px) { .art-result .art-actions { grid-template-columns: 1fr; } }

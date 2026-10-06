@@ -60,12 +60,13 @@
 import { sha256 } from "@noble/hashes/sha256";
 import { planV5, renderV5, decodeV5, type V5Plan } from "./commitment-art-v5.ts";
 import { planV6, renderV6, decodeV6, type V6Plan } from "./commitment-art-v6.ts";
+import { planV7, renderV7, decodeV7 } from "./commitment-art-v7.ts";
 
 export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
 /** What a new image is drawn with: version 3 from 2026-10-06 (Mike: "lose barcode use version 3"),
  *  version 4 (the Truchet maze) the same night (Mike: "build the truchet maze as version 4"). */
-export const ART_ALGORITHM = "bitgraph-art/6"; // version 6 from 2026-10-06 (Mike: "build option 2 as version 6"); version 5 before it
+export const ART_ALGORITHM = "bitgraph-art/7"; // version 7 from 2026-10-06 (Mike: "stay square, but make it less jagged"): version 6's picture, unbroken; version 6 before it
 /** Built 2026-10-06 for a side-by-side look (Mike: "build it and show me side by side"): the art spells the commitment. */
 export const ART_ALGORITHM_V3 = "bitgraph-art/3";
 /** Built 2026-10-06 (Mike: "build the truchet maze as version 4"): every tile is one bit. */
@@ -74,10 +75,12 @@ export const ART_ALGORITHM_V4 = "bitgraph-art/4";
 export const ART_ALGORITHM_V5 = "bitgraph-art/5";
 /** Built 2026-10-06 (Mike: "build option 2 as version 6"): version 5's look with the code woven into the art. */
 export const ART_ALGORITHM_V6 = "bitgraph-art/6";
-export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6];
+/** Version 6's picture with nothing broken at the tile edges: the code in colour twins (commitment-art-v7.ts). */
+export const ART_ALGORITHM_V7 = "bitgraph-art/7";
+export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7];
 /** Each version's canvas: 1 and 2 carry a strip under the art; 3 is the art square and its frame. */
 export function artSize(algorithm: string): { width: number; height: number } {
-  return algorithm === ART_ALGORITHM_V3 || algorithm === ART_ALGORITHM_V4 || algorithm === ART_ALGORITHM_V5 || algorithm === ART_ALGORITHM_V6 ? { width: 1024, height: 1024 } : { width: 1024, height: 1056 };
+  return algorithm === ART_ALGORITHM_V3 || algorithm === ART_ALGORITHM_V4 || algorithm === ART_ALGORITHM_V5 || algorithm === ART_ALGORITHM_V6 || algorithm === ART_ALGORITHM_V7 ? { width: 1024, height: 1024 } : { width: 1024, height: 1056 };
 }
 export const ART_WIDTH = 1024;
 export const ART_HEIGHT = 1056;
@@ -125,6 +128,8 @@ export interface ArtRecipe {
   v5?: V5Plan;
   /** Version 6 only: the layered plan with the woven code (commitment-art-v6.ts). */
   v6?: V6Plan;
+  /** Version 7 only: version 6's plan, drawn without the weave. */
+  v7?: V6Plan;
   cells: ArtCell[];
 }
 
@@ -197,6 +202,10 @@ export function artRecipe(commitment: Uint8Array, algorithm: string = ART_ALGORI
   if (!ART_ALGORITHMS.includes(algorithm)) throw new TypeError(`unknown art algorithm ${algorithm}`);
   if (algorithm === ART_ALGORITHM_V3) return recipeV3(commitment);
   if (algorithm === ART_ALGORITHM_V4) return recipeV4(commitment);
+  if (algorithm === ART_ALGORITHM_V7) {
+    const v7 = planV7(commitment);
+    return { algorithm, width: 1024, height: 1024, commitment: toBase64Url(commitment), palette: v7.palette, grid: 16, cells: [], v7 };
+  }
   if (algorithm === "bitgraph-art/6") {
     const v6 = planV6(commitment);
     return { algorithm, width: 1024, height: 1024, commitment: toBase64Url(commitment), palette: v6.palette, grid: 16, cells: [], v6 };
@@ -333,6 +342,7 @@ export function decodeArtV4(px: Uint8Array, width: number, height: number): Uint
 /** The recipe's JSON, keys in this fixed order: the bytes the recipe digest is taken over. */
 export function recipeJson(r: ArtRecipe): string {
   const cells = r.cells.map((c) => `[${c.shape},${c.turn},${c.fg},${c.bg}]`).join(",");
+  if (r.v7) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v7)}}`;
   if (r.v6) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v6)}}`;
   if (r.v5) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v5)}}`;
   const frame = r.algorithm === ART_ALGORITHM_V3 ? `,"frame":${r.frame ?? 0}` : "";
@@ -400,6 +410,7 @@ export function renderArt(r: ArtRecipe): Uint8Array {
   const commitment = fromBase64Url(r.commitment);
   if (commitment === null) throw new TypeError("the recipe's commitment is not base64url");
   requireCommitment(commitment);
+  if (r.v7) return renderV7(r.v7, commitment);
   if (r.v6) return renderV6(r.v6, commitment);
   if (r.v5) return renderV5(r.v5, commitment);
   const { width, height } = artSize(r.algorithm);
@@ -624,6 +635,33 @@ export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promi
   return concat([PNG_SIG, chunk("IHDR", ihdr), chunk("tEXt", text), chunk("IDAT", idat), chunk("IEND", new Uint8Array(0))]);
 }
 
+/**
+ * A PNG of any size, for the print redrawing (Mike, 2026-10-06: "make a download high resolution
+ * button"). Not a recorded file and never made into one: the platform's deflate, the Sub filter
+ * (the larger drawing is mostly flat runs), 300 dpi in pHYs, and a tEXt chunk saying what it is.
+ * It carries no manifest and no commitment, so it is never mistaken for the recorded image.
+ */
+export async function encodePrintPng(px: Uint8Array, w: number, h: number, note: Record<string, string | number>): Promise<Uint8Array> {
+  const rowLen = 1 + w * 3;
+  const raw = new Uint8Array(h * rowLen);
+  for (let y = 0; y < h; y++) {
+    const o = y * rowLen;
+    raw[o] = 1; // filter Sub: each byte minus the one three to its left
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) raw[o + 1 + x * 3 + c] = (px[i + c]! - (x > 0 ? px[i - 4 + c]! : 0)) & 0xff;
+    }
+  }
+  const ihdr = new Uint8Array(13);
+  ihdr.set(u32be(w), 0); ihdr.set(u32be(h), 4);
+  ihdr[8] = 8; ihdr[9] = 2;
+  const phys = new Uint8Array(9);
+  phys.set(u32be(11811), 0); phys.set(u32be(11811), 4); phys[8] = 1; // 300 dots per inch, in dots per metre
+  const text = concat([te.encode("bitgraph-art-print"), Uint8Array.of(0), te.encode(JSON.stringify(note))]);
+  const idat = await pipe(raw, new CompressionStream("deflate"));
+  return concat([PNG_SIG, chunk("IHDR", ihdr), chunk("pHYs", phys), chunk("tEXt", text), chunk("IDAT", idat), chunk("IEND", new Uint8Array(0))]);
+}
+
 export interface DecodedPng { width: number; height: number; rgba: Uint8Array; texts: Record<string, string> }
 
 /**
@@ -738,12 +776,12 @@ export async function checkArt(pngBytes: Uint8Array, authenticatedCommitment: Ui
       : { result: "FALSE", detail: `the first differing pixel is at (${(firstDiff >> 2) % W}, ${Math.floor((firstDiff >> 2) / W)})` };
 
   // Read the commitment back from the pixels: the strip for versions 1 and 2, the art itself for 3.
-  const v6 = algorithm === ART_ALGORITHM_V6;
+  const v6 = algorithm === ART_ALGORITHM_V6, v7 = algorithm === ART_ALGORITHM_V7;
   const v5 = algorithm === ART_ALGORITHM_V5;
   const v4 = algorithm === ART_ALGORITHM_V4;
   const v3 = algorithm === ART_ALGORITHM_V3 || v4;
-  const read = v6 ? decodeV6(decoded.rgba, decoded.width, decoded.height) : v5 ? decodeV5(decoded.rgba, decoded.width, decoded.height) : v4 ? decodeArtV4(decoded.rgba, decoded.width, decoded.height) : v3 ? decodeArtV3(decoded.rgba, decoded.width, decoded.height) : decodeStrip(decoded.rgba, decoded.width, decoded.height);
-  const what = v5 ? "the plate mark" : v3 || v6 ? "the art" : "the 256-cell strip";
+  const read = v7 ? decodeV7(decoded.rgba, decoded.width, decoded.height) : v6 ? decodeV6(decoded.rgba, decoded.width, decoded.height) : v5 ? decodeV5(decoded.rgba, decoded.width, decoded.height) : v4 ? decodeArtV4(decoded.rgba, decoded.width, decoded.height) : v3 ? decodeArtV3(decoded.rgba, decoded.width, decoded.height) : decodeStrip(decoded.rgba, decoded.width, decoded.height);
+  const what = v5 ? "the plate mark" : v3 || v6 || v7 ? "the art" : "the 256-cell strip";
   const strip: ArtChecks["strip"] = read === null
     ? { result: "FALSE", detail: v3 ? `the picture does not read as a ${algorithm} spelling of any commitment` : "the image is not this algorithm's size, so it has no strip to read" }
     : read.every((b, i) => b === authenticatedCommitment[i])
