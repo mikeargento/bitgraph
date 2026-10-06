@@ -4,7 +4,7 @@ import { ArtMaker } from "@/components/art-maker";
 export const metadata: Metadata = {
   title: "BitGraph image",
   description:
-    "Make an image with proof it did not exist until you clicked: BitGraph opens a position, draws the image from its position commitment, and records it in that same position.",
+    "Make an image that never existed before, with the proof to back it up: BitGraph opens a position, draws the image from its position commitment, and records it in that same position.",
 };
 
 /* The image generator (Mike, 2026-10-05), laid out like the home page (Mike, 10-06: "design it like
@@ -17,7 +17,7 @@ export default function ImagePage() {
   return (
     <div className="frame prose art-page">
       <ArtMaker>
-        <h1 style={{ color: "#d93025" }}>Make an image, with proof it did not exist until you&nbsp;clicked.</h1>
+        <h1 style={{ color: "#d93025" }}>Make an image that never existed before, with the proof to back it&nbsp;up.</h1>
         <p className="lede" style={{ color: "#d93025" }}>
           BitGraph opens a position, draws the image from its position commitment, and records it in that same&nbsp;position.
         </p>
