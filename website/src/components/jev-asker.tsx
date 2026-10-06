@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToBase64, commitmentForProof, verifyProofIntegrity, type BitGraphProof } from "@mikeargento/bitgraph-verify";
+import { rememberMade, madeHere } from "@/lib/made-here";
 
 const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.bitgraph.ing";
 
@@ -160,7 +161,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
       .then((r) => (r.ok ? r.json() : null))
       .then((r: JevRecord | null) => {
         if (cancelled) return;
-        if (r && r.code) { setRecord(r); setCode(r.code); setRestored(true); setShown(true); }
+        if (r && r.code) { setRecord(r); setCode(r.code); setRestored(!madeHere(r.id)); setShown(true); }
         else { setError("That answer could not be found. Ask two new questions below."); window.history.replaceState(null, "", "/jev"); }
       })
       .catch(() => { if (!cancelled) setError("That answer could not be opened right now. Try reloading the page."); })
@@ -221,6 +222,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
       if (!done) throw new Error("the service stopped before the answers were recorded");
       setRecord(done);
       window.history.replaceState(null, "", `/jev?p=${done.id}`);
+      rememberMade(done.id);
       showTimer.current = window.setTimeout(() => setShown(true), Math.max(0, MIN_WAIT_MS - (performance.now() - startedAt.current)));
     } catch (e) {
       setFailedAt(stepIndex(stageRef.current));
@@ -273,9 +275,6 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
       {record && shown && q && t && (
         <div className="art-result">
           {/* What just happened, for someone who has never heard of BitGraph. */}
-          {/* One line, the left side of the chart (Mike, 10-06: "can the paragraph not wrap? can we make it more
-              right or left of chart"): the proof is one click away, on See the full proof. */}
-          <p className="art-explain art-explain-one">{restored ? <>Jev answered questions that didn&rsquo;t exist until someone clicked, and you have&nbsp;proof.</> : <>Jev answered questions that didn&rsquo;t exist until you clicked, and you have&nbsp;proof.</>}</p>
 
           <div className="jev-card">
             <div className="jev-card-label">The code</div>
@@ -302,6 +301,8 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
             </ol>
           </div>
 
+          {/* The caption under the image (Mike, 10-06: "it should caption under image"). */}
+          <p className="art-explain art-explain-one art-caption">{restored ? <>Jev answered questions that didn&rsquo;t exist until someone clicked, and you have&nbsp;proof.</> : <>Jev answered questions that didn&rsquo;t exist until you clicked, and you have&nbsp;proof.</>}</p>
           <div className="actions art-actions">
             <a className="bg-action-link is-make" href={proofHref}><span>See the full proof</span></a>
             <a className="bg-action-link" href={`${LIVE}/api/result/${record.id}/download`}><span>Download the record</span></a>

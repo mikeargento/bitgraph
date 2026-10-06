@@ -3172,3 +3172,5 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 /* Not bold (Mike, 10-06: "should these texts be bold?"): regular weight, the size of the line under each
    headline, so nothing on the page outweighs the headline. */
 .art-result .art-explain-one { font-weight: 400 !important; font-size: clamp(18px, 2.2vw, 22px) !important; line-height: 1.45 !important; color: var(--text) !important; }
+/* The result line as the image's caption (Mike, 10-06: "it should caption under image"); /jev's under its card. */
+.art-result .art-explain-one.art-caption { margin: 16px 0 0 !important; font-size: clamp(16px, 1.8vw, 18px) !important; }

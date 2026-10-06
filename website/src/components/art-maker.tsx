@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createArtImage, restoreArtImage, ArtError, type ArtStage, type MadeArtImage } from "@/lib/art-position";
 import { buildCarrierForProof } from "@/lib/carrier-site";
 import { makePrint, PRINTABLE, printSizeOf } from "@/lib/art-print";
+import { rememberMade, madeHere } from "@/lib/made-here";
 import { recordedMsOf } from "@/lib/recorded-time";
 
 
@@ -117,7 +118,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         const list: Array<{ proof?: unknown }> = Array.isArray(d?.proofs) ? d.proofs : [];
         for (const item of list) {
           const m = item.proof ? await restoreArtImage(item.proof as never) : null;
-          if (m && !cancelled) { setMade(m); setRestored(true); setShown(true); void buildDownload(m); return; }
+          if (m && !cancelled) { setMade(m); setRestored(!madeHere(urlSafe(m.digestB64))); setShown(true); void buildDownload(m); return; }
         }
         if (!cancelled) { setError({ message: "That image could not be found. Make a new one below.", recorded: false }); window.history.replaceState(null, "", "/image"); }
       } catch {
@@ -150,6 +151,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       setMade(r);
       // The address now opens this image again, so leaving the page loses nothing.
       window.history.replaceState(null, "", `/image?p=${urlSafe(r.digestB64)}`);
+      rememberMade(urlSafe(r.digestB64));
       void buildDownload(r); // ready the download and the Base block in the background
       showTimer.current = window.setTimeout(() => setShown(true), Math.max(0, MIN_WAIT_MS - (performance.now() - startedAt.current)));
     } catch (e) {
@@ -231,11 +233,11 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       {made && shown && (
         <div className="art-result">
           {/* What just happened, for someone who has never heard of BitGraph, above the image (Mike, 10-06, after trying it below: "i suppose this paragraph should be on top eh?": a square image fills the screen, so text under it sits below the fold). */}
-          {/* One line, the same as /jev's (Mike, 10-06: "can the paragraph not wrap?"). */}
-          <p className="art-explain art-explain-one">{restored ? <>This image didn&rsquo;t exist until someone clicked, and you have&nbsp;proof.</> : <>This image didn&rsquo;t exist until you clicked, and you have&nbsp;proof.</>}</p>
           <div className="art-canvas">
             <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`Abstract image drawn from the code ${made.position.commitment}`} />
           </div>
+          {/* The caption under the image (Mike, 10-06: "it should caption under image"). */}
+          <p className="art-explain art-explain-one art-caption">{restored ? <>This image didn&rsquo;t exist until someone clicked, and you have&nbsp;proof.</> : <>This image didn&rsquo;t exist until you clicked, and you have&nbsp;proof.</>}</p>
           {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
               was drawn from a code; the code itself is under Technical details (Commitment). */}
           <div className="actions art-actions">
