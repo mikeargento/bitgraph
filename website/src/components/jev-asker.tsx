@@ -73,7 +73,7 @@ function MarkedCode({ code, q }: { code: string; q: Questions }) {
   if (t.at.a >= 0) marks.set(t.at.a, marks.has(t.at.a) ? "jev-q1 jev-q2" : "jev-q2");
   if (t.at.b >= 0) marks.set(t.at.b, marks.has(t.at.b) ? "jev-q1 jev-q2" : "jev-q2");
   return (
-    <code className="jev-code" aria-label={`The code: ${code}`}>
+    <code className="jev-code" aria-label={`Position commitment: ${code}`}>
       {[...code].map((ch, i) => (marks.has(i) ? <mark key={i} className={marks.get(i)}>{ch}</mark> : <span key={i}>{ch}</span>))}
     </code>
   );
@@ -277,7 +277,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
           {/* What just happened, for someone who has never heard of BitGraph. */}
 
           <div className="jev-card">
-            <div className="jev-card-label">The code</div>
+            <div className="jev-card-label">Position commitment</div>
             <MarkedCode code={record.code} q={q} />
             <ol className="jev-qs">
               <li>
