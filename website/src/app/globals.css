@@ -2928,6 +2928,4 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .home.home-typing .lede { text-wrap: balance; }
 @media (max-width: 600px) { .home.home-typing h1 { font-size: clamp(28px, 9.2vw, 72px) !important; } }
 @media (min-width: 601px) { .home.home-typing h1 { font-size: min(9.2vw, 72px) !important; } } /* 72px cap on desktop (Mike, 10-05: 96 "too big on desk"): two centred lines over one sentence, 3:1 to the 24px lede */
-/* 2026-10-05 (Mike: "the nav bar should be right aligned"): with the home left aligned, the four
-   groups leave the middle of the bar (10-02) and sit on the right, beside Make a BitGraph. */
-@media (min-width: 961px) { .nav2-cats { position: relative; left: auto; transform: none; margin-right: 8px; } }
+/* The four menu groups sat on the right for part of 2026-10-05 while the home was left aligned; centred again with the home (Mike: "center menu"). */
