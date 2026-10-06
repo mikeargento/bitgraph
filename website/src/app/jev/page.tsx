@@ -12,9 +12,9 @@ export default function JevPage() {
   return (
     <div className="frame prose art-page">
       <JevAsker>
-        {/* Mike, 10-06: "this should be 'ask Jev' h1 and logo to jev and then a smaller description and no win count".
-            Jev's mark as BitGraph Predictions used it: plain, beside the name. */}
-        <h1 className="jev-title"><img src="/jev-mark.png" alt="" className="jev-mark" width={52} height={52} />Ask Jev</h1>
+        {/* Mike, 10-06: "this should be 'ask Jev' h1 ... a smaller description and no win count". No Jev mark
+            (10-06: "take it out"): it is TypeSafe's icon, and "Create an image" has none. */}
+        <h1 className="jev-title">Ask Jev</h1>
         <p className="lede jev-lede">One click asks the AI Jev two questions that never existed before, and BitGraph proves&nbsp;it.</p>
       </JevAsker>
     </div>
