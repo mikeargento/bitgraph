@@ -2993,6 +2993,10 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 /* The code: one plain idea, no jargon (Mike, 10-06). */
 .art-code { margin-top: 18px; display: flex; flex-direction: column; align-items: center; gap: 8px; animation: art-in 0.45s cubic-bezier(0.2, 0, 0, 1) both; max-width: 100%; }
 .art-code-note { font-size: 14px; color: var(--dim); }
+/* The caption under the image, larger, and two even lines on a phone (Mike, 10-06). */
+.art-code-caption { font-size: 18px !important; line-height: 1.4; color: var(--text); }
+.art-phone-break { display: none; }
+@media (max-width: 600px) { .art-code-caption { font-size: 16px !important; } .art-phone-break { display: inline; } }
 .art-code-value { font-size: 17px !important; padding: 8px 14px !important; background: var(--paper) !important; border-radius: 10px; box-shadow: var(--shadow-card); color: var(--ink); overflow-wrap: anywhere; max-width: 100%; box-sizing: border-box; }
 .art-label { font-size: 13px !important; color: var(--dim); margin: 0 !important; }
 .art-error { margin: 20px 0 0; padding: 14px 18px; border-radius: 12px; background: #fce8e6; color: #a50e0e; text-align: left; }

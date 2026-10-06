@@ -212,7 +212,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
 
       {position && (
         <div className="art-code">
-          <span className="art-code-note">Drawn from this code, which did not exist until you clicked.</span>
+          <span className="art-code-note art-code-caption">Drawn from this code,<br className="art-phone-break" /> which did not exist until you&nbsp;clicked.</span>
           <code className="art-code-value">{position.commitment}</code>
         </div>
       )}
