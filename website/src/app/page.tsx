@@ -56,14 +56,15 @@ export default function HomePage() {
           Claim discipline holds: a position is what is verified, never the content, never "when". */}
       <HomeHeadline phrases={["AI records.", "AI agent actions.", "AI evaluations.", "predictions.", "sealed bids.", "chain of custody.", "any file.", "any bytes.", "any bits."]} />
 
-      {/* Mike's line (2026-10-05), replacing the Schelling paragraph: every other proof is made
-          AFTER the record; a BitGraph's position exists first and the record arrives into it.
-          "Arrives", never "exists": first existence is not claimed (an old file can take a new
-          position). "Forever" passes the mechanism test (approved 2026-09-22). */}
+      {/* Mike's line (2026-10-05), replacing the Schelling paragraph and then the six-item list
+          ("Signatures, timestamps, append-only logs, write-once storage, notarizations, and
+          blockchain hashes all come after the record...", 8d4968ff). "Arrives", never "exists":
+          first existence is not claimed (an old file can take a new position). "Nobody has to
+          host it" is TRACE #321's point: the proof is evidence carried with the record, not a
+          fact held somewhere and looked up. */}
       <p className="lede">
-        Signatures, timestamps, append-only logs, write-once storage, notarizations, and
-        blockchain hashes all come after the record. BitGraph begins the proof before the record
-        arrives. The proof verifies offline,&nbsp;forever.
+        Every other proof comes after the record. BitGraph begins before it arrives. The proof
+        travels with the record, and nobody has to host&nbsp;it.
       </p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}
