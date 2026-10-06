@@ -222,17 +222,14 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
               was drawn from a code; the code itself is under Technical details (Commitment). */}
           {/* What just happened, for someone who has never heard of BitGraph, under the image (Mike, 10-06: "should be on bottom"). */}
           <p className="art-explain">
-            {restored
-              ? <>This image never existed before it was made. When someone clicked the button, BitGraph opened a new position with a code that did not exist until that moment. </>
-              : <>You just made an image that never existed before. When you clicked, BitGraph opened a new position with a code that did not exist until that moment. </>}
-            The image was drawn from that code, so it could not have been made any earlier, and it was recorded in that same position as BitGraph #{counter}. Change a single pixel and it no longer matches its proof.
+            {restored ? "This image never existed before it was made. It was drawn from a code that did not exist until someone clicked, so it could not have been made any earlier." : "You just made an image that never existed before. It was drawn from a code that did not exist until you clicked, so it could not have been made any earlier."}{" "}
+            Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{counter}</a>. Change one pixel and it no longer matches its proof.
           </p>
           <div className="actions art-actions">
             <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image and proof"}</button>
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>
             <button type="button" className="bg-action-link" onClick={create}>Create another image</button>
           </div>
-          <p className="art-keep">This page&rsquo;s address now opens this image, so you can bookmark it or share it.</p>
 
           <details className="art-details">
             <summary className="art-details-title">Technical details</summary>

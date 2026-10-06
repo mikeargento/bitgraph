@@ -2582,7 +2582,7 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-moment:last-child .pv-moment-body { padding-bottom: 4px; }
 .pv-moment-label { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--dim); }
 .pv-moment-title { font-size: 15.5px; font-weight: 600; color: var(--ink); margin-top: 2px; line-height: 1.4; }
-.pv-moment-dim { color: var(--dim); font-weight: 400; white-space: nowrap; }
+.pv-moment-dim { color: var(--dim); font-weight: 400; display: inline-block; white-space: normal; } /* moves to its own line as one piece when the line is full (Mike, 10-06: "is that hanging?") */
 .pv-moment-note { font-size: 13.5px; color: var(--dim); line-height: 1.5; margin-top: 3px; }
 /* Each moment's evidence as a pair (Mike, 2026-10-05), and the arrow kept at every width:
    ↗ leaves the site (Etherscan, Basescan), → stays on bitgraph.ing (an anchor's proof). */
@@ -3057,3 +3057,24 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art .art-go { font-size: 16px !important; line-height: 20px !important; padding: 12px 22px !important; margin: 0 !important; }
 @media (max-width: 720px) { .art .art-go { padding: 12px 14px !important; } }
 @media (min-width: 900px) { .art .art-go { font-size: 17px !important; padding: 14px 28px !important; } }
+
+/* /image result, cleaned (Mike, 10-06: "this is all messy ... carte blanche"): one column the width of
+   the image, every part on its edges; one primary action, two quiet ones; details a plain row. */
+.art-result { max-width: 640px; align-items: stretch; text-align: left; }
+.art-result .art-canvas { max-width: none; margin-top: 0; }
+.art-result .art-explain { max-width: none; margin: 24px 0 0 !important; font-size: 17px !important; line-height: 1.6 !important; color: var(--text); }
+.art-result .art-explain a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.art-result .art-explain a:hover { text-decoration: underline; }
+.art-result .art-actions { justify-content: flex-start; flex-wrap: wrap; gap: 10px; margin: 22px 0 0 !important; }
+.art-result .art-actions .bg-action-link { width: auto; min-height: 44px; padding: 10px 20px !important; }
+.art-result .art-details { background: none; box-shadow: none; border-radius: 0; padding: 0; margin-top: 36px; border-top: 1px solid var(--line-2); }
+.art-result .art-details[open] { padding-bottom: 8px; }
+.art-result .art-details > .art-details-title { font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); padding: 16px 0; margin: 0; border-radius: 0; background: none; }
+@media (hover: hover) { .art-result .art-details > .art-details-title:hover { background: none; color: var(--accent); } }
+.art-result .art-details[open] > .art-details-title { background: none; margin-bottom: 0; }
+@media (max-width: 600px) {
+  .art-result .art-explain { font-size: 16px !important; }
+  .art-result .art-actions { flex-direction: column; align-items: stretch; }
+  .art-result .art-actions .bg-action-link { justify-content: center; }
+}
+.art-result .art-actions .bg-action-link { font-size: 15px !important; } /* the three actions one size */
