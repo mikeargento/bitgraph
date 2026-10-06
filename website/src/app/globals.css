@@ -3130,7 +3130,5 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .jev-verdict.is-right { background: #e6f4ea; color: #137333; }
 .jev-verdict.is-wrong { background: #fce8e6; color: #c5221f; }
 @media (max-width: 600px) { .jev-card { padding: 18px 16px 4px; } .jev-q { font-size: 16px; } .jev-a { margin-left: 0; } }
-/* STAGED (Mike, 10-06: "if 'for AI records.' was written in monospace i wonder what that would look like paired"). */
-.home h1 .home-mono { font-family: var(--font-term-mono); font-weight: 400; letter-spacing: -0.04em; }
 .art-result ol.jev-qs { list-style: none !important; padding-left: 0 !important; }
 .art-result ol.jev-qs > li::marker { content: none; }
