@@ -3179,3 +3179,25 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .jev-code mark.jev-q1 { background: #d2e3fc; color: #174ea6; }
 .jev-code mark.jev-q2 { background: #ceead6; color: #0d652d; }
 .jev-code mark.jev-q1.jev-q2 { background: linear-gradient(#d2e3fc 50%, #ceead6 50%); }
+
+/* Technical details, tidied (Mike, 10-06: "tech details on mobile gets all fucked up from sizing and wrapping"):
+   one text size throughout, the timeline flush with the text, long values small and breaking anywhere. */
+.art-details .art-timeline { padding-left: 0 !important; margin-left: 0 !important; }
+.art-details .art-timeline li { font-size: 15px; }
+.art-details .art-detail-parts p, .art-details .jev-working p, .art-details .jev-working li { font-size: 15px !important; line-height: 1.55 !important; }
+.art-details .art-detail-parts .art-fine { font-size: 13px !important; }
+.art-details dl { font-size: 14px; }
+.art-details dd code, .art-details .jev-working code { font-size: 12.5px !important; overflow-wrap: anywhere; word-break: break-all; }
+@media (max-width: 600px) {
+  .art-details { padding: 0 14px; }
+  .art-details .art-timeline li { flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 0; }
+  .art-details .art-timeline li > span:last-child { font-size: 13px; white-space: normal; }
+  .art-details dl { grid-template-columns: 1fr; gap: 2px; }
+  .art-details dt { margin-top: 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; }
+  .art-details .jev-working ul { padding-left: 16px !important; }
+}
+/* The spinner never moves (Mike, 10-06: "bitgraphing spinner starts high and then drops into place. i want it
+   to look as smooth as possible"): pinned to the middle of the screen, as the proof page's wait is, so the
+   headline folding away behind it cannot shift it; it only fades in. */
+.art-wait { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 5; animation: art-wait-in 0.25s ease-out both; }
+@keyframes art-wait-in { from { opacity: 0; } to { opacity: 1; } }
