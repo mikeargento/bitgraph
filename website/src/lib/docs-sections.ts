@@ -82,6 +82,8 @@ export const MENU_GROUPS: MenuGroup[] = [
     label: "See it working",
     feature: true,
     items: [
+      { href: "/image", label: "Make an image", desc: "One click, an image that never existed before." },
+      { href: "/jev", label: "Ask Jev", desc: "Two questions no one could have seen before." },
       { href: "/exam", label: "The sealed exam", desc: "An exam sealed in BitGraph, and how to check it." },
       { href: "/docs/try", label: "Make a BitGraph", desc: "Drop in any file and get its proof." },
       { href: "/ledger", label: "Floors", desc: "The Ethereum blocks each BitGraph was made after." },

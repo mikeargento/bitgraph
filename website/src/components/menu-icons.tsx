@@ -5,6 +5,8 @@
  * group. The font is loaded in the root layout with only these icons.
  */
 const ICON: Record<string, string> = {
+  "/image": "palette",
+  "/jev": "quiz",
   "/exam": "assignment_turned_in",
   "/docs/try": "add_box",
   "/docs/overview": "schema",
