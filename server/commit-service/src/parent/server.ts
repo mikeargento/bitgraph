@@ -64,10 +64,44 @@ if (baseHead) {
   baseHead.start();
   console.log("[parent] Base floor enabled: the newest Base header goes with every allocation");
 }
-/** The header to fix as the floor of the next slot, when the Base floor is on and a header has been read. */
-function baseFloorField(): { baseFloorHeaderB64?: string } {
-  const h = baseHead?.latest();
-  return h ? { baseFloorHeaderB64: h.headerB64 } : {};
+// Each floor header is saved to the ledger before a proof can stand on it, so
+// a package or a reorg check can always find the exact bytes (one object per
+// header, only for headers actually used).
+if (baseHead && LEDGER_BUCKET) {
+  baseHead.setSaver(async (h) => {
+    const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3" as string) as {
+      S3Client: new (config: { region: string }) => { send: (cmd: unknown) => Promise<void> };
+      PutObjectCommand: new (params: Record<string, unknown>) => unknown;
+    };
+    const s3 = new S3Client({ region: process.env["LEDGER_REGION"] || "us-east-2" });
+    const retention = new Date();
+    retention.setDate(retention.getDate() + 3650);
+    await s3.send(new PutObjectCommand({
+      Bucket: LEDGER_BUCKET,
+      Key: `base-floors/${String(h.blockNumber).padStart(12, "0")}-${h.blockHash}.rlp`,
+      Body: Buffer.from(h.headerB64, "base64"),
+      ContentType: "application/octet-stream",
+      ObjectLockMode: "COMPLIANCE",
+      ObjectLockRetainUntilDate: retention,
+    }));
+  });
+}
+
+/**
+ * Allocate a slot, with the Base floor when it is on: the newest header stamped
+ * at or before this clock, saved first. If the enclave refuses it as ahead of
+ * its own clock, once more with the previous header.
+ */
+async function allocateWithFloor(chainId: string | undefined) {
+  if (!baseHead) return enclaveClient.send({ type: "allocateSlot", chainId });
+  const first = baseHead.forAllocation(Date.now());
+  if (first) await baseHead.ensureSaved(first);
+  const r = await enclaveClient.send({ type: "allocateSlot", chainId, ...(first ? { baseFloorHeaderB64: first.headerB64 } : {}) });
+  if (r.ok || !/ahead of the enclave clock/.test(r.error ?? "")) return r;
+  const older = baseHead.forAllocation(Date.now(), true);
+  if (!older) return r;
+  await baseHead.ensureSaved(older);
+  return enclaveClient.send({ type: "allocateSlot", chainId, baseFloorHeaderB64: older.headerB64 });
 }
 if (LEDGER_BUCKET) {
   console.log(`[parent] S3 ledger enabled: ${LEDGER_BUCKET}`);
@@ -391,7 +425,7 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
     if (heldSlotId !== undefined) {
       slotId = heldSlotId;
     } else {
-      const slotResult = await enclaveClient.send({ type: "allocateSlot", chainId: body.chainId, ...baseFloorField() });
+      const slotResult = await allocateWithFloor(body.chainId);
       if (!slotResult.ok || !slotResult.data) {
         sendError(res, 500, slotResult.error ?? "slot allocation failed");
         return;
@@ -596,7 +630,7 @@ async function handleAllocateSlot(req: IncomingMessage, res: ServerResponse): Pr
   }
 
   try {
-    const result = await enclaveClient.send({ type: "allocateSlot", chainId, ...baseFloorField() });
+    const result = await allocateWithFloor(chainId);
     if (!result.ok || !result.data) {
       sendError(res, 500, result.error ?? "allocateSlot failed");
       return;

@@ -16,7 +16,8 @@
  *   BASE_FLOOR            "on" to fetch and send headers (default off, so the
  *                         parent can be deployed ahead of the v10 enclave).
  *   BASE_FLOOR_RPC_URLS   comma-separated Base RPC endpoints, tried in order
- *                         (default https://mainnet.base.org).
+ *                         (default https://mainnet.base.org). With two or more,
+ *                         a head counts only when a second endpoint agrees.
  *   BASE_FLOOR_POLL_MS    refresh interval (default 1000).
  */
 
@@ -120,8 +121,15 @@ const defaultFetcher: Fetcher = async (url, body) => {
 };
 
 /** Follows the Base head. `latest()` is the newest checked header, or undefined before the first read. */
+/** Saves a floor header durably before it is first used (the ledger, in production). */
+export type HeaderSaver = (head: BaseHead) => Promise<void>;
+
 export class BaseHeadFeed {
   private head: BaseHead | undefined;
+  /** The head before the current one: sent when the newest is stamped ahead of a clock. */
+  private prevHead: BaseHead | undefined;
+  private readonly saved = new Set<string>();
+  private saver: HeaderSaver | undefined;
   private timer: NodeJS.Timeout | undefined;
   private lastError: string | undefined;
   private readonly urls: string[];
@@ -146,31 +154,83 @@ export class BaseHeadFeed {
     return this.head;
   }
 
-  status(): { head: Omit<BaseHead, "headerB64"> | null; lastError: string | null } {
+  setSaver(saver: HeaderSaver | undefined): void {
+    this.saver = saver;
+  }
+
+  /**
+   * The header to fix as the next slot's floor: the newest one stamped at or
+   * before `nowMs`, else the one before it. `older` asks for the previous head
+   * outright (after the enclave refused the newest as ahead of its clock).
+   */
+  forAllocation(nowMs: number, older = false): BaseHead | undefined {
+    const nowS = Math.floor(nowMs / 1000);
+    const candidates = older ? [this.prevHead] : [this.head, this.prevHead];
+    return candidates.find((h): h is BaseHead => h !== undefined && h.blockTimestamp <= nowS);
+  }
+
+  /** Make sure this header is saved before a proof can stand on it. Once per header; throws when it cannot be saved. */
+  async ensureSaved(head: BaseHead): Promise<void> {
+    if (!this.saver || this.saved.has(head.blockHash)) return;
+    let lastErr: unknown;
+    for (let i = 0; i < 3; i++) {
+      try {
+        await this.saver(head);
+        this.saved.add(head.blockHash);
+        if (this.saved.size > 10_000) this.saved.clear();
+        return;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw new Error(`the Base floor header for block ${head.blockNumber} could not be saved: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`);
+  }
+
+  status(nowMs: number = this.now()): { head: Omit<BaseHead, "headerB64"> | null; ageS: number | null; lastError: string | null } {
     const h = this.head;
     return {
       head: h ? { blockNumber: h.blockNumber, blockHash: h.blockHash, blockTimestamp: h.blockTimestamp, readAtMs: h.readAtMs } : null,
+      ageS: h ? Math.max(0, Math.floor(nowMs / 1000) - h.blockTimestamp) : null,
       lastError: this.lastError ?? null,
     };
   }
 
-  /** One read of the head. Keeps the newer of what it had and what it read; never moves backwards. */
+  private async block(url: string, tag: string): Promise<RpcBlock> {
+    const j = (await this.fetcher(url, JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: [tag, false] }))) as {
+      result?: RpcBlock | null;
+      error?: { message?: string };
+    };
+    if (j.error) throw new Error(j.error.message ?? "rpc error");
+    if (!j.result) throw new Error(`no block ${tag}`);
+    return j.result;
+  }
+
+  /**
+   * One read of the head. Keeps the newer of what it had and what it read;
+   * never moves backwards. With two or more endpoints, a head is kept only
+   * when a second endpoint reports the same hash at that height.
+   */
   async refresh(): Promise<void> {
     let lastErr: unknown;
-    for (const url of this.urls) {
+    for (let i = 0; i < this.urls.length; i++) {
+      const url = this.urls[i]!;
       try {
-        const j = (await this.fetcher(url, JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: ["latest", false] }))) as {
-          result?: RpcBlock | null;
-          error?: { message?: string };
-        };
-        if (j.error) throw new Error(j.error.message ?? "rpc error");
-        if (!j.result) throw new Error("no block");
-        const rlp = checkedBaseHeaderRlp(j.result);
-        const blockNumber = parseInt(j.result.number, 16);
+        const b = await this.block(url, "latest");
+        const rlp = checkedBaseHeaderRlp(b);
+        const blockNumber = parseInt(b.number, 16);
         if (this.head && blockNumber <= this.head.blockNumber) {
           this.lastError = undefined;
           return;
         }
+        if (this.urls.length >= 2) {
+          const other = this.urls[(i + 1) % this.urls.length]!;
+          const c = await this.block(other, b.number);
+          if (c.hash.toLowerCase() !== b.hash.toLowerCase()) {
+            throw new Error(`block ${blockNumber}: ${new URL(url).host} and ${new URL(other).host} disagree on its hash`);
+          }
+        }
+        const j = { result: b };
+        this.prevHead = this.head;
         this.head = {
           headerB64: Buffer.from(rlp).toString("base64"),
           blockNumber,

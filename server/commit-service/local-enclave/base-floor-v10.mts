@@ -96,7 +96,7 @@ try {
   base.skew(60);
   await sleep(2600);
   const skewed = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
-  ok("when Base's newest block is stamped off schedule, allocation is refused", skewed.status !== 200 && /schedule|ahead of the enclave clock/.test(JSON.stringify(skewed.json)), skewed.json);
+  ok("when Base's newest block is stamped off schedule, allocation is refused", skewed.status !== 200 && /no-base-floor|schedule|ahead of the enclave clock/.test(JSON.stringify(skewed.json)), skewed.json);
   base.skew(0);
   // Wait until Base's newest block is stamped normally again, and the parent has read it.
   for (let i = 0; i < 40; i++) {

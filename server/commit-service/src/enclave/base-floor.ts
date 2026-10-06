@@ -45,8 +45,14 @@ export const BASE_CHAIN_ID = 8453;
  */
 export const BASE_GENESIS_TIME = 1686789347;
 export const BASE_BLOCK_TIME_S = 2;
-/** One Base block: covers skew between Base's whole-second stamps and this clock. */
-export const BASE_FLOOR_CLOCK_TOLERANCE_S = 2;
+/**
+ * No slack: a floor is never stamped after this clock reads. The parent only
+ * sends a header stamped at or before its own clock, and on a refusal sends
+ * the previous one, so a block read a moment early costs one block of floor,
+ * not an allocation. Verifiers still check the floor against the commit's
+ * attestation time, the signed clock, because this clock is not that one.
+ */
+export const BASE_FLOOR_CLOCK_TOLERANCE_S = 0;
 /** A real header is a few hundred bytes; refuse anything absurd before parsing. */
 const MAX_HEADER_BYTES = 4096;
 
