@@ -20,7 +20,7 @@ test("the same commitment gives the same recipe and the same pixels, every time"
 });
 
 test("version 1 is pinned: this commitment's recipe and pixels never change", () => {
-  const r = artRecipe(C1);
+  const r = artRecipe(C1, "bitgraph-art/1");
   // Pinned on first run (2026-10-05). A failure here means bitgraph-art/1 changed: make /2 instead.
   assert.equal(toHex(sha256(new TextEncoder().encode(recipeJson(r)))), PINNED_RECIPE);
   assert.equal(toHex(sha256(renderArt(r))), PINNED_PIXELS);
@@ -102,5 +102,30 @@ test("bytes after IEND (a carrier's proof block) do not change the pixels read",
   assert.equal(r.regenerated.result, "TRUE");
 });
 
+test("version 2 is pinned too, and differs from version 1 for the same commitment", () => {
+  const r = artRecipe(C1, "bitgraph-art/2");
+  // Pinned on first run (2026-10-06). A failure here means bitgraph-art/2 changed: make /3 instead.
+  assert.equal(toHex(sha256(new TextEncoder().encode(recipeJson(r)))), PINNED_RECIPE_V2);
+  assert.equal(toHex(sha256(renderArt(r))), PINNED_PIXELS_V2);
+  assert.notEqual(toHex(sha256(renderArt(r))), PINNED_PIXELS);
+});
+
+test("version 2 smooths edges: some pixels are blends of two palette colours", () => {
+  const v1 = renderArt(artRecipe(C1, "bitgraph-art/1"));
+  const v2 = renderArt(artRecipe(C1, "bitgraph-art/2"));
+  const colours = (px: Uint8Array) => { const s = new Set<number>(); for (let i = 0; i < px.length; i += 4) s.add((px[i]! << 16) | (px[i + 1]! << 8) | px[i + 2]!); return s.size; };
+  assert.ok(colours(v1) <= 7, "version 1 uses only palette colours and the strip");
+  assert.ok(colours(v2) > 20, "version 2 has blended edge pixels");
+});
+
+test("an image made with version 1 still verifies, and is not mistaken for version 2", async () => {
+  const art = await makeArt(C1, "bitgraph-art/1");
+  const r = await checkArt(art.png, C1);
+  assert.equal(r.regenerated.result, "TRUE");
+  assert.match(r.regenerated.detail, /bitgraph-art\/1/);
+});
+
+const PINNED_RECIPE_V2 = "bed07f7098cb5820302060c4716bbdb9e142513e1095dfa73cae3f98c4576b31";
+const PINNED_PIXELS_V2 = "529f41e977edf3f34ec839f10c0b60bc310b747c707bff9979ef3feed795366f";
 const PINNED_RECIPE = "57ba907bc7a76ea0412c3e98f644605c984ca135e7497c1724fc5ae5382d1f2e";
 const PINNED_PIXELS = "ee0c7ece9c8a74f1957b9bb975db3b61f09f296c77a8361bd6218eeabf6da0e3";

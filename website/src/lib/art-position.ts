@@ -56,6 +56,8 @@ export interface MadeArtImage {
   digestB64: string;
   proof: BitGraphProof;
   recipe: ArtRecipe;
+  /** The canonical RGBA pixels the PNG decodes to. */
+  pixels: Uint8Array;
   manifest: ArtManifest;
   checks: ArtChecks;
   /** True when the commit reply was lost and the proof was read back by digest. */
@@ -65,6 +67,8 @@ export interface MadeArtImage {
 export interface ArtOptions {
   transport?: TreeTransport;
   onStage?: (stage: ArtStage, position: OpenedPosition | null) => void;
+  /** The canonical pixels, the moment they exist (before the commit): for display only. */
+  onDrawn?: (pixels: Uint8Array) => void;
   /** Injectable clock for tests; the wall clock never reaches the art. */
   now?: () => number;
 }
@@ -106,6 +110,7 @@ export async function createArtImage(opts: ArtOptions = {}): Promise<MadeArtImag
 
   stage("generating", opened);
   const art = await makeArt(commitment);
+  opts.onDrawn?.(art.pixels);
   const digestB64 = bytesToBase64(sha256(art.png));
   if (now() - openedAt > COMMIT_DEADLINE_MS) {
     throw new ArtError("expired", "The position ran out of time before the image could be recorded, so nothing was recorded. Create another opens a new position and draws a new image.");
@@ -139,7 +144,7 @@ export async function createArtImage(opts: ArtOptions = {}): Promise<MadeArtImag
   }
 
   stage("ready", opened);
-  return { position: opened, png: art.png, digestB64, proof, recipe: art.recipe, manifest: art.manifest, checks, recovered };
+  return { position: opened, png: art.png, digestB64, proof, recipe: art.recipe, pixels: art.pixels, manifest: art.manifest, checks, recovered };
 }
 
 /* ── Checking a downloaded image-and-proof file, on this machine ───────────────────── */

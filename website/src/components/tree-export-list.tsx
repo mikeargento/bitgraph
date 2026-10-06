@@ -16,6 +16,7 @@
  * dropped with its folder is one row per file, and that can be thousands.
  */
 
+import { useEffect, useRef, useState } from "react";
 import { useWindowedRows } from "@/components/windowed-rows";
 import { fmtRowWhen } from "@/components/folder-list";
 import type { TreeExportRow } from "@/lib/folder-check";
@@ -25,7 +26,23 @@ import type { TreeExportRow } from "@/lib/folder-check";
  *  height per screen, which is what the windowing needs. */
 const ROW_H_WIDE = 118;
 const ROW_H_PHONE = 236;
-const phoneWidth = () => typeof window !== "undefined" && window.matchMedia("(max-width: 560px)").matches;
+/* Wrap whenever the list is narrower than its longest line needs (about 820px), not only on phones:
+   a narrow desktop window or a tablet cut the floor and Base lines off too (Mike, 2026-10-05:
+   "this should wrap it gets chopped"). Measured on the list itself, so it follows the layout. */
+const WRAP_BELOW_PX = 820;
+const ROW_H_MID = 168; // wrapped, between a phone and WRAP_BELOW_PX: lines take two rows at most
+function useListWidth(): [React.RefObject<HTMLDivElement | null>, number] {
+  const box = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1200));
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [box, width];
+}
 
 const verdictWord = (r: TreeExportRow): { text: string; color: string } =>
   r.verdict === "TRUE"
@@ -84,8 +101,9 @@ function whereLine(r: TreeExportRow): string {
 }
 
 export function TreeExportList({ rows, onOpen }: { rows: TreeExportRow[]; onOpen: (r: TreeExportRow) => void }) {
-  const phone = phoneWidth();
-  const ROW_H = phone ? ROW_H_PHONE : ROW_H_WIDE;
+  const [box, width] = useListWidth();
+  const phone = width < WRAP_BELOW_PX; // wrap
+  const ROW_H = !phone ? ROW_H_WIDE : width < 560 ? ROW_H_PHONE : ROW_H_MID;
   const { ref, first, last } = useWindowedRows(rows.length, ROW_H);
   const files = rows.filter((r) => r.scope === "file");
   const verified = files.filter((r) => r.verdict === "TRUE").length;
@@ -97,7 +115,7 @@ export function TreeExportList({ rows, onOpen }: { rows: TreeExportRow[]; onOpen
     ? ({ fontSize: 12.5, color: "var(--dim)", minWidth: 0, lineHeight: 1.4 } as const)
     : ({ fontSize: 12.5, color: "var(--dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const);
   return (
-    <div style={{ border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden", background: "var(--bg)" }}>
+    <div ref={box} style={{ border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden", background: "var(--bg)" }}>
       <div style={{ background: "var(--panel)", padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
         <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
           {files.length > 0

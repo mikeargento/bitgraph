@@ -1,10 +1,13 @@
 /**
- * bitgraph-art/1: an image whose every pixel is a function of one position commitment
+ * bitgraph-art/1 and /2: an image whose every pixel is a function of one position commitment
  * (Mike, 2026-10-05: "an image that could not have existed before" its position opened).
  *
  * The commitment is the ONLY creative input. Algorithm, dimensions, palettes and drawing
- * rules are fixed here and versioned by ART_ALGORITHM; a change to any of them is a new
- * version, never an edit of this one. No clock, no Math.random, no viewport, no user input,
+ * rules are fixed here and versioned; a change to any of them is a new version, never an edit
+ * of an old one, and every version stays here so every image ever made still redraws.
+ *   bitgraph-art/1 (2026-10-05, BitGraph #2,285): one sample per pixel, hard edges.
+ *   bitgraph-art/2 (2026-10-06, Mike: "can you add some kind of antialiasing"): the same rules,
+ *     its own stream label, and 4 x 4 supersampling inside the art square (below). No clock, no Math.random, no viewport, no user input,
  * no truncated seed: every value is read from a SHA-256 stream over the full 32 bytes.
  *
  * Deterministic generation is kept apart from presentation: this module produces a
@@ -15,7 +18,8 @@
  * so the canonical pixels are checked separately from the exact recorded file.
  *
  * ── The stream ────────────────────────────────────────────────────────────────────────
- *   block(k) = SHA-256( ASCII "bitgraph-art/1" || 0x00 || ASCII "draw" || 0x00 || C || u32be(k) )
+ *   block(k) = SHA-256( ASCII V || 0x00 || ASCII "draw" || 0x00 || C || u32be(k) )
+ *              (V = the version string, "bitgraph-art/1" or "bitgraph-art/2")
  *   stream   = block(0) || block(1) || block(2) || ...      (C = the 32-byte commitment)
  *   u32()    = the next 4 stream bytes, big-endian
  *   pick(n)  = floor( u32() * n / 2^32 )                      (n <= 2^20, exact in a double)
@@ -42,7 +46,10 @@
  *   5 ring       S^2/4 < (u - S)^2 + (v - S)^2 <= S^2
  *   6 bars       floor(4u / D) is even
  *   7 dot        (u - S)^2 + (v - S)^2 <= S^2 / 4
- * A pixel inside the shape takes fg, otherwise bg.
+ * Version 1: a pixel inside the shape takes fg, otherwise bg.
+ * Version 2: each pixel takes 16 samples, at (8lx + 2i + 1, 8ly + 2j + 1) for i, j in 0..3, in
+ * units where the cell is 8S wide (the same tests with S replaced by 4S); with c samples inside,
+ * each channel is (fg * c + bg * (16 - c) + 8) >> 4, integers only. The strip is not smoothed.
  *
  * ── Digests ───────────────────────────────────────────────────────────────────────────
  *   recipe digest = SHA-256 of the recipe's JSON exactly as recipeJson() writes it
@@ -50,7 +57,11 @@
  */
 import { sha256 } from "@noble/hashes/sha256";
 
-export const ART_ALGORITHM = "bitgraph-art/1";
+export const ART_ALGORITHM_V1 = "bitgraph-art/1";
+export const ART_ALGORITHM_V2 = "bitgraph-art/2";
+/** What a new image is drawn with. */
+export const ART_ALGORITHM = ART_ALGORITHM_V2;
+export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2];
 export const ART_WIDTH = 1024;
 export const ART_HEIGHT = 1056;
 const ART_X = 32, ART_Y = 32, ART_SIDE = 960;
@@ -116,7 +127,7 @@ export function fromBase64Url(s: string): Uint8Array | null {
 export const toHex = (b: Uint8Array): string => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 
 function requireCommitment(c: Uint8Array): void {
-  if (!(c instanceof Uint8Array) || c.length !== 32) throw new TypeError("a bitgraph-art/1 commitment is exactly 32 bytes");
+  if (!(c instanceof Uint8Array) || c.length !== 32) throw new TypeError("a bitgraph-art commitment is exactly 32 bytes");
 }
 
 /** The stream of the header comment: block(k) concatenated, read 4 bytes at a time. */
@@ -125,8 +136,8 @@ class Stream {
   private at = 0;
   private k = 0;
   private readonly prefix: Uint8Array;
-  constructor(commitment: Uint8Array) {
-    const label = te.encode(ART_ALGORITHM), purpose = te.encode("draw");
+  constructor(commitment: Uint8Array, algorithm: string) {
+    const label = te.encode(algorithm), purpose = te.encode("draw");
     this.prefix = new Uint8Array(label.length + 1 + purpose.length + 1 + 32);
     this.prefix.set(label, 0);
     this.prefix.set(purpose, label.length + 1);
@@ -152,9 +163,10 @@ class Stream {
 }
 
 /** The canonical recipe: every drawing decision, read from the commitment's stream. */
-export function artRecipe(commitment: Uint8Array): ArtRecipe {
+export function artRecipe(commitment: Uint8Array, algorithm: string = ART_ALGORITHM): ArtRecipe {
   requireCommitment(commitment);
-  const s = new Stream(commitment);
+  if (!ART_ALGORITHMS.includes(algorithm)) throw new TypeError(`unknown art algorithm ${algorithm}`);
+  const s = new Stream(commitment, algorithm);
   const grid = GRIDS[s.pick(GRIDS.length)]!;
   const palette = s.pick(PALETTES.length);
   const cells: ArtCell[] = [];
@@ -164,7 +176,7 @@ export function artRecipe(commitment: Uint8Array): ArtRecipe {
     if (bg === fg) bg = 1 + (fg % 4);
     cells.push({ shape, turn, fg, bg });
   }
-  return { algorithm: ART_ALGORITHM, width: ART_WIDTH, height: ART_HEIGHT, commitment: toBase64Url(commitment), palette, grid, cells };
+  return { algorithm, width: ART_WIDTH, height: ART_HEIGHT, commitment: toBase64Url(commitment), palette, grid, cells };
 }
 
 /** The recipe's JSON, keys in this fixed order: the bytes the recipe digest is taken over. */
@@ -203,16 +215,38 @@ export function renderArt(r: ArtRecipe): Uint8Array {
   for (let y = 0; y < ART_HEIGHT; y++) for (let x = 0; x < ART_WIDTH; x++) put(px, x, y, pal[0]!);
 
   const S = ART_SIDE / r.grid; // GRIDS all divide 960
-  const D = 2 * S;
+  const smooth = r.algorithm === ART_ALGORITHM_V2;
+  const H = smooth ? 4 * S : S; // the half-size in sample units
+  const D = 2 * H;
+  const turned = (u0: number, v0: number, turn: number): [number, number] => {
+    let u = u0, v = v0;
+    for (let t = 0; t < turn; t++) { const nu = v; v = D - u; u = nu; }
+    return [u, v];
+  };
+  const mix: number[] = [0, 0, 0];
   for (let row = 0; row < r.grid; row++) {
     for (let col = 0; col < r.grid; col++) {
       const cell = r.cells[row * r.grid + col]!;
       const fg = pal[cell.fg]!, bg = pal[cell.bg]!;
       for (let ly = 0; ly < S; ly++) {
         for (let lx = 0; lx < S; lx++) {
-          let u = 2 * lx + 1, v = 2 * ly + 1;
-          for (let t = 0; t < cell.turn; t++) { const nu = v; v = D - u; u = nu; }
-          put(px, ART_X + col * S + lx, ART_Y + row * S + ly, inside(cell.shape, u, v, S) ? fg : bg);
+          const x = ART_X + col * S + lx, y = ART_Y + row * S + ly;
+          if (!smooth) {
+            const [u, v] = turned(2 * lx + 1, 2 * ly + 1, cell.turn);
+            put(px, x, y, inside(cell.shape, u, v, S) ? fg : bg);
+            continue;
+          }
+          let c = 0;
+          for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+            const [u, v] = turned(8 * lx + 2 * i + 1, 8 * ly + 2 * j + 1, cell.turn);
+            if (inside(cell.shape, u, v, H)) c++;
+          }
+          if (c === 16) put(px, x, y, fg);
+          else if (c === 0) put(px, x, y, bg);
+          else {
+            for (let k = 0; k < 3; k++) mix[k] = (fg[k]! * c + bg[k]! * (16 - c) + 8) >> 4;
+            put(px, x, y, mix as unknown as RGB);
+          }
         }
       }
     }
@@ -376,8 +410,8 @@ export async function decodePng(bytes: Uint8Array): Promise<DecodedPng> {
 }
 
 /** Recipe, pixels, manifest and the PNG to record, for one commitment. */
-export async function makeArt(commitment: Uint8Array): Promise<{ recipe: ArtRecipe; pixels: Uint8Array; manifest: ArtManifest; png: Uint8Array }> {
-  const recipe = artRecipe(commitment);
+export async function makeArt(commitment: Uint8Array, algorithm: string = ART_ALGORITHM): Promise<{ recipe: ArtRecipe; pixels: Uint8Array; manifest: ArtManifest; png: Uint8Array }> {
+  const recipe = artRecipe(commitment, algorithm);
   const pixels = renderArt(recipe);
   const manifest = artManifest(recipe, pixels);
   return { recipe, pixels, manifest, png: await encodeArtPng(pixels, manifest) };
@@ -414,14 +448,17 @@ export async function checkArt(pngBytes: Uint8Array, authenticatedCommitment: Ui
     if (m && typeof m.commitment === "string") manifest = m;
   } catch { /* informational only */ }
 
-  const expected = renderArt(artRecipe(authenticatedCommitment));
+  // The version is the file's own claim, and it only chooses WHICH fixed rules redraw it: under
+  // either, the pixels must come from the authenticated commitment, or the check fails.
+  const algorithm = manifest && ART_ALGORITHMS.includes(manifest.algorithm) ? manifest.algorithm : ART_ALGORITHM;
+  const expected = renderArt(artRecipe(authenticatedCommitment, algorithm));
   const sameSize = decoded.width === ART_WIDTH && decoded.height === ART_HEIGHT && decoded.rgba.length === expected.length;
   let firstDiff = -1;
   if (sameSize) for (let i = 0; i < expected.length; i++) if (expected[i] !== decoded.rgba[i]) { firstDiff = i; break; }
   const regenerated: ArtChecks["regenerated"] = !sameSize
-    ? { result: "FALSE", detail: `the image is ${decoded.width} x ${decoded.height}; ${ART_ALGORITHM} draws ${ART_WIDTH} x ${ART_HEIGHT}` }
+    ? { result: "FALSE", detail: `the image is ${decoded.width} x ${decoded.height}; ${algorithm} draws ${ART_WIDTH} x ${ART_HEIGHT}` }
     : firstDiff === -1
-      ? { result: "TRUE", detail: `regenerated from the authenticated commitment, all ${(ART_WIDTH * ART_HEIGHT).toLocaleString("en-US")} pixels match (SHA-256 ${toHex(sha256(expected))})` }
+      ? { result: "TRUE", detail: `regenerated with ${algorithm} from the authenticated commitment, all ${(ART_WIDTH * ART_HEIGHT).toLocaleString("en-US")} pixels match (SHA-256 ${toHex(sha256(expected))})` }
       : { result: "FALSE", detail: `the first differing pixel is at (${(firstDiff >> 2) % ART_WIDTH}, ${Math.floor((firstDiff >> 2) / ART_WIDTH)})` };
 
   const read = decodeStrip(decoded.rgba, decoded.width, decoded.height);
