@@ -131,7 +131,7 @@ export function ArtMaker() {
 
       {position && (
         <div className="art-commitment">
-          <div className="art-label">Position commitment, BitGraph position {Number(position.slotCounter).toLocaleString("en-US")}, opened after Ethereum block {position.floorBlock.toLocaleString("en-US")}</div>
+          <div className="art-label">Position commitment: position {Number(position.slotCounter).toLocaleString("en-US")}, opened after Ethereum block {position.floorBlock.toLocaleString("en-US")}</div>
           <code className="break">{position.commitment}</code>
         </div>
       )}
@@ -151,6 +151,7 @@ export function ArtMaker() {
             <figcaption>Preview of the recorded image. The download is the same image with its proof inside.</figcaption>
           </figure>
           <p className="art-success">This image was generated from its position commitment and recorded in that position.</p>
+          <p className="art-label">Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{Number(made.proof.commit.counter).toLocaleString("en-US")}</a>, in the position opened at {Number(made.position.slotCounter).toLocaleString("en-US")}.</p>
           <div className="actions art-actions">
             <button type="button" className="bg-action-link is-make" onClick={download} disabled={building}>{building ? "Building the download" : "Download image and proof"}</button>
             <button type="button" className="bg-action-link" onClick={verifyThis} disabled={checking || building}>{checking ? "Verifying" : "Verify"}</button>
@@ -164,7 +165,8 @@ export function ArtMaker() {
             <p>This says nothing about who made the image, whether it is original, or what any program or browser did. It shows when, at the earliest, these bytes could have been finished, and the position they were recorded in.</p>
             <dl>
               <dt>Algorithm</dt><dd><code>{made.manifest.algorithm}</code>, {made.manifest.width} x {made.manifest.height}</dd>
-              <dt>Position</dt><dd>{Number(made.position.slotCounter).toLocaleString("en-US")}, epoch <code>{made.position.epochId.slice(0, 8)}</code>, after Ethereum block {made.position.floorBlock.toLocaleString("en-US")}</dd>
+              <dt>Record</dt><dd>BitGraph #{Number(made.proof.commit.counter).toLocaleString("en-US")}</dd>
+              <dt>Position</dt><dd>opened at {Number(made.position.slotCounter).toLocaleString("en-US")}, epoch <code>{made.position.epochId.slice(0, 8)}</code>, after Ethereum block {made.position.floorBlock.toLocaleString("en-US")}</dd>
               <dt>Commitment</dt><dd><code className="break">{made.position.commitment}</code></dd>
               <dt>Recipe SHA-256</dt><dd><code className="break">{made.manifest.recipeSha256}</code></dd>
               <dt>Pixels SHA-256</dt><dd><code className="break">{made.manifest.pixelsSha256}</code></dd>

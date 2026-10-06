@@ -2975,8 +2975,8 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-figure { margin: 0; }
 .art-figure img { display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: var(--shadow-card); background: var(--paper); }
 .art-figure figcaption { margin-top: 10px; font-size: 13px; color: var(--dim); }
-.art-success { margin: 24px 0 16px !important; font-weight: 600; color: var(--ink); }
-.art-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 8px !important; }
+.art-success { margin: 24px 0 4px !important; font-weight: 600; color: var(--ink); }
+.art-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 8px !important; }
 .art-details { margin-top: 24px; }
 .art-details summary { cursor: pointer; font-weight: 600; color: var(--ink); }
 .art-details dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; font-size: 14px; margin: 12px 0 0; }
