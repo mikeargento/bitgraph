@@ -220,8 +220,8 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           </div>
           {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
               was drawn from a code; the code itself is under Technical details (Commitment). */}
-          {/* What just happened, for someone who has never heard of BitGraph, under the image (Mike, 10-06: "should be on bottom"). RED: new copy, staged. */}
-          <p className="art-explain" style={{ color: "#d93025" }}>
+          {/* What just happened, for someone who has never heard of BitGraph, under the image (Mike, 10-06: "should be on bottom"). */}
+          <p className="art-explain">
             {restored
               ? <>This image never existed before it was made. When someone clicked the button, BitGraph opened a new position with a code that did not exist until that moment. </>
               : <>You just made an image that never existed before. When you clicked, BitGraph opened a new position with a code that did not exist until that moment. </>}
@@ -232,7 +232,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>
             <button type="button" className="bg-action-link" onClick={create}>Create another image</button>
           </div>
-          <p className="art-keep" style={{ color: "#d93025" }}>This page&rsquo;s address now opens this image, so you can bookmark it or share it.</p>
+          <p className="art-keep">This page&rsquo;s address now opens this image, so you can bookmark it or share it.</p>
 
           <details className="art-details">
             <summary className="art-details-title">Technical details</summary>
