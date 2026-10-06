@@ -61,14 +61,17 @@ import { sha256 } from "@noble/hashes/sha256";
 
 export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
-/** What a new image is drawn with: version 3 from 2026-10-06 (Mike: "lose barcode use version 3"). */
-export const ART_ALGORITHM = "bitgraph-art/3";
+/** What a new image is drawn with: version 3 from 2026-10-06 (Mike: "lose barcode use version 3"),
+ *  version 4 (the Truchet maze) the same night (Mike: "build the truchet maze as version 4"). */
+export const ART_ALGORITHM = "bitgraph-art/4";
 /** Built 2026-10-06 for a side-by-side look (Mike: "build it and show me side by side"): the art spells the commitment. */
 export const ART_ALGORITHM_V3 = "bitgraph-art/3";
-export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3];
+/** Built 2026-10-06 (Mike: "build the truchet maze as version 4"): every tile is one bit. */
+export const ART_ALGORITHM_V4 = "bitgraph-art/4";
+export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4];
 /** Each version's canvas: 1 and 2 carry a strip under the art; 3 is the art square and its frame. */
 export function artSize(algorithm: string): { width: number; height: number } {
-  return algorithm === ART_ALGORITHM_V3 ? { width: 1024, height: 1024 } : { width: 1024, height: 1056 };
+  return algorithm === ART_ALGORITHM_V3 || algorithm === ART_ALGORITHM_V4 ? { width: 1024, height: 1024 } : { width: 1024, height: 1056 };
 }
 export const ART_WIDTH = 1024;
 export const ART_HEIGHT = 1056;
@@ -183,6 +186,7 @@ export function artRecipe(commitment: Uint8Array, algorithm: string = ART_ALGORI
   requireCommitment(commitment);
   if (!ART_ALGORITHMS.includes(algorithm)) throw new TypeError(`unknown art algorithm ${algorithm}`);
   if (algorithm === ART_ALGORITHM_V3) return recipeV3(commitment);
+  if (algorithm === ART_ALGORITHM_V4) return recipeV4(commitment);
   const s = new Stream(commitment, algorithm);
   const grid = GRIDS[s.pick(GRIDS.length)]!;
   const palette = s.pick(PALETTES.length);
@@ -237,6 +241,77 @@ function recipeV3(commitment: Uint8Array): ArtRecipe {
   return { algorithm: ART_ALGORITHM_V3, width, height, commitment: toBase64Url(commitment), palette, grid: 6, frame: bitAt(commitment, 255), cells };
 }
 
+/* ── Version 4: the Truchet maze ─────────────────────────────────────────────────────────
+ * A 16 x 16 grid of 60 px tiles, row-major; tile k is bit k of the commitment, most significant
+ * bit of byte 0 first. Bit 0: quarter discs of radius 30 px at the tile's top-left and bottom-right
+ * corners; bit 1: at the top-right and bottom-left (the same tile turned a quarter). The arcs meet
+ * across tiles, so the 256 bits draw one continuous pattern.
+ * Colours: the stream (as version 2, label "bitgraph-art/4") picks the palette, pick(8), then one
+ * pair (A, B) from that palette's high-contrast pairs, pick(n), A always the lower index. With
+ * par = (row + col + bit) mod 2, the discs take A when par is 0 and B when it is 1, the band between
+ * them the other. The frame is the palette's ground (PALETTES_V3, so the frame names the palette).
+ * One-to-one: the centre of every tile is always band (it lies 42 px from every corner), so its colour
+ * and the fixed order of (A, B) give the tile's bit; the picture spells the commitment and decodeArtV4
+ * reads it back from the pixels alone. Smoothed and written as version 3, 1024 x 1024.
+ */
+const V4_PAIRS: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
+  [[1, 3], [1, 4], [2, 3], [2, 4], [3, 4]],
+  [[1, 4], [2, 3], [2, 4], [3, 4]],
+  [[1, 2], [1, 3], [1, 4], [2, 3], [3, 4]],
+  [[1, 2], [1, 4], [2, 4], [3, 4]],
+  [[1, 2], [1, 3], [2, 4], [3, 4]],
+  [[1, 2], [1, 4], [2, 3], [2, 4], [3, 4]],
+  [[1, 2], [1, 3], [1, 4]],
+  [[1, 3], [2, 3], [3, 4]],
+]; // contrast ratio >= 2.2 within each palette, measured 2026-10-06
+const V4_TILE = 9; // inside() id of the Truchet tile
+function recipeV4(commitment: Uint8Array): ArtRecipe {
+  const s = new Stream(commitment, ART_ALGORITHM_V4);
+  const palette = s.pick(PALETTES_V3.length);
+  const pairs = V4_PAIRS[palette]!;
+  const [A, B] = pairs[s.pick(pairs.length)]!;
+  const cells: ArtCell[] = [];
+  for (let k = 0; k < 256; k++) {
+    const row = k >> 4, col = k & 15, bit = bitAt(commitment, k);
+    const disc = (row + col + bit) % 2 === 0 ? A : B;
+    cells.push({ shape: V4_TILE, turn: bit, fg: disc, bg: disc === A ? B : A });
+  }
+  const { width, height } = artSize(ART_ALGORITHM_V4);
+  return { algorithm: ART_ALGORITHM_V4, width, height, commitment: toBase64Url(commitment), palette, grid: 16, cells };
+}
+
+/**
+ * Version 4: read the commitment back from the picture alone. The frame pixel names the palette; the
+ * two band colours seen at the tile centres name the pair (in its fixed order); each centre's colour
+ * then gives its tile's bit. Returns null when the pixels are not a version 4 image.
+ */
+export function decodeArtV4(px: Uint8Array, width: number, height: number): Uint8Array | null {
+  const size = artSize(ART_ALGORITHM_V4);
+  if (width !== size.width || height !== size.height || px.length !== width * height * 4) return null;
+  const at = (x: number, y: number): RGB => { const i = (y * width + x) * 4; return [px[i]!, px[i + 1]!, px[i + 2]!]; };
+  const same = (a: RGB, b: RGB) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+  const palette = PALETTES_V3.findIndex((p) => same(p[0]!, at(0, 0)));
+  if (palette < 0) return null;
+  const pal = PALETTES_V3[palette]!;
+  const centres: RGB[] = [];
+  for (let k = 0; k < 256; k++) centres.push(at(ART_X + (k & 15) * 60 + 30, ART_Y + (k >> 4) * 60 + 30));
+  // Every tile shows both colours of its pair, so the pair is the one whose colours the centres use;
+  // when the centres alone fit two pairs, the code's own colour choice (a function of the code) decides.
+  for (const [A, B] of V4_PAIRS[palette]!) {
+    if (!centres.every((c) => same(c, pal[A]!) || same(c, pal[B]!))) continue;
+    const out = new Uint8Array(32);
+    for (let k = 0; k < 256; k++) {
+      const row = k >> 4, col = k & 15;
+      // The centre is band; the band is B exactly when par = (row + col + bit) mod 2 is 0.
+      const bit = same(centres[k]!, pal[B]!) ? (row + col) % 2 : (row + col + 1) % 2;
+      if (bit) out[k >> 3]! |= 1 << (7 - (k & 7));
+    }
+    const r = recipeV4(out);
+    if (r.palette === palette && r.cells.every((c, k) => same(pal[c.bg]!, centres[k]!)) && r.cells.some((c) => c.fg === A || c.bg === A) && r.cells.some((c) => c.fg === B || c.bg === B)) return out;
+  }
+  return null;
+}
+
 /** The recipe's JSON, keys in this fixed order: the bytes the recipe digest is taken over. */
 export function recipeJson(r: ArtRecipe): string {
   const cells = r.cells.map((c) => `[${c.shape},${c.turn},${c.fg},${c.bg}]`).join(",");
@@ -256,6 +331,7 @@ function inside(shape: number, u: number, v: number, S: number): boolean {
     case 6: return Math.floor((4 * u) / D) % 2 === 0;
     case 7: return 4 * ((u - S) ** 2 + (v - S) ** 2) <= S * S;
     case 8: return v <= S; // split (version 3): the frame's top half
+    case 9: return u * u + v * v <= S * S || (2 * S - u) ** 2 + (2 * S - v) ** 2 <= S * S; // Truchet (version 4): discs of radius S/2 cell at two opposite corners
     default: return false;
   }
 }
@@ -297,7 +373,7 @@ function drawCell(px: Uint8Array, width: number, x0: number, y0: number, S: numb
   }
 }
 
-const paletteOf = (r: ArtRecipe): readonly RGB[] => (r.algorithm === ART_ALGORITHM_V3 ? PALETTES_V3 : PALETTES)[r.palette]!;
+const paletteOf = (r: ArtRecipe): readonly RGB[] => (r.algorithm === ART_ALGORITHM_V3 || r.algorithm === ART_ALGORITHM_V4 ? PALETTES_V3 : PALETTES)[r.palette]!;
 
 /** The canonical RGBA buffer for a recipe. Integer arithmetic only. */
 export function renderArt(r: ArtRecipe): Uint8Array {
@@ -640,11 +716,12 @@ export async function checkArt(pngBytes: Uint8Array, authenticatedCommitment: Ui
       : { result: "FALSE", detail: `the first differing pixel is at (${(firstDiff >> 2) % W}, ${Math.floor((firstDiff >> 2) / W)})` };
 
   // Read the commitment back from the pixels: the strip for versions 1 and 2, the art itself for 3.
-  const v3 = algorithm === ART_ALGORITHM_V3;
-  const read = v3 ? decodeArtV3(decoded.rgba, decoded.width, decoded.height) : decodeStrip(decoded.rgba, decoded.width, decoded.height);
+  const v4 = algorithm === ART_ALGORITHM_V4;
+  const v3 = algorithm === ART_ALGORITHM_V3 || v4;
+  const read = v4 ? decodeArtV4(decoded.rgba, decoded.width, decoded.height) : v3 ? decodeArtV3(decoded.rgba, decoded.width, decoded.height) : decodeStrip(decoded.rgba, decoded.width, decoded.height);
   const what = v3 ? "the art" : "the 256-cell strip";
   const strip: ArtChecks["strip"] = read === null
-    ? { result: "FALSE", detail: v3 ? "the picture does not read as a version 3 spelling of any commitment" : "the image is not this algorithm's size, so it has no strip to read" }
+    ? { result: "FALSE", detail: v3 ? `the picture does not read as a ${algorithm} spelling of any commitment` : "the image is not this algorithm's size, so it has no strip to read" }
     : read.every((b, i) => b === authenticatedCommitment[i])
       ? { result: "TRUE", detail: `${what} reads ${toBase64Url(read)}, the authenticated commitment` }
       : { result: "FALSE", detail: `${what} reads ${toBase64Url(read)}, not the authenticated commitment ${toBase64Url(authenticatedCommitment)}` };

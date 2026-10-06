@@ -47,7 +47,9 @@ function reveal(canvas: HTMLCanvasElement, pixels: Uint8Array, grid: number, ins
   ctx.fillStyle = `rgb(${pixels[0]},${pixels[1]},${pixels[2]})`;
   ctx.fillRect(0, 0, ART_WIDTH, ART_HEIGHT);
   const steps: Array<[number, number, number, number]> = [];
-  for (let r = 0; r < grid; r++) for (let k = 0; k < grid; k++) steps.push([32 + k * side, 32 + r * side, side, side]);
+  // Cell by cell for a 6 x 6 grid; a 16 x 16 maze grows row by row, so it still takes about a second.
+  if (grid <= 6) for (let r = 0; r < grid; r++) for (let k = 0; k < grid; k++) steps.push([32 + k * side, 32 + r * side, side, side]);
+  else for (let r = 0; r < grid; r++) steps.push([32, 32 + r * side, 960, side]);
   steps.push([0, 0, ART_WIDTH, ART_HEIGHT]); // and the whole, exactly
   let i = 0, timer = 0;
   const per = Math.max(16, Math.floor(1000 / steps.length));
@@ -125,7 +127,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         onDrawn: (px) => {
           setDrawn(true);
           const c = positionRef.current ? fromBase64Url(positionRef.current.commitment) : null;
-          const grid = c ? artRecipe(c).grid : 6;
+          const grid = c ? artRecipe(c).grid : 16;
           const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
           requestAnimationFrame(() => { if (canvas.current) stopReveal.current = reveal(canvas.current, px, grid, reduce); });
         },
@@ -230,7 +232,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           <ol className="art-timeline">
             <li><span>Ethereum block {n(made.position.floorBlock)}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
             <li><span>Position {n(made.position.slotCounter)} opened, commitment issued</span><span>after the floor</span></li>
-            <li><span>Image drawn from the commitment</span><span>{made.recipe.grid * made.recipe.grid} cells</span></li>
+            <li><span>Image drawn from the commitment</span><span>{made.recipe.grid * made.recipe.grid} {made.recipe.grid === 16 ? "tiles, one bit each" : "cells"}</span></li>
             <li><span>Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{n(made.proof.commit.counter ?? 0)}</a></span><span>{recordedMs ? utc(recordedMs) : ""}</span></li>
             <li className={built?.existedBy ? "" : "is-pending"}><span>{built?.existedBy ? `Existed by Base block ${n(built.existedBy.blockNumber)}` : "Base block"}</span><span>{built?.existedBy ? utc(built.existedBy.timestamp * 1000) : building ? "waiting for it" : "not in yet"}</span></li>
           </ol>
@@ -245,7 +247,9 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
             <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier.</p>
             <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
             <h3>How it was drawn</h3>
-            <p>The picture spells the code. Each of its 36 cells carries 7 of the code&rsquo;s 256 bits, the palette and the frame carry the rest, so two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}). Anyone can redraw it and compare, pixel for pixel.</p>
+            <p>{made.manifest.algorithm === "bitgraph-art/4"
+              ? <>The picture spells the code. Each of its 256 tiles is one bit: the arcs turn one way for a 0 and the other for a 1, and join into one pattern. So two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>
+              : <>The picture spells the code. Each of its 36 cells carries 7 of the code&rsquo;s 256 bits, the palette and the frame carry the rest, so two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>} Anyone can redraw it and compare, pixel for pixel.</p>
             <h3>What it does not prove</h3>
             <p>Who made it, whether it is original, or anything about the computer it was made on.</p>
             <h3>The numbers</h3>

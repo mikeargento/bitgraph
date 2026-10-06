@@ -5,7 +5,7 @@ import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import {
-  ART_HEIGHT, ART_WIDTH, decodeArtV3, artSize, artRecipe, recipeJson, renderArt, decodeStrip, makeArt, decodePng, checkArt, toHex, toBase64Url,
+  ART_HEIGHT, ART_WIDTH, decodeArtV3, decodeArtV4, artSize, artRecipe, recipeJson, renderArt, decodeStrip, makeArt, decodePng, checkArt, toHex, toBase64Url,
 } from "../commitment-art.ts";
 
 const C1 = sha256(new TextEncoder().encode("bitgraph-art test commitment one"));
@@ -178,6 +178,34 @@ test("version 3: all 128 cell looks are distinct in every palette, and every fra
       assert.deepEqual(decodeArtV3(renderArt(artRecipe(c, "bitgraph-art/3")), 1024, 1024), c, `palette ${palette}, chunk ${chunk}`);
     }
   }
+});
+
+// ── Version 4: the Truchet maze, one tile per bit ───────────────────────────────────────
+test("version 4: the code reads back from the maze alone, including all zeros and all ones", () => {
+  const cs = [new Uint8Array(32), new Uint8Array(32).fill(255), C1, C2];
+  for (let k = 0; k < 16; k++) cs.push(sha256(new TextEncoder().encode(`bitgraph-art/4 readback ${k}`)));
+  for (const c of cs) assert.deepEqual(decodeArtV4(renderArt(artRecipe(c, "bitgraph-art/4")), 1024, 1024), c);
+});
+
+test("version 4: one flipped bit, or every bit flipped, is a different picture", () => {
+  const base = renderArt(artRecipe(C1, "bitgraph-art/4"));
+  const h = toHex(sha256(base));
+  for (const bit of [0, 15, 16, 128, 255]) {
+    const d = C1.slice(); d[bit >> 3] = d[bit >> 3]! ^ (1 << (7 - (bit & 7)));
+    assert.notEqual(toHex(sha256(renderArt(artRecipe(d, "bitgraph-art/4")))), h, `bit ${bit}`);
+  }
+  const inverse = C1.map((x) => x ^ 0xff);
+  assert.notEqual(toHex(sha256(renderArt(artRecipe(inverse, "bitgraph-art/4")))), h);
+});
+
+test("version 4 is pinned, its file is a function of the commitment, and both image checks pass", async () => {
+  const a = await makeArt(C1, "bitgraph-art/4");
+  const b = await makeArt(C1, "bitgraph-art/4");
+  assert.equal(toHex(sha256(a.png)), toHex(sha256(b.png)));
+  assert.equal(toHex(sha256(a.pixels)), "6cc9e9dd367b78ca8589ebf2827ab35042f6643403dc325e64a88ea7eac3e768");
+  const r = await checkArt(a.png, C1);
+  assert.equal(r.regenerated.result, "TRUE");
+  assert.equal(r.strip.result, "TRUE");
 });
 
 test("version 3 is pinned, and its file is a pure function of the commitment", async () => {
