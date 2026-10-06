@@ -275,7 +275,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
           {/* What just happened, for someone who has never heard of BitGraph. */}
           {/* One line, the left side of the chart (Mike, 10-06: "can the paragraph not wrap? can we make it more
               right or left of chart"): the proof is one click away, on See the full proof. */}
-          <p className="art-explain art-explain-one">{restored ? <>Jev answered two questions that did not exist until someone clicked, and you have&nbsp;proof.</> : <>Jev just answered two questions that did not exist until you clicked, and you have&nbsp;proof.</>}</p>
+          <p className="art-explain art-explain-one">{restored ? <>Jev answered two questions made when someone clicked, and you have&nbsp;proof.</> : <>Jev just answered two questions made when you clicked, and you have&nbsp;proof.</>}</p>
 
           <div className="jev-card">
             <div className="jev-card-label">The code</div>
