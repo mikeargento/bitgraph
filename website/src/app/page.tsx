@@ -56,6 +56,19 @@ export default function HomePage() {
       {/* Static (Mike, 10-05): one "for", the first market. The typing version cycled AI records → AI agent
           actions → AI evaluations → predictions → sealed bids → chain of custody → any file → any bytes →
           any bits (components/home-headline.tsx, 694a5646). */}
+      {/* Mike, 10-06: "a little graphic above with grey boxes in a chain and one blue": positions in sequence,
+          one of them yours. Flat squares and thin joins, no links or cubes (page one stays off crypto). */}
+      <svg className="home-chain" viewBox="0 0 224 20" width="224" height="20" aria-hidden="true">
+        {/* Still (Mike, 10-06: tried moving, then "switch it back to still"). 20 px squares joined by darker
+            lines, so it reads as one chain, not dots; the ends fade, so it reads as running on both ways; the
+            blue third: a fixed place, history before it, more after. */}
+        {[0.25, 0.6, 1, 1, 1, 0.6, 0.25].map((o, i, all) => (
+          <g key={i}>
+            {i > 0 && <line x1={i * 34 - 14} y1="10" x2={i * 34} y2="10" stroke="var(--faint)" strokeWidth="2" opacity={Math.min(o, all[i - 1]!)} />}
+            <rect x={i * 34} y="0" width="20" height="20" rx="5" fill={i === 2 ? "#1a73e8" : "var(--line)"} opacity={o} />
+          </g>
+        ))}
+      </svg>
       <h1>Position commitment<br />for AI&nbsp;records.</h1>
 
       {/* Mike's line (2026-10-05), replacing the Schelling paragraph and then the six-item list; "Other proofs", not "Every other proof" (no absolute: Chainpoint rule, 09-21)

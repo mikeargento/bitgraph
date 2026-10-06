@@ -3169,3 +3169,5 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .home.home-typing .lede { font-size: clamp(18px, 2.2vw, 22px) !important; line-height: 1.45 !important; }
 /* A little more air between headline lines, the same on all three pages (Mike, 10-06: "enough space between h1 lines?"). */
 .home.home-typing h1, .art-page h1 { line-height: 1.12 !important; }
+/* The chain above the home headline (still). */
+.home .home-chain { display: block; margin: 0 auto 28px; }
