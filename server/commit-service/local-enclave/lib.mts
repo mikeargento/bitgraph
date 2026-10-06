@@ -87,8 +87,11 @@ export interface FakeBase {
 const hex = (u: Uint8Array) => "0x" + Buffer.from(u).toString("hex");
 const zeros = (n: number) => "0x" + "00".repeat(n);
 
-export async function startFakeBase(startNumber = 36_000_000): Promise<FakeBase> {
-  const t0 = Math.floor(Date.now() / 1000);
+// Base mainnet's schedule: block n is stamped BASE_GENESIS + 2n.
+const BASE_GENESIS = 1686789347;
+export async function startFakeBase(): Promise<FakeBase> {
+  const startNumber = Math.floor((Math.floor(Date.now() / 1000) - BASE_GENESIS) / 2) - 1;
+  const t0 = BASE_GENESIS + 2 * startNumber;
   let halted = false;
   let haltedAt = 0;
   let skewS = 0;

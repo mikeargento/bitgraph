@@ -427,7 +427,9 @@ async function handleAllocateSlot(
     record,
     chainId: resolvedChainId,
     expiresAt: Date.now() + SLOT_TTL_MS,
-    anchorAtAllocation: chain.latestAnchor,
+    // v10: one floor per proof. With a Base floor the Ethereum anchor is
+    // neither signed nor returned, so no producer can bind the other one.
+    anchorAtAllocation: baseFloor ? undefined : chain.latestAnchor,
     baseFloorAtAllocation: baseFloor,
   });
 
@@ -441,7 +443,7 @@ async function handleAllocateSlot(
     slotId: nonceB64,
     slot: record,
     chainId: resolvedChainId,
-    ...(chain.latestAnchor ? { anchor: { ...chain.latestAnchor } } : {}),
+    ...(chain.latestAnchor && !baseFloor ? { anchor: { ...chain.latestAnchor } } : {}),
     // v10: the Base floor, for the same reason: a fused file binds its hash.
     ...(baseFloor ? { floor: { ...baseFloor } } : {}),
   };

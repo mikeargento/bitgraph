@@ -16,6 +16,9 @@
  *   - the header is canonical RLP, and its keccak-256 is the block hash the
  *     proof will carry (number and time are read from the same bytes, never
  *     supplied beside them);
+ *   - the block's time is exactly Base mainnet's schedule for its number
+ *     (genesis + 2 s per block), which rejects other chains and made-up
+ *     numbers;
  *   - block numbers never go down on a chain within an epoch;
  *   - the block's time is not ahead of this enclave's clock by more than
  *     BASE_FLOOR_CLOCK_TOLERANCE_S, so a floor never claims a time after the
@@ -31,6 +34,17 @@ import { keccak_256 } from "@noble/hashes/sha3";
 
 export const BASE_CHAIN_NAME = "base" as const;
 export const BASE_CHAIN_ID = 8453;
+/**
+ * Base mainnet stamps every block by height: block n is BASE_GENESIS_TIME + 2n
+ * (OP Stack: each block is block_time after its parent; checked against the
+ * live chain 2026-10-06). A header off that schedule is not a Base mainnet
+ * block: another chain, a testnet, or made up. Together with the clock check
+ * this also caps the block number, so one absurd header cannot lock a chain's
+ * floor for the rest of the epoch. If Base ever changes its block time, this
+ * fails closed and the enclave needs a new version.
+ */
+export const BASE_GENESIS_TIME = 1686789347;
+export const BASE_BLOCK_TIME_S = 2;
 /** One Base block: covers skew between Base's whole-second stamps and this clock. */
 export const BASE_FLOOR_CLOCK_TOLERANCE_S = 2;
 /** A real header is a few hundred bytes; refuse anything absurd before parsing. */
@@ -38,7 +52,8 @@ const MAX_HEADER_BYTES = 4096;
 
 export interface BaseFloor {
   chain: typeof BASE_CHAIN_NAME;
-  chainId: typeof BASE_CHAIN_ID;
+  /** The EVM chain id (8453), not BitGraph's chain id. */
+  evmChainId: typeof BASE_CHAIN_ID;
   blockNumber: number;
   /** 0x-prefixed lowercase hex, 32 bytes: keccak-256 of the header. */
   blockHash: string;
@@ -136,6 +151,9 @@ export function checkBaseFloorHeader(
   const blockTimestamp = rlpUint(item[11], "baseFloor header timestamp");
   if (blockNumber <= 0) throw new Error("baseFloor header: block number must be positive");
 
+  if (blockTimestamp !== BASE_GENESIS_TIME + BASE_BLOCK_TIME_S * blockNumber) {
+    throw new Error(`base floor block ${blockNumber} is stamped ${blockTimestamp}, off Base mainnet's schedule (${BASE_GENESIS_TIME + BASE_BLOCK_TIME_S * blockNumber})`);
+  }
   if (prev && blockNumber < prev.blockNumber) {
     throw new Error(`base floor block ${blockNumber} is older than this chain's last floor, block ${prev.blockNumber}`);
   }
@@ -145,7 +163,7 @@ export function checkBaseFloorHeader(
 
   return {
     chain: BASE_CHAIN_NAME,
-    chainId: BASE_CHAIN_ID,
+    evmChainId: BASE_CHAIN_ID,
     blockNumber,
     blockHash: toHex(keccak_256(raw)),
     blockTimestamp,

@@ -29,7 +29,7 @@ try {
   const head1 = base.head();
   const f1 = s1.json?.floor;
   ok("allocation on the anchored chain succeeds with no Ethereum anchor", s1.status === 200, s1.json);
-  ok("it returns a Base floor naming its chain", f1?.chain === "base" && f1?.chainId === 8453, f1);
+  ok("it returns a Base floor naming its chain", f1?.chain === "base" && f1?.evmChainId === 8453, f1);
   ok("the floor is a block the stand-in Base produced, hash and number from its header",
     typeof f1?.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(f1.blockHash) && f1.blockNumber <= parseInt(head1.number, 16) && f1.blockNumber >= parseInt(head1.number, 16) - 2, { f1, head: head1.number });
   ok("no Ethereum anchor is returned", !("anchor" in (s1.json ?? {})), s1.json);
@@ -71,25 +71,32 @@ try {
   ok("non-canonical base64 is refused", !nonCanon.ok, nonCanon);
   const notString = await direct({ chainId: "harness:direct", baseFloorHeaderB64: 12345 });
   ok("a header that is not a string is refused", !notString.ok, notString);
-  // Older than the chain's last floor.
-  const older = { ...good, number: "0x" + (parseInt(good.number, 16) - 10).toString(16) };
+  // Older than the chain's last floor: a real earlier block.
+  const older = head1;
   const olderRes = await direct({ chainId: "harness:direct", baseFloorHeaderB64: headerB64(older) });
   ok("a block lower than the chain's last floor is refused", !olderRes.ok && /older than this chain's last floor/.test(olderRes.error ?? ""), olderRes);
-  // From the future.
-  const future = { ...good, number: "0x" + (parseInt(good.number, 16) + 50).toString(16), timestamp: "0x" + (Math.floor(Date.now() / 1000) + 60).toString(16) };
+  // From the future: on schedule, 30 blocks (60 s) ahead.
+  const gn = parseInt(good.number, 16);
+  const future = { ...good, number: "0x" + (gn + 30).toString(16), timestamp: "0x" + (1686789347 + 2 * (gn + 30)).toString(16) };
   const futureRes = await direct({ chainId: "harness:direct", baseFloorHeaderB64: headerB64(future) });
-  ok("a block stamped 60 s ahead of the enclave clock is refused", !futureRes.ok && /ahead of the enclave clock/.test(futureRes.error ?? ""), futureRes);
-  const edge = { ...good, number: "0x" + (parseInt(good.number, 16) + 51).toString(16), timestamp: "0x" + (Math.floor(Date.now() / 1000) + 1).toString(16) };
-  const edgeRes = await direct({ chainId: "harness:direct", baseFloorHeaderB64: headerB64(edge) });
-  ok("a block stamped 1 s ahead (inside the tolerance) is accepted", edgeRes.ok, edgeRes);
+  ok("a block 60 s ahead of the enclave clock is refused", !futureRes.ok && /ahead of the enclave clock/.test(futureRes.error ?? ""), futureRes);
+  // Off Base's schedule: another chain, or made up.
+  const offSchedule = { ...good, number: "0x" + (gn + 1).toString(16) };
+  const offRes = await direct({ chainId: "harness:direct", baseFloorHeaderB64: headerB64(offSchedule) });
+  ok("a block whose time is off Base mainnet's schedule is refused", !offRes.ok && /off Base mainnet's schedule/.test(offRes.error ?? ""), offRes);
+  // A huge block number cannot lock the chain: it is off schedule or in the future.
+  const huge = { ...good, number: "0x" + (2 ** 40).toString(16), timestamp: "0x" + (1686789347 + 2 * 2 ** 40).toString(16) };
+  const hugeRes = await direct({ chainId: "harness:direct", baseFloorHeaderB64: headerB64(huge) });
+  const after = await direct({ chainId: "harness:direct", baseFloorHeaderB64: headerB64(base.head()) });
+  ok("an absurd block number is refused and does not lock the chain's floor", !hugeRes.ok && after.ok, { hugeRes, after });
   // The enclave computes the hash itself: the floor's hash is keccak of exactly these bytes.
-  ok("the floor hash is computed by the enclave from the bytes", (edgeRes.data as any)?.floor?.blockNumber === parseInt(edge.number, 16) && (edgeRes.data as any)?.floor?.blockHash !== good.hash, edgeRes.data);
+  ok("the floor hash is computed by the enclave from the bytes", (okDirect.data as any)?.floor?.blockNumber === gn && (okDirect.data as any)?.floor?.blockTimestamp === 1686789347 + 2 * gn, okDirect.data);
 
   // 6. Through the parent: a Base node that stamps ahead stops allocations; it resumes when that ends.
   base.skew(60);
   await sleep(2600);
   const skewed = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
-  ok("when Base's newest block is stamped a minute ahead, allocation is refused", skewed.status !== 200 && /ahead of the enclave clock/.test(JSON.stringify(skewed.json)), skewed.json);
+  ok("when Base's newest block is stamped off schedule, allocation is refused", skewed.status !== 200 && /schedule|ahead of the enclave clock/.test(JSON.stringify(skewed.json)), skewed.json);
   base.skew(0);
   // Wait until Base's newest block is stamped normally again, and the parent has read it.
   for (let i = 0; i < 40; i++) {

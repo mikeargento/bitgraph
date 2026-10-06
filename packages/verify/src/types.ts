@@ -188,7 +188,7 @@ export interface BitGraphProof {
      * when its slot was ALLOCATED: the parent hands the enclave the newest Base
      * header, and the enclave hashes it (keccak-256), reads the number and time
      * from the same bytes, refuses a block lower than the chain's last floor or
-     * stamped ahead of its own clock, and SIGNS the result here. It names its
+     * stamped ahead of its own clock or off Base's 2 s schedule, and SIGNS the result here. It names its
      * chain, so a verifier never reads it as an Ethereum floor. Proofs with
      * slotAnchor and no slotFloor have an Ethereum floor. Verify it with the
      * Base header: keccak(header) must equal blockHash and the block must be
@@ -196,7 +196,8 @@ export interface BitGraphProof {
      */
     slotFloor?: {
       chain: "base";
-      chainId: 8453;
+      /** The EVM chain id, not BitGraph's chain id (commit.chainId). */
+      evmChainId: 8453;
       blockNumber: number;
       /** 0x-prefixed lowercase hex, 32 bytes. */
       blockHash: string;
