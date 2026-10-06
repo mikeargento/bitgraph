@@ -3132,3 +3132,10 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 @media (max-width: 600px) { .jev-card { padding: 18px 16px 4px; } .jev-q { font-size: 16px; } .jev-a { margin-left: 0; } }
 .art-result ol.jev-qs { list-style: none !important; padding-left: 0 !important; }
 .art-result ol.jev-qs > li::marker { content: none; }
+.jev-working { margin: 6px 0 12px; font-size: 14px; }
+.jev-working p { margin: 0 0 6px !important; font-size: 14px !important; }
+.jev-working ul { margin: 6px 0 0 !important; padding-left: 18px !important; }
+.jev-working li { margin: 2px 0 !important; }
+.jev-check { font-size: 14px !important; padding: 10px 12px; border-radius: 8px; background: var(--panel-2); }
+.jev-check.is-ok { background: #e6f4ea; color: #137333; }
+.jev-check.is-mismatch { background: #fce8e6; color: #c5221f; }

@@ -18,6 +18,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { sha256 } from "@noble/hashes/sha256";
+import { bytesToBase64, commitmentForProof, verifyProofIntegrity, type BitGraphProof } from "@mikeargento/bitgraph-verify";
 
 const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.bitgraph.ing";
 
@@ -75,6 +76,58 @@ function MarkedCode({ code, q }: { code: string; q: Questions }) {
   );
 }
 
+const hex2 = (b: number) => b.toString(16).padStart(2, "0");
+const toB64Url = (b: Uint8Array) => bytesToBase64(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+/**
+ * The code is checked against the proof, read from bitgraph.ing (not from the Jev service): the proof's
+ * signature and attestation, then the code recomputed from the position record the enclave signed when
+ * the position opened and the Ethereum block bound into it. A code that matches could not have been
+ * computed before that position opened, so neither could the questions made from it.
+ */
+type CodeCheck =
+  | { status: "checking" }
+  | { status: "ok"; counter: string; position: string; floorBlock: number | null }
+  | { status: "mismatch"; recomputed: string }
+  | { status: "unavailable"; reason: string };
+
+async function checkCode(id: string, counter: string, code: string): Promise<CodeCheck> {
+  try {
+    const r = await fetch(`/api/proofs/digest/${id}`);
+    if (!r.ok) return { status: "unavailable", reason: `bitgraph.ing answered ${r.status}` };
+    const d = await r.json();
+    const list: Array<{ proof?: BitGraphProof }> = Array.isArray(d?.proofs) ? d.proofs : [];
+    const proof = list.find((x) => String(x.proof?.commit?.counter) === String(counter))?.proof ?? list[0]?.proof;
+    if (!proof || !proof.slotAllocation) return { status: "unavailable", reason: "the proof was not found on the ledger yet" };
+    const integrity = await verifyProofIntegrity({ proof });
+    if (!integrity.valid) return { status: "unavailable", reason: `the proof does not verify: ${integrity.reason ?? "unknown"}` };
+    const recomputed = toB64Url(commitmentForProof(proof, proof.slotAllocation));
+    if (recomputed !== code) return { status: "mismatch", recomputed };
+    const floor = (proof.commit as unknown as { slotAnchor?: { blockNumber?: number } }).slotAnchor?.blockNumber ?? null;
+    return { status: "ok", counter: String(proof.commit.counter), position: String(proof.slotAllocation.counter), floorBlock: floor };
+  } catch (e) {
+    return { status: "unavailable", reason: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** The working, byte by byte: SHA-256 of the code to the characters asked. */
+function Working({ q }: { q: Questions }) {
+  const h = sha256(new Uint8Array([...new TextEncoder().encode(QV), 0, ...new TextEncoder().encode(q.code)]));
+  const b2raw = h[3]! % 10, bumped = String(b2raw) === q.first.a;
+  return (
+    <div className="jev-working">
+      <p>SHA-256 of <code>{QV}</code>, a zero byte, and the code:</p>
+      <p><code className="break">{Array.from(h, hex2).join(" ")}</code></p>
+      <ul>
+        <li>byte 1 <code>{hex2(h[0]!)}</code> = {h[0]}, and {h[0]} mod 10 = <strong>{q.both.digit}</strong>: the digit {q.both.digit}</li>
+        <li>byte 2 <code>{hex2(h[1]!)}</code> = {h[1]}, and {h[1]} mod 52 = {h[1]! % 52}: letter {h[1]! % 52 + 1} of A to Z then a to z, <strong>{q.both.letter}</strong></li>
+        <li>byte 3 <code>{hex2(h[2]!)}</code> = {h[2]}, and {h[2]} mod 10 = <strong>{q.first.a}</strong>: the digit {q.first.a}</li>
+        <li>byte 4 <code>{hex2(h[3]!)}</code> = {h[3]}, and {h[3]} mod 10 = {b2raw}{bumped ? <>, the same as byte 3&rsquo;s, so one more: <strong>{q.first.b}</strong></> : <>: the digit <strong>{q.first.b}</strong></>}</li>
+      </ul>
+    </div>
+  );
+}
+
 const pct = (p: number) => `${Math.round(Math.max(p, 1 - p) * 100)}% sure`;
 
 export function JevAsker({ children }: { children?: ReactNode } = {}) {
@@ -88,6 +141,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [tally, setTally] = useState<{ answered: number; bothRight: number } | null>(null);
+  const [codeCheck, setCodeCheck] = useState<CodeCheck | null>(null);
   const busy = useRef(false);
   const stageRef = useRef<Stage | null>(null);
   const showTimer = useRef(0);
@@ -114,6 +168,22 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
       .finally(() => { if (!cancelled) setRestoring(false); });
     return () => { cancelled = true; };
   }, []);
+
+  // Once a result is on screen: the code against its proof, read from bitgraph.ing itself.
+  useEffect(() => {
+    if (!record || !shown) { setCodeCheck(null); return; }
+    let cancelled = false;
+    setCodeCheck({ status: "checking" });
+    const run = async (tries: number) => {
+      const c = await checkCode(record.id, record.counter, record.code);
+      if (cancelled) return;
+      // A fresh record can take a moment to reach the ledger's lookup.
+      if (c.status === "unavailable" && tries > 0) { setTimeout(() => void run(tries - 1), 1500); return; }
+      setCodeCheck(c);
+    };
+    void run(4);
+    return () => { cancelled = true; };
+  }, [record, shown]);
 
   const ask = useCallback(async () => {
     if (busy.current) return;
@@ -264,6 +334,18 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
               <li><span>Recorded as <a href={proofHref}>BitGraph #{n(record.counter)}</a></span><span>{record.files.length} files</span></li>
             </ol>
             <div className="art-detail-parts">
+              {/* Mike, 10-06: "how will people know the QUESTION is truly random?", "that has to be proven AFTER
+                  position opens or this is dumb". RED: new copy, staged. */}
+              <h3 style={{ color: "#d93025" }}>How these questions were chosen</h3>
+              <p style={{ color: "#d93025" }}><strong>1. The code comes from the position.</strong> It is worked out from the record BitGraph&rsquo;s enclave signed when the position opened, together with the hash of an Ethereum block bound into it, so it could not be computed before the position opened. Checked here, in your browser, from the proof on bitgraph.ing:</p>
+              <p className={`jev-check is-${codeCheck?.status ?? "checking"}`}>
+                {codeCheck === null || codeCheck.status === "checking" ? "Checking the proof\u2026"
+                  : codeCheck.status === "ok" ? <>BitGraph #{n(codeCheck.counter)}: signature and attestation valid; the code recomputed from position {n(codeCheck.position)}{codeCheck.floorBlock !== null ? <> and Ethereum block {n(codeCheck.floorBlock)}</> : null} matches the code above.</>
+                  : codeCheck.status === "mismatch" ? <>The code recomputed from the proof does not match: <code className="break">{codeCheck.recomputed}</code>.</>
+                  : <>The proof could not be checked just now ({codeCheck.reason}). The full proof page checks it too.</>}
+              </p>
+              <p style={{ color: "#d93025" }}><strong>2. The questions come from the code,</strong> by a public rule with no choice in it. Anyone can redo this with any SHA-256 tool:</p>
+              <Working q={q} />
               <h3>What it proves</h3>
               <p>The questions were made from the position&rsquo;s code, and that code did not exist until the position opened. So no one could have seen these questions, or their answers, before the click. Jev&rsquo;s answers were recorded in that same position.</p>
               <h3>How the questions are made</h3>
