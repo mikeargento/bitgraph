@@ -19,7 +19,7 @@ import {
 import { FuseError } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
 import { commitInPosition, openPosition, type TreeTransport } from "./fuse-tree-make.ts";
-import { ART_ALGORITHM_V2, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
+import { ART_ALGORITHM_V2, ART_ALGORITHM_V3, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
 
 /** A position is good for 120 s; the image is recorded well inside that or not at all. */
 export const POSITION_TTL_MS = 120_000;
@@ -206,7 +206,7 @@ export async function verifyArtFile(bytes: Uint8Array, pcr0: readonly string[]):
  * For a proof recorded with the inline marker, redraw the image from the commitment the proof
  * authenticates and return it only when its SHA-256 IS the recorded digest: the exact recorded
  * file, rebuilt byte for byte, so it can be shown and checked as the file in hand. Only versions
- * with the fixed deflate can be rebuilt this way (bitgraph-art/2 on); a version-1 file's bytes
+ * with the fixed deflate can be rebuilt this way (bitgraph-art/2 and /3); a version-1 file's bytes
  * came from a browser's compressor, so it is not rebuilt here (its pixels still redraw).
  */
 export async function redrawRecordedArt(proof: BitGraphProof): Promise<{ png: Uint8Array; algorithm: string } | null> {
@@ -214,7 +214,7 @@ export async function redrawRecordedArt(proof: BitGraphProof): Promise<{ png: Ui
   if (!a || a.title !== "base64url" || a.name !== inlineAttribution(2).name || !proof.slotAllocation) return null;
   let commitment: Uint8Array;
   try { commitment = commitmentForProof(proof, proof.slotAllocation); } catch { return null; }
-  for (const algorithm of [ART_ALGORITHM_V2]) {
+  for (const algorithm of [ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
     const art = await makeArt(commitment, algorithm);
     if (bytesToBase64(sha256(art.png)) === proof.artifact?.digestB64) return { png: art.png, algorithm };
   }

@@ -2,7 +2,7 @@
 
 /**
  * The image generator (Mike, 2026-10-05; redesigned the same night: "its not very compelling").
- * A studio: the canvas on the left draws itself, cell by cell and then along the strip, from the
+ * A studio: the canvas draws itself, cell by cell (version 3: the cells spell the code), from the
  * commitment shown beside it; the panel on the right holds the one button, the steps, the
  * commitment and, when the image is recorded, a timeline from the Ethereum block to the Base block.
  *
@@ -20,7 +20,9 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createArtImage, ArtError, type ArtStage, type MadeArtImage, type OpenedPosition } from "@/lib/art-position";
 import { buildCarrierForProof } from "@/lib/carrier-site";
 import { recordedMsOf } from "@/lib/recorded-time";
-import { ART_HEIGHT, ART_WIDTH, artRecipe, fromBase64Url } from "@/lib/commitment-art";
+import { ART_ALGORITHM, artRecipe, artSize, fromBase64Url } from "@/lib/commitment-art";
+
+const { width: ART_WIDTH, height: ART_HEIGHT } = artSize(ART_ALGORITHM);
 
 const STEPS: Array<{ key: ArtStage; label: string }> = [
   { key: "opening", label: "Opening position" },
@@ -35,7 +37,7 @@ const utc = (ms: number) => new Date(ms).toISOString().slice(11, 19) + " UTC";
 
 type Built = { bytes: Uint8Array; fileName: string; existedBy: { blockNumber: number; timestamp: number } | null; floorTs: number | null };
 
-/** Paint the canonical pixels onto the canvas, cell by cell, then the strip left to right. */
+/** Paint the canonical pixels onto the canvas, cell by cell, then the whole image exactly. */
 function reveal(canvas: HTMLCanvasElement, pixels: Uint8Array, grid: number, instant: boolean): () => void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return () => {};
@@ -46,7 +48,6 @@ function reveal(canvas: HTMLCanvasElement, pixels: Uint8Array, grid: number, ins
   ctx.fillRect(0, 0, ART_WIDTH, ART_HEIGHT);
   const steps: Array<[number, number, number, number]> = [];
   for (let r = 0; r < grid; r++) for (let k = 0; k < grid; k++) steps.push([32 + k * side, 32 + r * side, side, side]);
-  for (let i = 0; i < 16; i++) steps.push([i * 64, 1024, 64, 32]); // the strip, 16 bits a step
   steps.push([0, 0, ART_WIDTH, ART_HEIGHT]); // and the whole, exactly
   let i = 0, timer = 0;
   const per = Math.max(16, Math.floor(1000 / steps.length));
@@ -124,7 +125,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         onDrawn: (px) => {
           setDrawn(true);
           const c = positionRef.current ? fromBase64Url(positionRef.current.commitment) : null;
-          const grid = c ? artRecipe(c).grid : 4;
+          const grid = c ? artRecipe(c).grid : 6;
           const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
           requestAnimationFrame(() => { if (canvas.current) stopReveal.current = reveal(canvas.current, px, grid, reduce); });
         },
@@ -244,7 +245,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
             <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier.</p>
             <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
             <h3>How it was drawn</h3>
-            <p>Every shape and colour comes from the commitment, through fixed rules ({made.manifest.algorithm}). The barcode along the bottom spells the commitment itself. Anyone can redraw the image from it and compare, pixel for pixel.</p>
+            <p>The picture spells the code. Each of its 36 cells carries 7 of the code&rsquo;s 256 bits, the palette and the frame carry the rest, so two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}). Anyone can redraw it and compare, pixel for pixel.</p>
             <h3>What it does not prove</h3>
             <p>Who made it, whether it is original, or anything about the computer it was made on.</p>
             <h3>The numbers</h3>

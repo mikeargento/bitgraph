@@ -3000,7 +3000,7 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-error p + p { margin-top: 8px !important; }
 .art-canvas { width: 100%; margin-top: 28px; }
 .art-canvas[hidden] { display: none; }
-.art-canvas canvas { display: block; width: 100%; height: auto; aspect-ratio: 1024 / 1056; border-radius: 12px; box-shadow: var(--shadow-card); background: var(--paper); }
+.art-canvas canvas { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; border-radius: 12px; box-shadow: var(--shadow-card); background: var(--paper); }
 .art-success { margin: 24px 0 0 !important; font-weight: 600; color: var(--ink); text-wrap: balance; }
 .art-actions { justify-content: center; margin: 22px 0 0 !important; }
 .art-actions .bg-action-link { width: 16rem; min-height: 44px; justify-content: center; box-sizing: border-box; } /* the two actions one size (Mike, 10-06: the check button was small) */

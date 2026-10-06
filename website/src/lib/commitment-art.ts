@@ -61,8 +61,8 @@ import { sha256 } from "@noble/hashes/sha256";
 
 export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
-/** What a new image is drawn with. */
-export const ART_ALGORITHM = ART_ALGORITHM_V2;
+/** What a new image is drawn with: version 3 from 2026-10-06 (Mike: "lose barcode use version 3"). */
+export const ART_ALGORITHM = "bitgraph-art/3";
 /** Built 2026-10-06 for a side-by-side look (Mike: "build it and show me side by side"): the art spells the commitment. */
 export const ART_ALGORITHM_V3 = "bitgraph-art/3";
 export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3];

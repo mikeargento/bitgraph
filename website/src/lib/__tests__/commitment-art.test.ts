@@ -14,7 +14,8 @@ const C2 = sha256(new TextEncoder().encode("bitgraph-art test commitment two"));
 test("the same commitment gives the same recipe and the same pixels, every time", () => {
   const a = renderArt(artRecipe(C1));
   const b = renderArt(artRecipe(C1));
-  assert.equal(a.length, ART_WIDTH * ART_HEIGHT * 4);
+  const size = artSize(artRecipe(C1).algorithm);
+  assert.equal(a.length, size.width * size.height * 4);
   assert.equal(toHex(sha256(a)), toHex(sha256(b)));
   assert.equal(recipeJson(artRecipe(C1)), recipeJson(artRecipe(C1)));
 });
@@ -30,9 +31,9 @@ test("a different commitment gives different art", () => {
   assert.notEqual(toHex(sha256(renderArt(artRecipe(C1)))), toHex(sha256(renderArt(artRecipe(C2)))));
 });
 
-test("the strip decodes to the full commitment, every bit", () => {
+test("the strip (versions 1 and 2) decodes to the full commitment, every bit", () => {
   for (const c of [C1, C2, new Uint8Array(32), new Uint8Array(32).fill(255)]) {
-    const px = renderArt(artRecipe(c));
+    const px = renderArt(artRecipe(c, "bitgraph-art/2"));
     assert.deepEqual(decodeStrip(px, ART_WIDTH, ART_HEIGHT), c);
   }
 });
@@ -45,8 +46,8 @@ test("only 32-byte commitments are accepted", () => {
 test("the PNG round-trips to the canonical pixels and carries the commitment as base64url text", async () => {
   const art = await makeArt(C1);
   const d = await decodePng(art.png);
-  assert.equal(d.width, ART_WIDTH);
-  assert.equal(d.height, ART_HEIGHT);
+  assert.equal(d.width, art.manifest.width);
+  assert.equal(d.height, art.manifest.height);
   assert.equal(toHex(sha256(d.rgba)), toHex(sha256(art.pixels)));
   const text = new TextDecoder("latin1").decode(art.png);
   assert.ok(text.includes(toBase64Url(C1)), "the base64url commitment is in the bytes, where findCommitment looks");

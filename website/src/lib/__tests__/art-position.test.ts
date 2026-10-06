@@ -8,7 +8,7 @@ import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToBase64, verifyFuse } from "@mikeargento/bitgraph-verify";
 import { createArtImage, verifyArtFile, redrawRecordedArt, ArtError, type ArtStage } from "../art-position.ts";
-import { decodeStrip, decodePng, ART_WIDTH, ART_HEIGHT, toBase64Url } from "../commitment-art.ts";
+import { decodeArtV3, decodePng, toBase64Url } from "../commitment-art.ts";
 import { makeStub } from "./tree1-helpers.ts";
 
 const isArtError = (code: string) => (e: unknown) => e instanceof ArtError && e.code === code;
@@ -31,9 +31,9 @@ test("one click: the position opens first, the commitment is shown before drawin
   assert.equal(made.proof.commit.slotCounter, made.position.slotCounter);
   // The published verifier finds this position's commitment inside the image.
   assert.equal((await verifyFuse({ proof: made.proof, bytes: made.png })).category, "CARRIED_INLINE");
-  // And the pixels carry it too.
+  // And the picture spells it: read back from the pixels alone.
   const d = await decodePng(made.png);
-  assert.equal(toBase64Url(decodeStrip(d.rgba, ART_WIDTH, ART_HEIGHT)!), made.position.commitment);
+  assert.equal(toBase64Url(decodeArtV3(d.rgba, d.width, d.height)!), made.position.commitment);
   assert.equal(made.checks.regenerated.result, "TRUE");
   assert.equal(made.checks.strip.result, "TRUE");
 });
