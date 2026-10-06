@@ -3174,3 +3174,8 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-result .art-explain-one { font-weight: 400 !important; font-size: clamp(18px, 2.2vw, 22px) !important; line-height: 1.45 !important; color: var(--text) !important; }
 /* The result line as the image's caption (Mike, 10-06: "it should caption under image"); /jev's under its card. */
 .art-result .art-explain-one.art-caption { margin: 16px 0 0 !important; font-size: clamp(16px, 1.8vw, 18px) !important; }
+/* Highlight only, no underline border (Mike, 10-06: "highlight yes, that weird border hell nah"). */
+.jev-code mark.jev-q1, .jev-code mark.jev-q2, .jev-code mark.jev-q1.jev-q2 { box-shadow: none !important; }
+.jev-code mark.jev-q1 { background: #d2e3fc; color: #174ea6; }
+.jev-code mark.jev-q2 { background: #ceead6; color: #0d652d; }
+.jev-code mark.jev-q1.jev-q2 { background: linear-gradient(#d2e3fc 50%, #ceead6 50%); }
