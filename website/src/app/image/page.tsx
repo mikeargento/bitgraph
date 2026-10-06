@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ArtMaker } from "@/components/art-maker";
 
 export const metadata: Metadata = {
-  title: "BitGraph image",
+  title: "Create an image",
   description:
     "One click creates an image that never existed before, and BitGraph proves it: it opens a position, draws the image from its position commitment, and records it in that same position.",
 };
@@ -18,7 +18,9 @@ export default function ImagePage() {
   return (
     <div className="frame prose art-page">
       <ArtMaker>
-        <h1>One click creates an image that never existed before, and BitGraph proves&nbsp;it.</h1>
+        {/* Mike, 10-06: "create an image h1 small h2", the same shape as /jev's "Ask Jev". */}
+        <h1 className="jev-title">Create an image</h1>
+        <p className="lede jev-lede">One click creates an image that never existed before, and BitGraph proves&nbsp;it.</p>
       </ArtMaker>
     </div>
   );
