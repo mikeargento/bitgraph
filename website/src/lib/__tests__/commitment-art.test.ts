@@ -237,6 +237,35 @@ test("version 5 is pinned, its file is a function of the code, and both image ch
 
 const PINNED_PIXELS_V5 = "4f3177e5ca6bc84895ee9f0710983be35ca9022f9a625a94d861f275d3da79e2";
 
+// ── Version 6: the code woven into the art ─────────────────────────────────────────────
+test("version 6: the art alone spells the code, for many codes, all zeros and all ones", async () => {
+  const { decodeV6 } = await import("../commitment-art-v6.ts");
+  const cs = [new Uint8Array(32), new Uint8Array(32).fill(255), C1, C2];
+  for (let k = 0; k < 8; k++) cs.push(sha256(new TextEncoder().encode(`bitgraph-art/6 readback ${k}`)));
+  for (const c of cs) assert.deepEqual(decodeV6(renderArt(artRecipe(c, "bitgraph-art/6")), 1024, 1024), c);
+});
+
+test("version 6: no ticks in the frame; the frame is one colour", () => {
+  const px = renderArt(artRecipe(C1, "bitgraph-art/6"));
+  const at = (x: number, y: number) => `${px[(y * 1024 + x) * 4]},${px[(y * 1024 + x) * 4 + 1]},${px[(y * 1024 + x) * 4 + 2]}`;
+  const colours = new Set<string>();
+  for (let i = 0; i < 1024; i++) { colours.add(at(i, 5)); colours.add(at(i, 1018)); colours.add(at(5, i)); colours.add(at(1018, i)); colours.add(at(i, 16)); colours.add(at(16, i)); }
+  assert.equal(colours.size, 1);
+});
+
+test("version 6 is pinned, its file is a function of the code, and both image checks pass", async () => {
+  const a = await makeArt(C1, "bitgraph-art/6");
+  const b = await makeArt(C1, "bitgraph-art/6");
+  assert.equal(toHex(sha256(a.png)), toHex(sha256(b.png)));
+  assert.equal(toHex(sha256(a.pixels)), PINNED_PIXELS_V6);
+  const r = await checkArt(a.png, C1);
+  assert.equal(r.regenerated.result, "TRUE");
+  assert.equal(r.strip.result, "TRUE");
+  assert.match(r.strip.detail, /the art reads/);
+});
+
+const PINNED_PIXELS_V6 = "2ec7115f2eb8ea7c5ed0b84bd4514bf930a2fb52f90ed1f5a66690ce405393c1";
+
 test("version 3 is pinned, and its file is a pure function of the commitment", async () => {
   const a = await makeArt(C1, "bitgraph-art/3");
   const b = await makeArt(C1, "bitgraph-art/3");
