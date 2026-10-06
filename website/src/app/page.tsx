@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { HOME_EXAMPLE_DIGEST } from "@/lib/warm";
 import { WarmExample } from "@/components/warm-example";
-import { HomeHeadline } from "@/components/home-headline";
 
 /**
  * Home, written as the scene (Mike, 2026-09-20: "sell me this pen"). The order is
@@ -54,16 +53,19 @@ export default function HomePage() {
           2026-09-26, left aligned, after a day of trying shorter heroes ("GPS for files.", "The
           position comes first.", "First the position. Then the file."; all in the git history).
           Claim discipline holds: a position is what is verified, never the content, never "when". */}
-      <HomeHeadline phrases={["AI records.", "AI agent actions.", "AI evaluations.", "predictions.", "sealed bids.", "chain of custody.", "any file.", "any bytes.", "any bits."]} />
+      {/* Static (Mike, 10-05): one "for", the first market. The typing version cycled AI records → AI agent
+          actions → AI evaluations → predictions → sealed bids → chain of custody → any file → any bytes →
+          any bits (components/home-headline.tsx, 694a5646). */}
+      <h1>Position commitment<br />for AI&nbsp;records.</h1>
 
-      {/* Mike's line (2026-10-05), replacing the Schelling paragraph and then the six-item list
+      {/* Mike's line (2026-10-05), replacing the Schelling paragraph and then the six-item list; "Other proofs", not "Every other proof" (no absolute: Chainpoint rule, 09-21)
           ("Signatures, timestamps, append-only logs, write-once storage, notarizations, and
           blockchain hashes all come after the record...", 8d4968ff). "Arrives", never "exists":
           first existence is not claimed (an old file can take a new position). "Nobody has to
           host it" is TRACE #321's point: the proof is evidence carried with the record, not a
           fact held somewhere and looked up. */}
       <p className="lede">
-        Every other proof comes after the record. BitGraph begins before it arrives. The proof
+        Other proofs come after the record. BitGraph begins before it arrives. The proof
         travels with the record, and nobody has to host&nbsp;it.
       </p>
 
