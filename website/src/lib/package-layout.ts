@@ -19,6 +19,8 @@
  * top-level original).
  */
 
+import { baseTimeIsBound } from "@mikeargento/bitgraph-verify";
+
 export const PKG_COMMITTED_DIR = "committed";
 export const PKG_ORIGINAL_DIR = "original";
 export const PKG_CARRIER_DIR = "bitgraphed-file";
@@ -58,6 +60,19 @@ export interface ReadmeInput {
   versions: { verify: string; audit: string; sdk: string };
 }
 
+/**
+ * The Base stamp as a bound (SPEC 10.4): after a halt Base refills the missed time with blocks
+ * stamped in the past, and such a stamp is no "existed by" time for this record.
+ */
+function baseStampNote(i: ReadmeInput): string | null {
+  if (!i.ceilingInTime) return null;
+  const r = baseTimeIsBound(Date.parse(i.ceilingInTime.iso) / 1000, {
+    floorTimestampSec: i.floor?.iso ? Date.parse(i.floor.iso) / 1000 : null,
+    attestedAtMs: i.recordedIso ? Date.parse(i.recordedIso) : null,
+  });
+  return r.ok ? null : r.reason;
+}
+
 const utc = (iso: string | null) => (iso ? `${iso.replace("T", " ").replace(/\.\d+Z$/, "").replace(/Z$/, "")} UTC` : "time not in this package");
 const n = (x: number) => x.toLocaleString("en-US");
 
@@ -75,7 +90,10 @@ export function packageReadme(i: ReadmeInput): string {
   L.push(`# ${i.recordName}: how to read this package`, "");
 
   L.push("## What this package claims", "");
-  if (i.floor && i.ceilingInTime) {
+  const stampNote = baseStampNote(i);
+  if (i.floor && i.ceilingInTime && stampNote) {
+    L.push(`The exact bytes of ${committed} were finished after Ethereum block ${n(i.floor.block)} (${utc(i.floor.iso)}) and existed by Base block ${n(i.ceilingInTime.block)}. That block's own time is not a bound for this record: ${stampNote}.`, "");
+  } else if (i.floor && i.ceilingInTime) {
     L.push(`The exact bytes of ${committed} were finished after Ethereum block ${n(i.floor.block)} (${utc(i.floor.iso)}) and existed by Base block ${n(i.ceilingInTime.block)} (${utc(i.ceilingInTime.iso)}).`, "");
   } else if (i.floor) {
     L.push(`The exact bytes of ${committed} were finished after Ethereum block ${n(i.floor.block)} (${utc(i.floor.iso)}). No ceiling in time is in this package (see the base-ceiling folder).`, "");
@@ -133,8 +151,8 @@ export function packageReadme(i: ReadmeInput): string {
   const ev = (title: string, text: string) => { L.push(`${++step}. ${title}`, `   ${text}`, ""); };
   if (i.floor) ev("Floor in time", `Ethereum block ${n(i.floor.block)}, ${utc(i.floor.iso)}. The enclave fixed this block when the position opened and signed it into the proof; its hash is inside the commitment the bytes carry.`);
   if (i.recordedIso) ev("Recorded", `${utc(i.recordedIso)}, the enclave platform's signed clock.`);
-  if (i.ceilingInTime) ev("Ceiling in time", `Base block ${n(i.ceilingInTime.block)}, ${utc(i.ceilingInTime.iso)}. Transaction ${i.ceilingInTime.txHash}`);
-  if (i.ceilingInPosition) ev("Ceiling in position", `The record was committed before anchor #${Number(i.ceilingInPosition.anchorCounter).toLocaleString("en-US")}${i.ceilingInPosition.block ? `, which carries Ethereum block ${n(i.ceilingInPosition.block)} (${utc(i.ceilingInPosition.iso)})` : ""}. This is an order, not a clock time. An anchor is made after the block it carries, so that block's time can be earlier than the recorded time above. Do not read the two Ethereum blocks as a time window; the Base block is the upper bound in time.`);
+  if (i.ceilingInTime) ev("Ceiling in time", `Base block ${n(i.ceilingInTime.block)}, ${utc(i.ceilingInTime.iso)}. Transaction ${i.ceilingInTime.txHash}${stampNote ? `. Not a time bound for this record: ${stampNote}.` : ""}`);
+  if (i.ceilingInPosition) ev("Ceiling in position", `The record was committed before anchor #${Number(i.ceilingInPosition.anchorCounter).toLocaleString("en-US")}${i.ceilingInPosition.block ? `, which carries Ethereum block ${n(i.ceilingInPosition.block)} (${utc(i.ceilingInPosition.iso)})` : ""}. This is an order, not a clock time. An anchor is made after the block it carries, so that block's time can be earlier than the recorded time above. Do not read the two Ethereum blocks as a time window; ${stampNote ? "the Base block's own time is withheld here (see above), so the recorded time is the latest time stated" : "the Base block is the upper bound in time"}.`);
 
   L.push("## What is checked, and what each result rests on", "");
   L.push("These are separate results. A pass on one says nothing about the next.", "");

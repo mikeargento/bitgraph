@@ -33,7 +33,7 @@ import { TimeChip, stampTz, timeTz, sameDayTz } from "@/lib/format-time";
 import type { BitGraphProof } from "@/lib/bitgraph";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
-import { decodeNitroAttestation } from "@mikeargento/bitgraph-verify";
+import { baseTimeIsBound, decodeNitroAttestation } from "@mikeargento/bitgraph-verify";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { CopyCode } from "@/components/copy-code";
 
@@ -290,6 +290,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const sinceFloor = attested !== null && floorMs !== null ? Math.max(0, Math.floor((attested - floorMs) / 1000)) : null;
   const ct = m.ceilingTime;
   const ctMs = ct?.anchor ? ct.anchor.blockTimestamp * 1000 : null;
+  // After a halt Base refills the missed time with blocks stamped in the past (SPEC 10.4): such a
+  // stamp is no "existed by" time for this record, so the row names the block and withholds the time.
+  const ctStampOk = ctMs === null || baseTimeIsBound(ctMs / 1000, { floorTimestampSec: floorMs !== null ? floorMs / 1000 : null, attestedAtMs: attested }).ok;
   const settle = ct?.settlement?.l1;
   const posMined = m.ceilingPos?.blockTime ? new Date(m.ceilingPos.blockTime).getTime() : null;
   const blockMs = m.anchorBlock?.minedMs ?? null;
@@ -415,9 +418,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {!isAnchor && ct && ct.anchor && ctMs !== null && (
             <Moment
               label="Ceiling in time" chain="base"
-              title={<>Existed by Base block #{fmtNum(ct.anchor.blockNumber)}<span className="pv-moment-dim"> · {whenBeside(ctMs, attested)}</span></>}
+              title={<>Existed by Base block #{fmtNum(ct.anchor.blockNumber)}{ctStampOk ? <span className="pv-moment-dim"> · {whenBeside(ctMs, attested)}</span> : null}</>}
               note={<>
                 A Merkle root over this record&rsquo;s proof hash, in that block.{" "}
+                {!ctStampOk && <>Base stamped that block {whenBeside(ctMs, attested)}, before this record was recorded, as Base does when it refills time after a halt, so that time is not a bound for this record.{" "}</>}
                 {settle && typeof settle.blockNumber === "number"
                   ? <>Its batch data is on Ethereum: block #{fmtNum(settle.blockNumber)}{typeof settle.blockTimestamp === "number" ? <> ({whenBeside(settle.blockTimestamp * 1000, attested)})</> : null}.</>
                   : ct.status === "finalized" ? "Final on Ethereum, as BitGraph's Base node last reported."
