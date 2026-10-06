@@ -20,8 +20,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { createArtImage, ArtError, type ArtStage, type MadeArtImage, type OpenedPosition } from "@/lib/art-position";
 import { buildCarrierForProof } from "@/lib/carrier-site";
 import { recordedMsOf } from "@/lib/recorded-time";
-import { ART_ALGORITHM, ART_ALGORITHM_V6, artRecipe, artSize, fromBase64Url } from "@/lib/commitment-art";
-import { makePrint, PRINT_SIZE } from "@/lib/art-print";
+import { ART_ALGORITHM, artRecipe, artSize, fromBase64Url } from "@/lib/commitment-art";
 
 const { width: ART_WIDTH, height: ART_HEIGHT } = artSize(ART_ALGORITHM);
 
@@ -78,7 +77,6 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
   const [built, setBuilt] = useState<Built | null>(null);
   const [building, setBuilding] = useState(false);
   const [drawn, setDrawn] = useState(false);
-  const [printing, setPrinting] = useState(false);
   const busy = useRef(false);
   const stageRef = useRef<ArtStage | null>(null);
   const positionRef = useRef<OpenedPosition | null>(null);
@@ -122,7 +120,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     canvas.current?.getContext("2d")?.clearRect(0, 0, ART_WIDTH, ART_HEIGHT);
     buildPromise.current = null;
     positionRef.current = null;
-    setError(null); setMade(null); setBuilt(null); setPosition(null); setFailedAt(-1); setDrawn(false); setPrinting(false);
+    setError(null); setMade(null); setBuilt(null); setPosition(null); setFailedAt(-1); setDrawn(false);
     try {
       const r = await createArtImage({
         onStage: (s, p) => { stageRef.current = s; setStage(s); if (p) { positionRef.current = p; setPosition(p); } },
@@ -157,25 +155,6 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }, [made, buildDownload]);
-
-  /** The same image redrawn at four times the size, for print (lib/art-print.ts). */
-  const downloadPrint = useCallback(async () => {
-    if (!made || printing) return;
-    setPrinting(true);
-    try {
-      const counter = made.proof.commit.counter ?? 0;
-      const bytes = await makePrint({ commitment: made.position.commitment, counter: Number(counter), digestB64: made.digestB64 });
-      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/png" }));
-      const a = document.createElement("a");
-      a.href = url; a.download = `bitgraph-image-${counter}-print-${PRINT_SIZE}.png`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 30_000);
-    } catch (e) {
-      setError({ message: `The high resolution image could not be drawn: ${e instanceof Error ? e.message : String(e)}`, recorded: true });
-    } finally {
-      setPrinting(false);
-    }
-  }, [made, printing]);
 
 
 
@@ -247,11 +226,6 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
             {/* A link to the full proof, not a button that checks itself here (Mike, 10-06: "a trust
                 me bro button when you can just link to full proof"). The proof page shows every
                 field, checks against Ethereum and Base, and redraws the image on its own. */}
-            {/* For print (Mike, 10-06): the same image redrawn at 4096 x 4096 from its code. The
-                download above is the recorded file with its proof; this one is a redrawing. */}
-            {made.manifest.algorithm === ART_ALGORITHM_V6 && (
-              <button type="button" className="bg-action-link" onClick={downloadPrint} disabled={printing}>{printing ? "Drawing at 4096 px" : "Download high resolution"}</button>
-            )}
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>
             <button type="button" className="bg-action-link" onClick={create} disabled={running}>Create another image</button>
           </div>
