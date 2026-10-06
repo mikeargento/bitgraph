@@ -5,7 +5,6 @@
  * group. The font is loaded in the root layout with only these icons.
  */
 const ICON: Record<string, string> = {
-  "https://live.bitgraph.ing": "trending_up",
   "/exam": "assignment_turned_in",
   "/docs/try": "add_box",
   "/docs/overview": "schema",
