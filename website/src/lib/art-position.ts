@@ -1,0 +1,196 @@
+/**
+ * The image generator's protocol half (Mike, 2026-10-05): open a position, make the image FROM
+ * its commitment, record the image in THAT position, and read the proof back before anything
+ * is called made. Nothing here is new protocol: the open and the commit are the drop box's own
+ * (fuse-tree-make.ts, with its lost-reply recovery), the marker is the inline one the MCP task
+ * form uses (bitgraph-fuse/2, carry "base64url": the commitment is inside the bytes as text),
+ * and the checks are the published verifier's, plus the two only this image can offer:
+ * regenerate it from the commitment the proof authenticates, and read the strip.
+ *
+ * Order is the whole point, so it is enforced, not described: the commitment exists before a
+ * single pixel is drawn, the image is never made first, and a position is never swapped for
+ * another. Only the PNG's SHA-256 leaves the browser.
+ */
+import { sha256 } from "@noble/hashes/sha256";
+import {
+  bytesToBase64, bytesEqual, commitmentForProof, inlineAttribution, verifyCarrier, verifyFuse, verifyProofIntegrity,
+  type BitGraphProof, type CarrierClaim,
+} from "@mikeargento/bitgraph-verify";
+import { FuseError } from "@mikeargento/bitgraph";
+import { computeCommitmentFor } from "./fuse-commitment.ts";
+import { commitInPosition, openPosition, type TreeTransport } from "./fuse-tree-make.ts";
+import { checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
+
+/** A position is good for 120 s; the image is recorded well inside that or not at all. */
+export const POSITION_TTL_MS = 120_000;
+const COMMIT_DEADLINE_MS = 105_000;
+
+export type ArtStage = "opening" | "generating" | "recording" | "verifying" | "ready";
+
+export type ArtErrorCode = "tee-restarting" | "open-failed" | "expired" | "record-failed" | "verification-failed";
+export class ArtError extends Error {
+  readonly code: ArtErrorCode;
+  readonly recorded: boolean;
+  constructor(code: ArtErrorCode, message: string, recorded = false) {
+    super(message);
+    this.name = "ArtError";
+    this.code = code;
+    this.recorded = recorded;
+  }
+}
+
+export interface OpenedPosition {
+  /** The position's counter on bitgraph:main. */
+  slotCounter: string;
+  epochId: string;
+  /** The Ethereum block the position opened after (the floor). */
+  floorBlock: number;
+  /** The commitment, unpadded base64url: the image's only input. */
+  commitment: string;
+}
+
+export interface MadeArtImage {
+  position: OpenedPosition;
+  /** The exact bytes recorded: the PNG whose SHA-256 the proof names. */
+  png: Uint8Array;
+  digestB64: string;
+  proof: BitGraphProof;
+  recipe: ArtRecipe;
+  manifest: ArtManifest;
+  checks: ArtChecks;
+  /** True when the commit reply was lost and the proof was read back by digest. */
+  recovered: boolean;
+}
+
+export interface ArtOptions {
+  transport?: TreeTransport;
+  onStage?: (stage: ArtStage, position: OpenedPosition | null) => void;
+  /** Injectable clock for tests; the wall clock never reaches the art. */
+  now?: () => number;
+}
+
+function fail(e: unknown, recorded: boolean): ArtError {
+  if (e instanceof ArtError) return e;
+  const code = e instanceof FuseError ? e.code : null;
+  const msg = e instanceof Error ? e.message : String(e);
+  if (code === "tee-restarting") return new ArtError("tee-restarting", "BitGraph's enclave is restarting (it does every day at 23:59 UTC). Try again in a minute.");
+  if (code === "slot-unavailable") return new ArtError("expired", "The position expired before the image was recorded. Create another opens a new position and draws a new image.");
+  if (code === "allocate-failed" || (!recorded && code === "network")) return new ArtError("open-failed", `The position could not be opened: ${msg}`);
+  return new ArtError("record-failed", `The image could not be recorded: ${msg}`);
+}
+
+/**
+ * One click: open, show the commitment, draw, record, verify. Throws an ArtError; when one is
+ * thrown after the commit, `recorded` says so, because a proof exists even if it failed here.
+ */
+export async function createArtImage(opts: ArtOptions = {}): Promise<MadeArtImage> {
+  const now = opts.now ?? (() => Date.now());
+  const stage = opts.onStage ?? (() => {});
+  const transport = opts.transport ?? {};
+
+  stage("opening", null);
+  let position: Awaited<ReturnType<typeof openPosition>>;
+  try {
+    position = await openPosition(transport);
+  } catch (e) {
+    throw fail(e, false);
+  }
+  const openedAt = now();
+  const commitment = computeCommitmentFor(position.slot, position.anchor.blockHash);
+  const opened: OpenedPosition = {
+    slotCounter: String(position.slot.counter),
+    epochId: String(position.slot.epochId),
+    floorBlock: position.anchor.blockNumber,
+    commitment: toBase64Url(commitment),
+  };
+
+  stage("generating", opened);
+  const art = await makeArt(commitment);
+  const digestB64 = bytesToBase64(sha256(art.png));
+  if (now() - openedAt > COMMIT_DEADLINE_MS) {
+    throw new ArtError("expired", "The position ran out of time before the image could be recorded, so nothing was recorded. Create another opens a new position and draws a new image.");
+  }
+
+  stage("recording", opened);
+  let proof: BitGraphProof, recovered: boolean;
+  try {
+    const sent = inlineAttribution(2);
+    const r = await commitInPosition(transport, position, digestB64, sent);
+    proof = r.proof as unknown as BitGraphProof;
+    recovered = r.recovered;
+    if (proof.attribution?.name !== sent.name || proof.attribution?.title !== sent.title) {
+      throw new ArtError("verification-failed", "The proof came back without the marker that was sent.", true);
+    }
+  } catch (e) {
+    throw fail(e, false);
+  }
+
+  stage("verifying", opened);
+  const integrity = await verifyProofIntegrity({ proof });
+  if (!integrity.valid) throw new ArtError("verification-failed", `The proof does not verify: ${integrity.reason ?? "unknown reason"}`, true);
+  if (proof.artifact?.digestB64 !== digestB64) throw new ArtError("verification-failed", "The proof names a different digest from the image.", true);
+  const fuse = await verifyFuse({ proof, bytes: art.png });
+  if (fuse.category !== "CARRIED_INLINE") throw new ArtError("verification-failed", `The verifier does not find this position's commitment in the image (${fuse.category}).`, true);
+  const authenticated = commitmentForProof(proof, proof.slotAllocation!);
+  if (!bytesEqual(authenticated, commitment)) throw new ArtError("verification-failed", "The proof authenticates a different commitment from the one the image was drawn from.", true);
+  const checks = await checkArt(art.png, authenticated);
+  if (checks.regenerated.result !== "TRUE" || checks.strip.result !== "TRUE") {
+    throw new ArtError("verification-failed", `The image does not regenerate from its commitment: ${checks.regenerated.detail}`, true);
+  }
+
+  stage("ready", opened);
+  return { position: opened, png: art.png, digestB64, proof, recipe: art.recipe, manifest: art.manifest, checks, recovered };
+}
+
+/* ── Checking a downloaded image-and-proof file, on this machine ───────────────────── */
+
+export type CheckResult = "TRUE" | "FALSE" | "UNDETERMINED";
+export interface ArtVerification {
+  /** 1. The exact recorded bytes hash to the proof's digest. */
+  digest: { result: CheckResult; detail: string };
+  /** 2. The published verifier over the proof block: signature, attestation, commitment, floor, ceilings. */
+  protocol: { result: CheckResult; detail: string; claims: CarrierClaim[]; ceiling: "present" | "unfetched" | null };
+  /** 3. Regenerated from the authenticated commitment, the pixels match. */
+  regenerated: { result: CheckResult; detail: string };
+  /** 4. The strip spells that same commitment. */
+  strip: { result: CheckResult; detail: string };
+  /** The commitment the proof authenticates, base64url, when there is a proof to read. */
+  commitment: string | null;
+  digestB64: string | null;
+  /** "complete" only when every check is TRUE and the anchors are in; never otherwise. */
+  overall: "complete" | "pending" | "failed";
+}
+
+const PENDING: CheckResult = "UNDETERMINED";
+
+/** Verify a BitGraphed image (the PNG with its proof block at the end) without contacting anyone. */
+export async function verifyArtFile(bytes: Uint8Array, pcr0: readonly string[]): Promise<ArtVerification> {
+  const v = await verifyCarrier(bytes, { pins: { pcr0: [...pcr0] } });
+  const none = (detail: string) => ({ result: PENDING, detail });
+  if (v.payload === null || v.inner === null) {
+    return { digest: none(v.reading), protocol: { result: "UNDETERMINED", detail: v.reading, claims: v.claims, ceiling: null }, regenerated: none("no proof block to read the commitment from"), strip: none("no proof block to read the commitment from"), commitment: null, digestB64: null, overall: "failed" };
+  }
+  const proof = v.payload.proof as unknown as BitGraphProof;
+  const digestClaim = v.claims.find((c) => c.id === "bytes.digest");
+  const digest = { result: (digestClaim?.result ?? "UNDETERMINED") as CheckResult, detail: digestClaim?.detail ?? "the digest was not checked" };
+  const protocolClaims = v.claims.filter((c) => c.id !== "bytes.digest");
+  const protocol = { result: v.verdict as CheckResult, detail: v.reading, claims: protocolClaims, ceiling: v.ceiling };
+
+  let authenticated: Uint8Array | null = null;
+  try { if (proof.slotAllocation) authenticated = commitmentForProof(proof, proof.slotAllocation); } catch { authenticated = null; }
+  const art = authenticated === null
+    ? { regenerated: { result: "FALSE" as CheckResult, detail: "the proof carries no position record to authenticate a commitment" }, strip: { result: "FALSE" as CheckResult, detail: "no authenticated commitment to compare with" } }
+    : await checkArt(v.inner, authenticated);
+
+  const all = [digest.result, protocol.result, art.regenerated.result, art.strip.result];
+  const overall: ArtVerification["overall"] = all.includes("FALSE") ? "failed" : all.every((r) => r === "TRUE") && v.ceiling === "present" ? "complete" : "pending";
+  return {
+    digest,
+    protocol,
+    regenerated: art.regenerated,
+    strip: art.strip,
+    commitment: authenticated === null ? null : toBase64Url(authenticated),
+    digestB64: proof.artifact?.digestB64 ?? null,
+    overall,
+  };
+}

@@ -302,6 +302,33 @@ async function commit(t: Bound, body: Record<string, unknown>, digestB64: string
   return { proof, recovered };
 }
 
+/**
+ * The same open and commit, for ONE artifact made inside its position (the image generator,
+ * Mike, 2026-10-05): open first, make the bytes with the commitment in them, then commit their
+ * digest. Same transport, same lost-reply recovery, same refusal of a proof under any other
+ * position; the caller verifies what comes back before calling anything made.
+ */
+export async function openPosition(transport: TreeTransport = {}): Promise<{ slot: SlotAllocation; anchor: AnchorMark }> {
+  return allocate({ ...DEFAULTS, ...transport });
+}
+export async function commitInPosition(
+  transport: TreeTransport,
+  position: { slot: SlotAllocation; anchor: AnchorMark },
+  digestB64: string,
+  attribution: { name: string; title: string },
+): Promise<{ proof: BitGraphProof; recovered: boolean }> {
+  const { slot, anchor } = position;
+  const body: Record<string, unknown> = {
+    digests: [{ digestB64, hashAlg: "sha256" }],
+    slotId: slot.nonceB64,
+    slot,
+    chainId: FUSE_CHAIN,
+    attribution,
+    anchor,
+  };
+  return commit({ ...DEFAULTS, ...transport }, body, digestB64, slot);
+}
+
 const codeFor = (p: SitePlacement): number => leafCodeOf(p) ?? 0x03;
 
 /**
