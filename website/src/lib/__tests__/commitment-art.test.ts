@@ -208,6 +208,35 @@ test("version 4 is pinned, its file is a function of the commitment, and both im
   assert.equal(r.strip.result, "TRUE");
 });
 
+// ── Version 5: layered fields with a plate mark ────────────────────────────────────────
+test("version 5: the plate mark spells the code, for many codes, all zeros and all ones", async () => {
+  const { decodeV5 } = await import("../commitment-art-v5.ts");
+  const cs = [new Uint8Array(32), new Uint8Array(32).fill(255), C1, C2];
+  for (let k = 0; k < 6; k++) cs.push(sha256(new TextEncoder().encode(`bitgraph-art/5 readback ${k}`)));
+  for (const c of cs) assert.deepEqual(decodeV5(renderArt(artRecipe(c, "bitgraph-art/5")), 1024, 1024), c);
+});
+
+test("version 5: both moods occur, and one flipped bit changes the image", () => {
+  const moods = new Set<number>();
+  for (let k = 0; k < 24; k++) moods.add(artRecipe(sha256(new TextEncoder().encode(`mood ${k}`)), "bitgraph-art/5").v5!.loud);
+  assert.deepEqual([...moods].sort(), [0, 1]);
+  const d = C1.slice(); d[31] = d[31]! ^ 1;
+  assert.notEqual(toHex(sha256(renderArt(artRecipe(d, "bitgraph-art/5")))), toHex(sha256(renderArt(artRecipe(C1, "bitgraph-art/5")))));
+});
+
+test("version 5 is pinned, its file is a function of the code, and both image checks pass", async () => {
+  const a = await makeArt(C1, "bitgraph-art/5");
+  const b = await makeArt(C1, "bitgraph-art/5");
+  assert.equal(toHex(sha256(a.png)), toHex(sha256(b.png)));
+  assert.equal(toHex(sha256(a.pixels)), PINNED_PIXELS_V5);
+  const r = await checkArt(a.png, C1);
+  assert.equal(r.regenerated.result, "TRUE");
+  assert.equal(r.strip.result, "TRUE");
+  assert.match(r.strip.detail, /plate mark/);
+});
+
+const PINNED_PIXELS_V5 = "4f3177e5ca6bc84895ee9f0710983be35ca9022f9a625a94d861f275d3da79e2";
+
 test("version 3 is pinned, and its file is a pure function of the commitment", async () => {
   const a = await makeArt(C1, "bitgraph-art/3");
   const b = await makeArt(C1, "bitgraph-art/3");

@@ -19,7 +19,7 @@ import {
 import { FuseError } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
 import { commitInPosition, openPosition, type TreeTransport } from "./fuse-tree-make.ts";
-import { ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
+import { ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
 
 /** A position is good for 120 s; the image is recorded well inside that or not at all. */
 export const POSITION_TTL_MS = 120_000;
@@ -214,7 +214,7 @@ export async function redrawRecordedArt(proof: BitGraphProof): Promise<{ png: Ui
   if (!a || a.title !== "base64url" || a.name !== inlineAttribution(2).name || !proof.slotAllocation) return null;
   let commitment: Uint8Array;
   try { commitment = commitmentForProof(proof, proof.slotAllocation); } catch { return null; }
-  for (const algorithm of [ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
+  for (const algorithm of [ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
     const art = await makeArt(commitment, algorithm);
     if (bytesToBase64(sha256(art.png)) === proof.artifact?.digestB64) return { png: art.png, algorithm };
   }
