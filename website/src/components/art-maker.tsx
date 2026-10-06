@@ -43,7 +43,9 @@ function paint(canvas: HTMLCanvasElement, pixels: Uint8Array, width: number, hei
 }
 
 /** How long the finished stepper stays, all green, before it gives way to the image. */
-const SHOW_AFTER_MS = 700;
+/** The spinner stays at least this long (Mike, 10-06: "it goes so fast on jev questions its barely there"):
+ *  shorter reads as a flicker, not as speed. A slower run shows its result the moment it is recorded. */
+const MIN_WAIT_MS = 1000;
 
 /**
  * `children` is the page's headline. The demo, for someone who has no idea what is happening (Mike,
@@ -71,6 +73,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
   const stageRef = useRef<ArtStage | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const showTimer = useRef(0);
+  const startedAt = useRef(0);
   const buildPromise = useRef<Promise<Built | null> | null>(null);
 
   useEffect(() => () => window.clearTimeout(showTimer.current), []);
@@ -135,6 +138,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     if (busy.current) return; // one image at a time
     busy.current = true;
     window.clearTimeout(showTimer.current);
+    startedAt.current = performance.now();
     buildPromise.current = null;
     window.history.replaceState(null, "", "/image");
     setError(null); setMade(null); setShown(false); setRestored(false); setBuilt(null); setFailedAt(-1);
@@ -147,7 +151,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       // The address now opens this image again, so leaving the page loses nothing.
       window.history.replaceState(null, "", `/image?p=${urlSafe(r.digestB64)}`);
       void buildDownload(r); // ready the download and the Base block in the background
-      showTimer.current = window.setTimeout(() => setShown(true), SHOW_AFTER_MS);
+      showTimer.current = window.setTimeout(() => setShown(true), Math.max(0, MIN_WAIT_MS - (performance.now() - startedAt.current)));
     } catch (e) {
       setFailedAt(stepIndex(stageRef.current));
       setStage(null);
@@ -189,7 +193,6 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
   }, [made, printing]);
 
   const running = stage !== null && !shown && failedAt < 0;
-  const at = stepIndex(stage);
   const recordedMs = made ? recordedMsOf(made.proof) : null;
   const counter = made ? n(made.proof.commit.counter ?? 0) : "";
 
@@ -208,23 +211,13 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         </div>
       </div>
 
-      {/* While it runs, the steps are the only thing on the screen, in its middle. */}
-      {(stage !== null || failedAt >= 0) && !shown && (
-        <ol className={`art-stepper${made ? " is-finishing" : ""}`} aria-label="Progress">
-          {STEPS.map((s, i) => {
-            const state = i === failedAt ? "failed" : i < at || i < failedAt || stage === "ready" ? "done" : i === at ? "now" : "todo";
-            return (
-              <li key={s.key} className={`is-${state}`} aria-current={state === "now" ? "step" : undefined}>
-                <span className="art-dot" aria-hidden>
-                  {state === "done" ? <svg viewBox="0 0 16 16" width="14" height="14"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    : state === "failed" ? <svg viewBox="0 0 16 16" width="12" height="12"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
-                    : i + 1}
-                </span>
-                <span className="art-step-label">{s.label}</span>
-              </li>
-            );
-          })}
-        </ol>
+      {/* While it runs, the site's own spinner (Mike, 10-06: "the green checks are dumb and make it seem like
+          its taking longer ... use normal spinner we have on site"): the proof page's fresh-recording wait. */}
+      {running && (
+        <div className="art-wait" role="status" aria-label="BitGraphing">
+          <div className="bg-spinner art-spinner" />
+          <div className="art-wait-label">BitGraphing&hellip;</div>
+        </div>
       )}
       {restoring && <p className="art-restoring" role="status">Opening the image&hellip;</p>}
 
