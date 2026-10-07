@@ -278,7 +278,7 @@ test("the pipeline: as is is asked for, never decided by size; the file goes in 
 test("a boundary that returns no floor makes nothing: the tree needs fuse/2", async () => {
   mode.floor = false;
   try {
-    await assert.rejects(new BitGraph({ baseUrl }).record([lone], { again: true }), (e: Error & { code?: string }) => e.code === "floor-missing" && /no floor anchor/.test(e.message));
+    await assert.rejects(new BitGraph({ baseUrl }).record([lone], { again: true }), (e: Error & { code?: string }) => e.code === "floor-missing" && /returned no floor/.test(e.message));
   } finally {
     mode.floor = true;
   }
