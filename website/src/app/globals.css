@@ -2523,7 +2523,7 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
    seems thicker", then "mobile is thicker and could be bigger"). The kit has 400/600/700 and no
    500; 600 was the 09-30 choice and read heavy once the headline was three words at display size.
    Tracking tightens a little to hold the word shapes. */
-.home h1 { font-weight: 500 !important; letter-spacing: -0.03em !important; } /* 500 on every width since 2026-10-07 (Mike: "a bit thicker"); was 400 on desktop, 500 on phones 
+.home h1 { font-weight: 500 !important; letter-spacing: -0.03em !important; } /* 500 on every width since 2026-10-07 (Mike: "a bit thicker"); was 400 on desktop, 500 on phones */
 /* Phones: the Medium cut, added to the Typekit kit 2026-10-04 for exactly this. 400 at 96px and 500 at 56px read as one weight; 600 read heavy, 400 read thin. */
 @media (max-width: 899px) { .home h1 { font-weight: 500 !important; } }
 /* MOCK (not committed): the typing caret on the home headline. */
