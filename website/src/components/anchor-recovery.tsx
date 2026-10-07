@@ -67,7 +67,7 @@ export function AnchorRecovery() {
     setPosition(null);
     try {
       const text = await file.text();
-      let proof: { commit?: { counter?: unknown; epochId?: unknown } };
+      let proof: { commit?: { counter?: unknown; epochId?: unknown; slotFloor?: { chain?: unknown; blockNumber?: unknown } } };
       try {
         proof = JSON.parse(text) as typeof proof;
       } catch {
@@ -81,6 +81,12 @@ export function AnchorRecovery() {
         return;
       }
       setPosition(counter);
+      // Enclave v10: the floor is a Base block signed into the proof itself, and no anchor follows it.
+      const baseFloor = proof.commit?.slotFloor;
+      if (baseFloor && baseFloor.chain === "base") {
+        setProblem(`This proof's floor is ${typeof baseFloor.blockNumber === "number" ? `Base block ${baseFloor.blockNumber.toLocaleString("en-US")}` : "a Base block"}, signed into the proof itself, so no Ethereum anchors belong to it. Its page has the floor block's header and the Base ceiling.`);
+        return;
+      }
 
       const epoch = b64url(epochId);
       const sides: Side[] = ["before", "after"];

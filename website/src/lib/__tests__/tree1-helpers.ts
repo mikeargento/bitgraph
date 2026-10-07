@@ -23,8 +23,23 @@ import {
 } from "@mikeargento/bitgraph-verify";
 import { validateTreeCommit, reconcileTreeMetadata } from "../fuse-tree.ts";
 import { validateSetCommit, reconcileSetMetadata } from "../fuse-set.ts";
+import { boundFloorOf, signedFloorMatchesBound } from "../fuse-core.ts";
 
 export const SPEC_BYTES = new Uint8Array(readFileSync(new URL("../../../../spec/SPEC.md", import.meta.url)));
+/** SPEC v2 (tree/1 under bitgraph-fuse/3, a Base floor), as the site serves it. */
+export const SPEC_V2_BYTES = new Uint8Array(readFileSync(new URL("../../../public/spec/SPEC-v2.md", import.meta.url)));
+
+/** The Base floor the v10 harness enclave fixed for the fuse/3 fixtures: a real Base mainnet header (block #52,271,417). */
+const FUSE3_FIX = new URL("../../../../src/__tests__/fuse3-fixtures/", import.meta.url);
+export const BASE_FLOOR_HEADER_HEX = readFileSync(new URL("floor-base-52271417.rlp.hex", FUSE3_FIX), "utf8").trim();
+const baseBlock = JSON.parse(readFileSync(new URL("floor-base-52271417.block.json", FUSE3_FIX), "utf8")) as { hash: string; number: string; timestamp: string };
+export const BASE_FLOOR = {
+  chain: "base" as const,
+  evmChainId: 8453 as const,
+  blockNumber: Number(baseBlock.number),
+  blockHash: baseBlock.hash.toLowerCase(),
+  blockTimestamp: Number(baseBlock.timestamp),
+};
 export const utf8 = (s: string) => new TextEncoder().encode(s);
 export const b64 = (b: Uint8Array) => bytesToBase64(b);
 export const digestB64 = (b: Uint8Array) => bytesToBase64(sha256(b));
@@ -48,6 +63,10 @@ export interface StubOptions {
   noAnchor?: boolean;
   /** Answer the first commit with a 503 tee-restarting AFTER minting it (a lost reply). */
   loseFirstReply?: boolean;
+  /** Enclave v10: the allocation returns a Base floor (`floor`) and the proof signs commit.slotFloor, no anchor. */
+  baseFloor?: boolean;
+  /** With baseFloor: sign a different Base block than the one the allocation handed out (a boundary that lies). */
+  signOtherFloor?: boolean;
 }
 
 export interface Stub {
@@ -80,6 +99,7 @@ export async function makeStub(options: StubOptions = {}): Promise<Stub> {
     const slot = { ...body, signatureB64: bytesToBase64(await ed.signAsync(canonicalize(body), priv)) } as SlotAllocation;
     slots.set(slot.nonceB64, slot);
     const anchor = { counter: String(counter - 1n), blockNumber: floor.blockNumber, blockHash: floor.blockHash };
+    if (options.baseFloor) return Response.json({ slotId: slot.nonceB64, slot, chainId: "bitgraph:main", floor: BASE_FLOOR });
     return Response.json({ slotId: slot.nonceB64, slot, chainId: "bitgraph:main", ...(options.noAnchor ? {} : { anchor }) });
   }
 
@@ -90,16 +110,20 @@ export async function makeStub(options: StubOptions = {}): Promise<Stub> {
     if (consumed.has(slot.nonceB64)) return Response.json({ error: "the position is no longer available", code: "slot-unavailable" }, { status: 409 });
     const attr = body.attribution as { name: string; title: string; message?: string };
     const digest = (body.digests as Array<{ digestB64: string }>)[0]!.digestB64;
-    const anchor = body.anchor as { blockHash?: string } | undefined;
-    // The site's own route, as it runs before the boundary sees anything.
+    // The site's own route, as it runs before the boundary sees anything: the
+    // floor the marker binds (body.anchor for fuse/2, body.floor for fuse/3).
+    const named = boundFloorOf(attr.name, { anchor: body.anchor, floor: body.floor });
+    if (!named.ok) return Response.json({ error: named.error }, { status: 400 });
+    const floorBlockHash = named.bound?.mark.blockHash ?? null;
+    const floorChain = named.bound?.chain;
     let tree: { hex: string } | null = null;
     let set: Parameters<typeof reconcileSetMetadata>[1] | null = null;
     if (attr.title === "tree/1") {
-      const v = validateTreeCommit({ name: attr.name, message: attr.message, metadata: body.metadata, digestB64: digest, slot, floorBlockHash: anchor?.blockHash ?? null });
+      const v = validateTreeCommit({ name: attr.name, message: attr.message, metadata: body.metadata, digestB64: digest, slot, floorBlockHash, floorChain });
       if (!v.ok) return Response.json({ error: v.error }, { status: v.status });
       tree = v;
     } else if (attr.title === "set/1" || attr.title === "set/2" || body.metadata !== undefined) {
-      const v = await validateSetCommit({ title: attr.title, message: attr.message, metadata: body.metadata, digestB64: digest, slot, floorBlockHash: anchor?.blockHash ?? null });
+      const v = await validateSetCommit({ title: attr.title, message: attr.message, metadata: body.metadata, digestB64: digest, slot, floorBlockHash, floorChain });
       if (!v.ok) return Response.json({ error: v.error }, { status: v.status });
       set = v;
     }
@@ -110,7 +134,9 @@ export async function makeStub(options: StubOptions = {}): Promise<Stub> {
       epochId: slot.epochId,
       slotCounter: slot.counter,
       slotHashB64: bytesToBase64(computeSlotRecordHash(slot)),
-      slotAnchor: { counter: String(BigInt(slot.counter) - 1n), blockNumber: floor.blockNumber, blockHash: floor.blockHash },
+      ...(options.baseFloor
+        ? { slotFloor: options.signOtherFloor ? { ...BASE_FLOOR, blockHash: "0x" + "5a".repeat(32) } : BASE_FLOOR }
+        : { slotAnchor: { counter: String(BigInt(slot.counter) - 1n), blockNumber: floor.blockNumber, blockHash: floor.blockHash } }),
       chainId: "bitgraph:main",
     };
     const artifact = { hashAlg: "sha256" as const, digestB64: digest };
@@ -131,6 +157,9 @@ export async function makeStub(options: StubOptions = {}): Promise<Stub> {
     // The route's half after the boundary answers.
     if (tree && reconcileTreeMetadata(proof as unknown as Record<string, unknown>, tree) === "mismatch") return Response.json({ error: "The boundary returned a different root document", code: "root-mismatch" }, { status: 502 });
     if (set && reconcileSetMetadata(proof as unknown as Record<string, unknown>, set) === "mismatch") return Response.json({ error: "The boundary returned a different set manifest", code: "manifest-mismatch" }, { status: 502 });
+    if (named.bound && !signedFloorMatchesBound(proof as unknown as Record<string, unknown>, named.bound)) {
+      return Response.json({ error: "The boundary signed a different floor than the one this file bound", code: "floor-mismatch" }, { status: 502 });
+    }
     stub.minted.push(proof);
     const list = byDigest.get(digest) ?? [];
     list.push(proof);
@@ -154,6 +183,11 @@ export async function makeStub(options: StubOptions = {}): Promise<Stub> {
       if (n === floor.blockNumber && h === floor.blockHash) return Response.json({ version: "bitgraph-anchor-witness/1", headerRlpHex: floor.headerHex, blockNumber: n, blockHash: h });
       return Response.json({ error: "witness unavailable" }, { status: 404 });
     }
+    if (url.pathname === "/api/proofs/floor-header") {
+      const ok = url.searchParams.get("chain") === "base" && Number(url.searchParams.get("block")) === BASE_FLOOR.blockNumber && url.searchParams.get("hash") === BASE_FLOOR.blockHash;
+      if (ok) return Response.json({ chain: "base", blockNumber: BASE_FLOOR.blockNumber, blockHash: BASE_FLOOR.blockHash, blockTimestamp: BASE_FLOOR.blockTimestamp, header: BASE_FLOOR_HEADER_HEX });
+      return Response.json({ error: "no saved header for that Base block" }, { status: 404 });
+    }
     if (url.pathname.startsWith("/api/ceilings/settlement/")) return Response.json({ error: "not settled" }, { status: 404 });
     if (url.pathname.startsWith("/api/ceilings/")) return Response.json({ error: "no ceiling recorded" }, { status: 404 });
     if (url.pathname.startsWith("/api/proofs/")) {
@@ -162,6 +196,7 @@ export async function makeStub(options: StubOptions = {}): Promise<Stub> {
       return Response.json({ proofs: (byDigest.get(std) ?? []).map((proof) => ({ proof })) });
     }
     if (url.pathname === "/spec/SPEC.md") return new Response(SPEC_BYTES.slice());
+    if (url.pathname === "/spec/SPEC-v2.md") return new Response(SPEC_V2_BYTES.slice());
     return Response.json({ error: `no route ${url.pathname}` }, { status: 404 });
   }) as typeof fetch;
   return stub;

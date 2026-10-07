@@ -146,8 +146,9 @@ export function parseSetOf(proof: Record<string, unknown>): { kind: "set/1" | "s
  *
  * The commitment is the one the SIGNED marker names (commitmentForProof):
  * commitment/1 under "bitgraph-fuse/1", commitment/2 under "bitgraph-fuse/2",
- * which also binds the proof's own signed floor block (commit.slotAnchor).
- * A fuse/2 proof without a signed floor binds nothing.
+ * which also binds the proof's own signed floor block (commit.slotAnchor),
+ * commitment/3 under "bitgraph-fuse/3", which binds its signed Base floor
+ * (commit.slotFloor). A fuse/2 or /3 proof without its signed floor binds nothing.
  */
 export async function bindSet(proof: Record<string, unknown>, manifest?: Uint8Array | null): Promise<BoundSet | null> {
   try {
@@ -275,7 +276,7 @@ const NOT_A_MANIFEST = `metadata['${SET_KEY}'] is not a set manifest`;
  * passes it.
  */
 export async function validateSetCommit(
-  input: { title: string; message?: unknown; metadata: unknown; digestB64: string; slot: SlotAllocation; floorBlockHash?: string | null },
+  input: { title: string; message?: unknown; metadata: unknown; digestB64: string; slot: SlotAllocation; floorBlockHash?: string | null; floorChain?: "ethereum" | "base" },
   limits: { maxMetadataJson?: number } = {},
 ): Promise<SetCommitVerdict> {
   try {
@@ -306,7 +307,7 @@ export async function validateSetCommit(
       if (canonicalBytes === null) return refuse(`metadata['${SET_KEY}'] is not a set root document`);
       const doc = parseSetRoot(canonicalBytes);
       if (doc === null) return refuse(`metadata['${SET_KEY}'] is not a set root document`);
-      if (!bytesEqual(doc.commitment, computeCommitmentFor(input.slot, input.floorBlockHash))) return refuse("root document commitment is not this position's");
+      if (!bytesEqual(doc.commitment, computeCommitmentFor(input.slot, input.floorBlockHash, input.floorChain))) return refuse("root document commitment is not this position's");
       if ((await sha256B64(canonicalBytes)) !== input.digestB64) return refuse("root document does not hash to the committed digest");
       return { ok: true, canonicalBytes, manifestObject: JSON.parse(decode(canonicalBytes)) as SetManifest, members: [] };
     }
@@ -338,7 +339,7 @@ export async function validateSetCommit(
     if (canonicalBytes === null) return refuse(NOT_A_MANIFEST);
     const parsed = parseSetManifest(canonicalBytes);
     if (parsed === null) return refuse(NOT_A_MANIFEST);
-    if (!bytesEqual(parsed.commitment, computeCommitmentFor(input.slot, input.floorBlockHash))) return refuse("manifest commitment is not this position's");
+    if (!bytesEqual(parsed.commitment, computeCommitmentFor(input.slot, input.floorBlockHash, input.floorChain))) return refuse("manifest commitment is not this position's");
     if ((await sha256B64(canonicalBytes)) !== input.digestB64) return refuse("manifest does not hash to the committed digest");
     return { ok: true, canonicalBytes, manifestObject: JSON.parse(decode(canonicalBytes)) as SetManifest, members: rowsOf(parsed.members) };
   } catch {

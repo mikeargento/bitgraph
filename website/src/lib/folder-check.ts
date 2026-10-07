@@ -50,7 +50,7 @@
  * are untouched and still read every package made before then.
  */
 
-import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_LEGACY_NEW_FILE_DIR, PKG_README, PKG_KNOWN_DIRS } from "./package-layout.ts";
+import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_LEGACY_NEW_FILE_DIR, PKG_README, PKG_KNOWN_DIRS, PKG_BASE_FLOOR_DIR, FLOOR_HEADER_VERSION } from "./package-layout.ts";
 import { isFuseName } from "./fuse-core.ts";
 // Explicit .ts specifiers, so node's test runner can load this module (the
 // export/1 check below is tested there); the bundler reads them the same way.
@@ -93,6 +93,9 @@ import {
   type TreeLeaf,
   type TreeMemberEvidence,
   type TreeVerifyResult, blobSource,
+  checkFloorHeader,
+  evmHexToBytes,
+  signedFloorOf,
 } from "@mikeargento/bitgraph-verify";
 
 /* The site keeps its own looser proof type (version: string); the reader
@@ -336,6 +339,10 @@ export interface ExportCandidate {
     beforeWitness?: File;
     afterWitness?: File;
   };
+  /** base-floor/floor-header.json (bitgraph-floor-header/1), for a proof whose
+   *  floor is a Base block (enclave v10): the floor block's header, which takes
+   *  the place of ethereum-anchors/. Checked against the signed floor. */
+  baseFloorHeader?: File;
 }
 
 export interface DropScan {
@@ -415,6 +422,9 @@ export function discoverDrop(walked: WalkedFile[]): DropScan {
     } else if (rel.length === 2 && rel[0] === PKG_ORIGINAL_DIR) {
       // The original the committed file was made from: a candidate exactly as it was at the top level.
       cand.artifactCandidates.push(w.file);
+    } else if (rel.length === 2 && rel[0] === PKG_BASE_FLOOR_DIR && rel[1] === "floor-header.json") {
+      // A Base floor's header (enclave v10): read below, against the floor the proof signs.
+      cand.baseFloorHeader = w.file;
     } else if (rel.length === 2 && PKG_KNOWN_DIRS.has(rel[0]!)) {
       // The ceiling files and the BitGraphed copy: evidence that travels with the package.
     } else if (rel.length === 2 && rel[0] === "ethereum-anchors") {
@@ -732,6 +742,32 @@ const RECEIPT_PREFIX =
 const RECEIPT_CACHE_META =
   '</title><meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">';
 
+/**
+ * A Base floor header file (bitgraph-floor-header/1) against the floor the
+ * proof signs (commit.slotFloor). A file for a proof that signs no Base
+ * floor, or one that does not hash to the signed block, is a failure: the
+ * folder claims a floor the proof does not have.
+ */
+export async function baseFloorHeaderVerdict(proof: BitGraphProof, file: File): Promise<{ ok: true; timestamp: number } | { ok: false; failure: string }> {
+  const doc = await parseJsonFile(file);
+  if (doc === null || doc.version !== FLOOR_HEADER_VERSION || typeof doc.header !== "string") return { ok: false, failure: "base-floor/floor-header.json is not a floor header" };
+  let signed: ReturnType<typeof signedFloorOf>;
+  try {
+    signed = signedFloorOf(proof as unknown as VerifyProof);
+  } catch {
+    return { ok: false, failure: "the proof signs two floors" };
+  }
+  if (signed === null || signed.chain !== "base") return { ok: false, failure: "a Base floor header beside a proof that signs no Base floor" };
+  let bytes: Uint8Array;
+  try {
+    bytes = evmHexToBytes(doc.header);
+  } catch {
+    return { ok: false, failure: "base-floor/floor-header.json is not a floor header" };
+  }
+  const r = checkFloorHeader(signed, bytes, "base");
+  return r.ok ? { ok: true, timestamp: r.header.timestamp } : { ok: false, failure: "floor header differs from the signed floor" };
+}
+
 async function looksLikeReceipt(f: File): Promise<boolean> {
   const head = await f.slice(0, 400).text().catch(() => "");
   return head.startsWith(RECEIPT_PREFIX) && head.includes(RECEIPT_CACHE_META);
@@ -803,6 +839,15 @@ async function scanExportsLocal(candidates: ExportCandidate[]): Promise<Working[
     w.counter = proof.commit?.counter ?? null;
     w.epochId = proof.commit?.epochId ?? null;
     w.epochUrlSafe = w.epochId ? toUrlSafeB64(w.epochId) : null;
+    // A Base floor's header beside the proof (base-floor/): it must be the
+    // block the proof signs (hash, number, time, Base's schedule), and then
+    // its time is the row's floor time. The row's `block` stays an Ethereum
+    // block or nothing, so the causal sort never compares the two chains.
+    if (cand.baseFloorHeader) {
+      const verdict = await baseFloorHeaderVerdict(proof, cand.baseFloorHeader);
+      if (verdict.ok) { if (w.ts === null) w.ts = verdict.timestamp; }
+      else { w.ok = false; w.failure = verdict.failure; continue; }
+    }
     if (cand.artifactCandidates.length === 0 && !cand.newFile) {
       w.ok = false;
       w.failure = "no file beside proof.json";
@@ -1258,7 +1303,7 @@ function verdictOf(claims: ExportClaim[]): TreeExportRow["verdict"] {
  * file, so a drop of thousands of files is not thousands of full checks. A
  * test holds the merged claims equal to verifyExport's own, file by file.
  */
-export function memberClaimsFor(tr: TreeVerifyResult, floorBlockNumber?: number): ExportClaim[] {
+export function memberClaimsFor(tr: TreeVerifyResult, floorBlock?: number | { chain: "ethereum" | "base"; blockNumber: number } | null): ExportClaim[] {
   const out: ExportClaim[] = [];
   const add = (id: string, name: string, result: ExportClaim["result"], restsOn: string, detail: string) => out.push({ id, name, result, restsOn, detail, level: "offline" });
   const rootOk = tr.tree !== null;
@@ -1270,7 +1315,9 @@ export function memberClaimsFor(tr: TreeVerifyResult, floorBlockNumber?: number)
     `${tr.category}: ${tr.reason}`);
   if (isMember) {
     // Two floors, stated apart (SPEC 8.6), word for word as verifyExport states them.
-    const block = typeof floorBlockNumber === "number" ? `Ethereum block ${floorBlockNumber}` : "the signed floor block";
+    // The floor on its own chain: a Base block since enclave v10, an Ethereum block before (a bare number).
+    const floor = typeof floorBlock === "number" ? { chain: "ethereum" as const, blockNumber: floorBlock } : floorBlock ?? null;
+    const block = floor !== null ? `${floor.chain === "base" ? "Base" : "Ethereum"} block ${floor.blockNumber}` : "the signed floor block";
     add("floor.record", "The record was made after the floor block", "TRUE", "the signed root document, which carries the commitment to the floor block",
       `recorded after ${block}: the tree this file is a leaf of was signed after it`);
     if (tr.floorCovers === "content") {
@@ -1450,7 +1497,7 @@ export async function checkTreeExports(
           proofAlreadyVerified: proofOk,
           ...(opts.extraSpecHashes ? { extraSpecHashes: opts.extraSpecHashes } : {}),
         });
-        const claims = mergeMemberClaims(base.claims, memberClaimsFor(tr, exp.proof.commit?.slotAnchor?.blockNumber));
+        const claims = mergeMemberClaims(base.claims, memberClaimsFor(tr, (() => { try { return signedFloorOf(exp.proof); } catch { return null; } })()));
         rows.push(rowOf(`${e}:${exportFile.name}:${k}:${f.name}`, "file", f, f.name || (typeof names[k] === "string" ? names[k]! : null), claims, tr.member, evidence));
         for (const c of fs) covered.add(c);
         await tick();

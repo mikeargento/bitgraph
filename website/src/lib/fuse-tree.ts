@@ -5,7 +5,9 @@
  *
  * What the proof signs: the SHA-256 of an 84-byte ROOT DOCUMENT (domain,
  * count, root, commitment), with the marker { name: "bitgraph-fuse/2",
- * title: "tree/1", message: base64 SHA-256 of SPEC.md }. The root document
+ * title: "tree/1", message: base64 SHA-256 of SPEC.md } (SPEC v1, an
+ * Ethereum floor), or since enclave v10 { name: "bitgraph-fuse/3", ... SPEC
+ * v2's hash } (a Base floor). Each spec pins its marker. The root document
  * itself rides UNSIGNED as proof.metadata["bitgraph-tree/1"] = hex, and is
  * worth something only once it hashes to the signed digest. Nothing here
  * reads its count, root or commitment before that binding holds.
@@ -58,11 +60,13 @@ import {
   type TreeLeaf,
   type TreeMemberEvidence,
   streamLeafCheck,
+  signedFloorOf,
+  treeAttribution,
   type ByteSource,
 } from "@mikeargento/bitgraph-verify";
 import { placementForBytes } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
-import { FUSE2_ATTRIBUTION_NAME, TREE_TITLE as CORE_TREE_TITLE } from "./fuse-core.ts";
+import { FUSE2_ATTRIBUTION_NAME, FUSE3_ATTRIBUTION_NAME, TREE_TITLE as CORE_TREE_TITLE } from "./fuse-core.ts";
 
 /** The signed title of a tree/1 proof (attribution.title). Pinned; the suite checks it equals TREE_PLACEMENT_ID. */
 export const TREE_TITLE: typeof TREE_PLACEMENT_ID = CORE_TREE_TITLE as typeof TREE_PLACEMENT_ID;
@@ -72,6 +76,10 @@ export const TREE_KEY: typeof TREE_METADATA_KEY = "bitgraph-tree/1";
 export const SPEC_PATH = "/spec/SPEC.md";
 /** The name SPEC.md travels under beside an export. */
 export const SPEC_FILE_NAME = "SPEC.md";
+/** Where the site serves SPEC v2 (tree/1 under bitgraph-fuse/3, a Base floor), byte for byte. */
+export const SPEC_V2_PATH = "/spec/SPEC-v2.md";
+/** The name SPEC v2 travels under beside an export. */
+export const SPEC_V2_FILE_NAME = "SPEC-v2.md";
 
 /** The root document's hex: exactly 84 bytes, lowercase. */
 const HEX_ROOT = new RegExp(`^[0-9a-f]{${TREE_ROOT_DOCUMENT_BYTES * 2}}$`);
@@ -117,7 +125,24 @@ export function isTreeTitled(proof: { attribution?: unknown } | null | undefined
 
 /** The spec hash a tree/1 proof's signed message pins, when it is one this site knows. */
 export function isKnownSpecHash(b64: unknown): b64 is string {
-  return typeof b64 === "string" && KNOWN_TREE_SPEC_HASHES.includes(b64);
+  return typeof b64 === "string" && /^[A-Za-z0-9+/]{43}=$/.test(b64) && KNOWN_TREE_SPEC_HASHES.includes(b64);
+}
+
+/**
+ * The marker a spec this site knows requires, as the verifier pins it: SPEC v1 defines
+ * tree/1 under bitgraph-fuse/2 (an Ethereum floor), SPEC v2 under
+ * bitgraph-fuse/3 (a Base floor). Null for a spec this site does not know.
+ */
+export function markerForSpec(specHashB64: unknown): string | null {
+  if (!isKnownSpecHash(specHashB64)) return null;
+  const bytes = base64ToBytes(specHashB64);
+  if (bytes === null || bytes.length !== 32) return null;
+  return treeAttribution(bytes).name ?? null;
+}
+
+/** Where this site serves the spec a hash names, and the name it travels under; SPEC.md for v1 and any other. */
+export function specFileFor(specHashB64: string): { path: string; name: string } {
+  return markerForSpec(specHashB64) === FUSE3_ATTRIBUTION_NAME ? { path: SPEC_V2_PATH, name: SPEC_V2_FILE_NAME } : { path: SPEC_PATH, name: SPEC_FILE_NAME };
 }
 
 /* ── The commit route's half ── */
@@ -136,9 +161,11 @@ const NOT_A_ROOT = `metadata['${TREE_KEY}'] is not a tree/1 root document`;
  * commit whose title is tree/1, before the anchor gate, the ledger read and
  * the parent call, so a bad one costs nothing and spends no position. Each
  * check is a 400 with a fixed sentence, in this order:
- *   1. the name is bitgraph-fuse/2: tree/1 always binds the floor block
- *   2. the caller named the floor it bound (the allocation's anchor)
- *   3. the message is the base64 SHA-256 of a SPEC.md this site knows
+ *   1. the name is bitgraph-fuse/2 or /3: tree/1 always binds the floor block
+ *   2. the caller named the floor it bound: the allocation's anchor (fuse/2)
+ *      or its Base floor (fuse/3)
+ *   3. the message is the base64 SHA-256 of a SPEC.md this site knows, and
+ *      that spec's marker is this commit's (v1 fuse/2, v2 fuse/3)
  *   4. metadata is exactly { "bitgraph-tree/1": <168 lowercase hex> }; any
  *      other key, __proto__ and constructor included, is refused here
  *   5. the 84 bytes parse as a root document (domain, count 1 to 1,000,000)
@@ -155,11 +182,20 @@ export function validateTreeCommit(input: {
   digestB64: string;
   slot: SlotAllocation;
   floorBlockHash: string | null | undefined;
+  /** The bound floor's chain: "base" for a fuse/3 commit (body.floor), else an Ethereum anchor (body.anchor). */
+  floorChain?: "ethereum" | "base";
 }): TreeCommitVerdict {
   try {
-    if (input.name !== FUSE2_ATTRIBUTION_NAME) return refuse(`a tree/1 commit is marked "${FUSE2_ATTRIBUTION_NAME}": its commitment binds the floor block`);
-    if (typeof input.floorBlockHash !== "string" || input.floorBlockHash.length === 0) return refuse("a tree/1 commit carries body.anchor: the floor anchor /api/fuse/allocate returned with this position");
+    const fuse3 = input.name === FUSE3_ATTRIBUTION_NAME;
+    if (input.name !== FUSE2_ATTRIBUTION_NAME && !fuse3) return refuse(`a tree/1 commit is marked "${FUSE2_ATTRIBUTION_NAME}" or "${FUSE3_ATTRIBUTION_NAME}": its commitment binds the floor block`);
+    if (typeof input.floorBlockHash !== "string" || input.floorBlockHash.length === 0) {
+      return refuse(fuse3
+        ? "a bitgraph-fuse/3 tree/1 commit carries body.floor: the Base floor /api/fuse/allocate returned with this position"
+        : "a tree/1 commit carries body.anchor: the floor anchor /api/fuse/allocate returned with this position");
+    }
+    if ((input.floorChain === "base") !== fuse3) return refuse(`the floor named does not match the marker: "${FUSE3_ATTRIBUTION_NAME}" binds a Base floor (body.floor), "${FUSE2_ATTRIBUTION_NAME}" an Ethereum anchor (body.anchor)`);
     if (!isKnownSpecHash(input.message)) return refuse("attribution.message must be the base64 SHA-256 of a SPEC.md this site knows");
+    if (markerForSpec(input.message) !== input.name) return refuse(`the spec this commit names defines tree/1 under "${markerForSpec(input.message)}", not "${String(input.name)}"`);
     const metadata = input.metadata;
     if (!isPlainObject(metadata) || Object.keys(metadata).join(",") !== TREE_KEY || typeof metadata[TREE_KEY] !== "string" || !HEX_ROOT.test(metadata[TREE_KEY] as string)) {
       return refuse(`metadata must be { '${TREE_KEY}': <the 84-byte root document, lowercase hex> } and nothing else`);
@@ -169,7 +205,7 @@ export function validateTreeCommit(input: {
     if (rootDocument === null) return refuse(NOT_A_ROOT);
     const doc = parseTreeRootDocument(rootDocument);
     if (doc === null) return refuse(NOT_A_ROOT);
-    if (!bytesEqual(doc.commitment, computeCommitmentFor(input.slot, input.floorBlockHash))) return refuse("root document commitment is not this position's");
+    if (!bytesEqual(doc.commitment, computeCommitmentFor(input.slot, input.floorBlockHash, fuse3 ? "base" : "ethereum"))) return refuse("root document commitment is not this position's");
     if (bytesToBase64(sha256(rootDocument)) !== input.digestB64) return refuse("root document does not hash to the committed digest");
     return { ok: true, rootDocument, hex, count: doc.count };
   } catch {
@@ -207,8 +243,8 @@ export interface BoundTree {
 export type TreeBinding = { ok: true; tree: BoundTree } | { ok: false; reason: string };
 
 /**
- * Strict and sync: the signed marker is tree/1 under bitgraph-fuse/2 with a
- * spec this site knows, the root document (explicit bytes win over the
+ * Strict and sync: the signed marker is tree/1 under bitgraph-fuse/2 or /3
+ * with a spec this site knows that pins that marker, the root document (explicit bytes win over the
  * proof's own metadata) is 84 bytes of tree/1, hashes to the SIGNED artifact
  * digest, and carries the commitment recomputed from the proof's own slot
  * record and signed floor block. The proof's signature is not checked here:
@@ -221,8 +257,10 @@ export function bindTree(proof: unknown, rootDocument?: Uint8Array | null): Tree
     const p = asVerify(proof);
     if (!isTreeTitled(p)) return no("the proof's signed title is not tree/1");
     const a = p.attribution!;
-    if (fuseVersionOfName(a.name) !== 2) return no("a tree/1 proof must be marked bitgraph-fuse/2");
+    const version = fuseVersionOfName(a.name);
+    if (version !== 2 && version !== 3) return no("a tree/1 proof must be marked bitgraph-fuse/2 or bitgraph-fuse/3");
     if (!isKnownSpecHash(a.message)) return no(typeof a.message === "string" ? `the proof follows a spec this site does not know (${a.message})` : "the proof pins no spec");
+    if (markerForSpec(a.message) !== a.name) return no(`the spec the proof follows defines tree/1 under ${markerForSpec(a.message)}, not ${String(a.name)}`);
     const bytes = rootDocument ?? (() => {
       const md = (p as { metadata?: unknown }).metadata;
       const hex = isPlainObject(md) ? md[TREE_KEY] : undefined;
@@ -378,7 +416,8 @@ async function getJson(src: EvidenceSource, path: string): Promise<{ status: num
 
 /**
  * The three time sections of an export, read from this site's routes:
- *   floor       GET /api/proofs/witness?block=&hash=   the signed floor block's header
+ *   floor       GET /api/proofs/witness?block=&hash=   the signed floor block's header (an Ethereum floor)
+ *               GET /api/proofs/floor-header?chain=base&block=&hash=   the same for a Base floor
  *   ceiling     GET /api/ceilings/<proofHash>          the Base ceiling sidecar; 404 is pending
  *   settlement  GET /api/ceilings/settlement/<block>   output-root/1 for the ceiling's Base block; 404 is pending
  * Every route is a read. A part that is not there yet is written as pending,
@@ -390,8 +429,26 @@ async function getJson(src: EvidenceSource, path: string): Promise<{ status: num
 export async function fetchTreeEvidence(proof: BitGraphProof, src: EvidenceSource = {}): Promise<TreeEvidence> {
   const notes: string[] = [];
   let floor: TreeEvidence["floor"] = null;
-  const fa = proof.commit?.slotAnchor;
-  if (fa && typeof fa.blockNumber === "number" && typeof fa.blockHash === "string") {
+  let fa: ReturnType<typeof signedFloorOf> = null;
+  try {
+    fa = signedFloorOf(proof);
+  } catch {
+    fa = null;
+  }
+  if (fa && fa.chain === "base") {
+    // A Base floor (enclave v10): the header the parent saved when it fixed the floor.
+    try {
+      const r = await getJson(src, `/api/proofs/floor-header?chain=base&block=${fa.blockNumber}&hash=${encodeURIComponent(fa.blockHash)}`);
+      const w = r.json as { header?: unknown } | null;
+      if (r.status === 200 && typeof w?.header === "string") {
+        floor = { chain: "base", blockNumber: fa.blockNumber, blockHash: fa.blockHash, header: w.header.toLowerCase() };
+      } else {
+        notes.push(`The floor block's header could not be fetched (BitGraph answered ${r.status}), so the floor's time is not in this export. Export again to add it.`);
+      }
+    } catch (e) {
+      notes.push(`The floor block's header could not be fetched (${(e as Error).message}). Export again to add it.`);
+    }
+  } else if (fa && typeof fa.blockNumber === "number" && typeof fa.blockHash === "string") {
     try {
       const r = await getJson(src, `/api/proofs/witness?block=${fa.blockNumber}&hash=${encodeURIComponent(fa.blockHash)}`);
       const w = r.json as { headerRlpHex?: unknown; blockNumber?: unknown; blockHash?: unknown } | null;
@@ -500,20 +557,28 @@ export function rootOnlyTree(rootDocument: Uint8Array): BitGraphExport["tree"] {
 }
 
 /**
- * SPEC.md as this site serves it, accepted only when its SHA-256 is the hash
- * the proof pins: shipping any other text beside an export would hand its
- * reader the wrong rules under the right name. Null when it cannot be had.
+ * The spec a proof pins, as this site serves it, accepted only when its
+ * SHA-256 is the hash the proof pins: shipping any other text beside an
+ * export would hand its reader the wrong rules under the right name. Every
+ * published version is tried at its own path (SPEC.md for v1, an Ethereum
+ * floor; SPEC-v2.md for v2, a Base floor), the one the hash names first, and
+ * only the matching bytes are kept. Null when it cannot be had. Beside an
+ * export it still travels as SPEC.md; its hash says which version it is.
  */
 export async function fetchSpecFor(specHashB64: string, src: EvidenceSource = {}): Promise<Uint8Array | null> {
-  try {
-    const f = src.fetch ?? fetch;
-    const res = await f(`${src.baseUrl ?? ""}${SPEC_PATH}`, { cache: "no-store", signal: AbortSignal.timeout(20_000) });
-    if (!res.ok) return null;
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    return bytesToBase64(digest(bytes)) === specHashB64 ? bytes : null;
-  } catch {
-    return null;
+  const f = src.fetch ?? fetch;
+  const first = specFileFor(specHashB64).path;
+  for (const path of [first, ...[SPEC_PATH, SPEC_V2_PATH].filter((p) => p !== first)]) {
+    try {
+      const res = await f(`${src.baseUrl ?? ""}${path}`, { cache: "no-store", signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) continue;
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytesToBase64(digest(bytes)) === specHashB64) return bytes;
+    } catch {
+      /* the next path */
+    }
   }
+  return null;
 }
 
 /** A file name for a member's export: the file's own name, so the pair sits together in a folder. */

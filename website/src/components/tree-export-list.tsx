@@ -5,8 +5,8 @@
  * export covers, or per export dropped without its files.
  *
  * Each row says the verdict and then the three time claims on their own lines,
- * never merged (SPEC.md section 1): the floor (every file recorded after an
- * Ethereum block; a placed file's committed bytes finished after it; a file
+ * never merged (SPEC.md section 1): the floor (every file recorded after a
+ * Base block since enclave v10, an Ethereum block before; a placed file's committed bytes finished after it; a file
  * recorded as is not dated by it), the Base
  * ceiling (existed by a Base block, its time provisional until that block is
  * checked against Base), and the Ethereum ceiling (existed by an Ethereum
@@ -64,7 +64,8 @@ const fmtTime = (unix: number) => fmtRowWhen(unix * 1000);
 function floorLine(r: TreeExportRow): string {
   const f = r.times.floor;
   if (f === null) return "Not in this export";
-  const when = `Ethereum block ${fmtBlock(f.blockNumber)} · ${fmtTime(f.blockTimestamp)}`;
+  // The floor's own chain: a Base block since enclave v10, an Ethereum block before.
+  const when = `${(f as { chain?: string }).chain === "base" ? "Base" : "Ethereum"} block ${fmtBlock(f.blockNumber)} · ${fmtTime(f.blockTimestamp)}`;
   if (r.floorCovers === "record" || r.member?.placement === "as-is") return `Recorded after ${when}; kept as is, so the bytes themselves are not dated`;
   if (r.member) return `Recorded after ${when}, and its committed bytes were finished after that block`;
   return `The tree was committed after ${when}`;

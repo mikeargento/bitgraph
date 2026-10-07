@@ -31,21 +31,7 @@ const ICON: Record<string, string> = {
 export const MENU_ICON_NAMES = [...new Set(Object.values(ICON))].sort().join(",");
 const TINTS = ["blue", "red", "yellow", "green"] as const;
 
-/** Floors are Ethereum blocks: the Ethereum logo's facets, in one colour at the logo's own shading steps. */
-function EthMark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 1.8 5.4 12.4 12 9.4z" opacity=".55" />
-      <path d="M12 1.8 18.6 12.4 12 9.4z" opacity=".9" />
-      <path d="M5.4 12.4 12 16.3V9.4z" opacity=".3" />
-      <path d="M18.6 12.4 12 16.3V9.4z" opacity=".7" />
-      <path d="M5.4 13.7 12 22.2v-4.6z" opacity=".55" />
-      <path d="M18.6 13.7 12 22.2v-4.6z" opacity=".9" />
-    </svg>
-  );
-}
-
-/** Ceilings are Base blocks: Base's mark, the Square, in the block's one colour like the Ethereum mark. */
+/** The Base page (floors and ceilings, one item since enclave v10): Base's mark, the Square, in the block's one colour. */
 function BaseMark() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -57,7 +43,7 @@ function BaseMark() {
 export function MenuIcon({ href, index = 0 }: { href: string; index?: number }) {
   return (
     <span className={`menu-block g-${TINTS[index % TINTS.length]}`} aria-hidden="true">
-      {href === "/ledger" ? <EthMark /> : href === "/ceilings" ? <BaseMark /> : <span className="material-symbols-rounded">{ICON[href] ?? "circle"}</span>}
+      {href === "/ceilings" ? <BaseMark /> : <span className="material-symbols-rounded">{ICON[href] ?? "circle"}</span>}
     </span>
   );
 }

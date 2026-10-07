@@ -23,14 +23,12 @@
  * is the one producer of them afterwards, from the original, the proof's slot
  * record and the row's placement.
  */
-import { computeCommitmentFor } from "./fuse-commitment.ts";
-import { FUSE2_ATTRIBUTION_NAME } from "./fuse-core.ts";
 import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseSetMember as CoreSetMember, type FuseSetProgress, type FuseTransport } from "@mikeargento/bitgraph";
 import { finishState } from "./scan-hash";
 export type { FuseSetProgress } from "@mikeargento/bitgraph";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest, SetMemberProof, SetRoot } from "@mikeargento/bitgraph-verify";
 import { paintFrame, PAINT_EVERY_MS } from "./paint-frame";
-import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, getPlacement, isCarryEncoding, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
+import { SET_METADATA_KEY, base64ToBytes, buildFrame, commitmentForProof, bytesToBase64, getPlacement, isCarryEncoding, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
 import { fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
 import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
 import { makeTree, type MadeTree, type TreeInput, type TreeProgress } from "./fuse-tree-make";
@@ -160,6 +158,20 @@ export interface Rebuilt {
 }
 
 /**
+ * The commitment the proof's signed marker binds: fuse/1 none, fuse/2 the
+ * signed Ethereum anchor (commit.slotAnchor), fuse/3 the signed Base floor
+ * (commit.slotFloor), read through the verifier's signedFloorOf. Null when the
+ * marker's floor is missing or the proof signs two floors: nothing is rebuilt.
+ */
+function markerCommitment(proof: BitGraphProof, slot: NonNullable<BitGraphProof["slotAllocation"]>): Uint8Array | null {
+  try {
+    return commitmentForProof(proof, slot);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Verify a fused proof from the ORIGINAL bytes by reconstruction, and hand
  * back the rebuilt fused bytes and a Frame when the reconstruction matches
  * the signed artifact digest. Nothing here touches the network.
@@ -173,7 +185,8 @@ export async function rebuildFromOrigin(siteProof: SiteProof, original: Uint8Arr
   const slot = proof.slotAllocation;
   if (placement === undefined || slot === undefined) return none;
   const originDigest = new Uint8Array(await crypto.subtle.digest("SHA-256", original as BufferSource));
-  const commitment = computeCommitmentFor(slot, proof.attribution?.name === FUSE2_ATTRIBUTION_NAME ? (proof.commit?.slotAnchor?.blockHash ?? null) : null);
+  const commitment = markerCommitment(proof, slot);
+  if (commitment === null) return none;
   const fusedBytes = placement.build({ original, originDigest, commitment });
   const artifactDigest = base64ToBytes(proof.artifact.digestB64);
   if (artifactDigest === null) return none;
@@ -519,7 +532,8 @@ export async function rebuildSetMember(siteProof: SiteProof, original: Uint8Arra
   const id = placement.id;
   if (!isSitePlacement(id)) return none;
   const originDigest = new Uint8Array(await crypto.subtle.digest("SHA-256", original as BufferSource));
-  const commitment = computeCommitmentFor(slot, proof.attribution?.name === FUSE2_ATTRIBUTION_NAME ? (proof.commit?.slotAnchor?.blockHash ?? null) : null);
+  const commitment = markerCommitment(proof, slot);
+  if (commitment === null) return none;
   let fusedBytes: Uint8Array;
   try {
     fusedBytes = placement.build({ original, originDigest, commitment });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { storeProofByDigest, getProofByDigest } from "@/lib/s3";
 import { FOLDER_VERSION } from "@/lib/folder-version";
 import { commitsMayProceed, TEE_URL, teeRestarting503 as teeRestarting503Bare } from "@/lib/anchor-gate";
+import { isNoBaseFloorRefusal } from "@/lib/fuse-core";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,8 @@ export async function POST(req: NextRequest) {
 
     if (!teeRes.ok) {
       const err = await teeRes.json().catch(() => ({ error: teeRes.statusText }));
+      // Enclave v10 with no Base header to fix a floor from: come back in a moment.
+      if (isNoBaseFloorRefusal(err)) return teeRestarting503();
       return NextResponse.json(err, { status: teeRes.status, headers: VERSION_HEADER });
     }
 

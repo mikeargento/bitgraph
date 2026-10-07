@@ -13,7 +13,8 @@
  *                        file says about itself (Content Credentials, set members)
  *   2. Where it sits     the window: the floor in time, the recorded instant, the
  *                        ceiling in time, the ceiling in position, in that order,
- *                        each with its public link
+ *                        each with its public link (a Base floor, enclave v10: the
+ *                        first three only; no anchor follows it)
  *   3. What holds        one line per claim, computed here in the browser from the
  *                        same evidence a download carries, each saying what it rests
  *                        on; the reading is written from the results
@@ -33,7 +34,7 @@ import { TimeChip, stampTz, timeTz, sameDayTz } from "@/lib/format-time";
 import type { BitGraphProof } from "@/lib/bitgraph";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
-import { baseTimeIsBound, decodeNitroAttestation } from "@mikeargento/bitgraph-verify";
+import { baseTimeIsBound, decodeNitroAttestation, floorTimeIsBound } from "@mikeargento/bitgraph-verify";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { CopyCode } from "@/components/copy-code";
 
@@ -124,6 +125,12 @@ export interface ProofViewModel {
   anchorBlock: { number: string | null; minedMs: number | null; etherscanUrl: string | null } | null;
   anchorsBackHref: string | null;
   floor: AnchorSideView | null;
+  /**
+   * Enclave v10: the Base block the proof signs as its floor (commit.slotFloor), read from the
+   * signed proof. When set, `floor`, `ceilingPos` and `commitAfter` are null and `ethWait` false:
+   * no anchor stands on either side, and order after the record is the next BitGraph in the chain.
+   */
+  baseFloor?: { blockNumber: number; blockHash: string; blockTimestamp: number } | null;
   /** A sentence about what the floor covers, for a tree/1 record (every file recorded after it; a file kept as is not dated by it). */
   floorNote?: string | null;
   /** The anchor before the commit when it is later than the signed floor: a tighter bound on the commit by hash order. */
@@ -285,7 +292,10 @@ function whenBeside(ms: number, ref: number | null): string {
 export function ProofView({ m }: { m: ProofViewModel }) {
   const isAnchor = m.kind === "anchor";
   const attested = m.attestedMs;
-  const floorMs = m.floor?.blockTime ? new Date(m.floor.blockTime).getTime() : null;
+  const bf = !isAnchor ? m.baseFloor ?? null : null;
+  // A Base floor's time is a bound only when it is no later than the attestation document (floorTimeIsBound).
+  const bfTimeOk = bf !== null && floorTimeIsBound(bf.blockTimestamp, attested).ok;
+  const floorMs = bf ? (bfTimeOk ? bf.blockTimestamp * 1000 : null) : m.floor?.blockTime ? new Date(m.floor.blockTime).getTime() : null;
   // Whole seconds, floored, so the count agrees with the two clock readings shown beside it.
   const sinceFloor = attested !== null && floorMs !== null ? Math.max(0, Math.floor((attested - floorMs) / 1000)) : null;
   const ct = m.ceilingTime;
@@ -406,6 +416,16 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             </Moment>
           )}
 
+          {bf && (
+            <Moment
+              label="Floor in time" chain="base"
+              title={<>Recorded after Base block #{fmtNum(bf.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"> · {whenBeside(floorMs, attested)}</span> : null}</>}
+              note={<>Fixed by the enclave when the position opened and signed into the proof; a block hash cannot exist before its block.{m.floorNote ? <> {m.floorNote}</> : null}</>}
+            >
+              <Pill href={`https://basescan.org/block/${bf.blockNumber}`} external>Basescan</Pill>
+            </Moment>
+          )}
+
           {!isAnchor && attested !== null && (
             <Moment
               label="Recorded"
@@ -480,18 +500,22 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               const bad = online.some((x) => x.result === "FALSE");
               const unanswered = online.some((x) => x.result === "UNDETERMINED");
               const state = !c.confirmed || c.confirming ? "asking" : bad ? "mismatch" : unanswered ? "unreached" : "confirmed";
+              // The chains this record involves (a Base floor: Base, and Ethereum only once a settlement is
+              // asked about). An Ethereum floor always names both, as it always has.
+              const withEth = !bf || online.some((x) => x.id === "confirmed.settlement");
+              const chains = withEth ? "Ethereum and Base" : "Base";
               return (
                 <div className={`pv-confirm pv-confirm-${state}`}>
-                  {state === "asking" && <span>Checking the blocks with Ethereum and Base…</span>}
-                  {state === "confirmed" && <span><span aria-hidden>&#10003; </span><span className="pv-wide">Blocks c</span><span className="pv-narrow">C</span>onfirmed with Ethereum and&nbsp;Base</span>}
-                  {state === "mismatch" && <span>A block does not match what Ethereum or Base reports</span>}
+                  {state === "asking" && <span>Checking the blocks with {chains}…</span>}
+                  {state === "confirmed" && <span><span aria-hidden>&#10003; </span><span className="pv-wide">Blocks c</span><span className="pv-narrow">C</span>onfirmed with {withEth ? <>Ethereum and&nbsp;Base</> : "Base"}</span>}
+                  {state === "mismatch" && <span>A block does not match what {withEth ? "Ethereum or Base reports" : "Base reports"}</span>}
                   {state === "unreached" && (
                     <>
                       <span>Couldn&rsquo;t reach the public nodes just now. The offline checks still hold.</span>
                       <button type="button" className="pv-confirm-retry" onClick={m.onConfirm}>Try again</button>
                     </>
                   )}
-                  {(state === "confirmed" || state === "mismatch") && <span className="pv-confirm-src">Asked from this browser: <span className="pv-host">ethereum-rpc.publicnode.com</span> and <span className="pv-host">mainnet.base.org</span>.</span>}
+                  {(state === "confirmed" || state === "mismatch") && <span className="pv-confirm-src">Asked from this browser: {withEth ? <><span className="pv-host">ethereum-rpc.publicnode.com</span> and </> : null}<span className="pv-host">mainnet.base.org</span>.</span>}
                 </div>
               );
             })()}

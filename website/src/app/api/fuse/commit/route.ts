@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storeProofByDigest, getProofByDigest, getAnchorBeforeCounter, LedgerUnavailableError } from "@/lib/s3";
-import { TEE_URL, teeRestarting503 } from "@/lib/anchor-gate";
-import { FUSE_ATTRIBUTION_NAME, FUSE2_ATTRIBUTION_NAME, FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isAnchorMark, isDigestB64, isFuseName, isSlotRecord, retryAfterHeaders } from "@/lib/fuse";
+import { TEE_URL, enclaveFixesBaseFloor, teeRestarting503 } from "@/lib/anchor-gate";
+import { FUSE_ATTRIBUTION_NAME, FUSE2_ATTRIBUTION_NAME, FUSE3_ATTRIBUTION_NAME, FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isDigestB64, isFuseName, isSlotRecord, retryAfterHeaders } from "@/lib/fuse";
+import { boundFloorOf, isNoBaseFloorRefusal, signedFloorMatchesBound } from "@/lib/fuse-core";
 import { SET_KEY, SET_TITLE, SET2_TITLE, reconcileSetMetadata, validateSetCommit, type SetCommitOk } from "@/lib/fuse-set";
 import { TREE_KEY, TREE_TITLE, reconcileTreeMetadata, validateTreeCommit, type TreeCommitOk } from "@/lib/fuse-tree";
 
@@ -45,6 +46,13 @@ const PRINTABLE = /^[\x20-\x7e]+$/;
  * the returned proof carries the root document whether or not the boundary
  * echoed it. Its members are not indexed here: a member is shown by its own
  * export or its recovery entry, never by a key this route writes.
+ *
+ * bitgraph-fuse/3 (enclave v10, 2026-10-06) binds a Base block instead: the
+ * floor the enclave fixed at allocation and signs as commit.slotFloor. Such a
+ * commit names it as body.floor; there are no Ethereum anchors to check it
+ * against, so the anchor ledger is not read. Instead the proof the enclave
+ * returns must sign that same block, or nothing is reported as a success. A
+ * tree/1 commit under SPEC v2 is marked fuse/3, under SPEC v1 fuse/2.
  *
  * set/1 and set/2 commits stay accepted: the published SDK, CLI and MCP
  * packages (bitgraph 1.10, mcp 0.8 and earlier) make them against this route,
@@ -91,22 +99,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `body.attribution is required: { name: '${FUSE_ATTRIBUTION_NAME}', title: <placement id>, message?: <origin digest> }` }, { status: 400 });
     }
     if (!isFuseName(attr.name)) {
-      return NextResponse.json({ error: `attribution.name must be "${FUSE_ATTRIBUTION_NAME}" or "${FUSE2_ATTRIBUTION_NAME}"` }, { status: 400 });
+      return NextResponse.json({ error: `attribution.name must be "${FUSE_ATTRIBUTION_NAME}", "${FUSE2_ATTRIBUTION_NAME}" or "${FUSE3_ATTRIBUTION_NAME}"` }, { status: 400 });
     }
-    // bitgraph-fuse/2 binds the floor block into the commitment, so the caller
-    // names the floor it bound: the anchor /api/fuse/allocate returned.
-    const fuse2 = attr.name === FUSE2_ATTRIBUTION_NAME;
-    const boundFloor = fuse2 ? body.anchor : undefined;
-    if (fuse2 && !isAnchorMark(boundFloor)) {
-      return NextResponse.json({ error: "a bitgraph-fuse/2 commit carries body.anchor: the floor anchor /api/fuse/allocate returned with this position" }, { status: 400 });
-    }
+    // bitgraph-fuse/2 and /3 bind the floor block into the commitment, so the
+    // caller names the floor it bound: the anchor (fuse/2) or the Base floor
+    // (fuse/3) /api/fuse/allocate returned.
+    const named = boundFloorOf(attr.name, { anchor: body.anchor, floor: body.floor });
+    if (!named.ok) return NextResponse.json({ error: named.error }, { status: 400 });
+    const bound = named.bound;
     if (typeof attr.title !== "string" || attr.title.length === 0 || attr.title.length > MAX_TITLE || !PRINTABLE.test(attr.title)) {
       return NextResponse.json({ error: "attribution.title must be the placement id (printable ASCII, 1 to 64 characters)" }, { status: 400 });
     }
     if (attr.message !== undefined && (typeof attr.message !== "string" || attr.message.length > MAX_MESSAGE || !PRINTABLE.test(attr.message))) {
       return NextResponse.json({ error: "attribution.message, when present, must be the origin digest (printable ASCII, at most 128 characters)" }, { status: 400 });
     }
-    const attribution: Record<string, string> = { name: fuse2 ? FUSE2_ATTRIBUTION_NAME : FUSE_ATTRIBUTION_NAME, title: attr.title };
+    const attribution: Record<string, string> = { name: bound?.chain === "base" ? FUSE3_ATTRIBUTION_NAME : bound?.chain === "ethereum" ? FUSE2_ATTRIBUTION_NAME : FUSE_ATTRIBUTION_NAME, title: attr.title };
+    const floorBlockHash = bound?.mark.blockHash ?? null;
+    const floorChain = bound?.chain;
     if (typeof attr.message === "string" && attr.message.length > 0) attribution.message = attr.message;
 
     // A set's manifest is verified BEFORE the anchor gate, the pre-read and
@@ -126,50 +135,57 @@ export async function POST(req: NextRequest) {
     let verifiedTree: TreeCommitOk | null = null;
     if (isTree) {
       // Before the set check, which refuses metadata on every title but its own.
-      const v = validateTreeCommit({ name: attr.name, message: attr.message, metadata: body.metadata, digestB64, slot, floorBlockHash: isAnchorMark(boundFloor) ? boundFloor.blockHash : null });
+      const v = validateTreeCommit({ name: attr.name, message: attr.message, metadata: body.metadata, digestB64, slot, floorBlockHash, floorChain });
       if (!v.ok) return NextResponse.json({ error: v.error }, { status: v.status });
       verifiedTree = v;
     } else if (isSet || body.metadata !== undefined) {
-      const v = await validateSetCommit({ title: attr.title, message: attr.message, metadata: body.metadata, digestB64, slot, floorBlockHash: isAnchorMark(boundFloor) ? boundFloor.blockHash : null });
+      const v = await validateSetCommit({ title: attr.title, message: attr.message, metadata: body.metadata, digestB64, slot, floorBlockHash, floorChain });
       if (!v.ok) return NextResponse.json({ error: v.error }, { status: v.status });
       verifiedSet = v;
     }
 
-    // Position-aware anchor-first gate: an anchor below N in the slot's epoch.
-    let anchorBefore: Record<string, unknown> | null;
-    try {
-      anchorBefore = await getAnchorBeforeCounter(parseInt(slot.counter, 10), slot.epochId);
-    } catch (err) {
-      if (err instanceof LedgerUnavailableError) {
-        return NextResponse.json({ error: "BitGraph's copy could not be read; try again", code: "ledger-unavailable" }, { status: 503 });
+    // A Base floor (fuse/3) is checked against the proof the enclave signs,
+    // below; no Ethereum anchors exist for it. A floorless fuse/1 commit on an
+    // enclave that fixes a Base floor at every allocation (v10) has its floor
+    // already, so the anchor ledger has nothing to say about it either.
+    const anchorGate = bound?.chain === "base" ? false : bound?.chain === "ethereum" ? true : !(await enclaveFixesBaseFloor());
+    if (anchorGate) {
+      // Position-aware anchor-first gate: an anchor below N in the slot's epoch.
+      let anchorBefore: Record<string, unknown> | null;
+      try {
+        anchorBefore = await getAnchorBeforeCounter(parseInt(slot.counter, 10), slot.epochId);
+      } catch (err) {
+        if (err instanceof LedgerUnavailableError) {
+          return NextResponse.json({ error: "BitGraph's copy could not be read; try again", code: "ledger-unavailable" }, { status: 503 });
+        }
+        throw err;
       }
-      throw err;
-    }
-    if (anchorBefore === null) {
-      return NextResponse.json(
-        {
-          error: "No anchor precedes this position in its epoch, so a fused floor cannot be established for it. Reserve a new position through /api/fuse/allocate.",
-          code: "no-anchor-before-slot",
-        },
-        { status: 409 },
-      );
-    }
-
-    // fuse/2: the floor the caller bound must be the one the enclave will sign,
-    // the latest anchor below this position. The ledger can trail a just-landed
-    // anchor by a moment, so only a CONTRADICTION is refused: a floor older than
-    // the ledger's, or the same counter with a different block. A refused one
-    // costs a fresh allocation, not a proof that silently fails to verify.
-    if (isAnchorMark(boundFloor)) {
-      const ledger = (anchorBefore.commit as { counter?: unknown; anchor?: { blockHash?: unknown } } | undefined) ?? {};
-      const ledgerCounter = typeof ledger.counter === "string" ? BigInt(ledger.counter) : null;
-      const bound = BigInt(boundFloor.counter);
-      const contradicted = ledgerCounter !== null && (bound < ledgerCounter || (bound === ledgerCounter && String(ledger.anchor?.blockHash ?? "").toLowerCase() !== boundFloor.blockHash));
-      if (contradicted) {
+      if (anchorBefore === null) {
         return NextResponse.json(
-          { error: "The floor bound into this file is not the anchor before its position. Reserve a new position through /api/fuse/allocate.", code: "floor-mismatch" },
+          {
+            error: "No anchor precedes this position in its epoch, so a fused floor cannot be established for it. Reserve a new position through /api/fuse/allocate.",
+            code: "no-anchor-before-slot",
+          },
           { status: 409 },
         );
+      }
+
+      // fuse/2: the floor the caller bound must be the one the enclave will sign,
+      // the latest anchor below this position. The ledger can trail a just-landed
+      // anchor by a moment, so only a CONTRADICTION is refused: a floor older than
+      // the ledger's, or the same counter with a different block. A refused one
+      // costs a fresh allocation, not a proof that silently fails to verify.
+      if (bound?.chain === "ethereum") {
+        const ledger = (anchorBefore.commit as { counter?: unknown; anchor?: { blockHash?: unknown } } | undefined) ?? {};
+        const ledgerCounter = typeof ledger.counter === "string" ? BigInt(ledger.counter) : null;
+        const boundCounter = BigInt(bound.mark.counter);
+        const contradicted = ledgerCounter !== null && (boundCounter < ledgerCounter || (boundCounter === ledgerCounter && String(ledger.anchor?.blockHash ?? "").toLowerCase() !== bound.mark.blockHash));
+        if (contradicted) {
+          return NextResponse.json(
+            { error: "The floor bound into this file is not the anchor before its position. Reserve a new position through /api/fuse/allocate.", code: "floor-mismatch" },
+            { status: 409 },
+          );
+        }
       }
     }
 
@@ -203,6 +219,8 @@ export async function POST(req: NextRequest) {
     if ([502, 503, 504].includes(teeRes.status)) return teeRestarting503();
     if (!teeRes.ok) {
       const err = await teeRes.json().catch(() => ({ error: teeRes.statusText }));
+      // Enclave v10 with no Base header to fix a floor from: come back in a moment.
+      if (isNoBaseFloorRefusal(err)) return teeRestarting503();
       return NextResponse.json(err, { status: teeRes.status, headers: retryAfterHeaders(teeRes) });
     }
 
@@ -214,6 +232,13 @@ export async function POST(req: NextRequest) {
       // Never report success for a proof under any other slot.
       console.error("[api/fuse/commit] boundary returned a proof under a different slot");
       return NextResponse.json({ error: "The boundary did not commit under the named position", code: "slot-mismatch" }, { status: 502 });
+    }
+
+    if (bound !== null && !signedFloorMatchesBound(proof, bound)) {
+      // The file binds a floor the proof does not sign: its commitment can
+      // never verify. Nothing is indexed and nothing reads as success.
+      console.error("[api/fuse/commit] the proof signs a different floor than the one the file bound");
+      return NextResponse.json({ error: "The boundary signed a different floor than the one this file bound", code: "floor-mismatch" }, { status: 502 });
     }
 
     if (verifiedSet !== null) {

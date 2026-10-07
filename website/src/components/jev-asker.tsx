@@ -18,7 +18,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { sha256 } from "@noble/hashes/sha256";
-import { bytesToBase64, commitmentForProof, verifyProofIntegrity, type BitGraphProof } from "@mikeargento/bitgraph-verify";
+import { bytesToBase64, commitmentForProof, signedFloorOf, verifyProofIntegrity, type BitGraphProof } from "@mikeargento/bitgraph-verify";
 import { rememberMade, madeHere } from "@/lib/made-here";
 
 const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.bitgraph.ing";
@@ -59,6 +59,8 @@ function truthOf(q: Questions) {
 interface Answers { both: { p: number; yes: boolean }; first: { choice: string; confidence: number | null } }
 interface JevRecord {
   id: string; digestB64: string; counter: string; epoch: string; position: string; floorBlock: number; code: string;
+  /** The floor block's chain, when the service says: "base" since enclave v10. Else the proof check names it. */
+  floorChain?: "ethereum" | "base";
   answers: Answers | null; jevError: string | null;
   jev: { model: string; reported: string | null; requestId: string | null; ms: number | null };
   verified: string; recordedAt: string; files: string[];
@@ -85,12 +87,12 @@ const toB64Url = (b: Uint8Array) => bytesToBase64(b).replace(/\+/g, "-").replace
 /**
  * The code is checked against the proof, read from bitgraph.ing (not from the Jev service): the proof's
  * signature and attestation, then the code recomputed from the position record the enclave signed when
- * the position opened and the Ethereum block bound into it. A code that matches could not have been
+ * the position opened and the floor block bound into it (a Base block since enclave v10, Ethereum before). A code that matches could not have been
  * computed before that position opened, so neither could the questions made from it.
  */
 type CodeCheck =
   | { status: "checking" }
-  | { status: "ok"; counter: string; position: string; floorBlock: number | null }
+  | { status: "ok"; counter: string; position: string; floorBlock: number | null; floorChain: "ethereum" | "base" | null }
   | { status: "mismatch"; recomputed: string }
   | { status: "unavailable"; reason: string };
 
@@ -106,8 +108,9 @@ async function checkCode(id: string, counter: string, code: string): Promise<Cod
     if (!integrity.valid) return { status: "unavailable", reason: `the proof does not verify: ${integrity.reason ?? "unknown"}` };
     const recomputed = toB64Url(commitmentForProof(proof, proof.slotAllocation));
     if (recomputed !== code) return { status: "mismatch", recomputed };
-    const floor = (proof.commit as unknown as { slotAnchor?: { blockNumber?: number } }).slotAnchor?.blockNumber ?? null;
-    return { status: "ok", counter: String(proof.commit.counter), position: String(proof.slotAllocation.counter), floorBlock: floor };
+    let floor: ReturnType<typeof signedFloorOf> = null;
+    try { floor = signedFloorOf(proof); } catch { floor = null; }
+    return { status: "ok", counter: String(proof.commit.counter), position: String(proof.slotAllocation.counter), floorBlock: floor?.blockNumber ?? null, floorChain: floor?.chain ?? null };
   } catch (e) {
     return { status: "unavailable", reason: e instanceof Error ? e.message : String(e) };
   }
@@ -241,6 +244,9 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
   const q = code ? questionsFor(code) : null;
   const t = q ? truthOf(q) : null;
   const a = record?.answers ?? null;
+  // The floor block's own chain: the record's word, else the checked proof's; unnamed until one of them says.
+  const floorChain = record?.floorChain ?? (codeCheck?.status === "ok" ? codeCheck.floorChain : null) ?? null;
+  const floorBlockName = (num: number) => `${floorChain === "base" ? "Base block" : floorChain === "ethereum" ? "Ethereum block" : "block"} ${n(num)}`;
   const right = a && t ? { both: a.both.yes === t.both, first: a.first.choice === t.first } : null;
   const proofHref = record ? `/proof/${record.id}` : "#";
   const yesNo = (b: boolean) => (b ? "Yes" : "No");
@@ -313,7 +319,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
           <details className="art-details">
             <summary className="art-details-title">Technical details</summary>
             <ol className="art-timeline">
-              <li><span>Ethereum block {n(record.floorBlock)}</span><span>the floor</span></li>
+              <li><span>{floorBlockName(record.floorBlock).replace(/^block/, "Block")}</span><span>the floor</span></li>
               <li><span>Position {n(record.position)} opened, code issued</span><span>after the floor</span></li>
               <li><span>Two questions made from the code</span><span>{QV}</span></li>
               <li><span>Jev answered</span><span>{record.jev.ms !== null ? `in ${n(record.jev.ms)} ms` : ""}</span></li>
@@ -323,10 +329,10 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
               {/* Mike, 10-06: "how will people know the QUESTION is truly random?", "that has to be proven AFTER
                   position opens or this is dumb". */}
               <h3>How these questions were chosen</h3>
-              <p><strong>1. The code comes from the position.</strong> It is worked out from the record BitGraph&rsquo;s enclave signed when the position opened, together with the hash of an Ethereum block bound into it, so it could not be computed before the position opened. Checked here, in your browser, from the proof on bitgraph.ing:</p>
+              <p><strong>1. The code comes from the position.</strong> It is worked out from the record BitGraph&rsquo;s enclave signed when the position opened, together with the hash of {floorChain === "base" ? "a Base block" : floorChain === "ethereum" ? "an Ethereum block" : "the floor block"} bound into it, so it could not be computed before the position opened. Checked here, in your browser, from the proof on bitgraph.ing:</p>
               <p className={`jev-check is-${codeCheck?.status ?? "checking"}`}>
                 {codeCheck === null || codeCheck.status === "checking" ? "Checking the proof\u2026"
-                  : codeCheck.status === "ok" ? <>BitGraph #{n(codeCheck.counter)}: signature and attestation valid; the code recomputed from position {n(codeCheck.position)}{codeCheck.floorBlock !== null ? <> and Ethereum block {n(codeCheck.floorBlock)}</> : null} matches the code above.</>
+                  : codeCheck.status === "ok" ? <>BitGraph #{n(codeCheck.counter)}: signature and attestation valid; the code recomputed from position {n(codeCheck.position)}{codeCheck.floorBlock !== null ? <> and {codeCheck.floorChain === "base" ? "Base" : "Ethereum"} block {n(codeCheck.floorBlock)}</> : null} matches the code above.</>
                   : codeCheck.status === "mismatch" ? <>The code recomputed from the proof does not match: <code className="break">{codeCheck.recomputed}</code>.</>
                   : <>The proof could not be checked just now ({codeCheck.reason}). The full proof page checks it too.</>}
               </p>
@@ -343,7 +349,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
             <dl>
               <dt>Code</dt><dd><code className="break">{record.code}</code></dd>
               <dt>Record</dt><dd>BitGraph #{n(record.counter)}, epoch <code>{record.epoch.slice(0, 8)}</code></dd>
-              <dt>Position</dt><dd>opened at {n(record.position)}, after Ethereum block {n(record.floorBlock)}</dd>
+              <dt>Position</dt><dd>opened at {n(record.position)}, after {floorBlockName(record.floorBlock)}</dd>
               <dt>Jev</dt><dd>{record.jev.reported ?? record.jev.model}{record.jev.requestId ? <>, TypeSafe request <code className="break">{record.jev.requestId}</code></> : null}</dd>
               <dt>Recorded files</dt><dd>{record.files.join(", ")}</dd>
               <dt>Record SHA-256</dt><dd><code className="break">{record.digestB64}</code> (base64)</dd>

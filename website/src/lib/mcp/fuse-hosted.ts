@@ -83,11 +83,11 @@ import { getPlacement,
 } from "@mikeargento/bitgraph-verify";
 import { fusedNamesFor, treePlacementFor } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "../fuse-commitment.ts";
-import { FUSE_CHAIN, FUSE2_ATTRIBUTION_NAME, isSlotRecord } from "../fuse-core.ts";
+import { FUSE_CHAIN, FUSE2_ATTRIBUTION_NAME, FUSE3_ATTRIBUTION_NAME, isAnchorMark, isBaseFloorMark, isSlotRecord, type AnchorMark, type BaseFloorMark, type FloorMark } from "../fuse-core.ts";
 import { apiBaseUrl } from "./api.ts";
 import { toUrlSafeB64 } from "./encoding.ts";
 import { blockTimeFromHeader } from "../export-pages.ts";
-import { buildTreeExport, fetchTreeEvidence, memberExportName, memberTree, ownerExportName, ownerTree, SPEC_PATH } from "../fuse-tree.ts";
+import { buildTreeExport, fetchTreeEvidence, memberExportName, memberTree, ownerExportName, ownerTree, SPEC_PATH, specFileFor } from "../fuse-tree.ts";
 import type { BitGraphProof } from "./types.ts";
 
 export type HostedPlacement = "trailer/1" | "container/1" | "container/2";
@@ -234,8 +234,10 @@ export function choosePlacement(head: Uint8Array | null, originSize: number): Ho
 export interface OpenState {
   v: 1;
   slot: SlotAllocation;
-  /** The floor bound into a fuse/2 commitment; absent on a fuse/1 token. */
+  /** The floor bound into a fuse/2 commitment (an Ethereum anchor); absent on a fuse/1 or fuse/3 token. */
   anchor?: AnchorMark;
+  /** The floor bound into a fuse/3 commitment (a Base block, enclave v10); absent otherwise. */
+  floor?: BaseFloorMark;
   placement: HostedPlacement;
   /** Present when the user keeps the file as it is: the leaf is its own digest, nothing is built (needs a floor, so a tree). */
   asIs?: true;
@@ -273,6 +275,8 @@ export function decodeToken(token: string): OpenState | null {
     return null;
   }
   if (typeof s.fusedName !== "string" || typeof s.frameName !== "string") return null;
+  // A token names one floor at most: a proof has one.
+  if (isAnchorMark(s.anchor) && isBaseFloorMark(s.floor)) return null;
   return {
     v: 1,
     slot: s.slot as unknown as SlotAllocation,
@@ -281,6 +285,7 @@ export function decodeToken(token: string): OpenState | null {
     fusedName: s.fusedName,
     frameName: s.frameName,
     ...(isAnchorMark(s.anchor) ? { anchor: s.anchor } : {}),
+    ...(isBaseFloorMark(s.floor) ? { floor: s.floor } : {}),
     ...(s.set === true ? { set: true as const } : {}),
   };
 }
@@ -364,41 +369,42 @@ function memberInput(input: OpenInput): { originDigest: Uint8Array; placement: H
 }
 
 /**
- * Which commitment this server writes into new files. 2 (bitgraph-fuse/2, the
- * floor block bound in) needs the site's @mikeargento/bitgraph-verify to be
- * 1.15.0 or later, so the proof page and the drop box can read it. Until that
- * dependency lands, the boundary's floor is carried in the token and shown,
- * and the commitment stays fuse/1. Flip to 2 with the dependency bump.
+ * Which commitment this server writes into new files: one that binds the
+ * floor the boundary returned (bitgraph-fuse/3 for a Base block, enclave v10;
+ * bitgraph-fuse/2 for an Ethereum anchor, v9), or fuse/1 when it returned
+ * none. Set to 1 only to stop binding floors altogether.
  */
 const HOSTED_FUSE_VERSION: 1 | 2 = 2;
 
-/** The floor anchor an enclave v9 allocation hands back: the one it signs at commit as commit.slotAnchor. */
-interface AnchorMark { counter: string; blockNumber: number; blockHash: string }
-function isAnchorMark(x: unknown): x is AnchorMark {
-  if (x === null || typeof x !== "object" || Array.isArray(x)) return false;
-  const a = x as Record<string, unknown>;
-  return typeof a.counter === "string" && /^(0|[1-9][0-9]*)$/.test(a.counter)
-    && typeof a.blockNumber === "number" && Number.isSafeInteger(a.blockNumber) && a.blockNumber >= 0
-    && typeof a.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(a.blockHash);
+/** The floor a token carries: a Base block (fuse/3) or an Ethereum anchor (fuse/2), or null (fuse/1). */
+export function floorOfState(state: { anchor?: AnchorMark; floor?: BaseFloorMark }): FloorMark | null {
+  return state.floor ?? state.anchor ?? null;
+}
+
+/** A floor as a token or commit body field: `floor` for a Base block, `anchor` for an Ethereum anchor. */
+function floorFields(floor: FloorMark | null | undefined): { floor?: BaseFloorMark; anchor?: AnchorMark } {
+  if (!floor) return {};
+  return isBaseFloorMark(floor) ? { floor } : { anchor: floor };
 }
 
 /**
- * The signed marker with the version the token's commitment has: fuse/2 when a
- * floor was bound in, else the name as the library made it. Built here because
- * the site's published verify does not take a version yet.
+ * The signed marker with the version the token's commitment has: fuse/3 when a
+ * Base floor was bound in, fuse/2 for an Ethereum anchor, else the name as the
+ * library made it.
  */
-function markerFor<T extends { name?: string }>(attr: T, anchor: AnchorMark | null | undefined): T {
-  return anchor ? { ...attr, name: FUSE2_ATTRIBUTION_NAME } : attr;
+function markerFor<T extends { name?: string }>(attr: T, floor: FloorMark | null | undefined): T {
+  if (!floor) return attr;
+  return { ...attr, name: isBaseFloorMark(floor) ? FUSE3_ATTRIBUTION_NAME : FUSE2_ATTRIBUTION_NAME };
 }
 
 /** The commitment for a slot and the floor the boundary returned with it, under HOSTED_FUSE_VERSION. */
-function hostedCommitment(slot: SlotAllocation, anchor: AnchorMark | null | undefined): { commitment: Uint8Array; version: 1 | 2; anchor: AnchorMark | null } {
-  const bind = HOSTED_FUSE_VERSION === 2 && anchor ? anchor : null;
-  return { commitment: computeCommitmentFor(slot, bind ? bind.blockHash : null), version: bind ? 2 : 1, anchor: bind };
+function hostedCommitment(slot: SlotAllocation, floor: FloorMark | null | undefined): { commitment: Uint8Array; version: 1 | 2 | 3; floor: FloorMark | null } {
+  const bind = HOSTED_FUSE_VERSION === 2 && floor ? floor : null;
+  return { commitment: computeCommitmentFor(slot, bind), version: bind ? (isBaseFloorMark(bind) ? 3 : 2) : 1, floor: bind };
 }
 
 /** One slot from the boundary, through the site's own gate, with the floor it returned (enclave v9 and later). */
-async function allocateHosted(): Promise<{ slot: SlotAllocation; anchor: AnchorMark | null }> {
+async function allocateHosted(): Promise<{ slot: SlotAllocation; floor: FloorMark | null }> {
   const alloc = await boundaryPost("/api/fuse/allocate", {}, ALLOCATE_TIMEOUT_MS);
   if (alloc.status !== 200) {
     throw new HostedFuseError(
@@ -408,22 +414,25 @@ async function allocateHosted(): Promise<{ slot: SlotAllocation; anchor: AnchorM
       alloc.retryAfterSec
     );
   }
-  const a = alloc.json as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown } | null;
+  const a = alloc.json as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown; floor?: unknown } | null;
   if (a === null || !isSlotRecord(a.slot) || a.slotId !== a.slot.nonceB64 || a.chainId !== FUSE_CHAIN) {
     throw new HostedFuseError("allocate-failed", "the allocation response is not a position record", alloc.status);
   }
-  return { slot: a.slot as unknown as SlotAllocation, anchor: isAnchorMark(a.anchor) ? a.anchor : null };
+  const base = isBaseFloorMark(a.floor) ? a.floor : null;
+  const eth = isAnchorMark(a.anchor) ? a.anchor : null;
+  if (base !== null && eth !== null) throw new HostedFuseError("allocate-failed", "the allocation returned two floors (a Base block and an Ethereum anchor); a proof has one, so nothing was bound", alloc.status);
+  return { slot: a.slot as unknown as SlotAllocation, floor: base ?? eth };
 }
 
 /** The recipe and token for one file under a held slot. Pure once the slot is in hand. */
-function openMember(slot: SlotAllocation, commitment: Uint8Array, input: OpenInput, member: { originDigest: Uint8Array; placement: HostedPlacement; asIs?: boolean }, set: boolean, anchor: AnchorMark | null = null): Opened {
-  if (member.asIs && !anchor) throw new HostedFuseError("bad-input", `${input.name}: a file kept as is needs a tree, and a tree needs a floor; this boundary returned none`);
+function openMember(slot: SlotAllocation, commitment: Uint8Array, input: OpenInput, member: { originDigest: Uint8Array; placement: HostedPlacement; asIs?: boolean }, set: boolean, floor: FloorMark | null = null): Opened {
+  if (member.asIs && !floor) throw new HostedFuseError("bad-input", `${input.name}: a file kept as is needs a tree, and a tree needs a floor; this boundary returned none`);
   const recipe: Recipe = member.asIs ? { placement: "as-is" } : recipeFor(member.placement, member.originDigest, input.size, commitment);
   const names = member.asIs ? { fusedName: input.name, frameName: `${input.name}.bitgraph-fuse.json` } : fusedNamesFor(input.name, member.placement);
   const state: OpenState = {
     v: 1,
     slot,
-    ...(anchor ? { anchor } : {}),
+    ...floorFields(floor),
     placement: member.placement,
     ...(member.asIs ? { asIs: true as const } : {}),
     origin: { digestB64: input.digestB64, size: input.size, name: input.name },
@@ -444,9 +453,9 @@ function openMember(slot: SlotAllocation, commitment: Uint8Array, input: OpenInp
 /** Step one for a single file: a slot for it, and the recipe for the bytes that will occupy it. */
 export async function openHosted(input: OpenInput): Promise<Opened> {
   const member = memberInput(input);
-  const { slot, anchor } = await allocateHosted();
-  const c = hostedCommitment(slot, anchor);
-  return openMember(slot, c.commitment, input, member, false, c.anchor);
+  const { slot, floor } = await allocateHosted();
+  const c = hostedCommitment(slot, floor);
+  return openMember(slot, c.commitment, input, member, false, c.floor);
 }
 
 export interface OpenedSet {
@@ -467,14 +476,14 @@ export interface OpenedSet {
 export async function openHostedSet(inputs: readonly OpenInput[]): Promise<OpenedSet> {
   if (inputs.length < 2) throw new HostedFuseError("bad-input", "a set opens two or more files");
   const members = inputs.map(memberInput);
-  const { slot, anchor: returned } = await allocateHosted();
-  const { commitment, anchor } = hostedCommitment(slot, returned);
+  const { slot, floor: returned } = await allocateHosted();
+  const { commitment, floor } = hostedCommitment(slot, returned);
   return {
     slot,
     commitmentB64: bytesToBase64(commitment),
     slotCounter: slot.counter,
     epochB64: toUrlSafeB64(slot.epochId),
-    members: inputs.map((input, i) => openMember(slot, commitment, input, members[i]!, true, anchor)),
+    members: inputs.map((input, i) => openMember(slot, commitment, input, members[i]!, true, floor)),
   };
 }
 
@@ -579,8 +588,8 @@ export async function commitHosted(state: OpenState, artifactDigestB64: string):
     slotId: slot.nonceB64,
     slot,
     chainId: FUSE_CHAIN,
-    attribution: markerFor(fuseAttribution(placement, originDigest), state.anchor),
-    ...(state.anchor ? { anchor: state.anchor } : {}),
+    attribution: markerFor(fuseAttribution(placement, originDigest), floorOfState(state)),
+    ...floorFields(floorOfState(state)),
   });
   // A minted proof is checked by a reader before it is called a proof. The
   // bytes are not here, so this is the integrity half: signature, slot binding,
@@ -627,7 +636,7 @@ export interface SetManifestBuilt {
 export async function setManifestFor(entries: readonly SetEntry[]): Promise<SetManifestBuilt> {
   if (entries.length === 0) throw new HostedFuseError("bad-input", "a set commits at least one member");
   const slot = entries[0]!.state.slot;
-  const commitment = computeCommitmentFor(slot, entries[0]!.state.anchor?.blockHash ?? null);
+  const commitment = computeCommitmentFor(slot, floorOfState(entries[0]!.state));
   const members: SetMember[] = [];
   const seen = new Map<string, number>();
   for (const e of entries) {
@@ -686,15 +695,15 @@ export async function commitHostedSet(entries: readonly SetEntry[]): Promise<Com
   // fuse/2 manifest under a fuse/1 name, without the floor it bound, is one
   // the commit route recomputes as commitment/1 and refuses. That shipped
   // until 2026-10-03; an anchored token goes to commitHostedTree now anyway.
-  const anchor = entries[0]!.state.anchor;
+  const floor = floorOfState(entries[0]!.state);
   const { proof, recovered } = await commitUnderSlot(slot, built.digestB64, {
     digests: [{ digestB64: built.digestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
     chainId: FUSE_CHAIN,
-    attribution: markerFor(fuseAttribution(SET_PLACEMENT_ID), anchor),
+    attribution: markerFor(fuseAttribution(SET_PLACEMENT_ID), floor),
     metadata: { [SET_METADATA_KEY]: built.manifestObject },
-    ...(anchor ? { anchor } : {}),
+    ...floorFields(floor),
   });
   // The committed bytes ARE in hand here, so the whole verification runs, not only the integrity half.
   const verification = await verifyFuse({ proof: proof as unknown as VerifyProof, bytes: built.manifestBytes });
@@ -742,15 +751,23 @@ export interface CommittedTree {
 export async function commitHostedTree(entries: readonly SetEntry[]): Promise<CommittedTree> {
   if (entries.length === 0) throw new HostedFuseError("bad-input", "a tree commits at least one file");
   const slot = entries[0]!.state.slot;
-  const anchor = entries[0]!.state.anchor;
-  if (!anchor) throw new HostedFuseError("bad-input", "a tree binds the floor block, and this token carries none; open the files again");
-  const commitment = computeCommitmentFor(slot, anchor.blockHash);
+  const floor = floorOfState(entries[0]!.state);
+  if (!floor) throw new HostedFuseError("bad-input", "a tree binds the floor block, and this token carries none; open the files again");
+  // The spec follows the floor: SPEC v1 defines tree/1 under fuse/2 (an Ethereum anchor), SPEC v2 under fuse/3 (a Base block).
+  const fuseVersion = isBaseFloorMark(floor) ? 3 : 2;
+  let specHash: Uint8Array;
+  try {
+    specHash = currentTreeSpecHash(fuseVersion);
+  } catch (err) {
+    throw new HostedFuseError("bad-input", `no tree/1 spec to pin for bitgraph-fuse/${fuseVersion}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const commitment = computeCommitmentFor(slot, floor);
   const leaves: TreeLeaf[] = [];
   const leafKey = new Map<string, number>();
   const entryLeaf: number[] = [];
   for (const e of entries) {
     if (e.state.slot.nonceB64 !== slot.nonceB64) throw new HostedFuseError("bad-input", "every file of a tree commits under the same position");
-    if (e.state.anchor?.blockHash !== anchor.blockHash) throw new HostedFuseError("bad-input", "every file of a tree carries the same floor");
+    if (floorOfState(e.state)?.blockHash !== floor.blockHash) throw new HostedFuseError("bad-input", "every file of a tree carries the same floor");
     const artifact = base64ToBytes(e.artifactDigestB64);
     if (artifact === null || artifact.length !== 32) throw new HostedFuseError("bad-input", `${e.state.origin.name}: artifact digest must be a base64 SHA-256`);
     const origin = base64ToBytes(e.state.origin.digestB64);
@@ -781,9 +798,9 @@ export async function commitHostedTree(entries: readonly SetEntry[]): Promise<Co
     slotId: slot.nonceB64,
     slot,
     chainId: FUSE_CHAIN,
-    attribution: treeAttribution(currentTreeSpecHash()),
+    attribution: treeAttribution(specHash),
     metadata: { [TREE_METADATA_KEY]: hex },
-    anchor,
+    ...floorFields(floor),
   });
   // The root document rides unsigned: an echo must be these bytes, and a proof without one gets it attached.
   const md = proof.metadata;
@@ -827,8 +844,12 @@ export async function treeExportFor(t: CommittedTree): Promise<{ name: string; e
   return { name: t.count === 1 ? memberExportName(t.names[0] || "file") : ownerExportName(vp), export: built.exp, notes: built.notes };
 }
 
-/** Where a tree's SPEC.md is read, to keep beside its export (its SHA-256 is the proof's signed attribution.message). */
-export const specUrl = (): string => `${apiBaseUrl()}${SPEC_PATH}`;
+/**
+ * Where a tree's spec is read, to keep beside its export as SPEC.md (its SHA-256 is the proof's
+ * signed attribution.message): SPEC v1 for an Ethereum floor, SPEC v2 for a Base floor. Without a
+ * hash, SPEC v1's address.
+ */
+export const specUrl = (specHashB64?: string): string => `${apiBaseUrl()}${specHashB64 ? specFileFor(specHashB64).path : SPEC_PATH}`;
 
 export interface CommitGroups {
   /** Entries whose tokens name a slot opened for a set, grouped by slot, in first-seen order. */
@@ -878,8 +899,10 @@ export interface TaskState {
   v: 1;
   task: true;
   slot: SlotAllocation;
-  /** The floor bound into a fuse/2 commitment; absent on a fuse/1 token. */
+  /** The floor bound into a fuse/2 commitment (an Ethereum anchor); absent on a fuse/1 or fuse/3 token. */
   anchor?: AnchorMark;
+  /** The floor bound into a fuse/3 commitment (a Base block, enclave v10); absent otherwise. */
+  floor?: BaseFloorMark;
 }
 
 export function encodeTaskToken(state: TaskState): string {
@@ -896,7 +919,8 @@ export function decodeTaskToken(token: string): TaskState | null {
   if (typeof parsed !== "object" || parsed === null) return null;
   const s = parsed as Record<string, unknown>;
   if (s.v !== 1 || s.task !== true || !isSlotRecord(s.slot)) return null;
-  return { v: 1, task: true, slot: s.slot as unknown as SlotAllocation, ...(isAnchorMark(s.anchor) ? { anchor: s.anchor } : {}) };
+  if (isAnchorMark(s.anchor) && isBaseFloorMark(s.floor)) return null;
+  return { v: 1, task: true, slot: s.slot as unknown as SlotAllocation, ...(isAnchorMark(s.anchor) ? { anchor: s.anchor } : {}), ...(isBaseFloorMark(s.floor) ? { floor: s.floor } : {}) };
 }
 
 export interface Begun {
@@ -907,8 +931,13 @@ export interface Begun {
   commitmentB64: string;
   slotCounter: string;
   epochB64: string;
-  /** The last anchor before the slot, from the ledger, when it can be read now; the sealed proof carries the signed floor regardless. */
-  floor: { block: number; headerTime: number | null } | null;
+  /**
+   * The floor the position stands on: for a Base floor (enclave v10) the block the boundary
+   * returned with the position, its time read from the same header; for an Ethereum floor the
+   * last anchor before the slot, from the ledger, when it can be read now. The sealed proof
+   * carries the signed floor regardless.
+   */
+  floor: { block: number; headerTime: number | null; chain?: "ethereum" | "base" } | null;
 }
 
 /** The floor a held slot stands on, read from the ledger for the caller's benefit; best-effort, never a verdict. */
@@ -938,10 +967,10 @@ export const toBase64Url = (b64: string): string => b64.replace(/\+/g, "-").repl
 
 /** Step one of the task form: a held slot and its commitment, before any work exists. */
 export async function beginHosted(): Promise<Begun> {
-  const { slot, anchor: returned } = await allocateHosted();
-  const { commitment, anchor } = hostedCommitment(slot, returned);
+  const { slot, floor: returned } = await allocateHosted();
+  const { commitment, floor } = hostedCommitment(slot, returned);
   const commitmentB64 = bytesToBase64(commitment);
-  const state: TaskState = { v: 1, task: true, slot, ...(anchor ? { anchor } : {}) };
+  const state: TaskState = { v: 1, task: true, slot, ...floorFields(floor) };
   return {
     token: encodeTaskToken(state),
     state,
@@ -949,7 +978,9 @@ export async function beginHosted(): Promise<Begun> {
     commitmentB64,
     slotCounter: slot.counter,
     epochB64: toUrlSafeB64(slot.epochId),
-    floor: await floorForSlot(slot),
+    floor: returned !== null && isBaseFloorMark(returned)
+      ? { block: returned.blockNumber, headerTime: returned.blockTimestamp, chain: "base" }
+      : await floorForSlot(slot),
   };
 }
 
@@ -973,8 +1004,8 @@ export async function commitHostedTask(state: TaskState, artifactDigestB64: stri
     slotId: slot.nonceB64,
     slot,
     chainId: FUSE_CHAIN,
-    attribution: markerFor(inlineAttribution(), state.anchor),
-    ...(state.anchor ? { anchor: state.anchor } : {}),
+    attribution: markerFor(inlineAttribution(), floorOfState(state)),
+    ...floorFields(floorOfState(state)),
   });
   const integrity = await verifyProofIntegrity({ proof: proof as unknown as VerifyProof });
   if (!integrity.valid) throw new HostedFuseError("verification-failed", `the returned proof does not verify: ${integrity.reason ?? "unknown reason"}`);

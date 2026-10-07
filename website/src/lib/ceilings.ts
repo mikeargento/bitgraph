@@ -94,3 +94,33 @@ export async function writesForDay(day: string, opts: { includeHidden?: boolean 
   }
   return out.sort((a, b) => b.blockNumber - a.blockNumber);
 }
+
+/**
+ * A record's floor as its sidecar carries it (bitgraph-ceiling/1 `floor`): the
+ * block the record was made after. `chain` absent means Ethereum, the floor of
+ * every record made before enclave v10; a v10 floor is a Base block.
+ */
+export interface CeilingFloor { chain: "ethereum" | "base"; blockNumber: number; blockHash: string }
+
+/** One record's floor from its sidecar, or null when there is no sidecar or it names no floor. */
+export async function floorFor(proofHashB64: string): Promise<CeilingFloor | null> {
+  const text = await readSidecarText(proofHashB64);
+  if (!text) return null;
+  try {
+    const f = (JSON.parse(text) as { floor?: { chain?: string; blockNumber?: unknown; blockHash?: unknown } | null }).floor;
+    if (!f || typeof f.blockNumber !== "number" || typeof f.blockHash !== "string") return null;
+    return { chain: f.chain === "base" ? "base" : "ethereum", blockNumber: f.blockNumber, blockHash: f.blockHash };
+  } catch {
+    return null;
+  }
+}
+
+/** The floor block's explorer page: Basescan for a Base floor, Etherscan for an Ethereum one. */
+export function floorBlockUrl(f: CeilingFloor): string {
+  return f.chain === "base" ? `${BASESCAN}/block/${f.blockNumber}` : `https://etherscan.io/block/${f.blockNumber}`;
+}
+
+/** "Base block" or "Ethereum block": the chain as a word. */
+export function floorChainWord(f: CeilingFloor): string {
+  return f.chain === "base" ? "Base block" : "Ethereum block";
+}

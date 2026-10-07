@@ -213,9 +213,11 @@ async function getJson(fetcher: Fetcher, url: string, timeoutMs: number): Promis
 /**
  * The floor header for a proof, checked against the floor the proof signs:
  * for an Ethereum floor, from the site's witness route
- * (GET /api/proofs/witness?block=N&hash=0x...); for a Base floor, the Base
- * node's block at the signed height (eth_getBlockByNumber), its header rebuilt
- * from the node's JSON and kept only when it hashes to the signed block hash.
+ * (GET /api/proofs/witness?block=N&hash=0x...); for a Base floor, the site's
+ * saved copy (GET /api/proofs/floor-header?chain=base&block=N&hash=0x...)
+ * when opts.baseUrl names the site, else the Base node's block at the signed
+ * height (eth_getBlockByNumber), its header rebuilt from the node's JSON;
+ * either kept only when it hashes to the signed block hash.
  * Null when the proof signs no floor, nothing answered with a header, or the
  * header is not that block's.
  */
@@ -230,6 +232,18 @@ async function floorHeaderLookup(proof: BitGraphProof, fetcher: Fetcher, opts: E
   if (!signed) return { none: true };
   const timeoutMs = opts.timeoutMs ?? 20_000;
   if (signed.chain === "base") {
+    // The site's saved copy first, when the caller names its site (the parent
+    // saves each floor header before a proof stands on it), then a Base node
+    // by height. Either is kept only when it hashes to the signed block; a
+    // site that has no copy, or answers anything else, falls through.
+    if (opts.baseUrl !== undefined) {
+      const saved = await getJson(fetcher, `${siteOf(opts)}/api/proofs/floor-header?chain=base&block=${signed.blockNumber}&hash=${encodeURIComponent(signed.blockHash)}`, timeoutMs);
+      if (!("error" in saved) && saved.status === 200) {
+        const header = (saved.json as { header?: unknown } | null)?.header;
+        const f = typeof header === "string" ? floorFromHeader(proof, header) : null;
+        if (f !== null) return { floor: f };
+      }
+    }
     const url = opts.baseRpcUrl ?? DEFAULT_BASE_RPC;
     const r = await postJson(fetcher, url, { jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: [`0x${signed.blockNumber.toString(16)}`, false] }, timeoutMs);
     if ("error" in r) return { note: `floor header: ${r.error}` };
@@ -305,7 +319,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
  * Fill what an export is waiting for, from read-only GETs on the site:
  *   floor       GET /api/proofs/witness?block=N&hash=0x...  for an Ethereum floor; a Base floor is
- *               the Base node's block N (opts.baseRpcUrl); or the ceiling sidecar's own floor header
+ *               GET /api/proofs/floor-header?chain=base&block=N&hash=0x..., else the Base node's
+ *               block N (opts.baseRpcUrl); or the ceiling sidecar's own floor header
  *   ceiling     GET /api/ceilings/<proofHash, URL-safe>      404: still pending
  *   settlement  GET /api/ceilings/settlement/<Base block>    404: still pending
  * Each is verified here before it is embedded, and nothing already present is

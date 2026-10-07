@@ -101,7 +101,9 @@ export type BoundState =
   | "none"
   | "unknown-epoch"
   | "undetermined"
-  | "unavailable";
+  | "unavailable"
+  /** Enclave v10: the position's floor is a Base block signed into its proof, and no Ethereum anchor bounds it. Permanent. */
+  | "base-floor";
 
 /** True when asking again later can still change the answer. The asymmetry
  *  between the two sides lives here: an upper bound arrives late by design,
@@ -188,6 +190,8 @@ export interface ExportSite {
   counter: string | null;
   hasUpper: boolean;
   hasLower: boolean;
+  /** The proof's floor is a Base block (enclave v10): no Ethereum anchor bounds it on either side, so it needs none. */
+  baseFloor?: boolean;
 }
 
 export interface PositionNeed {
@@ -223,6 +227,7 @@ export function positionsNeedingAnchors(
   const byPosition = new Map<string, PositionNeed>();
   for (const s of sites) {
     if (!s.epochId || !s.counter) continue;
+    if (s.baseFloor) continue;
     const key = `${s.epochId} ${s.counter}`;
     let need = byPosition.get(key);
     if (!need) {

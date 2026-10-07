@@ -138,6 +138,11 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
                   {`${longLabel(day)} (UTC)`}
                 </p>
               )}
+              {/* Floors moved to Base with enclave v10 (Mike, 2026-10-06): this page left the
+                  menu and stays as the history of the Ethereum anchors. */}
+              <p style={{ margin: "10px 0 0", fontSize: 14, color: "var(--dim)" }}>
+                Floors moved to Base with enclave v10. Each new BitGraph&rsquo;s floor and ceiling are on the <a href="/ceilings">Base page</a>. This page is the history of the Ethereum anchors.
+              </p>
               {/* How to read the rows. The title is rendered by the Explorer,
                   so the one place between it and the rows is this slot. */}
               <p className="lede" style={{ margin: "10px 0 0" }}>

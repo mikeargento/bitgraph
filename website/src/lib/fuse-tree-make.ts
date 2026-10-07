@@ -66,7 +66,7 @@ import {
 } from "@mikeargento/bitgraph-verify";
 import { finishState, hashBlob } from "./scan-hash.ts";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
-import { FUSE_CHAIN, isAnchorMark, isSlotRecord, type AnchorMark } from "./fuse-core.ts";
+import { FUSE_CHAIN, isAnchorMark, isBaseFloorMark, isSlotRecord, type FloorMark } from "./fuse-core.ts";
 import type { SitePlacement } from "./fuse-placement.ts";
 import { TREE_KEY } from "./fuse-tree.ts";
 
@@ -225,20 +225,34 @@ const messageOf = (json: unknown, fallback: string): string =>
 const codeOf = (json: unknown): string | null =>
   json !== null && typeof json === "object" && typeof (json as { code?: unknown }).code === "string" ? (json as { code: string }).code : null;
 
-/** 1. position: the signed record and the floor the enclave will sign at commit. */
-async function allocate(t: Bound): Promise<{ slot: SlotAllocation; anchor: AnchorMark }> {
+/** 1. position: the signed record and the floor the enclave will sign at commit (v10 a Base block, v9 an Ethereum anchor). */
+async function allocate(t: Bound): Promise<{ slot: SlotAllocation; floor: FloorMark }> {
   const r = await request(t, "/api/fuse/allocate", { method: "POST", body: {} });
   if (r.status === 503 && codeOf(r.json) === "tee-restarting") throw new FuseError("tee-restarting", messageOf(r.json, "the boundary is restarting"), 503);
   if (r.status !== 200) throw new FuseError("allocate-failed", messageOf(r.json, `allocation failed (${r.status})`), r.status);
-  const j = r.json as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown } | null;
+  const j = r.json as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown; floor?: unknown } | null;
   if (j === null || !isSlotRecord(j.slot) || j.slotId !== j.slot.nonceB64 || j.chainId !== FUSE_CHAIN) {
     throw new FuseError("allocate-failed", "the allocation response is not a position record on bitgraph:main", r.status);
   }
-  if (!isAnchorMark(j.anchor)) {
+  const base = isBaseFloorMark(j.floor) ? j.floor : null;
+  const eth = isAnchorMark(j.anchor) ? j.anchor : null;
+  if (base !== null && eth !== null) {
+    throw new FuseError("allocate-failed", `the boundary returned two floors with the position (a Base block and an Ethereum anchor); a proof has one, so ${EXPIRING}`, r.status);
+  }
+  const floor = base ?? eth;
+  if (floor === null) {
     throw new FuseError("allocate-failed", `the boundary returned no floor block with the position; tree/1 binds the floor block, so ${EXPIRING}`, r.status);
   }
-  return { slot: j.slot as unknown as SlotAllocation, anchor: j.anchor };
+  return { slot: j.slot as unknown as SlotAllocation, floor };
 }
+
+/** The commit body's floor field: a Base floor goes as `floor` (bitgraph-fuse/3), an Ethereum anchor as `anchor` (bitgraph-fuse/2). */
+export function floorField(floor: FloorMark): { floor: FloorMark } | { anchor: FloorMark } {
+  return isBaseFloorMark(floor) ? { floor } : { anchor: floor };
+}
+
+/** The bitgraph-fuse version a floor makes: 3 for a Base block, 2 for an Ethereum anchor. */
+export const fuseVersionOfFloor = (floor: FloorMark): 2 | 3 => (isBaseFloorMark(floor) ? 3 : 2);
 
 /**
  * Read back by digest after a lost or refused reply: the ONE proof whose
@@ -308,23 +322,23 @@ async function commit(t: Bound, body: Record<string, unknown>, digestB64: string
  * digest. Same transport, same lost-reply recovery, same refusal of a proof under any other
  * position; the caller verifies what comes back before calling anything made.
  */
-export async function openPosition(transport: TreeTransport = {}): Promise<{ slot: SlotAllocation; anchor: AnchorMark }> {
+export async function openPosition(transport: TreeTransport = {}): Promise<{ slot: SlotAllocation; floor: FloorMark }> {
   return allocate({ ...DEFAULTS, ...transport });
 }
 export async function commitInPosition(
   transport: TreeTransport,
-  position: { slot: SlotAllocation; anchor: AnchorMark },
+  position: { slot: SlotAllocation; floor: FloorMark },
   digestB64: string,
   attribution: { name: string; title: string },
 ): Promise<{ proof: BitGraphProof; recovered: boolean }> {
-  const { slot, anchor } = position;
+  const { slot, floor } = position;
   const body: Record<string, unknown> = {
     digests: [{ digestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
     chainId: FUSE_CHAIN,
     attribution,
-    anchor,
+    ...floorField(floor),
   };
   return commit({ ...DEFAULTS, ...transport }, body, digestB64, slot);
 }
@@ -397,10 +411,20 @@ export async function makeTree(inputs: readonly TreeInput[], opts: MakeTreeOptio
   const t: Bound = { ...DEFAULTS, ...(opts.transport ?? {}) };
 
   // 1. position
-  const { slot, anchor } = await allocate(t);
+  const { slot, floor } = await allocate(t);
+  // The spec follows the floor: SPEC v1 defines tree/1 under fuse/2 (an
+  // Ethereum anchor), SPEC v2 under fuse/3 (a Base block). Pinned before the
+  // leaves, so a missing spec costs no work.
+  const fuseVersion = fuseVersionOfFloor(floor);
+  let specHash: Uint8Array;
+  try {
+    specHash = currentTreeSpecHash(fuseVersion);
+  } catch (err) {
+    throw new FuseError("bad-input", `no tree/1 spec to pin for bitgraph-fuse/${fuseVersion} (${err instanceof Error ? err.message : String(err)}); ${EXPIRING}`);
+  }
 
-  // 2. leaves, under commitment/2. The position's window is running from here.
-  const commitment = computeCommitmentFor(slot, anchor.blockHash);
+  // 2. leaves, under commitment/2 or /3. The position's window is running from here.
+  const commitment = computeCommitmentFor(slot, floor);
   const leaves: TreeLeaf[] = [];
   const placements: Array<"as-is" | SitePlacement> = [];
   for (let k = 0; k < distinct.length; k++) {
@@ -444,7 +468,7 @@ export async function makeTree(inputs: readonly TreeInput[], opts: MakeTreeOptio
   report("tree", 1, 1);
 
   // 4. commit
-  const attribution = treeAttribution(currentTreeSpecHash());
+  const attribution = treeAttribution(specHash);
   const body: Record<string, unknown> = {
     digests: [{ digestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
@@ -452,8 +476,9 @@ export async function makeTree(inputs: readonly TreeInput[], opts: MakeTreeOptio
     chainId: FUSE_CHAIN,
     attribution,
     metadata: { [TREE_METADATA_KEY]: hex },
-    // The floor the commitment bound; the route checks it against its ledger before the position is spent.
-    anchor,
+    // The floor the commitment bound: the route checks an Ethereum anchor against its ledger before the
+    // position is spent, and a Base floor against the floor the proof signs.
+    ...floorField(floor),
   };
   if (opts.agency !== undefined) body.agency = opts.agency;
   report("commit", 0, 1);

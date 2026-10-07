@@ -24,9 +24,18 @@ export const FUSE_ATTRIBUTION_NAME = "bitgraph-fuse/1";
  */
 export const FUSE2_ATTRIBUTION_NAME = "bitgraph-fuse/2";
 
-/** True for either fused marker name. Never compare against one version's string. */
+/**
+ * bitgraph-fuse/3 (2026-10-06, enclave v10): the commitment binds a Base
+ * block, the floor the enclave fixes at allocation and signs as
+ * commit.slotFloor. Same placements, same payloads as /2; only the domain and
+ * the floor's chain differ. Must equal FUSE3_ATTRIBUTION_NAME in
+ * @mikeargento/bitgraph-verify 1.17.0.
+ */
+export const FUSE3_ATTRIBUTION_NAME = "bitgraph-fuse/3";
+
+/** True for any fused marker name. Never compare against one version's string. */
 export function isFuseName(name: unknown): boolean {
-  return name === FUSE_ATTRIBUTION_NAME || name === FUSE2_ATTRIBUTION_NAME;
+  return name === FUSE_ATTRIBUTION_NAME || name === FUSE2_ATTRIBUTION_NAME || name === FUSE3_ATTRIBUTION_NAME;
 }
 
 /** The floor anchor an enclave v9 allocation hands back, exactly as it will sign it at commit. */
@@ -44,6 +53,28 @@ export function isAnchorMark(x: unknown): x is AnchorMark {
     && typeof a.blockNumber === "number" && Number.isSafeInteger(a.blockNumber) && a.blockNumber >= 0
     && typeof a.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(a.blockHash);
 }
+
+/** The Base floor an enclave v10 allocation hands back, exactly as it will sign it at commit (commit.slotFloor). */
+export interface BaseFloorMark {
+  chain: "base";
+  evmChainId: 8453;
+  blockNumber: number;
+  blockHash: string;
+  blockTimestamp: number;
+}
+
+/** Structural check only: the commit's signed slotFloor is what makes it the floor. */
+export function isBaseFloorMark(x: unknown): x is BaseFloorMark {
+  if (x === null || typeof x !== "object" || Array.isArray(x)) return false;
+  const a = x as Record<string, unknown>;
+  return a.chain === "base" && a.evmChainId === 8453
+    && typeof a.blockNumber === "number" && Number.isSafeInteger(a.blockNumber) && a.blockNumber > 0
+    && typeof a.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(a.blockHash)
+    && typeof a.blockTimestamp === "number" && Number.isSafeInteger(a.blockTimestamp);
+}
+
+/** Either floor an allocation can return: a Base block (v10, fuse/3) or an Ethereum anchor (v9, fuse/2). */
+export type FloorMark = AnchorMark | BaseFloorMark;
 
 export interface SlotRecord {
   version: "bitgraph/slot/1";
@@ -131,4 +162,72 @@ export function secondsUntilRotation(now: Date = new Date(), rotationUtc: string
 /** True inside the pre-rotation blackout: a slot allocated now would expire in the restart. */
 export function rotationGuardActive(now: Date = new Date(), guardSeconds: number = ROTATION_GUARD_SECONDS, rotationUtc: string = ROTATION_UTC): boolean {
   return secondsUntilRotation(now, rotationUtc) < guardSeconds;
+}
+
+/* ── The floor a fused commit binds (fuse/2: an Ethereum anchor, fuse/3: a Base block) ── */
+
+/** What a commit body names as the floor it bound, by its marker. */
+export type BoundFloor =
+  | { chain: "ethereum"; mark: AnchorMark }
+  | { chain: "base"; mark: BaseFloorMark };
+
+/**
+ * The floor a fused commit names: body.anchor for bitgraph-fuse/2 (the
+ * Ethereum anchor a v9 allocation returned), body.floor for bitgraph-fuse/3
+ * (the Base block a v10 allocation returned), nothing for bitgraph-fuse/1.
+ * An error sentence when the marker's floor is missing or malformed.
+ */
+export function boundFloorOf(name: unknown, body: { anchor?: unknown; floor?: unknown }): { ok: true; bound: BoundFloor | null } | { ok: false; error: string } {
+  if (name === FUSE3_ATTRIBUTION_NAME) {
+    if (!isBaseFloorMark(body.floor)) return { ok: false, error: "a bitgraph-fuse/3 commit carries body.floor: the Base floor /api/fuse/allocate returned with this position" };
+    return { ok: true, bound: { chain: "base", mark: body.floor } };
+  }
+  if (name === FUSE2_ATTRIBUTION_NAME) {
+    if (!isAnchorMark(body.anchor)) return { ok: false, error: "a bitgraph-fuse/2 commit carries body.anchor: the floor anchor /api/fuse/allocate returned with this position" };
+    return { ok: true, bound: { chain: "ethereum", mark: body.anchor } };
+  }
+  return { ok: true, bound: null };
+}
+
+/**
+ * After the enclave returns the proof: the floor it SIGNED must be the one the
+ * file bound, or the file's commitment binds a block the proof does not, and
+ * the file never verifies. fuse/3: commit.slotFloor, a Base block, with no
+ * Ethereum anchor beside it; fuse/2: commit.slotAnchor, with no Base floor.
+ * A proof signing both floors is ambiguous and never matches.
+ */
+export function signedFloorMatchesBound(proof: Record<string, unknown> | undefined, bound: BoundFloor): boolean {
+  const commit = (proof?.commit ?? null) as { slotAnchor?: { blockHash?: unknown } | null; slotFloor?: { chain?: unknown; blockHash?: unknown } | null } | null;
+  if (commit === null || typeof commit !== "object") return false;
+  const anchor = commit.slotAnchor ?? null;
+  const floor = commit.slotFloor ?? null;
+  if (anchor !== null && floor !== null) return false;
+  if (bound.chain === "base") {
+    return floor !== null && floor.chain === "base" && typeof floor.blockHash === "string" && floor.blockHash.toLowerCase() === bound.mark.blockHash;
+  }
+  return anchor !== null && typeof anchor.blockHash === "string" && anchor.blockHash.toLowerCase() === bound.mark.blockHash;
+}
+
+/**
+ * Enclave v10 refuses an allocation on the anchored chain that comes without
+ * a Base header ("no-base-floor: ..."), which happens while the parent's Base
+ * feed has no fresh head. It arrives through the parent as an error body; the
+ * site answers it like a restart, with the retryable 503 "tee-restarting".
+ */
+export function isNoBaseFloorRefusal(body: unknown): boolean {
+  const e = (body as { error?: unknown } | null)?.error;
+  return typeof e === "string" && /\bno-base-floor\b/.test(e);
+}
+
+/**
+ * The Base floor a proof signs (commit.slotFloor, enclave v10), or null: an
+ * Ethereum floor (commit.slotAnchor), no floor, or a proof that signs both,
+ * which is ambiguous and is read as neither. Structural only; the signature
+ * over it is what makes it the proof's floor.
+ */
+export function baseFloorOf(proof: unknown): { blockNumber: number; blockHash: string; blockTimestamp: number } | null {
+  const c = (proof as { commit?: { slotFloor?: { chain?: unknown; blockNumber?: unknown; blockHash?: unknown; blockTimestamp?: unknown } | null; slotAnchor?: unknown } } | null)?.commit;
+  const f = c?.slotFloor;
+  if (!f || c?.slotAnchor || f.chain !== "base" || typeof f.blockNumber !== "number" || typeof f.blockHash !== "string" || typeof f.blockTimestamp !== "number") return null;
+  return { blockNumber: f.blockNumber, blockHash: f.blockHash, blockTimestamp: f.blockTimestamp };
 }

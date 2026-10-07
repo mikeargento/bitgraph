@@ -27,30 +27,32 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { redrawRecordedArt } from "@/lib/art-position";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpackSetMember, checkInline, isInlineProof, makeTreeHere, treeInputOf } from "@/lib/fuse-client";
-import { SPEC_FILE_NAME, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, rootOnlyTree, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource, type BoundTree } from "@/lib/fuse-tree";
-import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence } from "@/lib/carrier-site";
+import { SPEC_FILE_NAME, specFileFor, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, rootOnlyTree, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource, type BoundTree } from "@/lib/fuse-tree";
+import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence, fetchBaseFloorHeader } from "@/lib/carrier-site";
 import { verifyCarrierPayload, type CarrierClaim, type CarrierLookups, blobSource, } from "@mikeargento/bitgraph-verify";
 import { ProofView, type ProofViewModel, type FieldView, type PositionRowView, type SetRowView, type DownloadView } from "./proof-view";
 import { PUBLISHED_PCR0S, PUBLISHED_ENCLAVE_MEASUREMENTS } from "@/lib/enclave-measurements";
-import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_CARRIER_DIR, PKG_README, packageReadme } from "@/lib/package-layout";
-import { ENCODING_BASE64URL, TREE_MEMBER_CATEGORIES, bytesToBase64, bytesToHex, computeProofHash, verifyTreeMember, type BitGraphProof as VerifyProof, type TreeMemberEvidence } from "@mikeargento/bitgraph-verify";
-import { computeCommitmentFor } from "@/lib/fuse-commitment";
-import { FUSE2_ATTRIBUTION_NAME, isFuseName } from "@/lib/fuse-core";
+import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_CARRIER_DIR, PKG_README, PKG_BASE_FLOOR_FILE, floorHeaderFile, packageReadme } from "@/lib/package-layout";
+import { ENCODING_BASE64URL, TREE_MEMBER_CATEGORIES, bytesToBase64, bytesToHex, commitmentForProof, computeProofHash, verifyTreeMember, type BitGraphProof as VerifyProof, type TreeMemberEvidence } from "@mikeargento/bitgraph-verify";
+import { baseFloorOf, isFuseName } from "@/lib/fuse-core";
 
 /** Carry encodings this page knows; anything else in the title is a placement. */
 const ENCODING_IDS: string[] = [ENCODING_BASE64URL];
 
 /** The commitment from a proof’s own slot record, base64url, for the row that lets a reader search the file.
- *  A bitgraph-fuse/2 marker means the commitment also binds the proof's signed floor block. */
+ *  A bitgraph-fuse/2 marker means the commitment also binds the proof's signed floor block (an Ethereum
+ *  anchor), bitgraph-fuse/3 its signed Base floor: the verifier's commitmentForProof picks by the marker. */
 function slotCommitmentOf(proof: unknown): string | null {
-  const p = proof as { slotAllocation?: unknown; attribution?: { name?: unknown }; commit?: { slotAnchor?: { blockHash?: unknown } } } | null;
+  const p = proof as { slotAllocation?: unknown } | null;
   const slot = p?.slotAllocation;
   if (!slot) return null;
   try {
-    const floor = p?.attribution?.name === FUSE2_ATTRIBUTION_NAME ? (p?.commit?.slotAnchor?.blockHash as string | undefined) ?? null : null;
-    return bytesToBase64(computeCommitmentFor(slot as never, floor)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return bytesToBase64(commitmentForProof(p as VerifyProof, slot as never)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   } catch { return null; }
 }
+
+/** The Base floor a proof signs (commit.slotFloor, enclave v10), or null: see baseFloorOf. */
+const baseFloorOfProof = baseFloorOf;
 import { SET_KEY, bindSet, bindSetMember, dropDigestsFor, isSetProof, memberEvidenceOf, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
 import { toUrlSafeB64, fromUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
@@ -294,7 +296,8 @@ export default function ProofPage() {
   const evidenceRef = useRef<{ payload: Parameters<typeof verifyCarrierPayload>[0]; forCounter: string | null; ceilings: string } | null>(null);
   const checksBytesRef = useRef<Uint8Array | null>(null);
   const runChecks = async (lookups?: CarrierLookups) => {
-    if (!proof || !proof.commit?.slotAnchor) { setChecks((c) => ({ ...c, state: "failed", note: proof && !proof.commit?.slotAnchor ? "This proof was recorded before enclave v7 and carries no signed floor, so its window cannot be checked here; the signature and attestation can be checked from the package." : null })); return; }
+    const signsFloor = !!proof?.commit?.slotAnchor || baseFloorOfProof(proof) !== null;
+    if (!proof || !signsFloor) { setChecks((c) => ({ ...c, state: "failed", note: proof && !signsFloor ? "This proof was recorded before enclave v7 and carries no signed floor, so its window cannot be checked here; the signature and attestation can be checked from the package." : null })); return; }
     setChecks((c) => ({ ...c, state: c.state === "done" ? "done" : "running", confirming: lookups !== undefined }));
     try {
       const key = `${baseCeiling?.anchor?.txHash ?? "-"}|${causalWindow?.anchorAfter?.counter ?? "-"}`;
@@ -314,6 +317,8 @@ export default function ProofPage() {
         return { counter: ac.counter, blockNumber: witness.blockNumber, blockHash: witness.blockHash, timestamp: ts, digestB64: digest, recordedMs: typeof rep === "string" ? attestationTimestampMs(rep) : null };
       };
       const p = ev.payload as { floor: { anchor: Record<string, unknown>; witness: { blockNumber: number; blockHash: string } }; ceiling: { status: string; anchor?: Record<string, unknown>; witness?: { blockNumber: number; blockHash: string } } };
+      // A Base floor (carrier/3) has no anchors on either side: the page reads its floor from the signed proof.
+      if ((ev.payload.floor as { basis?: unknown }).basis === "base-header") { setEvidenceSides({ floor: null, ceiling: null }); return; }
       setEvidenceSides({
         floor: sideOf(p.floor.anchor, p.floor.witness, r.bounds?.notBefore.timestamp ?? null),
         ceiling: p.ceiling.status === "present" ? sideOf(p.ceiling.anchor, p.ceiling.witness, r.bounds?.notAfter?.timestamp ?? null) : null,
@@ -642,7 +647,8 @@ export default function ProofPage() {
   const [ethWait, setEthWait] = useState(false);
   useEffect(() => {
     const attrName = (proof?.attribution as { name?: string } | undefined)?.name || "";
-    const needUpper = !!proof && !attrName.startsWith("Ethereum") && attrName !== "Interval" &&
+    // A Base floor (enclave v10) has no anchor after it to wait for: order after the record is the hash chain.
+    const needUpper = !!proof && !attrName.startsWith("Ethereum") && attrName !== "Interval" && baseFloorOfProof(proof) === null &&
       !!causalWindow?.anchorBefore?.blockTime && !causalWindow?.anchorAfter?.blockTime;
     if (!needUpper) { setEthWait(false); return; }
     let cancelled = false;
@@ -1264,6 +1270,9 @@ export default function ProofPage() {
     } else {
       leadStack = committedLine ?? winLine(<>{conn("after ")}{val(timeTz(new Date(lowerTime)))}</>);
     }
+  } else if (!isEth && baseFloorOfProof(proof) !== null) {
+    // A Base floor: the attested instant leads; the floor block's own time stands in only when it cannot be read.
+    leadStack = committedLine ?? winLine(<>{conn("after ")}{val(timeTz(new Date(baseFloorOfProof(proof)!.blockTimestamp * 1000)))}</>);
   }
 
   // The recording's "when": date (bold, left) + time window (right). Shown
@@ -1334,7 +1343,7 @@ export default function ProofPage() {
       const spec = await fetchSpecFor(treeBound.specHashB64);
       const notes = [...built.notes];
       if (spec) files[SPEC_FILE_NAME] = spec;
-      else notes.push("SPEC.md could not be fetched, so it is not beside the export. It is at bitgraph.ing/spec/SPEC.md; its SHA-256 is the one the proof pins.");
+      else notes.push(`SPEC.md could not be fetched, so it is not beside the export. It is at bitgraph.ing${specFileFor(treeBound.specHashB64).path}; its SHA-256 is the one the proof pins.`);
       if (!treeMember) notes.push(treeBound.count === 1
         ? "This export carries the proof and its times, not the file: drop the file in the box above first, and the export carries it too."
         : `This export carries the proof and its times, not a file's place among the ${treeBound.count.toLocaleString()} files: that comes with each file's own export.`);
@@ -1446,7 +1455,25 @@ export default function ProofPage() {
     // anchor interval (~12s) of public Ethereum time. Both are required to read
     // the window: the after-anchor alone gives only an upper bound, the same
     // one-sided "existed by now" a plain blockchain timestamp gives.
-    try {
+    // A Base floor (enclave v10) has no anchors: its floor is the Base block the
+    // proof signs, and the package carries that block's header in base-floor/
+    // (bitgraph-floor-header/1, as bitgraph-audit writes it), checked against
+    // the signed floor before it is written. No anchor after it exists.
+    const zipBaseFloor = baseFloorOfProof(proof);
+    if (zipBaseFloor !== null) {
+      try {
+        const header = await fetchBaseFloorHeader(proof as never);
+        files[PKG_BASE_FLOOR_FILE] = strToU8(JSON.stringify(floorHeaderFile(zipBaseFloor, header), null, 2));
+      } catch (e) {
+        files["base-floor/floor-status.json"] = strToU8(JSON.stringify({
+          version: "bitgraph-floor-status/1",
+          status: "unavailable",
+          blockNumber: zipBaseFloor.blockNumber,
+          blockHash: zipBaseFloor.blockHash,
+          note: `The floor block's header was not fetched (${(e as Error).message}). The proof still signs the floor block; its header is at https://bitgraph.ing/api/proofs/floor-header?chain=base&block=${zipBaseFloor.blockNumber}&hash=${zipBaseFloor.blockHash}, or any Base node. Build the package again.`,
+        }, null, 2));
+      }
+    } else try {
       const counter = commit.counter;
       const enc = encodeURIComponent(commit.epochId || "");
       const [afterResp, beforeResp] = await Promise.all([
@@ -1613,7 +1640,7 @@ export default function ProofPage() {
     const committedPath = Object.keys(files).find((k) => k.startsWith(`${PKG_COMMITTED_DIR}/`)) ?? null;
     const originalPath = Object.keys(files).find((k) => k.startsWith(`${PKG_ORIGINAL_DIR}/`)) ?? null;
     let carrierPath: string | null = null;
-    if (committedPath && proof && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor) {
+    if (committedPath && proof && !isSet && ((commit as { slotAnchor?: unknown }).slotAnchor || zipBaseFloor !== null)) {
       try {
         const built = await buildCarrierForProof(files[committedPath]!, proof, committedPath.slice(PKG_COMMITTED_DIR.length + 1), { waitForCeilingMs: 0 });
         carrierPath = `${PKG_CARRIER_DIR}/${built.fileName}`;
@@ -1624,7 +1651,7 @@ export default function ProofPage() {
     try {
       const hex = async (b: Uint8Array | undefined) => b ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", b as unknown as BufferSource))).map((x) => x.toString(16).padStart(2, "0")).join("") : null;
       const iso = (sec: number | null | undefined) => (typeof sec === "number" && sec > 0 ? new Date(sec * 1000).toISOString() : null);
-      const sa = (commit as { slotAnchor?: { blockNumber?: number; blockHash?: string } }).slotAnchor;
+      const sa = zipBaseFloor !== null ? undefined : (commit as { slotAnchor?: { blockNumber?: number; blockHash?: string } }).slotAnchor;
       let floorIso: string | null = sa?.blockNumber !== undefined && sides.before.block === sa.blockNumber ? iso(sides.before.ts ?? null) : null;
       if (sa?.blockNumber !== undefined && sa.blockHash && floorIso === null) {
         try {
@@ -1645,7 +1672,9 @@ export default function ProofPage() {
         committedSha256Hex: committedPath ? await hex(files[committedPath]) : null,
         originalSha256Hex: originalPath ? await hex(files[originalPath]) : null,
         recordedIso: attestedMs !== null ? new Date(attestedMs).toISOString() : null,
-        floor: sa?.blockNumber !== undefined ? { block: sa.blockNumber, iso: floorIso } : null,
+        floor: zipBaseFloor !== null
+          ? { block: zipBaseFloor.blockNumber, iso: iso(zipBaseFloor.blockTimestamp), chain: "base" }
+          : sa?.blockNumber !== undefined ? { block: sa.blockNumber, iso: floorIso } : null,
         ceilingInTime: ca && typeof ca.blockNumber === "number" && typeof ca.blockTimestamp === "number" && ca.txHash
           ? { block: ca.blockNumber, iso: new Date(ca.blockTimestamp * 1000).toISOString(), txHash: ca.txHash, reportedStatus: String(ceilingDoc?.status ?? "included") } : null,
         settlement: st && typeof st.blockNumber === "number" && typeof st.blockTimestamp === "number" && st.txHash
@@ -1655,6 +1684,7 @@ export default function ProofPage() {
         pcr0, enclaveTag: tagNote ? `enclave-v${tagNote[1]}` : null,
         writer: "0xf3972408D853c975F86351C311f4310220bbF2a3",
         hasAnchorsBefore: !!files["ethereum-anchors/anchor-before.json"], hasAnchorsAfter: !!files["ethereum-anchors/anchor-after.json"],
+        ...(zipBaseFloor !== null ? { hasBaseFloorHeader: !!files[PKG_BASE_FLOOR_FILE] } : {}),
         versions: { verify: "1.15.2", audit: "0.8.0", sdk: "0.3.0" },
       }));
     } catch (e) { console.warn("[bitgraph] README left out of the package:", e); }
@@ -1706,7 +1736,7 @@ export default function ProofPage() {
       const el = document.createElement("a"); el.href = url; el.download = built.fileName; el.click();
       URL.revokeObjectURL(url);
       // Success is silent (the download is the feedback); only a missing side speaks.
-      setCarrierMsg(built.ceiling === "present"
+      setCarrierMsg(built.ceiling === "present" || built.ceiling === "none"
         ? null
         : `Floor inside; the closing anchor is not, yet: ${built.ceilingNote ?? "none has landed."} Drop the file back here later and it completes.`);
     } catch (e) {
@@ -1813,11 +1843,13 @@ export default function ProofPage() {
           // floor block" for a 29 s floor on #9,855 (Mike, 2026-10-06). The floor waits instead.
           const signedFloor = (commit as { slotAnchor?: { counter?: string | number } } | null | undefined)?.slotAnchor;
           const windowFloor = side(causalWindow?.anchorBefore ?? null, anchorRecordedMs.before);
-          const floorView = fromEvidence(evidenceSides.floor) ?? (windowFloor && (!signedFloor || String(windowFloor.counter) === String(signedFloor.counter)) ? windowFloor : null);
-          const ceilView = fromEvidence(evidenceSides.ceiling) ?? side(causalWindow?.anchorAfter ?? null, anchorRecordedMs.after);
+          // A Base floor (enclave v10) is read from the signed proof itself; no anchor stands on either side of it.
+          const baseFloor = !isEth ? baseFloorOfProof(proof) : null;
+          const floorView = baseFloor !== null ? null : fromEvidence(evidenceSides.floor) ?? (windowFloor && (!signedFloor || String(windowFloor.counter) === String(signedFloor.counter)) ? windowFloor : null);
+          const ceilView = baseFloor !== null ? null : fromEvidence(evidenceSides.ceiling) ?? side(causalWindow?.anchorAfter ?? null, anchorRecordedMs.after);
           // The anchor before the commit, when it is a later anchor than the signed floor: a
           // tighter bound on the commit itself, by hash order, said as a note.
-          const commitAfter = causalWindow?.anchorBefore && floorView && causalWindow.anchorBefore.counter !== floorView.counter && causalWindow.anchorBefore.blockNumber !== null
+          const commitAfter = baseFloor === null && causalWindow?.anchorBefore && floorView && causalWindow.anchorBefore.counter !== floorView.counter && causalWindow.anchorBefore.blockNumber !== null
             ? { counter: causalWindow.anchorBefore.counter, blockNumber: causalWindow.anchorBefore.blockNumber, blockTime: causalWindow.anchorBefore.blockTime ?? null, digestB64: causalWindow.anchorBefore.digestB64 ?? null }
             : null;
           // The file pane: the preview, the drop box, or the anchor's block row.
@@ -1914,7 +1946,7 @@ export default function ProofPage() {
              (the proof alone, the anchors, the original, the BitGraphed file) stay
              reachable as text under it. Before this, four pills: Export (.zip) /
              Package (.zip) / Proof (.json) / Ethereum anchors, plus the ceiling file. */
-          const carrierPossible = Boolean(cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor);
+          const carrierPossible = Boolean(cachedFile && !isSet && ((commit as { slotAnchor?: unknown }).slotAnchor || baseFloor !== null));
           const treeCount = treeBound?.count ?? 0;
           const exportAction: DownloadView | null = isEth
             ? { label: "Export", busyLabel: "Export", onClick: downloadProof, busy: false }
@@ -1931,7 +1963,7 @@ export default function ProofPage() {
                 : treeCount === 1
                 ? "One zip: the tree's export, with the proof and its times, and SPEC.md, the rules the proof pins. Drop the file in the box above first and the export carries its place too."
                 : `One zip: the tree's export, with the proof and its times, and SPEC.md, the rules the proof pins. A file's own place among the ${treeCount.toLocaleString("en-US")} files comes with that file's export: drop it in the box above first.`)
-            : `One zip: the proof, the Ethereum anchors with their block headers, the ceiling file${cachedFile ? ", the file" : ""}${carrierPossible ? " and the BitGraphed file, the file with the proof inside" : ""}, with a README that says what each is.`;
+            : `One zip: the proof, ${baseFloor !== null ? "the floor block's header" : "the Ethereum anchors with their block headers"}, the ceiling file${cachedFile ? ", the file" : ""}${carrierPossible ? " and the BitGraphed file, the file with the proof inside" : ""}, with a README that says what each is.`;
           const exportName = isEth
             ? "The anchor's proof"
             : isTree
@@ -1939,21 +1971,23 @@ export default function ProofPage() {
             : "The package";
           const PROOF_PIECE: DownloadView = { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false, desc: "The signed proof alone, byte for byte as the ledger serves it." };
           const ANCHORS_PIECE: DownloadView = { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy, desc: "The floor and the ceiling in position, each with its Ethereum block header." };
+          // A Base floor has no Ethereum anchors to download: the floor's header is in the export and the package.
+          const anchorsPiece: DownloadView[] = baseFloor !== null ? [] : [ANCHORS_PIECE];
           const pieces: DownloadView[] = isEth
             ? []
             : isTree
-            ? [PROOF_PIECE, ANCHORS_PIECE]
+            ? [PROOF_PIECE, ...anchorsPiece]
             : [
                 ...(carrierPossible ? [{ label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: downloadCarrier, busy: carrierBusy, desc: "The file with the proof inside: one file that verifies with nothing else." }] : []),
                 PROOF_PIECE,
                 ...(cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? [{ label: "Original file", busyLabel: "Recovering\u2026", onClick: downloadOriginal, busy: originBusy, desc: "The original, back out of the committed file." }] : []),
-                ANCHORS_PIECE,
+                ...anchorsPiece,
               ];
           const checkText = isEth
             ? null
             : isTree
             ? "An export verifies offline beside its file, one line per claim, on any machine: the file's own export for one file, the tree's export with any of its files."
-            : "The BitGraphed file verifies with nothing but itself, one line per claim, on any machine. The package holds the proof, the anchors with their block headers and the ceiling file, for the offline audit.";
+            : `The BitGraphed file verifies with nothing but itself, one line per claim, on any machine. The package holds the proof, ${baseFloor !== null ? "the floor block's header" : "the anchors with their block headers"} and the ceiling file, for the offline audit.`;
           const checkCommand = isEth
             ? null
             : isTree
@@ -2016,6 +2050,7 @@ export default function ProofPage() {
             anchorBlock: isEth ? { number: ethBlockNum, minedMs: anchorBlock?.blockTime ? new Date(anchorBlock.blockTime).getTime() : null, etherscanUrl: attr?.title ?? anchorBlock?.etherscanUrl ?? null } : null,
             anchorsBackHref,
             floor: floorView,
+            baseFloor,
             floorNote: isTree
               ? treeMember?.floorCovers === "record"
                 ? "The file in hand was kept as is: recorded after the floor block, but the bytes themselves are not dated."
@@ -2023,7 +2058,7 @@ export default function ProofPage() {
               : null,
             commitAfter,
             ceilingPos: ceilView,
-            ethWait,
+            ethWait: baseFloor !== null ? false : ethWait,
             ceilingTime: !isEth ? (baseCeiling as ProofViewModel["ceilingTime"]) : null,
             ceilingFileHref: !isEth && baseCeiling?.anchor && proofHashField ? `/api/ceilings/${stdB64(proofHashField).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}` : null,
             checks: isTree ? treeChecks(checks) : checks,
@@ -2052,6 +2087,7 @@ export default function ProofPage() {
               ...(!slot && commit.slotCounter != null ? [{ label: "Reserved position", value: `#${commit.slotCounter}` }] : []),
               ...(commit.slotHashB64 ? [{ label: "Position record hash", value: commit.slotHashB64, mono: true }] : []),
               ...(commit.slotAnchor ? [{ label: "Floor at allocation", value: `Ethereum block ${commit.slotAnchor.blockNumber} (anchor #${commit.slotAnchor.counter})` }, { label: "Floor block hash", value: commit.slotAnchor.blockHash, mono: true }] : []),
+              ...(commit.slotFloor ? [{ label: "Floor at allocation", value: `Base block ${commit.slotFloor.blockNumber}` }, { label: "Floor block hash", value: commit.slotFloor.blockHash, mono: true }] : []),
               ...(commit.anchor ? [{ label: "Anchored block", value: `Ethereum block ${commit.anchor.blockNumber}`, highlight: true }, { label: "Anchored block hash", value: commit.anchor.blockHash, mono: true }] : []),
             ],
             signatureRows: [

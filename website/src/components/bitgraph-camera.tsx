@@ -26,7 +26,8 @@
  */
 
 import { DropPrompt, Browse } from "@/components/drop-prompt";
-import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR } from "@/lib/package-layout";
+import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_BASE_FLOOR_FILE, floorHeaderFile } from "@/lib/package-layout";
+import { baseFloorOf } from "@/lib/fuse-core";
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { useRouter } from "next/navigation";
@@ -48,7 +49,7 @@ import { CheckedList, fmtRowWhen } from "@/components/folder-list";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { useWindowedRows } from "@/components/windowed-rows";
 import { takePendingDrop } from "@/lib/pending-drop";
-import { deCarrierFiles, completeDroppedCarrier } from "@/lib/carrier-site";
+import { deCarrierFiles, completeDroppedCarrier, fetchBaseFloorHeader } from "@/lib/carrier-site";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough, unzipSync } from "fflate";
 import {
@@ -63,7 +64,7 @@ import { LEDGER_CHANGED } from "@/components/ledger-light";
 import { rebuildSetMember, isTeeRestarting, fusedMarkerOf, rebuildFromOrigin, makeTreeHere, planTrees, treeInputOf, type FusedOutcome, type FusedSetMember, type MadeTree, type MadeTreeMember } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
 import type { SitePlacement } from "@/lib/fuse-placement";
-import { SPEC_FILE_NAME, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, ownerTree, rootOnlyTree, treeHandoff, treeOfOneEvidence, treeOfOneEvidenceFromSource } from "@/lib/fuse-tree";
+import { SPEC_FILE_NAME, specFileFor, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, ownerTree, rootOnlyTree, treeHandoff, treeOfOneEvidence, treeOfOneEvidenceFromSource } from "@/lib/fuse-tree";
 import { recoverRows, treePositionKey } from "@/lib/recovery-fold";
 import { browserRecoveryQueue } from "@/lib/recovery-queue";
 import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CHUNK } from "@/lib/fuse-set";
@@ -1595,6 +1596,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           counter: rows[i]?.proof?.commit?.counter ?? null,
           hasUpper: !!cand.anchors.after,
           hasLower: !!cand.anchors.before,
+          // A Base floor (enclave v10) has no Ethereum anchors to complete.
+          baseFloor: baseFloorOf(rows[i]?.proof) !== null,
         }));
         setAnchorPlan({
           positions: countPositions(sites),
@@ -2475,6 +2478,24 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       }
     };
 
+    // A Base floor (enclave v10) has no Ethereum anchors: its floor is the Base
+    // block the proof signs, and the export carries that block's header in
+    // base-floor/ (bitgraph-floor-header/1, as bitgraph-audit writes it),
+    // checked against the signed floor first. Nothing follows it to fetch.
+    const addBaseFloorFor = async (dir: string, proof: BitGraphProof) => {
+      const f = baseFloorOf(proof);
+      if (f === null) return;
+      try {
+        const header = await fetchBaseFloorHeader(proof as never);
+        addText(`${dir}${PKG_BASE_FLOOR_FILE}`, JSON.stringify(floorHeaderFile(f, header), null, 2));
+      } catch (e) {
+        addText(`${dir}base-floor/floor-status.json`, JSON.stringify({
+          version: "bitgraph-floor-status/1", status: "unavailable", blockNumber: f.blockNumber, blockHash: f.blockHash,
+          note: `The floor block's header was not fetched (${(e as Error).message}). The proof still signs the floor block; its header is at https://bitgraph.ing/api/proofs/floor-header?chain=base&block=${f.blockNumber}&hash=${f.blockHash}, or any Base node. Build the package again.`,
+        }, null, 2));
+      }
+    };
+
     const addAnchorsFor = async (dir: string, afterCounter: string, beforeCounter: string, epoch: string) => {
       const anchorDir = `${dir}ethereum-anchors/`;
       if (!epoch) {
@@ -2650,7 +2671,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           await addCeilingFor(prefix, pos as unknown as Record<string, unknown>);
           const found = setOut ? null : memberEvidenceOf(pos as unknown as Record<string, unknown>);
           if (found !== null) addText(`${prefix}member.json`, JSON.stringify(found, null, 2));
-          singles.push(pos);
+          // An Ethereum floor joins the batch's anchor bracket below; a Base floor carries its own header.
+          if (baseFloorOf(pos) !== null) await addBaseFloorFor(prefix, pos);
+          else singles.push(pos);
           built.push({ dir: prefix.replace(/\/$/, ""), fileName: f.name,
                        proof: pos as unknown as Record<string, unknown>, sides: sidesOf(prefix) });
         }
@@ -2662,7 +2685,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           z.add(fileEntry);
           fileEntry.push(fileBytes, true);
           addText(`${dir}proof.json`, JSON.stringify(pos, null, 2));
-          if (c) await addAnchorsFor(dir, c, c, pos.commit?.epochId || "");
+          if (baseFloorOf(pos) !== null) await addBaseFloorFor(dir, pos);
+          else if (c) await addAnchorsFor(dir, c, c, pos.commit?.epochId || "");
           await addCeilingFor(dir, pos as unknown as Record<string, unknown>);
           built.push({ dir: dir.replace(/\/$/, ""), fileName: f.name,
                        proof: pos as unknown as Record<string, unknown>, sides: sidesOf(dir) });
@@ -2744,7 +2768,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // SPEC.md travels beside the exports, byte for byte the text their proofs pin.
     for (const [pin, spec] of specFor) {
       if (spec) addBytes(specFor.size === 1 ? SPEC_FILE_NAME : `SPEC (${pin.slice(0, 8).replace(/[+/]/g, "_")}).md`, spec);
-      else treeNotes.push("SPEC.md could not be fetched, so it is not beside the export. It is at bitgraph.ing/spec/SPEC.md; its SHA-256 is the one the proof pins.");
+      else treeNotes.push(`SPEC.md could not be fetched, so it is not beside the export. It is at bitgraph.ing${specFileFor(pin).path}; its SHA-256 is the one the proof pins.`);
     }
 
     // Bracket the single-recording proofs with a batch-level anchor window:

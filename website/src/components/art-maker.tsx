@@ -4,7 +4,8 @@
  * The image generator (Mike, 2026-10-05; redesigned the same night: "its not very compelling").
  * A studio: the canvas draws itself, cell by cell (version 3: the cells spell the code), from the
  * commitment shown beside it; the panel on the right holds the one button, the steps, the
- * commitment and, when the image is recorded, a timeline from the Ethereum block to the Base block.
+ * commitment and, when the image is recorded, a timeline from the floor block (Base since enclave v10,
+ * Ethereum before) to the Base block.
  *
  * The drawing on screen is presentation only. The canonical pixels exist in full before the reveal
  * starts (lib/commitment-art.ts) and before the commit (lib/art-position.ts); the reveal paints them,
@@ -79,7 +80,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
 
   useEffect(() => () => window.clearTimeout(showTimer.current), []);
 
-  /** The image with its proof inside, built from what followed the commit (anchors, the Base block). */
+  /** The image with its proof inside, built from what followed the commit (the Base block; on an Ethereum floor, the anchors too). */
   const buildDownload = useCallback((m: MadeArtImage): Promise<Built | null> => {
     if (buildPromise.current) return buildPromise.current;
     setBuilding(true);
@@ -255,7 +256,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           <details className="art-details">
             <summary className="art-details-title">Technical details</summary>
             <ol className="art-timeline">
-              <li><span>Ethereum block {made.position.floorBlock ? n(made.position.floorBlock) : ""}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
+              <li><span>{made.position.floorChain === "base" ? "Base" : "Ethereum"} block {made.position.floorBlock ? n(made.position.floorBlock) : ""}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
               <li><span>Position {n(made.position.slotCounter)} opened, commitment issued</span><span>after the floor</span></li>
               <li><span>Image drawn from the commitment</span><span>{made.recipe.v8 ? `${made.recipe.v8.layers.length} shapes, ${made.recipe.v8.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v7 ? `${made.recipe.v7.layers.length} layers, ${made.recipe.v7.loud ? "loud" : "calm"}, 256 bits in its colours` : made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
               <li><span>Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{counter}</a></span><span>{recordedMs ? utc(recordedMs) : ""}</span></li>
@@ -284,7 +285,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
             <dl>
               <dt>Algorithm</dt><dd><code>{made.manifest.algorithm}</code>, {made.manifest.width} x {made.manifest.height}</dd>
               <dt>Record</dt><dd>BitGraph #{counter}</dd>
-              <dt>Position</dt><dd>opened at {n(made.position.slotCounter)}, epoch <code>{made.position.epochId.slice(0, 8)}</code>{made.position.floorBlock ? <>, after Ethereum block {n(made.position.floorBlock)}</> : null}</dd>
+              <dt>Position</dt><dd>opened at {n(made.position.slotCounter)}, epoch <code>{made.position.epochId.slice(0, 8)}</code>{made.position.floorBlock ? <>, after {made.position.floorChain === "base" ? "Base" : "Ethereum"} block {n(made.position.floorBlock)}</> : null}</dd>
               <dt>Commitment</dt><dd><code className="break">{made.position.commitment}</code></dd>
               <dt>Recipe SHA-256</dt><dd><code className="break">{made.manifest.recipeSha256}</code></dd>
               <dt>Pixels SHA-256</dt><dd><code className="break">{made.manifest.pixelsSha256}</code></dd>

@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import {
   KNOWN_TREE_SPEC_HASHES,
+  TREE_SPEC_V1_HASH,
   TREE_METADATA_KEY,
   TREE_PLACEMENT_ID,
   buildTreeRootDocument,
@@ -26,7 +27,10 @@ import { makeStub, utf8, digestB64 } from "./tree1-helpers.ts";
 const filled = (n: number, seed: number) => { const b = new Uint8Array(n); for (let i = 0; i < n; i++) b[i] = (i * 31 + seed) & 0xff; return b; };
 const slot = { version: "bitgraph/slot/1", nonceB64: bytesToBase64(filled(32, 7)), counter: "10", epochId: bytesToBase64(filled(32, 5)), publicKeyB64: bytesToBase64(filled(32, 1)), chainId: "bitgraph:main", signatureB64: bytesToBase64(filled(64, 2)) } as unknown as SlotAllocation;
 const FLOOR = "0x" + "ab".repeat(32);
-const SPEC = KNOWN_TREE_SPEC_HASHES[KNOWN_TREE_SPEC_HASHES.length - 1]!;
+// SPEC v1 defines tree/1 under bitgraph-fuse/2 (an Ethereum floor): the spec these fuse/2 fixtures follow.
+// SPEC v2 (fuse/3, a Base floor) is tested in fuse3.test.ts.
+const SPEC = TREE_SPEC_V1_HASH;
+void KNOWN_TREE_SPEC_HASHES;
 const commitment = computeSlotCommitment2(slot, FLOOR);
 const rootDoc = buildTreeRootDocument(commitment, 5, filled(32, 99));
 const hex = bytesToHex(rootDoc);
@@ -53,6 +57,7 @@ test("validateTreeCommit refuses every malformed commit, each with its own sente
   const withProto = JSON.parse(`{"${TREE_KEY}":"${hex}","__proto__":{"x":1}}`) as Record<string, unknown>;
   const cases: Array<[string, Partial<typeof good> & Record<string, unknown>, RegExp]> = [
     ["fuse/1 name", { name: "bitgraph-fuse/1" }, /bitgraph-fuse\/2/],
+    ["fuse/3 name with an Ethereum anchor", { name: "bitgraph-fuse/3" }, /does not match the marker/],
     ["no name", { name: undefined }, /bitgraph-fuse\/2/],
     ["no floor named", { floorBlockHash: null }, /body\.anchor/],
     ["unknown spec", { message: digestB64(utf8("some other spec")) }, /SPEC\.md this site knows/],

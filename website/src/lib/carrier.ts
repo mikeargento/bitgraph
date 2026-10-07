@@ -41,6 +41,17 @@
  * never reads as authority. A reader that knows only v1 reports an unknown
  * version (UNDETERMINED), never a verdict.
  *
+ * bitgraph-carrier/3 (2026-10-06, enclave v10) is /2 for a proof whose floor
+ * is a Base block (`commit.slotFloor`). The floor is that block's header
+ * itself, `{ status: "present", basis: "base-header", header }`, checked
+ * against the signed floor (hash, number and time, on Base mainnet's
+ * schedule); there is no anchor proof under it. There is no ceiling in
+ * POSITION either: anchors ended with the cutover, and the order among
+ * BitGraphs is the chain of proof hashes, so the block states
+ * `{ status: "none", basis: "hash-chain" }`, a fact, not a pending part.
+ * Everything else (ceiling in time, settlement, pins, attestation witness) is
+ * /2's. Ethereum-floor proofs keep travelling as /1 and /2.
+ *
  * ⚠️ TWO BYTE-IDENTICAL COPIES OF THIS FILE EXIST, on purpose:
  *   packages/verify/src/carrier.ts   (canonical, published with the package)
  *   website/src/lib/carrier.ts       (the site cannot import unpublished code)
@@ -63,7 +74,8 @@ export const MAX_CARRIER_PAYLOAD = 8 * 1024 * 1024;
 
 export const CARRIER_VERSION = "bitgraph-carrier/1";
 export const CARRIER_VERSION_2 = "bitgraph-carrier/2";
-export type CarrierVersion = typeof CARRIER_VERSION | typeof CARRIER_VERSION_2;
+export const CARRIER_VERSION_3 = "bitgraph-carrier/3";
+export type CarrierVersion = typeof CARRIER_VERSION | typeof CARRIER_VERSION_2 | typeof CARRIER_VERSION_3;
 /** The sidecar and pointer formats a v2 block carries; their shapes are checked by their own modules. */
 export const CEILING_SIDECAR_VERSION = "bitgraph-ceiling/1";
 export const SETTLEMENT_POINTER_VERSION = "bitgraph-settlement/1";
@@ -83,12 +95,24 @@ export type CarrierProof = Record<string, unknown>;
 
 export interface CarrierFloor {
   status: "present";
+  basis?: never;
   /** The anchor proof named by the carried proof's signed `commit.slotAnchor`. */
   anchor: CarrierProof;
   witness: CarrierWitness;
 }
 
+/** v3: the Base block the carried proof signs as `commit.slotFloor`, as its raw header (0x hex RLP). No anchor proof stands under it. */
+export interface CarrierBaseFloor {
+  status: "present";
+  basis: "base-header";
+  header: string;
+  anchor?: never;
+  witness?: never;
+}
+
 export type CarrierCeiling =
+  /** v3: no ceiling in position exists; order among BitGraphs is the chain of proof hashes. */
+  | { status: "none"; basis: "hash-chain" }
   | {
       status: "unfetched";
       /** Set when a completion looked and nothing had landed yet, so "never looked" and "not yet" read apart. */
@@ -124,16 +148,17 @@ export interface CarrierPayload {
   carrier: CarrierVersion;
   /** The bitgraph/1 proof exactly as the commit returned it. */
   proof: CarrierProof;
-  floor: CarrierFloor;
-  /** The ceiling in position: the next anchor in the chain. Every proof ever made has one. */
+  /** v1 and v2: the Ethereum anchor proof and its header. v3: the Base header. */
+  floor: CarrierFloor | CarrierBaseFloor;
+  /** The ceiling in position: the next anchor in the chain (v1, v2), or on v3 the statement that there is none. */
   ceiling: CarrierCeiling;
-  /** v2 only. Required on a v2 block, so absence reads as a corrupt block, never as "no ceiling". */
+  /** v2 and v3. Required there, so absence reads as a corrupt block, never as "no ceiling". */
   ceilingInTime?: CarrierCeilingInTime;
-  /** v2 only, optional. */
+  /** v2 and v3, optional. */
   settlement?: CarrierSettlement;
-  /** v2 only, optional. */
+  /** v2 and v3, optional. */
   pins?: CarrierPins;
-  /** v2 only, optional: the proof's attestation as aws-nitro-witness/1 evidence. */
+  /** v2 and v3, optional: the proof's attestation as aws-nitro-witness/1 evidence. */
   attestation?: Record<string, unknown>;
 }
 
@@ -231,19 +256,29 @@ export function buildCarrier(inner: Uint8Array, payload: CarrierPayload): Uint8A
 function payloadShapeError(p: unknown): string | null {
   const o = record(p);
   if (o === null) return "payload is not an object";
-  const v2 = o["carrier"] === CARRIER_VERSION_2;
+  const v3 = o["carrier"] === CARRIER_VERSION_3;
+  const v2 = o["carrier"] === CARRIER_VERSION_2 || v3;
   if (o["carrier"] !== CARRIER_VERSION && !v2) return `unknown carrier version ${JSON.stringify(o["carrier"])}`;
   if (record(o["proof"]) === null) return "payload carries no proof object";
   const floor = record(o["floor"]);
   if (floor === null || floor["status"] !== "present") return "floor must be present: a floorless carrier is not a not-before";
-  if (record(floor["anchor"]) === null) return "floor carries no anchor proof";
-  const fw = record(floor["witness"]);
-  if (fw === null || typeof fw["headerRlpHex"] !== "string" || typeof fw["blockNumber"] !== "number" || typeof fw["blockHash"] !== "string") {
-    return "floor carries no readable block-header witness";
-  }
   const ceil = record(o["ceiling"]);
   if (ceil === null) return "ceiling is missing: absence must be a stated fact, not a missing key";
-  if (ceil["status"] !== "unfetched") {
+  if (v3) {
+    // v3: the floor is a Base header, and no ceiling in position exists.
+    if (floor["basis"] !== "base-header") return `a ${CARRIER_VERSION_3} floor must be a Base header (basis "base-header"), got ${JSON.stringify(floor["basis"])}`;
+    if (typeof floor["header"] !== "string" || baseHeaderFields(floor["header"]) === null) return "floor carries no readable Base block header";
+    if (floor["anchor"] !== undefined || floor["witness"] !== undefined) return `a ${CARRIER_VERSION_3} floor carries no anchor proof`;
+    if (ceil["status"] !== "none" || ceil["basis"] !== "hash-chain") return `a ${CARRIER_VERSION_3} block states no ceiling in position ({ status: "none", basis: "hash-chain" })`;
+  } else {
+    if (floor["basis"] !== undefined) return `unknown floor basis ${JSON.stringify(floor["basis"])} on ${String(o["carrier"])}`;
+    if (record(floor["anchor"]) === null) return "floor carries no anchor proof";
+    const fw = record(floor["witness"]);
+    if (fw === null || typeof fw["headerRlpHex"] !== "string" || typeof fw["blockNumber"] !== "number" || typeof fw["blockHash"] !== "string") {
+      return "floor carries no readable block-header witness";
+    }
+  }
+  if (!v3 && ceil["status"] !== "unfetched") {
     if (ceil["status"] !== "present") return `ceiling status must be "unfetched" or "present", got ${JSON.stringify(ceil["status"])}`;
     if (ceil["basis"] !== "counter-order") return `unknown ceiling basis ${JSON.stringify(ceil["basis"])}`;
     if (record(ceil["anchor"]) === null) return "ceiling carries no anchor proof";
@@ -253,7 +288,7 @@ function payloadShapeError(p: unknown): string | null {
     }
   }
   if (!v2) return null;
-  // v2: the ceiling in time is stated either way; settlement, pins and the attestation witness are optional.
+  // v2 and v3: the ceiling in time is stated either way; settlement, pins and the attestation witness are optional.
   const ct = record(o["ceilingInTime"]);
   if (ct === null) return "ceilingInTime is missing: a v2 block states the ceiling in time or that it was not fetched";
   if (ct["status"] === "present") {
@@ -276,9 +311,9 @@ function payloadShapeError(p: unknown): string | null {
   return null;
 }
 
-/** 1 or 2, from a parsed payload. */
-export function carrierVersionOf(payload: CarrierPayload): 1 | 2 {
-  return payload.carrier === CARRIER_VERSION_2 ? 2 : 1;
+/** 1, 2 or 3, from a parsed payload. */
+export function carrierVersionOf(payload: CarrierPayload): 1 | 2 | 3 {
+  return payload.carrier === CARRIER_VERSION_3 ? 3 : payload.carrier === CARRIER_VERSION_2 ? 2 : 1;
 }
 
 export function parseCarrier(bytes: Uint8Array): CarrierParse {
@@ -315,6 +350,7 @@ export function completeCarrier(
   const p = parseCarrier(bytes);
   if (p.kind !== "carrier") return { changed: false, bytes, error: p.kind === "none" ? "not a carrier" : `corrupt block: ${p.reason}` };
   const cur = p.payload.ceiling;
+  if (cur.status === "none") return { changed: false, bytes, error: `a ${CARRIER_VERSION_3} block has no ceiling in position: its order is the chain of proof hashes` };
   if (cur.status === "present") {
     if (ceiling === null) return { changed: false, bytes };
     const a = record(record(cur.anchor)?.["commit"]);
@@ -346,7 +382,7 @@ export function completeCarrierInTime(
 ): { changed: boolean; bytes: Uint8Array; error?: string } {
   const p = parseCarrier(bytes);
   if (p.kind !== "carrier") return { changed: false, bytes, error: p.kind === "none" ? "not a carrier" : `corrupt block: ${p.reason}` };
-  if (carrierVersionOf(p.payload) !== 2) return { changed: false, bytes, error: "a bitgraph-carrier/1 block has no ceiling in time; rebuild the file as carrier/2" };
+  if (carrierVersionOf(p.payload) === 1) return { changed: false, bytes, error: "a bitgraph-carrier/1 block has no ceiling in time; rebuild the file as carrier/2" };
   const cur = p.payload.ceilingInTime;
   if (cur && cur.status === "present") {
     if (sidecar === null) return { changed: false, bytes };
@@ -380,7 +416,7 @@ export function completeCarrierSettlement(
 ): { changed: boolean; bytes: Uint8Array; error?: string } {
   const p = parseCarrier(bytes);
   if (p.kind !== "carrier") return { changed: false, bytes, error: p.kind === "none" ? "not a carrier" : `corrupt block: ${p.reason}` };
-  if (carrierVersionOf(p.payload) !== 2) return { changed: false, bytes, error: "a bitgraph-carrier/1 block has no settlement; rebuild the file as carrier/2" };
+  if (carrierVersionOf(p.payload) === 1) return { changed: false, bytes, error: "a bitgraph-carrier/1 block has no settlement; rebuild the file as carrier/2" };
   const cur = p.payload.settlement;
   if (cur && cur.status === "present") {
     const a = record(cur.pointer["l1"]), b = record(pointer["l1"]);
@@ -583,11 +619,33 @@ export function verifyWitnessHeader(w: CarrierWitness): WitnessCheck {
   return { ok: true, error: null, timestamp: rlpNumber(items[11]!) };
 }
 
+/**
+ * v3: the block a Base header names, read from its bytes: keccak-256 is its
+ * hash, items 8 and 11 its number and time. Null when it is not a readable
+ * header. Says nothing about whether it is the signed floor: verifyCarrier
+ * checks that against the proof.
+ */
+export function baseHeaderFields(headerHex: string): { blockNumber: number; blockHash: string; timestamp: number } | null {
+  const raw = typeof headerHex === "string" ? hexToBytes(headerHex) : null;
+  if (raw === null || raw.length === 0) return null;
+  const items = decodeRlpTop(raw);
+  if (items === null || items.length < 12) return null;
+  const blockNumber = rlpNumber(items[8]!), timestamp = rlpNumber(items[11]!);
+  if (blockNumber === null || timestamp === null) return null;
+  const blockHash = "0x" + Array.from(keccak_256(raw), (b) => b.toString(16).padStart(2, "0")).join("");
+  return { blockNumber, blockHash, timestamp };
+}
+
 /* ── The window a reader states ─────────────────────────────────────────── */
 
 export interface CarrierBounds {
-  notBefore: { blockNumber: number; blockHash: string; timestamp: number | null };
-  /** The ceiling in POSITION: the next anchor. null means NOT FETCHED — say so in those words — never "none exists". */
+  /** The floor, on its chain: Ethereum (v1, v2) or Base (v3). */
+  notBefore: { chain: "ethereum" | "base"; blockNumber: number; blockHash: string; timestamp: number | null };
+  /**
+   * The ceiling in POSITION: the next anchor. On v1 and v2, null means NOT
+   * FETCHED (say so in those words), never "none exists". On v3 it is always
+   * null because none exists: order is the chain of proof hashes.
+   */
   notAfter: { blockNumber: number; blockHash: string; timestamp: number | null } | null;
   /**
    * v2: the ceiling in TIME. From carrierBounds, as the sidecar states it;
@@ -601,9 +659,17 @@ export interface CarrierBounds {
 }
 
 export function carrierBounds(payload: CarrierPayload): CarrierBounds {
-  const f = payload.floor.witness;
-  const floorTs = verifyWitnessHeader(f);
-  const notBefore = { blockNumber: f.blockNumber, blockHash: f.blockHash.toLowerCase(), timestamp: floorTs.ok ? floorTs.timestamp : null };
+  let notBefore: CarrierBounds["notBefore"];
+  if (payload.floor.basis === "base-header") {
+    const h = baseHeaderFields(payload.floor.header);
+    notBefore = h === null
+      ? { chain: "base", blockNumber: 0, blockHash: "", timestamp: null }
+      : { chain: "base", blockNumber: h.blockNumber, blockHash: h.blockHash, timestamp: h.timestamp };
+  } else {
+    const f = payload.floor.witness;
+    const floorTs = verifyWitnessHeader(f);
+    notBefore = { chain: "ethereum", blockNumber: f.blockNumber, blockHash: f.blockHash.toLowerCase(), timestamp: floorTs.ok ? floorTs.timestamp : null };
+  }
   let notAfter: CarrierBounds["notAfter"] = null;
   if (payload.ceiling.status === "present") {
     const c = payload.ceiling.witness;

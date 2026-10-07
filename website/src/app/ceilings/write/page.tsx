@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
-import { BASESCAN, CEILING_WRITER, safeB64, writesForDay } from "@/lib/ceilings";
+import { BASESCAN, CEILING_WRITER, floorChainWord, floorFor, safeB64, writesForDay, type CeilingFloor } from "@/lib/ceilings";
+import { runPool } from "@/lib/s3";
 import { StatusChip } from "@/components/ceiling-status";
 
 /* ── One Base ceiling write: the transaction, its block, and every record
-   under its root, each linking to its own proof page. ── */
+   under its root, each linking to its own proof page, with its floor (the
+   block it was made after: Base from enclave v10, Ethereum before), read from
+   its sidecar. ── */
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Ceiling write" };
@@ -26,6 +29,11 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
   const writes = await writesForDay(day, { includeHidden: true }).catch(() => []);
   const w = writes.find((x) => x.txHash.toLowerCase() === tx.toLowerCase());
   if (!w) notFound();
+  const floors = new Map<string, CeilingFloor>();
+  await runPool(w.items, 16, async (i) => {
+    const f = await floorFor(i.proofHash);
+    if (f) floors.set(i.proofHash, f);
+  });
   const mono = { fontFamily: "var(--mono, ui-monospace, monospace)", fontSize: 13 };
   const time = new Date(w.blockTimestamp * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
 
@@ -63,10 +71,12 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
       <div className="cl-rows" style={{ display: "flex", flexDirection: "column" }}>
         {w.items.map((i) => {
           const href = i.digestB64 ? `/proof/${safeB64(i.digestB64)}?counter=${encodeURIComponent(i.position)}&epoch=${encodeURIComponent(w.epochId)}` : null;
+          const floor = floors.get(i.proofHash);
           const inner = (
             <>
               <span style={{ flexShrink: 0, minWidth: 88, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>#{fmt(i.position)}</span>
               <span style={{ flex: 1, minWidth: 0, ...mono, color: "var(--dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title="proofHash">{i.proofHash}</span>
+              {floor && <span style={{ flexShrink: 0, fontSize: 12.5, color: "var(--dim)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>after {floorChainWord(floor)} #{fmt(floor.blockNumber)}</span>}
             </>
           );
           return href

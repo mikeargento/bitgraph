@@ -3,7 +3,8 @@
  * its commitment, record the image in THAT position, and read the proof back before anything
  * is called made. Nothing here is new protocol: the open and the commit are the drop box's own
  * (fuse-tree-make.ts, with its lost-reply recovery), the marker is the inline one the MCP task
- * form uses (bitgraph-fuse/2, carry "base64url": the commitment is inside the bytes as text),
+ * form uses (bitgraph-fuse/3 on a Base floor, bitgraph-fuse/2 on an Ethereum one, carry
+ * "base64url": the commitment is inside the bytes as text),
  * and the checks are the published verifier's, plus the two only this image can offer:
  * regenerate it from the commitment the proof authenticates, and read the strip.
  *
@@ -13,12 +14,12 @@
  */
 import { sha256 } from "@noble/hashes/sha256";
 import {
-  bytesToBase64, bytesEqual, commitmentForProof, inlineAttribution, verifyCarrier, verifyFuse, verifyProofIntegrity,
+  bytesToBase64, bytesEqual, commitmentForProof, inlineAttribution, signedFloorOf, verifyCarrier, verifyFuse, verifyProofIntegrity,
   type BitGraphProof, type CarrierClaim,
 } from "@mikeargento/bitgraph-verify";
 import { FuseError } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
-import { commitInPosition, openPosition, type TreeTransport } from "./fuse-tree-make.ts";
+import { commitInPosition, fuseVersionOfFloor, openPosition, type TreeTransport } from "./fuse-tree-make.ts";
 import { ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
 
 /** A position is good for 120 s; the image is recorded well inside that or not at all. */
@@ -43,8 +44,10 @@ export interface OpenedPosition {
   /** The position's counter on bitgraph:main. */
   slotCounter: string;
   epochId: string;
-  /** The Ethereum block the position opened after (the floor). */
+  /** The block the position opened after (the floor). */
   floorBlock: number;
+  /** The floor's chain: "base" since enclave v10, "ethereum" before. */
+  floorChain: "ethereum" | "base";
   /** The commitment, unpadded base64url: the image's only input. */
   commitment: string;
 }
@@ -100,11 +103,12 @@ export async function createArtImage(opts: ArtOptions = {}): Promise<MadeArtImag
     throw fail(e, false);
   }
   const openedAt = now();
-  const commitment = computeCommitmentFor(position.slot, position.anchor.blockHash);
+  const commitment = computeCommitmentFor(position.slot, position.floor);
   const opened: OpenedPosition = {
     slotCounter: String(position.slot.counter),
     epochId: String(position.slot.epochId),
-    floorBlock: position.anchor.blockNumber,
+    floorBlock: position.floor.blockNumber,
+    floorChain: fuseVersionOfFloor(position.floor) === 3 ? "base" : "ethereum",
     commitment: toBase64Url(commitment),
   };
 
@@ -119,7 +123,7 @@ export async function createArtImage(opts: ArtOptions = {}): Promise<MadeArtImag
   stage("recording", opened);
   let proof: BitGraphProof, recovered: boolean;
   try {
-    const sent = inlineAttribution(2);
+    const sent = inlineAttribution(fuseVersionOfFloor(position.floor));
     const r = await commitInPosition(transport, position, digestB64, sent);
     proof = r.proof as unknown as BitGraphProof;
     recovered = r.recovered;
@@ -154,7 +158,7 @@ export interface ArtVerification {
   /** 1. The exact recorded bytes hash to the proof's digest. */
   digest: { result: CheckResult; detail: string };
   /** 2. The published verifier over the proof block: signature, attestation, commitment, floor, ceilings. */
-  protocol: { result: CheckResult; detail: string; claims: CarrierClaim[]; ceiling: "present" | "unfetched" | null };
+  protocol: { result: CheckResult; detail: string; claims: CarrierClaim[]; ceiling: "present" | "unfetched" | "none" | null };
   /** 3. Regenerated from the authenticated commitment, the pixels match. */
   regenerated: { result: CheckResult; detail: string };
   /** 4. The strip spells that same commitment. */
@@ -188,7 +192,7 @@ export async function verifyArtFile(bytes: Uint8Array, pcr0: readonly string[]):
     : await checkArt(v.inner, authenticated);
 
   const all = [digest.result, protocol.result, art.regenerated.result, art.strip.result];
-  const overall: ArtVerification["overall"] = all.includes("FALSE") ? "failed" : all.every((r) => r === "TRUE") && v.ceiling === "present" ? "complete" : "pending";
+  const overall: ArtVerification["overall"] = all.includes("FALSE") ? "failed" : all.every((r) => r === "TRUE") && (v.ceiling === "present" || v.ceiling === "none") ? "complete" : "pending";
   return {
     digest,
     protocol,
@@ -211,7 +215,7 @@ export async function verifyArtFile(bytes: Uint8Array, pcr0: readonly string[]):
  */
 export async function redrawRecordedArt(proof: BitGraphProof): Promise<{ png: Uint8Array; algorithm: string } | null> {
   const a = proof.attribution;
-  if (!a || a.title !== "base64url" || a.name !== inlineAttribution(2).name || !proof.slotAllocation) return null;
+  if (!a || a.title !== "base64url" || (a.name !== inlineAttribution(2).name && a.name !== inlineAttribution(3).name) || !proof.slotAllocation) return null;
   let commitment: Uint8Array;
   try { commitment = commitmentForProof(proof, proof.slotAllocation); } catch { return null; }
   for (const algorithm of [ART_ALGORITHM_V8, ART_ALGORITHM_V7, ART_ALGORITHM_V6, ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
@@ -231,9 +235,10 @@ export async function restoreArtImage(proof: BitGraphProof): Promise<MadeArtImag
   const art = await makeArt(commitment, redrawn.algorithm);
   const checks = await checkArt(art.png, commitment);
   const slot = proof.slotAllocation as unknown as { counter: string | number; epochId: string };
-  const floor = (proof.commit as unknown as { slotAnchor?: { blockNumber: number } }).slotAnchor;
+  let floor: ReturnType<typeof signedFloorOf> = null;
+  try { floor = signedFloorOf(proof); } catch { floor = null; }
   return {
-    position: { slotCounter: String(slot.counter), epochId: String(slot.epochId), floorBlock: floor?.blockNumber ?? 0, commitment: toBase64Url(commitment) },
+    position: { slotCounter: String(slot.counter), epochId: String(slot.epochId), floorBlock: floor?.blockNumber ?? 0, floorChain: floor?.chain ?? "ethereum", commitment: toBase64Url(commitment) },
     png: art.png,
     digestB64: proof.artifact!.digestB64,
     proof,

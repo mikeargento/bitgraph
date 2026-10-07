@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAnchorsAfterCounter, getAnchorBeforeCounter, listKeysUnderPrefix, LedgerUnavailableError } from "@/lib/s3";
-import { currentEpochId, toSafeEpoch } from "@/lib/anchor-gate";
+import { currentEpochId, enclaveFixesBaseFloor, toSafeEpoch } from "@/lib/anchor-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +34,12 @@ export const dynamic = "force-dynamic";
  *                  sides and the whole reason "not yet" is an upper-bound word.
  *   unknown-epoch  we hold no anchors for that epoch at all, so we cannot say
  *                  anything about this position.
+ *   base-floor     enclave v10: the position's floor is a Base block signed
+ *                  into its proof (commit.slotFloor), and no anchor bounds it
+ *                  on either side; order after it is the next BitGraph in the
+ *                  chain. Said for the live epoch of an enclave that fixes Base
+ *                  floors and has no anchors, or when the caller says so
+ *                  (`floor=base`, from the proof it holds). Permanent.
  *
  * And a read that FAILED is a 503, never a 200 with an empty list. "We could
  * not check" and "there is nothing there" are opposite claims.
@@ -43,7 +49,7 @@ export const dynamic = "force-dynamic";
  * unaffected by it.
  */
 
-type BoundState = "anchored" | "pending" | "closed" | "none" | "unknown-epoch";
+type BoundState = "anchored" | "pending" | "closed" | "none" | "unknown-epoch" | "base-floor";
 
 const NOTE: Record<BoundState, string> = {
   anchored: "An Ethereum anchor bounds this position on this side.",
@@ -51,6 +57,7 @@ const NOTE: Record<BoundState, string> = {
   closed: "This position's epoch closed with no anchor after it. No upper bound exists in this epoch, and none ever will.",
   none: "No anchor precedes this position in its epoch: it sits at or before the epoch's first anchor. A lower bound cannot arrive later.",
   "unknown-epoch": "BitGraph's copy holds no anchors for this position's epoch, so nothing can be said about this side.",
+  "base-floor": "This position's floor is a Base block signed into its proof (enclave v10), so no Ethereum anchor bounds it on either side. Order after it is the next BitGraph in the chain.",
 };
 
 const bound = (state: BoundState) => ({ state, note: NOTE[state] });
@@ -66,7 +73,12 @@ const bound = (state: BoundState) => ({ state, note: NOTE[state] });
  */
 async function classifyEmpty(epoch: string, side: "after" | "before"): Promise<BoundState | "undetermined"> {
   const keys = await listKeysUnderPrefix(`anchors/${toSafeEpoch(epoch)}/`, 1);
-  if (keys.length === 0) return "unknown-epoch";
+  if (keys.length === 0) {
+    // The live epoch of an enclave that fixes Base floors has no anchors by design.
+    const live = await currentEpochId();
+    if (live !== null && toSafeEpoch(live) === toSafeEpoch(epoch) && (await enclaveFixesBaseFloor())) return "base-floor";
+    return "unknown-epoch";
+  }
   // A lower bound is settled the moment it is missing: nothing anchored later
   // can ever come to precede this counter.
   if (side === "before") return "none";
@@ -86,6 +98,8 @@ export async function GET(req: NextRequest) {
   const counter = req.nextUrl.searchParams.get("counter");
   const epoch = req.nextUrl.searchParams.get("epoch");
   const before = req.nextUrl.searchParams.get("before");
+  // A caller holding a proof with a Base floor (commit.slotFloor) knows there is nothing to look up.
+  const floor = req.nextUrl.searchParams.get("floor");
 
   if (!counter || !epoch) {
     return NextResponse.json({ error: "counter and epoch params required" }, { status: 400 });
@@ -94,6 +108,8 @@ export async function GET(req: NextRequest) {
   if (!Number.isFinite(n) || n < 0) {
     return NextResponse.json({ error: "counter must be a non-negative integer" }, { status: 400 });
   }
+
+  if (floor === "base") return NextResponse.json({ anchors: [], bound: bound("base-floor") });
 
   try {
     const side = before === "1" ? "before" : "after";

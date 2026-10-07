@@ -125,7 +125,8 @@ test("the Postseason sealer's fields are in the hosted route's answers, and its 
     "commitment: begun.commitment",
     "fuse_token: begun.token",
     "expires_in_seconds: SLOT_TTL_SECONDS",
-    "floor: begun.floor === null ? null : { block: begun.floor.block, header_time: begun.floor.headerTime }",
+    // The sealer reads block and header_time; chain was added beside them for a Base floor (enclave v10).
+    'floor: begun.floor === null ? null : { chain: begun.floor.chain ?? "ethereum", block: begun.floor.block, header_time: begun.floor.headerTime }',
   ]) assert.ok(route.includes(needle), `bitgraph_open answer lost: ${needle}`);
   // bitgraph_commit with a task token: outcome "fused", counter, proof_url, and the proof whole in frames[].
   for (const needle of [
@@ -170,3 +171,6 @@ test("the Postseason sealer's fields are in the hosted route's answers, and its 
     globalThis.fetch = realFetch;
   }
 });
+
+// The hosted MCP on a Base floor (enclave v10) runs with this one under test:mcp.
+import "./fuse-hosted-base.test.ts";

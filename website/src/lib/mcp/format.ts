@@ -4,7 +4,9 @@
  * Markdown for human-facing summaries, JSON for complete structured data.
  * A BitGraph's time is its attestation timestamp, the enclave platform's
  * signed clock, the same time its proof page leads with (RE-RULING
- * 2026-09-25; one clock everywhere, Mike 2026-09-27). The Ethereum bracket
+ * 2026-09-25; one clock everywhere, Mike 2026-09-27). Since enclave v10 the
+ * floor is a Base block signed into the proof (commit.slotFloor) and no anchor
+ * follows it. For earlier proofs the Ethereum bracket
  * confirms it: a floor block with its mine time, and a ceiling in POSITION,
  * the next anchor, never a later block's mine time (CANON 3.6). Never from
  * advisory clock fields.
@@ -119,7 +121,19 @@ export function renderCheckMarkdown(outcomes: readonly CheckOutcome[]): string {
   return lines.join("\n");
 }
 
+/** A Base floor the proof signs (commit.slotFloor, enclave v10), or null for an Ethereum floor or none. */
+function baseFloorOf(detail: ProofDetailResponse): { blockNumber: number; blockTimestamp: number } | null {
+  const f = (detail.proofs[0]?.proof?.commit as { slotFloor?: { chain?: unknown; blockNumber?: unknown; blockTimestamp?: unknown } } | undefined)?.slotFloor;
+  if (!f || f.chain !== "base" || typeof f.blockNumber !== "number" || typeof f.blockTimestamp !== "number") return null;
+  return { blockNumber: f.blockNumber, blockTimestamp: f.blockTimestamp };
+}
+
 function renderWindow(detail: ProofDetailResponse): string | null {
+  // A Base floor (enclave v10): the block the enclave fixed when the position
+  // opened, signed into the proof with its time. No anchor follows it: order
+  // after a record is the next BitGraph in the chain.
+  const base = baseFloorOf(detail);
+  if (base !== null) return `Placed after Base block ${base.blockNumber} (mined ${new Date(base.blockTimestamp * 1000).toISOString().replace(".000Z", "Z")}).`;
   const w = detail.causalWindow;
   if (!w) return null;
   // The floor is a block and its mine time, Ethereum's clock. The ceiling is
@@ -161,10 +175,15 @@ export function renderProofMarkdown(
   }
   const window = renderWindow(detail);
   if (window) lines.push(`- ${window}`);
-  const etherscan =
-    detail.causalWindow?.anchorAfter?.etherscanUrl ??
-    detail.causalWindow?.anchorBefore?.etherscanUrl;
-  if (etherscan) lines.push(`- Anchor block on Etherscan: ${etherscan}`);
+  const baseFloor = baseFloorOf(detail);
+  if (baseFloor !== null) {
+    lines.push(`- Floor block on Basescan: https://basescan.org/block/${baseFloor.blockNumber}`);
+  } else {
+    const etherscan =
+      detail.causalWindow?.anchorAfter?.etherscanUrl ??
+      detail.causalWindow?.anchorBefore?.etherscanUrl;
+    if (etherscan) lines.push(`- Anchor block on Etherscan: ${etherscan}`);
+  }
   if (proof.environment?.enforcement) {
     lines.push(`- Enforcement: ${proof.environment.enforcement}`);
   }

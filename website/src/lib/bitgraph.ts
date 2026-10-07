@@ -43,6 +43,8 @@ export interface BitGraphProof {
     slotHashB64?: string;
     /** Enclave v7: the chain's latest Ethereum anchor when this slot was allocated (signed). */
     slotAnchor?: { counter: string; blockNumber: number; blockHash: string };
+    /** Enclave v10: the Base block fixed as this slot's floor at allocation (signed). A proof has this or slotAnchor, never both. */
+    slotFloor?: { chain: "base"; evmChainId: 8453; blockNumber: number; blockHash: string; blockTimestamp: number };
     /** Enclave v7: on anchor proofs, the block this proof anchors (signed). */
     anchor?: { blockNumber: number; blockHash: string };
   };

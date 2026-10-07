@@ -16,8 +16,8 @@ test("the site's commitment/2 equals the enclave-minted vector", () => {
   assert.equal(hex(computeCommitmentFor(vec.slot, null)), vec.fuse1CommitmentHex);
 });
 
-test("both marker names read as fused; the origin is read from either", () => {
-  assert.ok(isFuseName("bitgraph-fuse/1") && isFuseName(FUSE2_ATTRIBUTION_NAME) && !isFuseName("bitgraph-fuse/3"));
+test("every marker name reads as fused (fuse/3 since enclave v10); the origin is read from either", () => {
+  assert.ok(isFuseName("bitgraph-fuse/1") && isFuseName(FUSE2_ATTRIBUTION_NAME) && isFuseName("bitgraph-fuse/3") && !isFuseName("bitgraph-fuse/4"));
   assert.ok(isFusedProof(proof2));
   assert.equal(fusedOriginDigestOf(proof2), proof2.attribution.message);
 });
@@ -27,3 +27,6 @@ test("an allocation's anchor is recognized; malformed ones are not", () => {
   assert.ok(!isAnchorMark({ counter: "1", blockNumber: 1, blockHash: "0xZZ" }));
   assert.ok(!isAnchorMark({ counter: 1, blockNumber: 1, blockHash: "0x" + "a".repeat(64) }));
 });
+
+// The Base floor's suite (fuse/3, enclave v10) runs with this one under test:fuse.
+import "./base-floor.test.ts";

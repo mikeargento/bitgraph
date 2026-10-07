@@ -14,9 +14,12 @@
  * and the sitemap, so none of them can disagree.
  *
  * Every URL predates the rewrite and is preserved. Only labels and grouping
- * changed. /subjects, /api-reference, /ledger and /exam live outside /docs for
+ * changed. /subjects, /api-reference, /ceilings and /exam live outside /docs for
  * historical reasons (cached permanent redirects point at two of them) and
- * mount the previous/next pair themselves.
+ * mount the previous/next pair themselves. "Floors" (/ledger, Ethereum anchors)
+ * and "Ceilings" (/ceilings) became one item, "Base", when floors moved to Base
+ * with enclave v10 (Mike, 2026-10-06); /ledger stays as the history of the
+ * Ethereum anchors, out of the sequence.
  */
 export type DocsSection = { href: string; label: string };
 
@@ -50,8 +53,7 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/verification", label: "Verification" },
       { href: "/docs/audit", label: "Audit a bundle" },
       { href: "/docs/try", label: "Make a BitGraph" },
-      { href: "/ledger", label: "Floors" },
-      { href: "/ceilings", label: "Ceilings" },
+      { href: "/ceilings", label: "Base" },
       { href: "/exam", label: "The sealed exam" },
     ],
   },
@@ -86,8 +88,7 @@ export const MENU_GROUPS: MenuGroup[] = [
       { href: "/jev", label: "Ask Jev", desc: "Two questions no one could have seen before." },
       { href: "/exam", label: "The sealed exam", desc: "An exam sealed in BitGraph, and how to check it." },
       { href: "/docs/try", label: "Make a BitGraph", desc: "Drop in any file and get its proof." },
-      { href: "/ledger", label: "Floors", desc: "The Ethereum blocks each BitGraph was made after." },
-      { href: "/ceilings", label: "Ceilings", desc: "The Base blocks each BitGraph existed by." },
+      { href: "/ceilings", label: "Base", desc: "The Base blocks each BitGraph was made after and existed by." },
     ],
   },
   {

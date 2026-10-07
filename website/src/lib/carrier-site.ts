@@ -15,15 +15,15 @@
  */
 
 import {
-  verify, createVerificationContext, verifyCeiling, assembleCarrierV2Payload, carrierBlockSize, CARRIER_BLOCK_ZIP_LIMIT,
-  BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID, computeProofHash, type BitGraphProof,
+  verify, createVerificationContext, verifyCeiling, assembleCarrierV2Payload, assembleCarrierV3Payload, carrierBlockSize, CARRIER_BLOCK_ZIP_LIMIT,
+  BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID, computeProofHash, checkFloorHeader, evmHexToBytes, signedFloorOf, type BitGraphProof,
 } from "@mikeargento/bitgraph-verify";
 import { settlementFromSidecar, completeCarrierSettlement, type CarrierSettlement } from "@mikeargento/bitgraph-verify";
 import {
   buildCarrier, parseCarrier, completeCarrier, completeCarrierInTime, carrierBounds, carrierVersionOf,
   checkFloorBinding, checkCeilingBinding, anchorMessageBytes, verifyWitnessHeader,
   innerDigestMatches,
-  type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierParse, type CarrierBounds, type CarrierCeilingInTime,
+  type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierParse, type CarrierBounds, type CarrierCeilingInTime, type CarrierBaseFloor,
 } from "./carrier";
 import { toUrlSafeB64 } from "./explorer";
 
@@ -32,7 +32,7 @@ type AnchorSideAnswer = {
   bound?: { state: "anchored" | "pending" | "closed" | "none" | "unknown-epoch"; note?: string };
 };
 
-function commitOf(proof: CarrierProof): { counter: string; epochId: string; slotCounter: string | null; slotAnchor: { counter: string; blockNumber: number; blockHash: string } | null } | null {
+function commitOf(proof: CarrierProof): { counter: string; epochId: string; slotCounter: string | null; slotAnchor: { counter: string; blockNumber: number; blockHash: string } | null; baseFloor: boolean } | null {
   const c = (proof as { commit?: Record<string, unknown> }).commit;
   if (!c || typeof c !== "object") return null;
   const counter = c["counter"], epochId = c["epochId"];
@@ -42,7 +42,34 @@ function commitOf(proof: CarrierProof): { counter: string; epochId: string; slot
     ? { counter: sa.counter, blockNumber: sa.blockNumber, blockHash: sa.blockHash }
     : null;
   const slotCounter = typeof c["slotCounter"] === "string" ? (c["slotCounter"] as string) : null;
-  return { counter, epochId, slotCounter, slotAnchor };
+  // Enclave v10: a Base floor (commit.slotFloor). Such a proof has no Ethereum anchors around it.
+  const baseFloor = typeof c["slotFloor"] === "object" && c["slotFloor"] !== null;
+  return { counter, epochId, slotCounter, slotAnchor, baseFloor };
+}
+
+/** True when a proof's signed floor is a Base block (enclave v10): no Ethereum anchors exist for it. */
+export function hasBaseFloor(proof: { commit?: unknown } | null | undefined): boolean {
+  const c = proof?.commit as { slotFloor?: unknown } | undefined;
+  return typeof c?.slotFloor === "object" && c.slotFloor !== null;
+}
+
+/**
+ * A Base floor's header from this site's saved copy (GET /api/proofs/floor-header),
+ * checked against the floor the proof signs (hash, number, time, Base's
+ * schedule) before it is used. Throws with a sentence when it cannot be had.
+ */
+export function fetchBaseFloorHeader(proof: BitGraphProof): Promise<string> {
+  const f = signedFloorOf(proof);
+  if (f === null || f.chain !== "base") return Promise.reject(new Error("the proof does not sign a Base floor"));
+  return shareSettled(`base-floor|${f.blockNumber}|${f.blockHash}`, async () => {
+    const r = await fetch(`/api/proofs/floor-header?chain=base&block=${f.blockNumber}&hash=${encodeURIComponent(f.blockHash)}`);
+    if (!r.ok) throw new Error(`the floor block's header (Base block ${f.blockNumber}) could not be fetched (${r.status})`);
+    const j = (await r.json()) as { header?: unknown };
+    if (typeof j.header !== "string") throw new Error("the floor header answer did not carry a header");
+    const checked = checkFloorHeader(f, evmHexToBytes(j.header), "base");
+    if (!checked.ok) throw new Error(`the served floor header is not the signed floor: ${checked.reason}`);
+    return j.header.toLowerCase();
+  }, () => true);
 }
 
 /* One answer per page for what cannot change (2026-10-05): the proof page rebuilds its evidence each
@@ -117,8 +144,8 @@ async function fetchAfterWithWait(counter: string, epochId: string, waitMs: numb
 export interface BuiltCarrier {
   bytes: Uint8Array;
   fileName: string;
-  /** The ceiling in position: the next anchor. */
-  ceiling: "present" | "unfetched";
+  /** The ceiling in position: the next anchor; "none" on a Base floor (carrier/3), where none exists. */
+  ceiling: "present" | "unfetched" | "none";
   /** The ceiling in time: the Base block the record existed by. */
   ceilingInTime: "present" | "unfetched";
   /** Whether the openssl attestation witness is inside (left out only to keep a ZIP-family file under its limit). */
@@ -158,12 +185,17 @@ async function fetchCeilingInTimeOnce(proof: BitGraphProof, ph: string): Promise
   return { sidecar, pending: false };
 }
 
-/** The v2 payload for these parts, kept under the ZIP limit when the bytes are a ZIP-family file. */
-function payloadWithinLimits(committedBytes: Uint8Array, parts: Parameters<typeof assembleCarrierV2Payload>[0]): { payload: CarrierPayload; witness: boolean } {
-  let payload = assembleCarrierV2Payload(parts as never) as unknown as CarrierPayload;
+/** The payload for these parts (v3 on a Base floor, else v2), kept under the ZIP limit when the bytes are a ZIP-family file. */
+function assembleFor(parts: ProofEvidence["parts"] & { withAttestationWitness?: boolean }): CarrierPayload {
+  return ((parts.floor as { basis?: unknown }).basis === "base-header"
+    ? assembleCarrierV3Payload(parts as never)
+    : assembleCarrierV2Payload(parts as never)) as unknown as CarrierPayload;
+}
+function payloadWithinLimits(committedBytes: Uint8Array, parts: ProofEvidence["parts"]): { payload: CarrierPayload; witness: boolean } {
+  let payload = assembleFor(parts);
   let witness = payload.attestation !== undefined;
   if (isZipFamily(committedBytes) && carrierBlockSize(payload as never) > CARRIER_BLOCK_ZIP_LIMIT) {
-    payload = assembleCarrierV2Payload({ ...parts, withAttestationWitness: false } as never) as unknown as CarrierPayload;
+    payload = assembleFor({ ...parts, withAttestationWitness: false });
     witness = false;
     if (carrierBlockSize(payload as never) > CARRIER_BLOCK_ZIP_LIMIT) {
       throw new Error(`the proof block (${carrierBlockSize(payload as never)} bytes) would pass the 64 KiB a ZIP-family file can carry after its end record; download the proof beside the file instead`);
@@ -192,7 +224,7 @@ export function innerFileName(name: string): string {
  */
 export interface DeCarrierNote {
   name: string;
-  ceiling: "present" | "unfetched" | "corrupt";
+  ceiling: "present" | "unfetched" | "none" | "corrupt";
   outer?: Uint8Array;
   /** The carried proof, when the inner bytes hash to its artifact digest: the row needs no lookup. */
   proof?: CarrierProof;
@@ -270,12 +302,13 @@ export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; no
  * `unfetched` in so many words otherwise. Throws with a sentence on any
  * failed read: a carrier is never built on a guess.
  */
-/** The evidence a proof page or a download assembles around a proof: the parts of a carrier/2 block, each vetted before it is used. */
+/** The evidence a proof page or a download assembles around a proof: the parts of a carrier/2 block (carrier/3 on a Base floor), each vetted before it is used. */
 export interface ProofEvidence {
   parts: { proof: CarrierProof; floor: CarrierPayload["floor"]; ceiling: CarrierPayload["ceiling"]; ceilingInTime: CarrierCeilingInTime; settlement?: CarrierSettlement };
-  /** The v2 payload with the openssl witness and the declared pins, for verifyCarrierPayload and for a download. */
+  /** The v2 (v3 on a Base floor) payload with the openssl witness and the declared pins, for verifyCarrierPayload and for a download. */
   payload: CarrierPayload;
-  ceiling: "present" | "unfetched";
+  /** The ceiling in position; "none" on a Base floor, where order after the record is the chain of proof hashes. */
+  ceiling: "present" | "unfetched" | "none";
   ceilingInTime: "present" | "unfetched";
   /** Why a ceiling is unfetched, when it is: the route's own word. */
   ceilingNote: string | null;
@@ -292,6 +325,7 @@ export async function assembleProofEvidence(proofIn: { version: string; commit: 
   const proof = proofIn as unknown as BitGraphProof;
   const c = commitOf(proof as unknown as CarrierProof);
   if (c === null) throw new Error("the proof is missing its commit fields");
+  if (c.baseFloor) return assembleBaseFloorEvidence(proof);
   if (c.slotAnchor === null) throw new Error("this proof carries no signed floor (recorded before enclave v7), so it cannot travel as a carrier");
 
   // The floor, by identity: ask for the anchor before the SLOT (never the commit).
@@ -344,6 +378,31 @@ export async function assembleProofEvidence(proofIn: { version: string; commit: 
   return { parts, payload, ceiling: ceiling.status, ceilingInTime: ceilingInTime.status, ceilingNote };
 }
 
+/**
+ * The same for a proof whose floor is a Base block (enclave v10): the floor is
+ * that block's header, checked against the signed commit.slotFloor; there is
+ * no anchor and no ceiling in position (carrier/3 states "none": order after
+ * the record is the chain of proof hashes); the Base ceiling and its
+ * settlement are fetched exactly as for an Ethereum floor.
+ */
+async function assembleBaseFloorEvidence(proof: BitGraphProof): Promise<ProofEvidence> {
+  const header = await fetchBaseFloorHeader(proof);
+  const floor: CarrierBaseFloor = { status: "present", basis: "base-header", header };
+  const ceiling: CarrierPayload["ceiling"] = { status: "none", basis: "hash-chain" };
+  let ceilingNote: string | null = null;
+  let ceilingInTime: CarrierCeilingInTime = { status: "unfetched", searched: { at: new Date().toISOString() } };
+  try {
+    const { sidecar } = await fetchCeilingInTime(proof);
+    if (sidecar !== null) ceilingInTime = { status: "present", sidecar };
+  } catch (e) {
+    ceilingNote = e instanceof Error ? e.message : "The Base ceiling could not be fetched.";
+  }
+  const settlement = settlementFromSidecar(ceilingInTime.status === "present" ? ceilingInTime.sidecar : null);
+  const parts = { proof: proof as unknown as CarrierProof, floor, ceiling, ceilingInTime, ...(settlement ? { settlement } : {}) };
+  const payload = assembleCarrierV3Payload(parts as never) as unknown as CarrierPayload;
+  return { parts, payload, ceiling: "none", ceilingInTime: ceilingInTime.status, ceilingNote };
+}
+
 export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: { version: string; commit: unknown }, fileName: string, opts: { waitForCeilingMs?: number } = {}): Promise<BuiltCarrier> {
   const ev = await assembleProofEvidence(proofIn, opts);
   if (!innerDigestMatches(committedBytes, ev.payload)) {
@@ -366,7 +425,8 @@ export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: 
  * each carrying its own block header in metadata, so one JSON file per anchor
  * is self-contained evidence. The floor is the signed slotAnchor's anchor when
  * the proof carries one (v7+), else the anchor before the commit; the closing
- * anchor is the first after the commit, and "none yet" is an answer.
+ * anchor is the first after the commit, and "none yet" is an answer. Only for
+ * Ethereum floors: a Base-floor proof (enclave v10) gets neither.
  */
 export async function fetchAnchorPair(proofIn: { version: string; commit: unknown }): Promise<{
   floor: Record<string, unknown> | null;
@@ -375,6 +435,8 @@ export async function fetchAnchorPair(proofIn: { version: string; commit: unknow
 }> {
   const c = commitOf(proofIn as unknown as CarrierProof);
   if (c === null) throw new Error("the proof is missing its commit fields");
+  // A Base floor (enclave v10) has no Ethereum anchors around it: nothing to fetch.
+  if (c.baseFloor) return { floor: null, ceiling: null, note: "This proof's floor is a Base block, so no Ethereum anchors belong to it." };
   const floorAt = c.slotAnchor !== null ? (c.slotCounter ?? c.counter) : c.counter;
   const [beforeSide, afterSide] = await Promise.all([
     fetchAnchorSide(floorAt, c.epochId, "before"),
@@ -403,8 +465,9 @@ export async function completeDroppedCarrier(bytes: Uint8Array, opts: { waitForC
   if (p.kind !== "carrier") {
     return { status: "failed", bytes, note: p.kind === "none" ? "This file carries no proof block." : `The proof block is unreadable: ${p.reason}`, bounds: null };
   }
-  const v2 = carrierVersionOf(p.payload) === 2;
-  const needsAnchor = p.payload.ceiling.status !== "present";
+  // v3 (a Base floor) carries everything v2 does except a ceiling in position, which it states is "none".
+  const v2 = carrierVersionOf(p.payload) >= 2;
+  const needsAnchor = p.payload.ceiling.status === "unfetched";
   const needsTime = v2 && p.payload.ceilingInTime?.status !== "present";
   // A settlement missing is not pending: the writer attaches it when the batch is found on Ethereum; a drop just asks again.
   const needsSettlement = v2 && !needsTime && !p.payload.settlement;

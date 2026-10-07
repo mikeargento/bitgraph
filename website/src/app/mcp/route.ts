@@ -53,10 +53,11 @@ import {
  */
 const PROOF_KEEPING = "Save each proof whole and unedited, every field, beside the bytes it is about, including environment.attestation.reportB64, the long base64 string, copied exactly: a proof missing slotAllocation, environment, or the attestation cannot be verified.";
 /** Said with every export handed back (tree/1). */
-const EXPORT_KEEPING = "Save each export exactly as it is (it carries the proof, attestation included), with SPEC.md from https://bitgraph.ing/spec/SPEC.md beside it: its SHA-256 is the one the proof pins.";
+const EXPORT_KEEPING = "Save each export exactly as it is (it carries the proof, attestation included), with the spec its proof pins beside it as SPEC.md: https://bitgraph.ing/spec/SPEC-v2.md for a Base floor, https://bitgraph.ing/spec/SPEC.md for an Ethereum floor; its SHA-256 is the one the proof pins.";
 import {
   beginHosted,
   commitHostedTask,
+  floorOfState,
   decodeTaskToken,
   TASK_INSTRUCTIONS,
   ASSEMBLY_INSTRUCTIONS,
@@ -228,7 +229,7 @@ const handler = createMcpHandler(
             } catch (err) {
               return fail(`Error: ${hostedErrorText(err)}`);
             }
-            const floorLine = begun.floor === null ? "the sealed proof will carry the signed floor" : `not before block ${begun.floor.block}${begun.floor.headerTime !== null ? ` (header time ${new Date(begun.floor.headerTime * 1000).toISOString().replace(".000Z", "Z")})` : ""}`;
+            const floorLine = begun.floor === null ? "the sealed proof will carry the signed floor" : `not before ${begun.floor.chain === "base" ? "Base" : "Ethereum"} block ${begun.floor.block}${begun.floor.headerTime !== null ? ` (header time ${new Date(begun.floor.headerTime * 1000).toISOString().replace(".000Z", "Z")})` : ""}`;
             const structured = {
               outcome: "opened",
               task: true,
@@ -236,7 +237,7 @@ const handler = createMcpHandler(
               epoch: begun.epochB64,
               commitment: begun.commitment,
               commitment_base64: begun.commitmentB64,
-              floor: begun.floor === null ? null : { block: begun.floor.block, header_time: begun.floor.headerTime },
+              floor: begun.floor === null ? null : { chain: begun.floor.chain ?? "ethereum", block: begun.floor.block, header_time: begun.floor.headerTime },
               fuse_token: begun.token,
               expires_in_seconds: SLOT_TTL_SECONDS,
               instructions: TASK_INSTRUCTIONS,
@@ -319,7 +320,7 @@ const handler = createMcpHandler(
             outcome: "opened",
             error: null,
             ...(set ? { set: true } : {}),
-            ...(o.state.anchor ? { tree: true } : {}),
+            ...(floorOfState(o.state) ? { tree: true } : {}),
             placement: o.state.asIs ? "as-is" : o.state.placement,
             slot_counter: o.slotCounter,
             epoch: o.epochB64,
@@ -375,7 +376,7 @@ const handler = createMcpHandler(
           "Step two of making a BitGraph: commit the new files built from bitgraph_open recipes. " +
           "Send, per file, the fuse_token from bitgraph_open and the SHA-256 digest (base64) of the new file you built from its recipe. Send every file opened together in ONE call: they share a position and become one BitGraph, and it is whatever this call carries. " +
           "Every file becomes a leaf of one Merkle tree (tree/1; a single file is a tree of one): the tree is built here from the digests, its root document is committed under the shared position with the tree/1 marker, and the returned proof is verified before any file is called fused. " +
-          "It comes back as ONE export per tree in exports[] (bitgraph-export/1: the proof, the root document, and the file's own leaf and path, or for several files every leaf and name). Save each export exactly as it is beside the files, with SPEC.md from https://bitgraph.ing/spec/SPEC.md; with the file it checks with nothing of BitGraph's. " +
+          "It comes back as ONE export per tree in exports[] (bitgraph-export/1: the proof, the root document, and the file's own leaf and path, or for several files every leaf and name). Save each export exactly as it is beside the files, with the spec its proof pins as SPEC.md (https://bitgraph.ing/spec/SPEC-v2.md for a Base floor, https://bitgraph.ing/spec/SPEC.md for an Ethereum floor); with the file it checks with nothing of BitGraph's. " +
           "New files are virtual: keep the originals unchanged and the export, and any reader can rebuild a new file and check it. BitGraph does not index a tree's files. " +
           "(A fuse_token from an older open, without a floor, still commits the earlier way: a set with sets[].proof, or one file with its Frame in frames[].) " +
           "Returns, per file, the position just made, plus any earlier position BitGraph's copy holds. Positions held elsewhere are in their holder's proofs. " +
@@ -486,7 +487,7 @@ const handler = createMcpHandler(
           // token without one keeps the earlier making, below.
           // Single files: each under its own slot, as before.
           for (const s of groups.solos) {
-            if (s.state.anchor) { treeGroups.push([s]); continue; }
+            if (floorOfState(s.state)) { treeGroups.push([s]); continue; }
             try {
               const c = await commitHosted(s.state, s.artifactDigestB64);
               const { counter, epoch } = positionOf(c.proof);
@@ -507,7 +508,7 @@ const handler = createMcpHandler(
           }
           // Sets: every member that shares a slot, one manifest, one commit, one position.
           for (const g of groups.sets) {
-            if (g.entries[0]?.state.anchor) { treeGroups.push(g.entries); continue; }
+            if (g.entries[0] && floorOfState(g.entries[0].state)) { treeGroups.push(g.entries); continue; }
             try {
               const c = await commitHostedSet(g.entries);
               const { counter, epoch } = positionOf(c.proof);
@@ -724,7 +725,7 @@ const handler = createMcpHandler(
         title: "Get a BitGraph proof",
         description:
           "Fetch a BitGraph proof from BitGraph's copy (a recording or an anchor) and its context: its position, every position the copy holds for the same bytes, and its floor " +
-          "('placed no earlier than block X'). Look up by digest (base64, either form) or by BitGraph number (e.g. '4523' or '#4,523', current epoch). " +
+          "('placed no earlier than Base block X', or an Ethereum block on earlier proofs). Look up by digest (base64, either form) or by BitGraph number (e.g. '4523' or '#4,523', current epoch). " +
           "Exactly one of digest or number is required. Read-only. " +
           "markdown returns a summary; json returns the full proof object with positions and its floor.",
         inputSchema: z.object({
@@ -805,7 +806,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "bitgraph", version: SERVER_VERSION },
     instructions:
-      "BitGraph gives a file's bytes a position in an ordered sequence, with a floor from Ethereum anchors: the bytes were placed no earlier than their floor. Making a BitGraph is two steps: bitgraph_open (a position at the boundary, and a recipe per file for its new fused file) then bitgraph_commit (the digest of each new file you built). " +
+      "BitGraph gives a file's bytes a position in an ordered sequence, with a floor: a Base block the enclave fixes when the position opens (Ethereum on earlier proofs); the bytes were placed no earlier than their floor. Making a BitGraph is two steps: bitgraph_open (a position at the boundary, and a recipe per file for its new fused file) then bitgraph_commit (the digest of each new file you built). " +
       "Open every file of a batch in ONE call and commit them in ONE call: they share one position and become one BitGraph, a set, each file a member with its row. A single file is fused on its own. " +
       "File contents never travel: only digests, sizes, a file's first bytes, position records and recipe bytes. New files are virtual; the originals stay unchanged and the proof rebuilds them. " +
       "Positions are permanent, and the proof comes back to you to keep: only make BitGraphs of files the user asked for, and never generate content just to record it. " +

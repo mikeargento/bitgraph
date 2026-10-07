@@ -70,6 +70,12 @@ export async function commitsMayProceed(): Promise<"yes" | "no" | "tee-down"> {
   return currentEpochHasAnchor();
 }
 
+/** True when the enclave says it fixes a Base floor at every allocation (v10, /key floor "base"). Cached with the epoch. */
+export async function enclaveFixesBaseFloor(): Promise<boolean> {
+  const epochId = await currentEpochId();
+  return epochId !== null && cachedKey?.floor === "base";
+}
+
 export async function currentEpochHasAnchor(): Promise<"yes" | "no" | "tee-down"> {
   const epochId = await currentEpochId();
   if (epochId === null) return "tee-down";

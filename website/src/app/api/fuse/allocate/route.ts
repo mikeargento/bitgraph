@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { commitsMayProceed, currentEpochId, TEE_URL, teeRestarting503 } from "@/lib/anchor-gate";
-import { FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isAnchorMark, isSlotRecord, retryAfterHeaders, rotationGuardActive } from "@/lib/fuse";
+import { FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isAnchorMark, isBaseFloorMark, isSlotRecord, retryAfterHeaders, rotationGuardActive } from "@/lib/fuse";
+import { isNoBaseFloorRefusal } from "@/lib/fuse-core";
 
 export const dynamic = "force-dynamic";
 
@@ -50,10 +51,12 @@ export async function POST(req: NextRequest) {
     if ([502, 503, 504].includes(teeRes.status)) return teeRestarting503();
     if (!teeRes.ok) {
       const err = await teeRes.json().catch(() => ({ error: teeRes.statusText }));
+      // Enclave v10 refuses a position without a fresh Base header: the same retryable 503 as a restart.
+      if (isNoBaseFloorRefusal(err)) return teeRestarting503();
       return NextResponse.json(err, { status: teeRes.status, headers: retryAfterHeaders(teeRes) });
     }
 
-    const data = (await teeRes.json()) as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown };
+    const data = (await teeRes.json()) as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown; floor?: unknown };
     if (!isSlotRecord(data.slot) || data.slotId !== data.slot.nonceB64 || data.chainId !== FUSE_CHAIN) {
       return NextResponse.json({ error: "Unexpected allocation response from the boundary" }, { status: 502 });
     }
@@ -64,9 +67,16 @@ export async function POST(req: NextRequest) {
     // The orphaned slot expires in the enclave on its own.
     if (data.slot.epochId !== gatedEpoch) return teeRestarting503();
 
-    // Enclave v9 hands back the floor it will sign at commit; pass it on so the
-    // producer can bind it into a bitgraph-fuse/2 commitment. v8 sends none.
-    return NextResponse.json({ slotId: data.slotId, slot: data.slot, chainId: data.chainId, ...(isAnchorMark(data.anchor) ? { anchor: data.anchor } : {}) });
+    // The enclave hands back the floor it will sign at commit; pass it on so the
+    // producer can bind it: v10 a Base block (`floor`, bitgraph-fuse/3), v9 an
+    // Ethereum anchor (`anchor`, bitgraph-fuse/2). v8 sends none. A proof has
+    // one floor, so a response naming both is not passed on.
+    const anchor = isAnchorMark(data.anchor) ? data.anchor : null;
+    const floor = isBaseFloorMark(data.floor) ? data.floor : null;
+    if (anchor !== null && floor !== null) {
+      return NextResponse.json({ error: "The boundary returned two floors for one position" }, { status: 502 });
+    }
+    return NextResponse.json({ slotId: data.slotId, slot: data.slot, chainId: data.chainId, ...(floor !== null ? { floor } : anchor !== null ? { anchor } : {}) });
   } catch (e) {
     console.error("[api/fuse/allocate] Error:", (e as Error).message);
     return NextResponse.json({ error: "Allocation failed" }, { status: 500 });
