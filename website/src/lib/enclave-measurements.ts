@@ -19,6 +19,7 @@ export const PUBLISHED_ENCLAVE_MEASUREMENTS: ReadonlyArray<{ pcr0: string; since
   { pcr0: "394c3cf515651dc27187d85e4716c12dfeb99c1227f1fe0eacfaa427d80018e1a28ebba9469e99c7936601f901d74e1d", since: "2026-09-06", note: "v7, authenticated anchors" },
   { pcr0: "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b", since: "2026-09-07", note: "v8, floor gate" },
   { pcr0: "934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8", since: "2026-09-30", note: "v9, floor returned at allocation" },
+  { pcr0: "5a947cc66095adcceefa9e5ece5d1416dfe08c3470df1bcaa5b2bc5267b0480e6cdc172fe077cd06b0afb07614307973", since: "2026-10-08", note: "v10, Base floor at allocation" },
 ];
 
 export const PUBLISHED_PCR0S: readonly string[] = PUBLISHED_ENCLAVE_MEASUREMENTS.map((m) => m.pcr0);

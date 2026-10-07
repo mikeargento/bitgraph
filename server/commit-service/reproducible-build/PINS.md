@@ -5,35 +5,33 @@ re-derive the **identical PCR0**. Change any one of these and the PCR0 changes.
 This file is the authoritative record; the `Dockerfile.enclave`, `build-eif.sh`,
 and `eif-builder.Dockerfile` all reference these exact pins.
 
-Last resolved: 2026-09-30 (resolved on the production Nitro host, linux/amd64).
-Source: tag `enclave-v9` (`b32c6c74`).
+Last resolved: 2026-10-07 (resolved on the production Nitro host, linux/amd64).
+Source: tag `enclave-v10` (`93f9504d`).
 
 ## Published measurement
 
 ```
-PCR0 = 934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8
+PCR0 = 5a947cc66095adcceefa9e5ece5d1416dfe08c3470df1bcaa5b2bc5267b0480e6cdc172fe077cd06b0afb07614307973
 ```
 
-Built **2026-09-30**, and **verified by two independent builds on that date**:
-the pipeline was run twice from a clean context at `b32c6c74` and both produced
-this identical PCR0 (a third, the deliverable build, agreed as well). The source
-change since `enclave-v8` is one line of behaviour: the allocation response
-returns the floor anchor the enclave will sign at commit (`anchor: {counter,
-blockNumber, blockHash}`), so a producer can bind that block into a
-`bitgraph-fuse/2` commitment. Nothing signed changed: the slot record and the
-proof are v8's. The v8 change over `enclave-v7` was the floor gate: on the anchored chain
-(`bitgraph:main`) the enclave refuses to sign a proof whose slot was allocated
-before that epoch's first authenticated anchor, so no proof on that chain can
-lack a floor. Authenticated anchor commits are exempt, which is what lets the
-epoch's first anchor land. The change v7 made over `enclave-v6` was authenticated anchors: the anchor service signs
-its claim with an Ed25519 key whose public half is a constant in
-`src/enclave/app.ts` (`ANCHOR_SERVICE_PUBLIC_KEY_B64`), the enclave verifies
-it and signs `commit.anchor`, refuses the attribution name "Ethereum Anchor"
-without it, and signs the chain's latest anchor at allocation time into every
-proof as `commit.slotAnchor`. Rotating that key is a new PCR0 by design.
-Rebuild from this source on any linux/amd64 host and you will re-derive exactly
-this value; the production enclave at `nitro.occproof.com` reports it as its
-`measurement`.
+Built **2026-10-07**, and **verified by two independent builds on that date**:
+the pipeline was run twice from a clean context at `93f9504d` and both produced
+this identical PCR0 (a third, the deliverable build, agreed as well). Production
+switches to it at the epoch cycle of 2026-10-07 23:59 UTC; before that it reports
+v9 (below). The source change since `enclave-v9` is the Base floor: with each
+allocation the parent hands the enclave the newest Base block header; the enclave
+hashes it (keccak-256), reads the number and time from the same bytes, refuses a
+header off Base mainnet's schedule (`1686789347 + 2n`), stamped after its own
+clock, or lower than the chain's last floor, and signs the block as
+`commit.slotFloor` (SPEC v2 section 9). On the anchored chain an allocation
+without a header is refused, which replaces v8's wait for the epoch's first
+anchor. A proof signs one floor: with a Base floor, `slotAnchor` is neither signed
+nor returned. Anchor claims are still authenticated (`ANCHOR_SERVICE_PUBLIC_KEY_B64`
+unchanged), and `/key` reports `"floor": "base"`. The image embeds the verifier,
+which pins SPEC v2's hash (`spec/FROZEN.json`), so SPEC v2 was frozen before this
+build. Rebuild from this source on any linux/amd64 host and you will re-derive
+exactly this value; from the cycle above, the production enclave at
+`nitro.occproof.com` reports it as its `measurement`.
 
 Note on what "reproducible" means precisely: **PCR0 reproduces, the `.eif` file
 does not.** The two verification builds produced different file hashes
@@ -46,7 +44,7 @@ Companion measurements of this build:
 
 ```
 PCR1 = 4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493
-PCR2 = 2770eeefa035ca7431790348a9fbc2bfb75d48520c992148d1b5b09dd07f597b05f970e2fedfe3e5c06b78af68ec9279
+PCR2 = a41dd86d7be916810243a7552ea5b8843ea72a88d7a53f1245ad99dfa3d2aac42810683eeea10d8546303a25c8f1611c
 ```
 
 PCR1 is unchanged from every prior build: it measures AWS's signed kernel, which
@@ -60,6 +58,7 @@ old proofs to verify.
 
 | PCR0 | Period | Note |
 |------|--------|------|
+| `934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8` | 2026-09-30 → 2026-10-07 | v9-repro (`enclave-v9`, `b32c6c74`). Verified by two clean builds 2026-09-30. PCR2 `2770eeef…`. The allocation returned the floor anchor (bitgraph-fuse/2). |
 | `eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b` | 2026-09-07 → 2026-09-30 | v8-repro (`enclave-v8`, `3b3568d4`). Verified by two clean builds 2026-09-07. PCR2 `36974f9a…`. |
 | `394c3cf515651dc27187d85e4716c12dfeb99c1227f1fe0eacfaa427d80018e1a28ebba9469e99c7936601f901d74e1d` | 2026-09-06 → 2026-09-07 | v7-repro (`enclave-v7`, `448e2fdb`). Verified by two clean builds 2026-09-06. |
 | `cd8ba52d340fb1be78610b59953ded2ceca23be1cfcc7ab504a26b8fdcd7ba92090f49e28a32d008df046ec4212f77bf` | 2026-09-05 → 2026-09-06 | v6-repro (`enclave-v6`, `30a97c60`). Verified by two clean builds 2026-09-05. |

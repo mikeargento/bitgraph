@@ -135,7 +135,7 @@ export default function TrustModelPage() {
 
       <h2 id="verifier">What a verifier is responsible for</h2>
       <ol className="steps">
-        <li><strong>Pin the measurement.</strong> Set <code>allowedMeasurements</code> to the PCR0 you accept and require <code>measured-tee</code>. The published value is <code className="break">934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8</code>, and you can rebuild it yourself.</li>
+        <li><strong>Pin the measurement.</strong> Set <code>allowedMeasurements</code> to the PCR0 you accept and require <code>measured-tee</code>. The published value is <code className="break">5a947cc66095adcceefa9e5ece5d1416dfe08c3470df1bcaa5b2bc5267b0480e6cdc172fe077cd06b0afb07614307973</code> (enclave v10, from 2026-10-07 23:59 UTC; earlier images in PINS.md), and you can rebuild it yourself.</li>
         <li><strong>Require and validate the attestation.</strong> The core verifier does not parse it; the audit package does, chaining to the embedded Nitro root and checking user data against the signed body.</li>
         <li><strong>Check the artifact binding.</strong> A result whose <code>artifactBinding</code> is <code>not-checked</code> has not tied the proof to any file.</li>
         <li><strong>Hold the neighbours for chain claims.</strong> Order across a gap is not established by counters alone.</li>

@@ -9,9 +9,9 @@ export const metadata: Metadata = {
     "What a BitGraph verifier needs, the seven checks it runs in order, what valid, incomplete, invalid and unverifiable mean, what no result can say, and three ways to run it: a folder offline, in code, or over HTTP.",
 };
 
-/* The published enclave measurement (enclave-v9). PINS.md in the repository
+/* The published enclave measurement (enclave-v10). PINS.md in the repository
    holds it; the build is reproducible, so anyone can derive it again. */
-const PCR0 = "934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8";
+const PCR0 = "5a947cc66095adcceefa9e5ece5d1416dfe08c3470df1bcaa5b2bc5267b0480e6cdc172fe077cd06b0afb07614307973";
 
 export default function VerificationPage() {
   return (
@@ -29,7 +29,7 @@ export default function VerificationPage() {
         <li><b>The export</b><span>The <code>bitgraph-export/1</code> JSON the holder keeps beside the file, with <code>SPEC.md</code>, the exact text the proof pins. The export carries the <code>bitgraph/1</code> proof (the digest, the position record, both counters, the signature, the enclave&rsquo;s measurement and its attestation) and the tree evidence: the 84-byte root document and, for one file, its leaf and path, or, for the owner, every leaf and name. A proof handed over on its own still verifies as a proof; the member check needs the export.</span></li>
         <li><b>The file</b><span>The exact bytes. For a fused file, either the fused bytes or the original they were built from; the proof rebuilds one from the other. An export holds no copy of any file.</span></li>
         <li><b>The time evidence</b><span>In the export, when they exist: <code>floor</code>, the header of the block the enclave&rsquo;s signed floor names (a Base block; an Ethereum block on earlier proofs); <code>ceiling</code>, the Base block that carries a Merkle root over the record; <code>settlement</code>, Ethereum&rsquo;s own record of that Base block. An export holds no anchor proofs. A Base floor carries its block&rsquo;s time in the signed proof; on an earlier proof, without the header the floor is a block number, not a time. <code>bitgraph export complete</code> fills in a ceiling and settlement that had not landed when the export was written.</span></li>
-        <li><b>A trust policy</b><span>The list of PCR0 measurements you accept. The published one is <code className="break">{PCR0}</code> (enclave-v9), reproducible from source. A proof from any other image should fail your check, whatever else it passes.</span></li>
+        <li><b>A trust policy</b><span>The list of PCR0 measurements you accept. The published one is <code className="break">{PCR0}</code> (enclave-v10, from 2026-10-07 23:59 UTC; earlier images in PINS.md), reproducible from source. A proof from any other image should fail your check, whatever else it passes.</span></li>
       </ul>
 
       <h2 id="gets">What a verifier gets</h2>

@@ -41,13 +41,13 @@ required to build or verify the EIF — only to run the enclave.
 git clone https://github.com/mikeargento/bitgraph.git
 cd bitgraph
 
-# Build the deployed enclave's tag (enclave-v9 is live; PINS.md names the
+# Build the deployed enclave's tag (enclave-v10 is live from 2026-10-07 23:59 UTC; PINS.md names the
 # current one). HEAD has moved on since, so it gives a different PCR0.
-./server/commit-service/reproducible-build/build-eif.sh enclave-v9
+./server/commit-service/reproducible-build/build-eif.sh enclave-v10
 
 # Or prove determinism: build twice and assert identical PCR0, equal to the
 # published value:
-./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v9 934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8
+./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v10 5a947cc66095adcceefa9e5ece5d1416dfe08c3470df1bcaa5b2bc5267b0480e6cdc172fe077cd06b0afb07614307973
 ```
 
 If your PCR0 equals the value published at `/docs/self-host-tee` and embedded in

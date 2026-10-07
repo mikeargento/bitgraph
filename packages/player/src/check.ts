@@ -156,14 +156,13 @@ export const KNOWN_ENCLAVE_MEASUREMENTS: ReadonlyArray<{ pcr0: string; label: st
   {
     pcr0: "934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8",
     label: "enclave v9 (reproducible; the allocation returns the floor anchor, for bitgraph-fuse/2)",
-    period: "2026-09-30 onward",
+    period: "2026-09-30 to 2026-10-07",
   },
-  // TODO(enclave v10): add enclave v10's PCR0 here once the host build of tag
-  // enclave-v10 publishes it (PINS.md). v10 signs a Base floor
-  // (commit.slotFloor, bitgraph-fuse/3) instead of an Ethereum anchor. Until
-  // the entry exists, a v10 proof's enclave line is UNDETERMINED (an unknown
-  // measurement), never FALSE. When it is added, close v9's period at the
-  // cutover date.
+  {
+    pcr0: "5a947cc66095adcceefa9e5ece5d1416dfe08c3470df1bcaa5b2bc5267b0480e6cdc172fe077cd06b0afb07614307973",
+    label: "enclave v10 (reproducible; the floor is a Base block fixed at allocation, for bitgraph-fuse/3)",
+    period: "2026-10-08 onward",
+  },
 ];
 
 // ---------------------------------------------------------------------------

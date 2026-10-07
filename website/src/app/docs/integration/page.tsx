@@ -227,7 +227,7 @@ if (exp === null) throw new Error("not a bitgraph-export/1 file");
 
 const result = await verifyExport(exp, {
   bytes: await fs.readFile("photo.jpg"),   // the original or the committed bytes; without it the file claims are NOT_CARRIED
-  pins: { pcr0: ["934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8"] }, // enclave-v9; default is BitGraph's published images
+  pins: { pcr0: ["5a947cc66095adcceefa9e5ece5d1416dfe08c3470df1bcaa5b2bc5267b0480e6cdc172fe077cd06b0afb07614307973"] }, // enclave-v10; default is BitGraph's published images
 });
 
 result.verdict;       // "TRUE" | "FALSE" | "UNDETERMINED"
@@ -249,7 +249,7 @@ const result = await verify({
   bytes: artifactBytes,
   trustAnchors: {
     requireEnforcement: "measured-tee",
-    allowedMeasurements: ["934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8"], // enclave-v9, see PINS.md
+    allowedMeasurements: ["5a947cc66095adcceefa9e5ece5d1416dfe08c3470df1bcaa5b2bc5267b0480e6cdc172fe077cd06b0afb07614307973"], // enclave-v10, see PINS.md
     requireAttestation: true,
     requireAttestationFormat: ["aws-nitro"],
   },
@@ -318,7 +318,7 @@ curl https://nitro.occproof.com/key
 # Response:
 # {
 #   "publicKeyB64": "...",
-#   "measurement": "934feb8bb6f4f7e2...c1fcf8",
+#   "measurement": "5a947cc66095adcc...307973",
 #   "epochId": "...",
 #   "enforcement": "measured-tee"
 # }`}</Code>
