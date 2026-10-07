@@ -13,7 +13,7 @@ import { anchorStatusDoc, isSettled, ANCHOR_STATUS_FILE, type BoundReport } from
 import { verifyNitroAttestation, attestationTimestampMs, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, longDateTz, dateTz, sameDayTz, useTimeZoneMode, TimeChip } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
-import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST, HOME_EXAMPLE_DIGEST } from "@/lib/warm";
+import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { loadLedger, heldFor } from "@/lib/local-ledger";
@@ -114,9 +114,12 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
   [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
-  // The home page's "See a real BitGraph" since 2026-10-05 (Mike: "extremely simple and short"): one line,
-  // "This file was recorded with BitGraph.", a tree/1 of one (BitGraph #1,281, container/2).
-  [HOME_EXAMPLE_DIGEST]:
+  // The home page's "See a real BitGraph" from 2026-10-05 to 10-07 (Mike: "extremely simple and short"): one
+  // line, "This file was recorded with BitGraph.", a tree/1 of one (BitGraph #1,281, container/2). Pinned to
+  // its own digest, not HOME_EXAMPLE_DIGEST: when home moved to #14 (an image) the mapping followed the
+  // constant and #14's page showed this text file as its own (fixed 2026-10-07). Hosted files skip the hash
+  // check, so a key here must be the record the file belongs to.
+  "y9znJvceEa38Exw6SKY0uul3M7IjIu3OleynLsg9soc":
     { path: "/example/bitgraph-sample.txt", name: "bitgraph-sample.txt", mime: "text/plain" },
   // The home example of 2026-09-30 (#4,546): a text file that explains itself for a reader
   // who knows nothing about BitGraph, in the TRACE doc's words: it carries its position
