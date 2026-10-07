@@ -3191,7 +3191,11 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
    be 3 lines"; no, both three-line breaks are bad). The 34px floor wrapped it to "Position / commitment /
    for AI automation." at 320 (302px of text in a 288px column); scaled with the width it fills the line,
    about 37px at 375 and 31px at 320. */
-@media (max-width: 600px) { .home.home-typing h1 { font-size: 9.8vw !important; } }
+@media (max-width: 600px) { .home.home-typing h1 { font-size: 9vw !important; } }
+/* And air at the sides (Mike, 2026-10-07: "these texts are tight"): 9vw leaves about 40px each side
+   of "Position commitment" (9.8vw left 25 to 28), and the line under it stops at 20em, so a large
+   phone sets it in three balanced lines instead of two running nearly edge to edge. */
+@media (max-width: 600px) { .home.home-typing .lede { max-width: 20em !important; } }
 /* And the line under it, the same as /jev's and /image's (Mike, 10-06: "h2 same?"). */
 .home.home-typing .lede { font-size: clamp(17px, 2vw, 20px) !important; line-height: 1.45 !important; } /* 22 to 20 (Mike, 2026-10-07: "a tad too big") when the lede grew a second clause */
 /* A little more air between headline lines, the same on all three pages (Mike, 10-06: "enough space between h1 lines?"). */
