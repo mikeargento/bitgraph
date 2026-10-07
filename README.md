@@ -7,7 +7,7 @@
 
 ---
 
-**Position commitment for AI records.**
+**Position commitment for AI automation.**
 
 BitGraph begins the proof before the record arrives.
 

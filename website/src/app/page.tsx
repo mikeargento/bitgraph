@@ -53,10 +53,11 @@ export default function HomePage() {
           2026-09-26, left aligned, after a day of trying shorter heroes ("GPS for files.", "The
           position comes first.", "First the position. Then the file."; all in the git history).
           Claim discipline holds: a position is what is verified, never the content, never "when". */}
+      {/* "AI automation" (Mike, 2026-10-07) replaced "AI records" (10-05): the larger market by name; the lede still says "the record", which is what automation leaves behind. */}
       {/* Static (Mike, 10-05): one "for", the first market. The typing version cycled AI records → AI agent
           actions → AI evaluations → predictions → sealed bids → chain of custody → any file → any bytes →
           any bits (components/home-headline.tsx, 694a5646). */}
-      <h1>Position commitment<br />for AI&nbsp;records.</h1>
+      <h1>Position commitment<br />for AI&nbsp;automation.</h1>
 
       {/* Mike's line (2026-10-05), replacing the Schelling paragraph and then the six-item list; "Other proofs", not "Every other proof" (no absolute: Chainpoint rule, 09-21)
           ("Signatures, timestamps, append-only logs, write-once storage, notarizations, and
