@@ -3109,6 +3109,15 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
    mobile?", then "its actually easier to read that way on desk also"). */
 .pv-moment-dim { display: block !important; padding-left: 0 !important; }
 .pv-moment-dim .pv-sep { display: none; }
+/* A block's time (the floor's, the ceiling's) is what a reader scans for, so it reads in ink,
+   semibold, with even digits, not grey (Mike, 2026-10-07: "the times are hard to pick out fast
+   and i feel like its important"). The recorded row's time is already its bold title; its
+   "2 s after the floor block" line keeps .pv-moment-since. */
+.pv-moment-dim:not(.pv-moment-since) { color: var(--ink) !important; font-weight: 600 !important; font-variant-numeric: tabular-nums; }
+/* In a soft box, like a readout (Mike, 2026-10-07: "box?"): a filled tint and no outline, so it
+   never reads as one of the outlined Basescan buttons beside it. */
+.pv-moment-dim:not(.pv-moment-since), .pv-time-box { width: fit-content; padding: 1px 8px !important; margin: 4px 0 2px -8px; border-radius: 6px; background: rgba(60, 64, 67, 0.07); font-variant-numeric: tabular-nums; }
+.pv-time-box { display: block; }
 .art-result .art-explain { margin: 0 0 22px !important; } /* above the image now */
 /* The three actions one width, a third of the column each, stacked on phones (Mike, 10-06: "these
    buttons should be same width and then stack on mobile"). */
