@@ -3282,3 +3282,4 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-page .lede:not(.art-why) { margin-bottom: 20px !important; }
 .art-page .lede.art-why { margin-top: 0 !important; margin-bottom: 24px !important; }
 .art-page .lede { max-width: var(--measure) !important; } /* 2026-10-07: the demo ledes read at the site's measure, not a 34em cap left from the centred layout */
+.art-page .lede:not(.art-why) { font-weight: 600; } /* 2026-10-07 (Mike: "should lede text be bold"): the hook carries weight, the explanation under it does not */
