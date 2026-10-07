@@ -397,15 +397,20 @@ describe("the leaf hash is RFC 6962's", () => {
 });
 
 describe("the spec pin", () => {
-  test("SHA-256(spec/SPEC.md) is the newest known spec hash, the vectors pin it, and the website ships the same bytes", () => {
-    const spec = readFileSync(fileURLToPath(new URL("../../spec/SPEC.md", import.meta.url)));
-    const h = bytesToBase64(sha256(new Uint8Array(spec)));
-    assert.equal(KNOWN_TREE_SPEC_HASHES[KNOWN_TREE_SPEC_HASHES.length - 1], h, "run: node spec/pin-hash.mjs, rebuild packages/verify");
-    assert.equal(bytesToBase64(currentTreeSpecHash()), h);
+  test("SHA-256(spec/SPEC-v2.md) is the newest known spec hash and pins fuse/3; v1 still pins fuse/2; the vectors pin v1; the website ships both", () => {
+    const v1 = readFileSync(fileURLToPath(new URL("../../spec/SPEC.md", import.meta.url)));
+    const v2 = readFileSync(fileURLToPath(new URL("../../spec/SPEC-v2.md", import.meta.url)));
+    const h1 = bytesToBase64(sha256(new Uint8Array(v1)));
+    const h2 = bytesToBase64(sha256(new Uint8Array(v2)));
+    assert.equal(KNOWN_TREE_SPEC_HASHES[KNOWN_TREE_SPEC_HASHES.length - 1], h2, "run: node spec/pin-hash.mjs, rebuild packages/verify");
+    assert.equal(bytesToBase64(currentTreeSpecHash(3)), h2, "a Base floor (fuse/3) follows SPEC v2");
+    assert.equal(bytesToBase64(currentTreeSpecHash(2)), h1, "an Ethereum floor (fuse/2) follows SPEC v1");
     const vec = JSON.parse(readFileSync(fileURLToPath(new URL("../../spec/vectors/export-1.json", import.meta.url)), "utf8")) as { memberExport: { spec: string } };
-    assert.equal(vec.memberExport.spec, h, "run: node spec/tools/gen-vectors.mjs");
-    const site = readFileSync(fileURLToPath(new URL("../../website/public/spec/SPEC.md", import.meta.url)));
-    assert.ok(Buffer.compare(site, spec) === 0, "copy spec/SPEC.md to website/public/spec/SPEC.md");
+    assert.equal(vec.memberExport.spec, h1, "the export-1 vectors are v1's and stay pinned to it");
+    const site1 = readFileSync(fileURLToPath(new URL("../../website/public/spec/SPEC.md", import.meta.url)));
+    const site2 = readFileSync(fileURLToPath(new URL("../../website/public/spec/SPEC-v2.md", import.meta.url)));
+    assert.ok(Buffer.compare(site1, v1) === 0, "copy spec/SPEC.md to website/public/spec/SPEC.md");
+    assert.ok(Buffer.compare(site2, v2) === 0, "copy spec/SPEC-v2.md to website/public/spec/SPEC-v2.md");
   });
 
   test("v1 is frozen: spec/FROZEN.json names its hash, it is the first known hash, and the file still hashes to it (an edit is v2, beside it)", () => {

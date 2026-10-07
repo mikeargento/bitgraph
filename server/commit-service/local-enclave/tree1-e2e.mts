@@ -42,17 +42,18 @@ async function anchorAt(n: number) {
 async function makeTree(files: Array<{ name: string; bytes: Uint8Array; code: number }>) {
   const a = await post(`${U}/allocate-slot`, { chainId: CHAIN });
   if (a.status !== 200) throw new Error("allocate: " + JSON.stringify(a.json));
-  const { slotId, slot, anchor } = a.json as { slotId: string; slot: F.SlotAllocation; anchor?: { counter: string; blockNumber: number; blockHash: string } };
-  if (!anchor) throw new Error("no floor with the allocation (tree/1 needs enclave v9)");
+  // Enclave v10: the allocation returns a Base floor, so the tree is fuse/3 and pins SPEC v2.
+  const { slotId, slot, floor: anchor } = a.json as { slotId: string; slot: F.SlotAllocation; floor?: { chain: "base"; evmChainId: 8453; blockNumber: number; blockHash: string; blockTimestamp: number } };
+  if (!anchor) throw new Error("no Base floor with the allocation (tree/1 under SPEC v2 needs enclave v10)");
   const { commitment, version } = F.producerCommitment(slot, anchor);
-  if (version !== 2) throw new Error("expected commitment/2");
+  if (version !== 3) throw new Error("expected commitment/3");
   const members = files.map((f) => ({ ...f, ...F.leafFor(f.code, f.bytes, commitment) }));
   const built = F.buildTree(members.map((m) => m.leaf));
   const rootDoc = F.buildTreeRootDocument(commitment, built.sorted.length, built.root);
   const c = await post(`${U}/commit`, {
     digests: [{ digestB64: b64(sha256(rootDoc)), hashAlg: "sha256" }],
     slotId, slot, chainId: CHAIN,
-    attribution: F.treeAttribution(F.currentTreeSpecHash()),
+    attribution: F.treeAttribution(F.currentTreeSpecHash(3)),
     metadata: { [F.TREE_METADATA_KEY]: F.bytesToHex(rootDoc) },
   });
   if (c.status !== 200) throw new Error("commit: " + JSON.stringify(c.json));
@@ -69,9 +70,9 @@ try {
 
   // One file: a tree of one.
   const one = await makeTree([{ name: "photo.txt", bytes: utf8("a single file, a tree of one\n"), code: 0x03 }]);
-  ok("the enclave signed tree/1's marker as sent", JSON.stringify(one.proof.attribution) === JSON.stringify(F.treeAttribution(F.currentTreeSpecHash())), one.proof.attribution);
+  ok("the enclave signed tree/1's marker as sent", JSON.stringify(one.proof.attribution) === JSON.stringify(F.treeAttribution(F.currentTreeSpecHash(3))) && one.proof.attribution?.name === "bitgraph-fuse/3", one.proof.attribution);
   ok("the enclave kept the root document in metadata", one.proof.metadata?.[F.TREE_METADATA_KEY] === F.bytesToHex(one.rootDoc));
-  ok("the signed floor is the allocation's", JSON.stringify(one.proof.commit.slotAnchor) === JSON.stringify(one.anchor), { signed: one.proof.commit.slotAnchor, alloc: one.anchor });
+  ok("the signed floor is the allocation's Base block", JSON.stringify(one.proof.commit.slotFloor) === JSON.stringify(one.anchor) && !one.proof.commit.slotAnchor, { signed: one.proof.commit.slotFloor, alloc: one.anchor });
   const r1 = await F.verifyTreeMember({ proof: one.proof, bytes: one.members[0]!.bytes, member: one.evidenceOf(one.members[0]!) });
   ok("one file verifies from its original", r1.category === "TREE_MEMBER_FROM_ORIGIN", r1);
   const r1d = await F.verifyTreeMember({ proof: one.proof, bytes: one.members[0]!.committed, member: one.evidenceOf(one.members[0]!) });

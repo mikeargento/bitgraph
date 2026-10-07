@@ -59,7 +59,9 @@ const png = fixture("image.png");
 const note = utf8("a plain note for the tree\n");
 const fourth = utf8("a fourth member\n");
 const stranger = utf8("never in any tree\n");
-const SPEC_B64 = KNOWN_TREE_SPEC_HASHES[KNOWN_TREE_SPEC_HASHES.length - 1]!;
+// These trees are made against a stub boundary that returns an Ethereum floor anchor (enclave v9),
+// so they are fuse/2 trees and pin SPEC v1, the spec that defines tree/1 under fuse/2.
+const SPEC_B64 = KNOWN_TREE_SPEC_HASHES[0]!;
 const urlSafe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 /** The five-member tree: every placement, one as is. */
@@ -262,7 +264,7 @@ describe("fuseTree(): one position, one tree", () => {
     await assert.rejects(fuseTree(FIVE(), { transport }), (e: unknown) => {
       assert.ok(e instanceof FuseError, String(e));
       assert.equal(e.code, "floor-missing");
-      assert.match(e.message, /no floor anchor/);
+      assert.match(e.message, /returned no floor/);
       assert.match(e.message, /enclave v9/);
       assert.match(e.message, /nothing was committed/);
       assert.ok(!e.message.includes(b.slot.nonceB64));

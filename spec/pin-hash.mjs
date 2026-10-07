@@ -1,4 +1,5 @@
-// Recompute SHA-256(spec/SPEC.md) and write it into KNOWN_TREE_SPEC_HASHES as the v1 entry.
+// Recompute SHA-256(spec/SPEC.md) and write it into KNOWN_TREE_SPEC_HASHES as the v1 entry;
+// then pin spec/SPEC-v2.md as TREE_SPEC_V2_HASH unless FROZEN.json has frozen v2.
 // Run from the repo root: node spec/pin-hash.mjs
 //
 // FROZEN (2026-10-04): spec/FROZEN.json records v1's hash. Once it is there, this tool
@@ -14,6 +15,25 @@ if (existsSync(frozenPath)) {
   const v1 = frozen.v1?.sha256_b64;
   if (v1 === b64) {
     console.log(`SPEC.md SHA-256 (base64): ${b64} (v1, frozen ${frozen.v1.frozen_on}; nothing to pin)`);
+    // v2 beside it: pinned into tree.ts until FROZEN.json records it, never after.
+    const v2Path = new URL("./SPEC-v2.md", import.meta.url);
+    if (existsSync(v2Path)) {
+      const b64v2 = createHash("sha256").update(readFileSync(v2Path)).digest("base64");
+      if (frozen.v2) {
+        if (frozen.v2.sha256_b64 !== b64v2) {
+          console.error(`SPEC-v2.md is frozen at ${frozen.v2.sha256_b64} and now hashes to ${b64v2}; v2 never changes: make it v3, beside it.`);
+          process.exit(1);
+        }
+        console.log(`SPEC-v2.md SHA-256 (base64): ${b64v2} (v2, frozen ${frozen.v2.frozen_on}; nothing to pin)`);
+        process.exit(0);
+      }
+      const treePath = new URL("../packages/verify/src/tree.ts", import.meta.url);
+      const tree = readFileSync(treePath, "utf8");
+      const re2 = /(export const TREE_SPEC_V2_HASH = )"[^"]*"/;
+      if (!re2.test(tree)) throw new Error("TREE_SPEC_V2_HASH not found in tree.ts");
+      writeFileSync(treePath, tree.replace(re2, `$1"${b64v2}"`));
+      console.log(`SPEC-v2.md SHA-256 (base64): ${b64v2} (v2, pinned; not frozen yet)`);
+    }
     process.exit(0);
   }
   console.error(`SPEC.md v1 is frozen at ${v1} (${frozen.v1.frozen_on}) and the file now hashes to ${b64}.`);

@@ -384,15 +384,49 @@ def check_proof(p):
     return None
 
 
+BASE_GENESIS = 1686789347  # Base mainnet: block n is stamped BASE_GENESIS + 2n (SPEC v2 section 9)
+
+
+def signed_floor(p):
+    """The floor a proof signs: ("base", slotFloor) or ("ethereum", slotAnchor), or None. Both is ambiguous (SPEC v2 section 6)."""
+    c = p.get("commit") or {}
+    a, f = c.get("slotAnchor"), c.get("slotFloor")
+    if a and f:
+        raise ValueError("the proof signs two floors")
+    if f:
+        if f.get("chain") != "base" or f.get("evmChainId") != 8453:
+            raise ValueError("slotFloor does not name Base mainnet")
+        return "base", f
+    if a:
+        return "ethereum", a
+    return None
+
+
 def commitment_for(p) -> bytes:
     s = p["slotAllocation"]
     srh = sha256(canonical(slot_body(s)))
     nonce = b64d(s["nonceB64"])
     name = (p.get("attribution") or {}).get("name")
-    if name == "bitgraph-fuse/2":
-        floor = hx(p["commit"]["slotAnchor"]["blockHash"].lower())
-        return sha256(b"bitgraph-fuse/2\x00" + srh + nonce + floor)
+    if name in ("bitgraph-fuse/2", "bitgraph-fuse/3"):
+        floor = signed_floor(p)
+        want = "ethereum" if name == "bitgraph-fuse/2" else "base"
+        if floor is None or floor[0] != want:
+            raise ValueError(f"{name} needs a signed {want} floor")
+        return sha256(name.encode() + b"\x00" + srh + nonce + hx(floor[1]["blockHash"].lower()))
     return sha256(b"bitgraph-fuse/1\x00" + srh + nonce)
+
+
+def check_floor_header(p, header: bytes, chain="ethereum"):
+    """SPEC v2 section 9: the header is the signed floor block; a Base floor also by its signed time and Base's schedule."""
+    kind, f = signed_floor(p)
+    if kind != chain:
+        return False
+    hd = decode_header(header)
+    if "0x" + hd["hash"].hex() != f["blockHash"].lower() or hd["number"] != f["blockNumber"]:
+        return False
+    if kind == "base" and (hd["timestamp"] != f["blockTimestamp"] or hd["timestamp"] != BASE_GENESIS + 2 * hd["number"]):
+        return False
+    return True
 
 
 # --------------------------------------------------------------------------- Placements
@@ -484,9 +518,14 @@ def parse_root_doc(b: bytes):
     return count, b[20:52], b[52:84]
 
 
-def spec_hash_b64():
-    with open(os.path.join(ROOT, "spec", "SPEC.md"), "rb") as f:
+def spec_hash_b64(name="SPEC.md"):
+    with open(os.path.join(ROOT, "spec", name), "rb") as f:
         return base64.b64encode(sha256(f.read())).decode()
+
+
+def spec_markers():
+    """Each spec version requires its own marker: v1 (SPEC.md) fuse/2, v2 (SPEC-v2.md) fuse/3."""
+    return {spec_hash_b64("SPEC.md"): "bitgraph-fuse/2", spec_hash_b64("SPEC-v2.md"): "bitgraph-fuse/3"}
 
 
 def check_frozen():
@@ -501,10 +540,13 @@ def check_tree_member(p, root_doc: bytes, ev, file_bytes):
     a = p.get("attribution") or {}
     if a.get("title") != "tree/1":
         return "NOT_TREE", None
-    if a.get("name") != "bitgraph-fuse/2":
+    if a.get("name") not in ("bitgraph-fuse/2", "bitgraph-fuse/3"):
         return "INVALID_TREE_MARKER", None
-    if a.get("message") != spec_hash_b64():
+    markers = spec_markers()
+    if a.get("message") not in markers:
         return "UNKNOWN_SPEC", None
+    if markers[a["message"]] != a["name"]:
+        return "INVALID_TREE_MARKER", None
     c = commitment_for(p)
     doc = parse_root_doc(root_doc)
     if doc is None or sha256(root_doc) != b64d(p["artifact"]["digestB64"]):
@@ -943,6 +985,42 @@ def main():
     expect("legacy #4546: it is carried inline as base64url", p["attribution"]["title"], "base64url")
     needle = base64.urlsafe_b64encode(commitment_for(p)).decode().rstrip("=").encode()
     expect("legacy #4546: the text carries commitment/2 (floor-bound) in base64url", needle in artifact, True)
+
+    # SPEC v2: the Base floor and commitment/3, from proofs the enclave v10 code signed.
+    f3 = os.path.join(ROOT, "src", "__tests__", "fuse3-fixtures")
+    v3 = json.load(open(os.path.join(f3, "trailer3.vector.json")))
+    srh3 = sha256(canonical(slot_body(v3["slot"])))
+    pre3 = b"bitgraph-fuse/3\x00" + srh3 + b64d(v3["slot"]["nonceB64"]) + hx(v3["floorBlockHash"])
+    expect("v2: commitment/3 preimage", pre3.hex(), v3["preimageHex"])
+    expect("v2: commitment/3", sha256(pre3).hex(), v3["commitmentHex"])
+    expect("v2: commitment/3 differs from commitment/2 over the same block", sha256(pre3).hex() != v3["fuse2CommitmentHex"], True)
+    synth = json.load(open(os.path.join(ROOT, "src", "__tests__", "fuse-fixtures", "vectors.json")))["synthetic"]["slot"]
+    expect("v2: commitment/3 vector with floor 0x22*32", sha256(b"bitgraph-fuse/3\x00" + sha256(canonical(slot_body(synth))) + b64d(synth["nonceB64"]) + b"\x22" * 32).hex(), "8e44c4eae6be9cfd184209bb763081326182979970d24af8c0e3305886038dbd")
+    p3 = json.load(open(os.path.join(f3, "trailer3.proof.json")))
+    expect("v2: a Base-floored proof and its position record", check_proof(p3), None)
+    expect("v2: the proof signs one floor, a Base block", signed_floor(p3)[0], "base")
+    expect("v2: the trailer file carries commitment/3", open(os.path.join(f3, "fused3-trailer.bin"), "rb").read()[-32:] == commitment_for(p3) or commitment_for(p3) in open(os.path.join(f3, "fused3-trailer.bin"), "rb").read(), True)
+    hdr = hx(open(os.path.join(f3, "floor-base-52271417.rlp.hex")).read().strip())
+    expect("v2: the floor header is the signed Base block (hash, number, time, schedule)", check_floor_header(p3, hdr, "base"), True)
+    expect("v2: the same header given as an Ethereum block fails", check_floor_header(p3, hdr, "ethereum"), False)
+    both = json.loads(json.dumps(p3))
+    both["commit"]["slotAnchor"] = {"counter": "1", "blockNumber": 1, "blockHash": "0x" + "22" * 32}
+    try:
+        commitment_for(both)
+        amb = "computed"
+    except ValueError:
+        amb = "refused"
+    expect("v2: a proof signing both floors is ambiguous", amb, "refused")
+    off = json.loads(json.dumps(p3))
+    off["commit"]["slotFloor"]["blockTimestamp"] += 1
+    expect("v2: a signed time off Base's schedule fails the header check", check_floor_header(off, hdr, "base"), False)
+    as2 = json.load(open(os.path.join(f3, "as-fuse2.proof.json")))
+    try:
+        commitment_for(as2)
+        m2 = "computed"
+    except ValueError:
+        m2 = "refused"
+    expect("v2: a fuse/2 marker over a Base floor is refused", m2, "refused")
 
     print()
     print(f"{'FAILED' if FAILS else 'All checks match'}: {len(FAILS)} failure(s)")

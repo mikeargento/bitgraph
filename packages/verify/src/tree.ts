@@ -85,7 +85,7 @@ export const TREE_METADATA_KEY = TREE_PROFILE;
 /** SPEC.md v1 (spec/SPEC.md). Frozen 2026-10-04 (spec/FROZEN.json): tree/1 under bitgraph-fuse/2, an Ethereum floor. */
 export const TREE_SPEC_V1_HASH = "QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs=";
 /** SPEC v2 (spec/SPEC-v2.md): tree/1 under bitgraph-fuse/3, a Base floor (enclave v10). */
-export const TREE_SPEC_V2_HASH = "__SPEC_V2_HASH__";
+export const TREE_SPEC_V2_HASH = "9O3sqlxqi6IQPVJd50NfjJtwWWoslZ9gpIIzbrRzAiU=";
 
 export const KNOWN_TREE_SPEC_HASHES: readonly string[] = Object.freeze([
   // Each spec never changes; a later spec is added beside it, never in its place.
