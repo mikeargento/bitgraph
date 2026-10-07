@@ -1,15 +1,20 @@
 // Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
- * Assemble a bitgraph-carrier/2 payload from vetted parts. The caller has
+ * Assemble a bitgraph-carrier/2 or /3 payload from vetted parts. The caller has
  * already verified every part (the anchors over their messages, the headers
  * by hash, the Base sidecar with verifyCeiling); this lays them out, derives
  * the attestation witness from the proof's own document, and declares the
  * pins the file was made under. It computes nothing that a verifier would
  * later trust: the witness is recomputed on read, the pins compared.
+ *
+ * /3 is for a proof whose floor is a Base block (commit.slotFloor): the floor
+ * is its header (checked by the caller with checkFloorHeader), and the block
+ * states that no ceiling in position exists, since order is the chain of
+ * proof hashes. /2 stays the format for Ethereum-floor proofs.
  */
 
-import { CARRIER_VERSION_2, encodeCarrierBlock, type CarrierPayload, type CarrierFloor, type CarrierCeiling, type CarrierCeilingInTime, type CarrierSettlement, type CarrierPins, type CarrierProof } from "./carrier.js";
+import { CARRIER_VERSION_2, CARRIER_VERSION_3, encodeCarrierBlock, type CarrierPayload, type CarrierFloor, type CarrierBaseFloor, type CarrierCeiling, type CarrierCeilingInTime, type CarrierSettlement, type CarrierPins, type CarrierProof } from "./carrier.js";
 import { attestationWitness } from "./nitro.js";
 import { computeProofHash, computeSignedBodyHash } from "./proof-hash.js";
 import { BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID } from "./carrier-verify.js";
@@ -37,7 +42,20 @@ export interface CarrierV2Parts {
  */
 export const CARRIER_BLOCK_ZIP_LIMIT = 60_000;
 
+/** The parts of a /3 block: a Base floor header, and no ceiling in position (there is none). */
+export interface CarrierV3Parts extends Omit<CarrierV2Parts, "floor" | "ceiling"> {
+  floor: CarrierBaseFloor;
+}
+
 export function assembleCarrierV2Payload(parts: CarrierV2Parts): CarrierPayload {
+  return assemble(CARRIER_VERSION_2, parts);
+}
+
+export function assembleCarrierV3Payload(parts: CarrierV3Parts): CarrierPayload {
+  return assemble(CARRIER_VERSION_3, { ...parts, ceiling: { status: "none", basis: "hash-chain" } });
+}
+
+function assemble(version: typeof CARRIER_VERSION_2 | typeof CARRIER_VERSION_3, parts: Omit<CarrierV2Parts, "floor"> & { floor: CarrierFloor | CarrierBaseFloor }): CarrierPayload {
   const proof = parts.proof as unknown as BitGraphProof;
   const att = proof.environment?.attestation;
   const wantWitness = parts.withAttestationWitness ?? (att?.format === "aws-nitro" && typeof att.reportB64 === "string");
@@ -48,7 +66,7 @@ export function assembleCarrierV2Payload(parts: CarrierV2Parts): CarrierPayload 
     ...(parts.pins ?? {}),
   };
   const payload: CarrierPayload = {
-    carrier: CARRIER_VERSION_2,
+    carrier: version,
     proof: parts.proof,
     floor: parts.floor,
     ceiling: parts.ceiling,

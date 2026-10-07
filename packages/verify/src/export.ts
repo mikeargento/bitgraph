@@ -12,7 +12,7 @@
  *                     "member": TreeMemberEvidence            one file's export
  *                   or "leaves": base64(count x 65 bytes),   the owner's export
  *                     "names"?: [file name per leaf] },       unsigned, informational
- *     "floor":      { "blockNumber", "blockHash", "header" } | null,
+ *     "floor":      { "chain"?, "blockNumber", "blockHash", "header" } | null,   chain: "ethereum" (absent) or "base"
  *     "ceiling":    a bitgraph-ceiling/1 sidecar | { "status": "pending" } | null,
  *     "settlement": a bitgraph-output-root/1 settlement | { "status": "pending", "baseBlock"? } | null
  *   }
@@ -23,7 +23,9 @@
  * lookups say those blocks are the chains' own). This module never fetches.
  *
  * Three time claims, never merged:
- *   floor            the committed bytes were finished after Ethereum block N  (needs N canonical)
+ *   floor            the committed bytes were finished after the floor block N, on the chain the
+ *                    proof signs: an Ethereum anchor (commit.slotAnchor, enclave v7 to v9) or a Base
+ *                    block (commit.slotFloor, enclave v10)                     (needs N canonical on that chain)
  *   ceiling.base     the record existed by Base block B, at B's time          (needs B canonical on Base; provisional until then)
  *   ceiling.ethereum the record existed by Ethereum block H                   (needs H canonical; Base's honesty not needed)
  */
@@ -32,9 +34,9 @@ import { sha256 } from "@noble/hashes/sha256";
 import { verifyProofIntegrity, createVerificationContext } from "./verifier.js";
 import { computeSignedBodyHash } from "./proof-hash.js";
 import { verifyNitroAttestation } from "./nitro.js";
-import { CEILING_VERSION, baseTimeIsBound, verifyCeiling, type CeilingSidecar } from "./ceiling.js";
-import { decodeHeader, hexToBytes as evmHex } from "./ceiling-evm.js";
-import { base64ToBytes, bytesEqual, hexToBytes } from "./fuse.js";
+import { CEILING_VERSION, baseTimeIsBound, checkFloorHeader, floorTimeIsBound, verifyCeiling, type CeilingSidecar } from "./ceiling.js";
+import { hexToBytes as evmHex } from "./ceiling-evm.js";
+import { base64ToBytes, bytesEqual, hexToBytes, signedFloorOf, type SignedFloor } from "./fuse.js";
 import { OUTPUT_ROOT_VERSION, verifyOutputRootSettlement, type OutputRootSettlement } from "./output-root.js";
 import { MerkleTree } from "./fuse-merkle.js";
 import { streamDigest, type ByteSource } from "./stream.js";
@@ -63,7 +65,8 @@ export interface BitGraphExport {
     leaves?: string;
     names?: string[];
   };
-  floor: { blockNumber: number; blockHash: string; header: string } | null;
+  /** The floor block's header. `chain` absent is Ethereum (every export before enclave v10); "base" a Base floor. */
+  floor: { chain?: "ethereum" | "base"; blockNumber: number; blockHash: string; header: string } | null;
   ceiling: CeilingSidecar | { status: "pending" } | null;
   settlement: OutputRootSettlement | { status: "pending"; baseBlock?: number } | null;
 }
@@ -121,7 +124,8 @@ export interface ExportVerifyResult {
   floorCovers: TreeVerifyResult["floorCovers"];
   /** The three time claims, as established. Null fields were not established. */
   times: {
-    floor: { blockNumber: number; blockHash: string; blockTimestamp: number } | null;
+    /** `chain` is present only for a Base floor, so an Ethereum floor's result is exactly what it was before enclave v10. */
+    floor: { chain?: "base"; blockNumber: number; blockHash: string; blockTimestamp: number } | null;
     ceilingBase: { chainId: number; blockNumber: number; blockHash: string; blockTimestamp: number; provisional: boolean } | null;
     ceilingEthereum: { chainId: number; blockNumber: number; blockHash: string; blockTimestamp: number } | null;
   };
@@ -131,6 +135,12 @@ export interface ExportVerifyResult {
    * document (see baseTimeIsBound). The inclusion itself still holds.
    */
   baseTimeWithheld: string | null;
+  /**
+   * Why the floor block's time is not stated as a bound, when it is not: the
+   * block is stamped after the attestation document (see floorTimeIsBound).
+   * The floor itself still holds: the record was made after that block.
+   */
+  floorTimeWithheld: string | null;
   /** Plain language, written from the claims. */
   reading: string;
 }
@@ -163,6 +173,7 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   let member: TreeVerifyResult["member"] = null;
 
   let baseTimeWithheld: string | null = null;
+  let floorTimeWithheld: string | null = null;
 
   const exp = parseExport(input);
   if (exp === null) {
@@ -177,10 +188,19 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     if (declared === EXPORT_FORMAT) add("format", "This is a bitgraph-export/1 file", "FALSE", "its structure", "it says bitgraph-export/1 but lacks the parts that format requires (proof, tree.rootDocument)");
     else if (typeof declared === "string" && declared.startsWith("bitgraph-export/")) add("format", "This is a bitgraph-export/1 file", "UNDETERMINED", "", `not judged: a format this verifier does not know (${declared})`);
     else add("format", "This is a bitgraph-export/1 file", "UNDETERMINED", "", "not a bitgraph-export/1 document");
-    return finish(claims, null, times, member, null, null);
+    return finish(claims, null, times, member, null, null, null);
   }
   add("format", "This is a bitgraph-export/1 file", "TRUE", "its structure", "format, proof and tree present");
   const proof = exp.proof;
+  // The floor the proof signs, whichever chain it is on. A proof that signs two is ambiguous: no floor is read from it.
+  let signedFloor: SignedFloor | null = null;
+  let floorAmbiguous: string | null = null;
+  try {
+    signedFloor = signedFloorOf(proof);
+  } catch (e) {
+    floorAmbiguous = (e as Error).message;
+  }
+  const chainName = (c: "ethereum" | "base") => (c === "base" ? "Base" : "Ethereum");
 
   // An optional part is absent (null or missing) or an object of its format;
   // anything else is a malformed part, never read as "not carried".
@@ -325,8 +345,7 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
       // Two floors, stated apart (SPEC 8.6). The record floor is every member's:
       // the root document was signed after the floor block. The content floor
       // is a placed member's: its committed bytes carry the commitment.
-      const n = proof.commit?.slotAnchor?.blockNumber;
-      const block = typeof n === "number" ? `Ethereum block ${n}` : "the signed floor block";
+      const block = signedFloor ? `${chainName(signedFloor.chain)} block ${signedFloor.blockNumber}` : "the signed floor block";
       add("floor.record", "The record was made after the floor block", "TRUE", "the signed root document, which carries the commitment to the floor block",
         `recorded after ${block}: the tree this file is a leaf of was signed after it`);
       if (tr.floorCovers === "content") {
@@ -339,23 +358,47 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     }
   }
 
-  // 3. The floor: the header hashes to the SIGNED slotAnchor block hash.
-  const slotAnchor = proof.commit?.slotAnchor;
+  // 3. The floor: the header hashes to the SIGNED floor block hash, on the chain the proof signs.
+  let floorBlock: { chain: "ethereum" | "base"; blockNumber: number; blockHash: string } | null = null;
+  let floorHeaderTs: number | null = null;
+  const fname = "The floor block's header is the one the proof signs";
   if (isAbsent(exp.floor)) {
-    add("floor.header", "The floor block's header is the one the proof signs", "NOT_CARRIED", "", "no floor header in the export");
+    add("floor.header", fname, "NOT_CARRIED", "", "no floor header in the export");
   } else if (!isObject(exp.floor)) {
-    add("floor.header", "The floor block's header is the one the proof signs", "FALSE", "", "the export's floor is neither absent nor a { blockNumber, blockHash, header } object");
-  } else if (!slotAnchor) {
-    add("floor.header", "The floor block's header is the one the proof signs", "FALSE", "", "the proof signs no floor block (commit.slotAnchor)");
+    add("floor.header", fname, "FALSE", "", "the export's floor is neither absent nor a { blockNumber, blockHash, header } object");
+  } else if (floorAmbiguous !== null) {
+    add("floor.header", fname, "FALSE", "", floorAmbiguous);
+  } else if (!signedFloor) {
+    add("floor.header", fname, "FALSE", "", "the proof signs no floor block (commit.slotAnchor or commit.slotFloor)");
   } else {
+    const f = exp.floor as Record<string, unknown>;
+    const chain = chainName(signedFloor.chain);
+    let raw: Uint8Array | null = null;
     try {
-      const h = decodeHeader(evmHex(exp.floor.header));
-      const ok = h.hash === slotAnchor.blockHash.toLowerCase() && h.number === slotAnchor.blockNumber && exp.floor.blockHash.toLowerCase() === h.hash && exp.floor.blockNumber === h.number;
-      add("floor.header", "The floor block's header is the one the proof signs", ok ? "TRUE" : "FALSE", `Ethereum block ${h.number}, header as given`,
-        ok ? `keccak-256 of the header equals the signed block hash; its time is ${iso(h.timestamp)}` : "the header does not hash to the signed floor block");
-      if (ok) times.floor = { blockNumber: h.number, blockHash: h.hash, blockTimestamp: h.timestamp };
-    } catch (e) {
-      add("floor.header", "The floor block's header is the one the proof signs", "FALSE", "", `floor header: ${(e as Error).message}`);
+      raw = evmHex(String(f["header"]));
+    } catch {
+      raw = null;
+    }
+    const fh = raw === null ? { ok: false as const, reason: "the header is not hex" } : checkFloorHeader(signedFloor, raw, f["chain"]);
+    if (!fh.ok) {
+      add("floor.header", fname, "FALSE", "", `floor header: ${fh.reason}`);
+    } else if (String(f["blockHash"]).toLowerCase() !== fh.header.hash || f["blockNumber"] !== fh.header.number) {
+      add("floor.header", fname, "FALSE", "", "the export's floor names a different block than its header");
+    } else {
+      const h = fh.header;
+      floorBlock = { chain: signedFloor.chain, blockNumber: h.number, blockHash: h.hash };
+      floorHeaderTs = h.timestamp;
+      // The floor's time is a bound only when it is no later than the attestation document.
+      const bound = floorTimeIsBound(h.timestamp, attestedAtMs);
+      if (bound.ok) {
+        times.floor = { ...(signedFloor.chain === "base" ? { chain: "base" as const } : {}), blockNumber: h.number, blockHash: h.hash, blockTimestamp: h.timestamp };
+        add("floor.header", fname, "TRUE", `${chain} block ${h.number}, header as given`,
+          `keccak-256 of the header equals the signed block hash${signedFloor.chain === "base" ? ", and its time is the signed one, on Base mainnet's schedule" : ""}; its time is ${iso(h.timestamp)}`);
+      } else {
+        floorTimeWithheld = bound.reason;
+        add("floor.header", fname, "TRUE", `${chain} block ${h.number}, header as given`,
+          `keccak-256 of the header equals the signed block hash; ${bound.reason}, so its time is not used as a bound`);
+      }
     }
   }
 
@@ -387,7 +430,7 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
       ceilingB = { blockNumber: r.window.ceiling.blockNumber, blockHash: r.window.ceiling.blockHash };
       const where = `under the root in transaction ${(c as CeilingSidecar).anchor!.txIndex} of Base block ${r.window.ceiling.blockNumber}`;
       // The floor's time: the export's own header, else the verified header the sidecar carries.
-      const stamp = baseTimeIsBound(r.window.ceiling.blockTimestamp, { floorTimestampSec: times.floor?.blockTimestamp ?? r.window.floor.blockTimestamp ?? null, attestedAtMs });
+      const stamp = baseTimeIsBound(r.window.ceiling.blockTimestamp, { floorTimestampSec: floorHeaderTs ?? r.window.floor.blockTimestamp ?? null, attestedAtMs });
       if (stamp.ok) {
         times.ceilingBase = { ...r.window.ceiling, provisional: true };
         add("ceiling.base", "The record is in a Base block", "TRUE", `SHA-256 path, the BGC1 payload, secp256k1, Merkle-Patricia; Base block ${r.window.ceiling.blockNumber}, header as given`,
@@ -452,19 +495,20 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
       add(id, name, "UNDETERMINED", "", `lookup failed: ${(e as Error).message}`, "confirmed");
     }
   };
-  await confirm("confirmed.floor", "The floor block is Ethereum's own", "ethereum", times.floor);
+  // The floor is asked of its own chain, by height: the chain's block at N must be the signed one.
+  if (floorBlock !== null) await confirm("confirmed.floor", `The floor block is ${chainName(floorBlock.chain)}'s own`, floorBlock.chain, floorBlock);
   await confirm("confirmed.ceiling.base", "The ceiling block is Base's own (makes its time final)", "base", ceilingB);
   await confirm("confirmed.ceiling.ethereum", "The settlement block is Ethereum's own", "ethereum", times.ceilingEthereum);
   const baseConfirmed = claims.find((x) => x.id === "confirmed.ceiling.base")?.result === "TRUE";
   if (times.ceilingBase) times.ceilingBase.provisional = !baseConfirmed;
 
-  return finish(claims, exp, times, member, tr.floorCovers, baseTimeWithheld);
+  return finish(claims, exp, times, member, tr.floorCovers, baseTimeWithheld, floorTimeWithheld, floorBlock);
   };
   try {
     return await run();
   } catch (e) {
     add("wellformed", "Every part of the export is well formed", "FALSE", "", `a part of this export is malformed: ${(e as Error).message}`);
-    return finish(claims, exp, times, member, null, baseTimeWithheld);
+    return finish(claims, exp, times, member, null, baseTimeWithheld, floorTimeWithheld);
   }
 }
 
@@ -485,6 +529,8 @@ function finish(
   member: TreeVerifyResult["member"],
   floorCovers: TreeVerifyResult["floorCovers"] = null,
   baseTimeWithheld: string | null = null,
+  floorTimeWithheld: string | null = null,
+  floorBlock: { chain: "ethereum" | "base"; blockNumber: number } | null = null,
 ): ExportVerifyResult {
   const offline = claims.filter((c) => c.level === "offline");
   const failed = claims.filter((c) => c.result === "FALSE");
@@ -505,25 +551,42 @@ function finish(
     const lc1 = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
     if (unjudged.length > 0) parts.push(`Not judged in full: ${unjudged.map((c) => lc1(c.name)).join("; ")}.`);
     const givenEth = "; that block's header is taken as given until it is checked against Ethereum";
-    if (times.floor) {
-      const at = `Ethereum block ${times.floor.blockNumber} (${iso(times.floor.blockTimestamp)})${confirmedTrue("confirmed.floor") ? "" : givenEth}`;
+    const floorRead = floorBlock ?? (times.floor ? { chain: times.floor.chain ?? "ethereum", blockNumber: times.floor.blockNumber } : null);
+    if (floorRead) {
+      const chain = floorRead.chain === "base" ? "Base" : "Ethereum";
+      const time = times.floor ? ` (${iso(times.floor.blockTimestamp)})` : "";
+      const given = confirmedTrue("confirmed.floor") ? "" : `; that block's header is taken as given until it is checked against ${chain}`;
+      const at = `${chain} block ${floorRead.blockNumber}${time}${given}`;
       parts.push(floorCovers === "record"
         ? `Recorded after ${at}; this file was kept as is, so the bytes themselves are not dated.`
         : floorCovers === "content"
           ? `Recorded after ${at}, and these committed bytes were finished after that block; an original inside them is not dated by it.`
           : `Recorded after ${at}.`);
+      if (!times.floor && floorTimeWithheld) parts.push(`The floor block's time is not used as a bound: ${floorTimeWithheld}.`);
     }
     if (times.ceilingBase) parts.push(`The record existed by Base block ${times.ceilingBase.blockNumber} (${iso(times.ceilingBase.blockTimestamp)}${times.ceilingBase.provisional ? ", provisional until checked against Base" : ""}).`);
     else if (baseTimeWithheld) parts.push(`The record is in a Base block, but its time is not used as a bound: ${baseTimeWithheld}.`);
     if (times.ceilingEthereum) parts.push(`It existed by Ethereum block ${times.ceilingEthereum.blockNumber} (${iso(times.ceilingEthereum.blockTimestamp)})${confirmedTrue("confirmed.ceiling.ethereum") ? "" : givenEth}.`);
     if (member) parts.push(`The file is leaf ${member.index} of ${member.count} in the committed tree.`);
   }
-  return { verdict, reasons, claims, member, floorCovers, times, baseTimeWithheld, reading: parts.join(" ") };
+  return { verdict, reasons, claims, member, floorCovers, times, baseTimeWithheld, floorTimeWithheld, reading: parts.join(" ") };
 }
+
 
 /** Build an export object from its parts (producers). Fields are written in the order the spec lists them. */
 export function buildExport(parts: Omit<BitGraphExport, "format" | "spec">): BitGraphExport {
   const spec = parts.proof.attribution?.message;
   if (typeof spec !== "string") throw new TypeError("a tree/1 proof pins its spec in attribution.message");
-  return { format: EXPORT_FORMAT, spec, proof: parts.proof, tree: parts.tree, floor: parts.floor, ceiling: parts.ceiling, settlement: parts.settlement };
+  // A Base floor names its chain; an Ethereum floor leaves it out, so exports made before enclave v10 stay byte for byte what they were.
+  let floor = parts.floor;
+  if (floor && floor.chain === undefined) {
+    let chain: "ethereum" | "base" | undefined;
+    try {
+      chain = signedFloorOf(parts.proof)?.chain;
+    } catch {
+      chain = undefined;
+    }
+    if (chain === "base") floor = { chain: "base", blockNumber: floor.blockNumber, blockHash: floor.blockHash, header: floor.header };
+  }
+  return { format: EXPORT_FORMAT, spec, proof: parts.proof, tree: parts.tree, floor, ceiling: parts.ceiling, settlement: parts.settlement };
 }

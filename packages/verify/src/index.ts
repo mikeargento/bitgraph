@@ -132,6 +132,12 @@ export type { CarrierVersion, CarrierCeilingInTime, CarrierSettlement, CarrierPi
 export { assembleCarrierV2Payload, carrierBlockSize, CARRIER_BLOCK_ZIP_LIMIT } from "./carrier-assemble.js";
 export type { CarrierV2Parts } from "./carrier-assemble.js";
 
+/* bitgraph-carrier/3 (2026-10-06, enclave v10): the floor is the Base header the proof signs; no ceiling in position exists. */
+export { CARRIER_VERSION_3, baseHeaderFields } from "./carrier.js";
+export type { CarrierBaseFloor } from "./carrier.js";
+export { assembleCarrierV3Payload } from "./carrier-assemble.js";
+export type { CarrierV3Parts } from "./carrier-assemble.js";
+
 /* AWS Nitro attestation: decode, verify (chain to the AWS root, validity at the document's instant), and the openssl-checkable witness. */
 export {
   AWS_NITRO_ROOT_CA_PEM, awsNitroRootDer, awsNitroRootSha256, decodeNitroAttestation, verifyNitroAttestation,
@@ -175,6 +181,9 @@ export type { OutputRootSettlement, OutputRootCheck, OutputRootVerifyResult, Out
 /* bitgraph-export/1: one JSON file that, with the file, checks a tree/1 BitGraph with nothing of BitGraph's required. */
 export { EXPORT_FORMAT, parseExport, verifyExport, buildExport } from "./export.js";
 export { baseTimeIsBound, BASE_STAMP_TOLERANCE_SECONDS } from "./ceiling.js";
+/* The floor block's header, on either chain (enclave v10 floors are Base blocks). */
+export { checkFloorHeader, floorTimeIsBound, onBaseSchedule, headerRlpFromRpc, BASE_MAINNET_GENESIS_TIME, BASE_BLOCK_TIME_SECONDS } from "./ceiling.js";
+export type { RpcBlockHeader } from "./ceiling.js";
 /* The enclave images BitGraph has published: the default measurement policy (SPEC section 16). */
 export { PUBLISHED_ENCLAVE_MEASUREMENTS, PUBLISHED_PCR0S, publishedMeasurement } from "./measurements.js";
 export type { PublishedMeasurement } from "./measurements.js";

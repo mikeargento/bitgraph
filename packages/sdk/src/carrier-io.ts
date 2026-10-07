@@ -1,7 +1,7 @@
 // Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
- * @mikeargento/bitgraph-mcp: BitGraphed files (bitgraph-carrier/1).
+ * @mikeargento/bitgraph-mcp: BitGraphed files (bitgraph-carrier/1, /2 and /3).
  *
  * A BitGraphed file is committed bytes followed by one structural block that
  * carries the proof and the anchor evidence. The block is found from the END
@@ -27,8 +27,11 @@ const iso = (ts: number | null): string | null => (ts === null ? null : new Date
 /** The window as the tools state it. not_after null = NOT FETCHED, in those words. */
 export interface CarrierWindowView {
   verdict: "TRUE" | "FALSE" | "UNDETERMINED";
-  not_before: { block: number; hash: string; time: string | null } | null;
-  /** null when the ceiling has not been fetched into the file yet. */
+  /** The floor, on its chain: Ethereum (carrier/1 and /2) or Base (carrier/3). time is null when the header was unreadable or its time is withheld as a bound. */
+  not_before: { chain: "ethereum" | "base"; block: number; hash: string; time: string | null } | null;
+  /** Why the floor block's time is not stated as a bound: it is stamped after the attestation document. */
+  floor_time_withheld: string | null;
+  /** The ceiling in POSITION. null when it has not been fetched into the file yet, or (ceiling "none", carrier/3) because none exists. */
   not_after: { block: number; hash: string; time: string | null } | null;
   /** The ceiling in TIME (carrier/2): the Base block the record existed by, as verified. null on a /1 file, when not fetched, when the ceiling did not verify, or when its time was withheld as a bound. */
   existed_by: { chain: "base"; block: number; hash: string; time: string } | null;
@@ -36,15 +39,17 @@ export interface CarrierWindowView {
   base_time_withheld: string | null;
   /** The Ethereum block that committed the Base batch data (carrier/2, when carried). */
   settled_by: { chain: "ethereum"; block: number; hash: string; time: string } | null;
-  ceiling: "present" | "unfetched" | null;
-  version: 1 | 2 | null;
+  /** "none" on carrier/3: no ceiling in position exists; order is the chain of proof hashes. */
+  ceiling: "present" | "unfetched" | "none" | null;
+  version: 1 | 2 | 3 | null;
   reasons: string[];
 }
 
 export function carrierWindowView(r: CarrierVerifyResult): CarrierWindowView {
   return {
     verdict: r.verdict,
-    not_before: r.bounds ? { block: r.bounds.notBefore.blockNumber, hash: r.bounds.notBefore.blockHash, time: iso(r.bounds.notBefore.timestamp) } : null,
+    not_before: r.bounds ? { chain: r.bounds.notBefore.chain, block: r.bounds.notBefore.blockNumber, hash: r.bounds.notBefore.blockHash, time: iso(r.bounds.notBefore.timestamp) } : null,
+    floor_time_withheld: r.floorTimeWithheld ?? null,
     not_after: r.bounds?.notAfter ? { block: r.bounds.notAfter.blockNumber, hash: r.bounds.notAfter.blockHash, time: iso(r.bounds.notAfter.timestamp) } : null,
     existed_by: r.bounds?.existedBy ? { chain: "base", block: r.bounds.existedBy.blockNumber, hash: r.bounds.existedBy.blockHash, time: iso(r.bounds.existedBy.timestamp) as string } : null,
     base_time_withheld: r.baseTimeWithheld ?? null,
@@ -66,15 +71,18 @@ export function carrierWindowView(r: CarrierVerifyResult): CarrierWindowView {
  */
 export function carrierLine(view: CarrierWindowView): string {
   const parts: string[] = [`carried proof ${view.verdict}`];
-  if (view.not_before) parts.push(`after block ${view.not_before.block}${view.not_before.time ? ` (mined ${view.not_before.time})` : ""}`);
+  if (view.not_before) parts.push(`after ${view.not_before.chain === "base" ? "Base block" : "block"} ${view.not_before.block}${view.not_before.time ? ` (mined ${view.not_before.time})` : ""}`);
+  if (view.floor_time_withheld) parts.push(`floor time not used as a bound (${view.floor_time_withheld})`);
   if (view.existed_by) parts.push(`existed by Base block ${view.existed_by.block} (${view.existed_by.time})`);
   else if (view.base_time_withheld) parts.push(`in a Base block whose time is not used as a bound (${view.base_time_withheld})`);
-  else if (view.version === 2) parts.push("Base ceiling NOT FETCHED (run: bitgraph complete <file>)");
+  else if (view.version !== null && view.version >= 2) parts.push("Base ceiling NOT FETCHED (run: bitgraph complete <file>)");
   if (view.settled_by) parts.push(`batch data on Ethereum in block ${view.settled_by.block} (${view.settled_by.time})`);
   parts.push(
     view.not_after
       ? `before the anchoring of block ${view.not_after.block}${view.not_after.time ? ` (block mined ${view.not_after.time})` : ""}`
-      : "closing anchor NOT FETCHED (drop the file on bitgraph.ing to complete it)"
+      : view.ceiling === "none"
+        ? "order: the chain of proof hashes (no closing anchor exists for a Base floor)"
+        : "closing anchor NOT FETCHED (drop the file on bitgraph.ing to complete it)"
   );
   return parts.join(" · ");
 }

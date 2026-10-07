@@ -3,9 +3,13 @@
 /**
  * A ceiling in TIME for a BitGraph, carried beside the proof, never inside it.
  *
- * Every BitGraph already has a floor in time (the Ethereum block the enclave
- * fixes at slot allocation and signs at commit, `commit.slotAnchor`) and a ceiling in POSITION (the
- * anchors that follow it in the chain). This adds the one thing a record
+ * Every BitGraph already has a floor in time: the block the enclave fixes at
+ * slot allocation and signs at commit, an Ethereum anchor (`commit.slotAnchor`,
+ * enclave v7 to v9) or a Base block (`commit.slotFloor`, enclave v10; read both
+ * through signedFloorOf). An Ethereum-floor BitGraph also has a ceiling in
+ * POSITION (the anchors that follow it in the chain); after the cutover to Base
+ * floors there are no anchors, and order among BitGraphs is the chain of proof
+ * hashes. This adds the one thing a record
  * cannot supply for itself: something outside the operator's control that
  * depends on the record. After a commit, a writer puts a Merkle root over
  * record hashes into a Base transaction. The block that includes it proves
@@ -30,9 +34,10 @@ import { sha256 } from "@noble/hashes/sha256";
 import { verifyProofIntegrity, createVerificationContext } from "./verifier.js";
 import { computeProofHash } from "./proof-hash.js";
 import { merkleLeafHash, merkleRootFromPath } from "./fuse-merkle.js";
-import { base64ToBytes } from "./fuse.js";
+import { base64ToBytes, signedFloorOf, type SignedFloor } from "./fuse.js";
 import {
-  bytesEqual, bytesToHex, decodeEip1559, decodeHeader, hexToBytes, keccak256, mptVerify, txTrieKey,
+  bytesEqual, bytesToHex, decodeEip1559, decodeHeader, hexToBytes, keccak256, mptVerify, rlpEncode, txTrieKey,
+  type DecodedHeader,
 } from "./ceiling-evm.js";
 import type { BitGraphProof, VerificationPolicy } from "./types.js";
 
@@ -70,9 +75,12 @@ export interface CeilingSidecar {
   statusObserved: { included: string | null; safe: string | null; finalized: string | null };
   /**
    * The floor block's header, so the window reads offline. Optional and
-   * unsigned: checked by keccak256 against the proof's SIGNED slotAnchor hash.
+   * unsigned: checked by keccak256 against the floor the proof SIGNS
+   * (signedFloorOf). `chain` names the floor's chain: absent is Ethereum (every
+   * sidecar before enclave v10), "base" a Base floor, whose header's time must
+   * also equal the signed blockTimestamp.
    */
-  floor?: { blockNumber: number; blockHash: string; blockTimestamp: number; blockHeader: string } | null;
+  floor?: { blockNumber: number; blockHash: string; blockTimestamp: number; blockHeader: string; chain?: "ethereum" | "base" } | null;
   /** Reserved for v2: the Ethereum batch that settles this Base block. */
   settlement: null;
 }
@@ -138,8 +146,8 @@ export interface CeilingVerifyResult {
   checks: CeilingCheck[];
   status?: CeilingStatus;
   window?: {
-    /** Floor: the proof's signed slotAnchor block. Time only if a checked header was carried. */
-    floor: { blockNumber: number; blockHash: string; blockTimestamp: number | null };
+    /** Floor: the block the proof signs (signedFloorOf), on its chain. Time only if a checked header was carried. */
+    floor: { chain: "ethereum" | "base" | null; blockNumber: number; blockHash: string; blockTimestamp: number | null };
     /** Ceiling: the Base block, time read from its header. */
     ceiling: { chainId: number; blockNumber: number; blockHash: string; blockTimestamp: number };
     widthSeconds: number | null;
@@ -298,29 +306,38 @@ async function verifyCeilingChecks(
   if (!inBlock || !bytesEqual(inBlock, rawTx)) return fail("inclusion", "the transaction is not in this block");
   pass("inclusion", `transaction ${a.txIndex} of block ${header.number}`);
 
-  // 5. The window. The floor is the proof's own signed slotAnchor.
-  const slotAnchor = proof.commit.slotAnchor;
-  let floor: { blockNumber: number; blockHash: string; blockTimestamp: number | null } | null = null;
-  if (slotAnchor) {
-    floor = { blockNumber: slotAnchor.blockNumber, blockHash: slotAnchor.blockHash, blockTimestamp: null };
+  // 5. The window. The floor is the block the proof itself signs, on its own chain.
+  let signed: SignedFloor | null;
+  try {
+    signed = signedFloorOf(proof);
+  } catch (e) {
+    return fail("floor", (e as Error).message);
+  }
+  let floor: { chain: "ethereum" | "base"; blockNumber: number; blockHash: string; blockTimestamp: number | null } | null = null;
+  if (signed) {
+    floor = { chain: signed.chain, blockNumber: signed.blockNumber, blockHash: signed.blockHash, blockTimestamp: null };
     const w = sidecar.floor;
     if (w !== null && w !== undefined) {
       if (typeof w !== "object" || typeof w.blockHeader !== "string" || w.blockHeader.length === 0) {
         return fail("floor", "the sidecar carries a floor without a header (absence is null; a present floor carries its header)");
       }
+      let raw: Uint8Array;
       try {
-        const fh = decodeHeader(hexToBytes(w.blockHeader));
-        if (fh.hash === slotAnchor.blockHash.toLowerCase() && fh.number === slotAnchor.blockNumber) {
-          floor.blockTimestamp = fh.timestamp;
-          pass("floor", `Ethereum block ${fh.number}, header checked against the signed hash`);
-        } else {
-          // Every part a sidecar carries must hold: a copy of the floor that
-          // is not the signed floor block fails the sidecar, it is not skipped.
-          return fail("floor", "the carried floor header does not match the proof's signed slotAnchor");
-        }
+        raw = hexToBytes(w.blockHeader);
       } catch {
         return fail("floor", "the carried floor header does not decode");
       }
+      // Every part a sidecar carries must hold: a copy of the floor that is
+      // not the signed floor block fails the sidecar, it is not skipped.
+      const fh = checkFloorHeader(signed, raw, w.chain);
+      if (!fh.ok) {
+        if (fh.reason.startsWith("the header does not decode")) return fail("floor", "the carried floor header does not decode");
+        const field = signed.chain === "base" ? "slotFloor" : "slotAnchor";
+        const said = signed.chain === "ethereum" && w.chain === undefined ? "" : `: ${fh.reason}`;
+        return fail("floor", `the carried floor header does not match the proof's signed ${field}${said}`);
+      }
+      floor.blockTimestamp = fh.header.timestamp;
+      pass("floor", `${chainName(signed.chain)} block ${fh.header.number}, header checked against the signed hash`);
     }
   }
   const width = floor?.blockTimestamp != null ? header.timestamp - floor.blockTimestamp : null;
@@ -330,7 +347,7 @@ async function verifyCeilingChecks(
     checks,
     status,
     window: {
-      floor: floor ?? { blockNumber: 0, blockHash: "", blockTimestamp: null },
+      floor: floor ?? { chain: null, blockNumber: 0, blockHash: "", blockTimestamp: null },
       ceiling: { chainId: a.chainId, blockNumber: header.number, blockHash: header.hash, blockTimestamp: header.timestamp },
       widthSeconds: width,
     },
@@ -363,6 +380,115 @@ export async function checkCeilingOnline(
 }
 
 export { keccak256 as ceilingKeccak256 };
+
+// ── The floor block's header ───────────────────────────────────────────────
+
+/**
+ * Base mainnet stamps every block by its height: block n is
+ * BASE_MAINNET_GENESIS_TIME + BASE_BLOCK_TIME_SECONDS * n (OP Stack, checked
+ * against the live chain 2026-10-06). The enclave (v10) refuses a floor header
+ * off this schedule; a verifier refuses one too, since such a header is not a
+ * Base mainnet block (another chain, a testnet, or made up).
+ */
+export const BASE_MAINNET_GENESIS_TIME = 1686789347;
+export const BASE_BLOCK_TIME_SECONDS = 2;
+
+/** True when a block's stamp is Base mainnet's schedule for its number. */
+export function onBaseSchedule(blockNumber: number, timestampSec: number): boolean {
+  return timestampSec === BASE_MAINNET_GENESIS_TIME + BASE_BLOCK_TIME_SECONDS * blockNumber;
+}
+
+const chainName = (c: "ethereum" | "base") => (c === "base" ? "Base" : "Ethereum");
+
+/**
+ * Check a floor header against the floor the proof signs (signedFloorOf). The
+ * header must decode, hash (keccak-256) to the signed block hash and carry the
+ * signed number. For a Base floor its time must also equal the signed
+ * blockTimestamp and be Base mainnet's schedule for its number. When the
+ * carrier of the header names a chain (`declaredChain`, absent = Ethereum), it
+ * must be the signed floor's chain: a Base floor read as an Ethereum header,
+ * or the reverse, fails here even before any hash is compared.
+ */
+export function checkFloorHeader(
+  signed: SignedFloor,
+  headerRlp: Uint8Array,
+  declaredChain?: unknown,
+): { ok: true; header: DecodedHeader } | { ok: false; reason: string } {
+  const declared = declaredChain === undefined || declaredChain === null ? "ethereum" : declaredChain;
+  if (declared !== "ethereum" && declared !== "base") return { ok: false, reason: `the header names an unknown chain (${JSON.stringify(declaredChain)})` };
+  const aBlock = (c: "ethereum" | "base") => (c === "base" ? "a Base block" : "an Ethereum block");
+  if (declared !== signed.chain) return { ok: false, reason: `the header is given as ${aBlock(declared)}, and the proof signs ${aBlock(signed.chain)}` };
+  let h: DecodedHeader;
+  try {
+    h = decodeHeader(headerRlp);
+  } catch (e) {
+    return { ok: false, reason: `the header does not decode (${(e as Error).message})` };
+  }
+  if (h.hash !== signed.blockHash.toLowerCase()) return { ok: false, reason: `the header does not hash to the signed ${chainName(signed.chain)} block hash` };
+  if (h.number !== signed.blockNumber) return { ok: false, reason: `the header is block ${h.number}, the proof signs block ${signed.blockNumber}` };
+  if (signed.chain === "base") {
+    if (h.timestamp !== signed.blockTimestamp) return { ok: false, reason: `the header's time is ${h.timestamp}, the proof signs ${signed.blockTimestamp}` };
+    if (!onBaseSchedule(h.number, h.timestamp)) return { ok: false, reason: `Base block ${h.number} is stamped ${h.timestamp}, off Base mainnet's schedule (${BASE_MAINNET_GENESIS_TIME + BASE_BLOCK_TIME_SECONDS * h.number})` };
+  }
+  return { ok: true, header: h };
+}
+
+/**
+ * Whether the floor block's time may be stated as a bound (review, 2026-10-06):
+ * the floor block must be no later than the commit's attestation document,
+ * the time AWS's hardware signed. A floor stamped after it cannot be a "not
+ * before" for a record that already existed; the block hash still floors the
+ * record (it did not exist before its block), but its time is withheld.
+ * Holds for either chain.
+ */
+export function floorTimeIsBound(floorTimestampSec: number, attestedAtMs: number | null | undefined): { ok: true } | { ok: false; reason: string } {
+  if (attestedAtMs != null && floorTimestampSec * 1000 > attestedAtMs) {
+    return { ok: false, reason: `the floor block is stamped ${isoSec(floorTimestampSec)}, after the attestation document was made (${isoMs(attestedAtMs)})` };
+  }
+  return { ok: true };
+}
+
+/** A block as an EVM node's JSON-RPC returns it (eth_getBlockByNumber), the header fields only. */
+export interface RpcBlockHeader {
+  hash: string; parentHash: string; sha3Uncles: string; miner: string; stateRoot: string;
+  transactionsRoot: string; receiptsRoot: string; logsBloom: string;
+  difficulty: string; number: string; gasLimit: string; gasUsed: string;
+  timestamp: string; extraData: string; mixHash: string; nonce: string;
+  baseFeePerGas?: string; withdrawalsRoot?: string; blobGasUsed?: string;
+  excessBlobGas?: string; parentBeaconBlockRoot?: string; requestsHash?: string;
+}
+
+/**
+ * The header's RLP, rebuilt from a node's JSON in canonical field order
+ * (through Prague; Base headers have the same shape), or null when it does not
+ * reproduce `expectedHash`. Null is the honest answer for a field this encoder
+ * does not know: nothing unchecked is ever returned.
+ */
+export function headerRlpFromRpc(b: RpcBlockHeader | null | undefined, expectedHash: string): Uint8Array | null {
+  if (!b || typeof b !== "object") return null;
+  try {
+    const q = (x: string | undefined) => {
+      const h = String(x ?? "0x").replace(/^0x/i, "").replace(/^0+/, "");
+      return h === "" ? new Uint8Array(0) : hexToBytes(h.length % 2 ? `0${h}` : h);
+    };
+    const d = (x: string | undefined) => hexToBytes(String(x ?? "0x"));
+    const fields: Uint8Array[] = [
+      d(b.parentHash), d(b.sha3Uncles), d(b.miner), d(b.stateRoot), d(b.transactionsRoot),
+      d(b.receiptsRoot), d(b.logsBloom), q(b.difficulty), q(b.number), q(b.gasLimit),
+      q(b.gasUsed), q(b.timestamp), d(b.extraData), d(b.mixHash), d(b.nonce),
+    ];
+    if (b.baseFeePerGas != null) fields.push(q(b.baseFeePerGas));
+    if (b.withdrawalsRoot != null) fields.push(d(b.withdrawalsRoot));
+    if (b.blobGasUsed != null) fields.push(q(b.blobGasUsed));
+    if (b.excessBlobGas != null) fields.push(q(b.excessBlobGas));
+    if (b.parentBeaconBlockRoot != null) fields.push(d(b.parentBeaconBlockRoot));
+    if (b.requestsHash != null) fields.push(d(b.requestsHash));
+    const rlp = rlpEncode(fields);
+    return bytesToHex(keccak256(rlp)) === expectedHash.toLowerCase() ? rlp : null;
+  } catch {
+    return null;
+  }
+}
 
 // ── The Base stamp as a time bound ─────────────────────────────────────────
 

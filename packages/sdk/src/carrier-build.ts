@@ -19,6 +19,14 @@
  * pins. A ZIP-family file keeps its block under the 64 KiB its end record can
  * be found behind: the witness is dropped first, and a block still too large
  * is refused rather than written into a file that would not open.
+ *
+ * /3 (2026-10-06, enclave v10) is built for a proof whose floor is a Base block
+ * (commit.slotFloor): the floor is that block's header, from the caller or
+ * from a Base node by height, checked against the signed floor (hash, number,
+ * time) before it travels. No anchor is fetched on either side: there is no
+ * anchor under a Base floor and no ceiling in position after it; the order
+ * among BitGraphs is the chain of proof hashes. Ethereum-floor proofs are
+ * still built as /2.
  */
 
 import { createHash } from "node:crypto";
@@ -26,9 +34,10 @@ import {
   verify, createVerificationContext,
   buildCarrier, parseCarrier, completeCarrier as completeCarrierBlock, completeCarrierInTime, carrierVersionOf,
   checkFloorBinding, checkCeilingBinding, anchorMessageBytes, verifyWitnessHeader, anchorMarkOf,
-  verifyCeiling, assembleCarrierV2Payload, carrierBlockSize, CARRIER_BLOCK_ZIP_LIMIT, BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID,
-  computeProofHash,
+  verifyCeiling, assembleCarrierV2Payload, assembleCarrierV3Payload, carrierBlockSize, CARRIER_BLOCK_ZIP_LIMIT, BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID,
+  computeProofHash, signedFloorOf, checkFloorHeader, headerRlpFromRpc, evmHexToBytes, evmBytesToHex,
   type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierCeiling, type CarrierCeilingInTime,
+  type CarrierV2Parts, type CarrierV3Parts, type RpcBlockHeader, type SignedFloor,
 } from "@mikeargento/bitgraph-verify";
 import { settlementFromSidecar, completeCarrierSettlement } from "@mikeargento/bitgraph-verify";
 import { ApiError, getProofDetail, type ApiConfig } from "./api.js";
@@ -92,8 +101,8 @@ async function fetchAnchorSide(
 export interface BuiltCarrier {
   bytes: Uint8Array;
   fileName: string;
-  /** The ceiling in position: the next anchor. */
-  ceiling: "present" | "unfetched";
+  /** The ceiling in position: the next anchor. "none" on a /3 file (a Base floor): none exists, order is the chain of proof hashes. */
+  ceiling: "present" | "unfetched" | "none";
   /** The ceiling in time: the Base block the record existed by. */
   ceilingInTime: "present" | "unfetched";
   /** Whether the openssl attestation witness is inside (left out only to keep a ZIP-family file under its limit). */
@@ -132,12 +141,16 @@ async function fetchCeilingInTime(config: ApiConfig, proof: BitGraphProof): Prom
   return { sidecar, pending: false };
 }
 
-/** The block for these parts, under the ZIP limit when the bytes are a ZIP-family file. Throws when it cannot be. */
-function payloadWithinLimits(committedBytes: Uint8Array, parts: Parameters<typeof assembleCarrierV2Payload>[0]): { payload: CarrierPayload; witness: boolean } {
-  let payload = assembleCarrierV2Payload(parts);
+/** The block for these parts (/2, or /3 for a Base floor), under the ZIP limit when the bytes are a ZIP-family file. Throws when it cannot be. */
+function payloadWithinLimits(committedBytes: Uint8Array, parts: { v: 2; parts: CarrierV2Parts } | { v: 3; parts: CarrierV3Parts }): { payload: CarrierPayload; witness: boolean } {
+  const assemble = (withAttestationWitness?: boolean) => {
+    const extra = withAttestationWitness === undefined ? {} : { withAttestationWitness };
+    return parts.v === 3 ? assembleCarrierV3Payload({ ...parts.parts, ...extra }) : assembleCarrierV2Payload({ ...parts.parts, ...extra });
+  };
+  let payload = assemble();
   let witness = payload.attestation !== undefined;
   if (isZipFamily(committedBytes) && carrierBlockSize(payload) > CARRIER_BLOCK_ZIP_LIMIT) {
-    payload = assembleCarrierV2Payload({ ...parts, withAttestationWitness: false });
+    payload = assemble(false);
     witness = false;
     if (carrierBlockSize(payload) > CARRIER_BLOCK_ZIP_LIMIT) {
       throw new ApiError(413, `the proof block (${carrierBlockSize(payload)} bytes) would pass the 64 KiB a ZIP-family file can carry after its end record; keep the proof beside the file instead`);
@@ -153,11 +166,49 @@ function payloadWithinLimits(committedBytes: Uint8Array, parts: Parameters<typeo
  * ceilings (the first later anchor, and the Base block) are waited for up to
  * `waitForCeilingMs` only while genuinely pending.
  */
+/**
+ * A Base floor's header, checked against the floor the proof signs: the
+ * caller's own (0x hex), else the Base node's block at the signed height,
+ * rebuilt from its JSON and kept only when it hashes to the signed hash.
+ * Throws when neither is that block: an unchecked floor never travels.
+ */
+async function baseFloorHeader(signed: SignedFloor, opts: { floorHeader?: string; baseRpcUrl?: string }): Promise<string> {
+  let hex = opts.floorHeader ?? null;
+  if (hex === null) {
+    const url = opts.baseRpcUrl ?? DEFAULT_BASE_RPC;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: [`0x${signed.blockNumber.toString(16)}`, false] }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (res.status !== 200) throw new ApiError(502, `the Base node answered ${res.status} for floor block ${signed.blockNumber}`);
+    const block = ((await res.json()) as { result?: RpcBlockHeader | null } | null)?.result ?? null;
+    const rlp = headerRlpFromRpc(block, signed.blockHash);
+    if (rlp === null) throw new ApiError(502, `the Base node's block ${signed.blockNumber} is not the floor block the proof signs`);
+    hex = evmBytesToHex(rlp);
+  }
+  let raw: Uint8Array;
+  try { raw = evmHexToBytes(hex); } catch { throw new ApiError(400, "the floor header is not hex"); }
+  const r = checkFloorHeader(signed, raw, "base");
+  if (!r.ok) throw new ApiError(502, `floor header: ${r.reason}`);
+  return hex.toLowerCase().startsWith("0x") ? hex.toLowerCase() : `0x${hex.toLowerCase()}`;
+}
+
+const DEFAULT_BASE_RPC = "https://mainnet.base.org";
+
 export async function buildBitGraphedFile(
   config: ApiConfig,
   committedBytes: Uint8Array,
   fileName: string,
-  opts?: { waitForCeilingMs?: number; proof?: BitGraphProof }
+  opts?: {
+    waitForCeilingMs?: number;
+    proof?: BitGraphProof;
+    /** A Base floor's header (0x hex RLP) in hand; checked against the signed floor like any other. */
+    floorHeader?: string;
+    /** The Base node asked for a Base floor's header when none is given. Default https://mainnet.base.org. */
+    baseRpcUrl?: string;
+  }
 ): Promise<BuiltCarrier> {
   const digestB64 = createHash("sha256").update(committedBytes).digest("base64");
   let proof = opts?.proof ?? null;
@@ -171,6 +222,13 @@ export async function buildBitGraphedFile(
   const counter = commit?.counter;
   const epochId = commit?.epochId;
   if (typeof counter !== "string" || typeof epochId !== "string") throw new ApiError(502, "the proof carries no position to bracket");
+  let signed: SignedFloor | null;
+  try {
+    signed = signedFloorOf(proof as unknown as Parameters<typeof signedFloorOf>[0]);
+  } catch (e) {
+    throw new ApiError(502, (e as Error).message);
+  }
+  if (signed?.chain === "base") return buildBaseFloorFile(config, committedBytes, fileName, proof, signed, opts ?? {});
 
   // The floor is the anchor the enclave fixed when it allocated the position, so it is
   // the anchor before the RESERVED position, never the one before the commit. For
@@ -210,20 +268,47 @@ export async function buildBitGraphedFile(
 
   // The Ethereum settlement rides with the ceiling it settles, once the writer has attached it.
   const settlement = settlementFromSidecar(ceilingInTime.status === "present" ? ceilingInTime.sidecar : null);
-  const { payload, witness } = payloadWithinLimits(committedBytes, {
+  const { payload, witness } = payloadWithinLimits(committedBytes, { v: 2, parts: {
     proof: proof as unknown as CarrierProof,
     floor: { status: "present", anchor: floor.anchor, witness: floor.witness },
     ceiling,
     ceilingInTime,
     ...(settlement ? { settlement } : {}),
-  });
-  return { bytes: buildCarrier(committedBytes, payload), fileName: carrierFileName(fileName), ceiling: ceiling.status, ceilingInTime: ceilingInTime.status, witness };
+  } });
+  return { bytes: buildCarrier(committedBytes, payload), fileName: carrierFileName(fileName), ceiling: ceiling.status === "present" ? "present" : "unfetched", ceilingInTime: ceilingInTime.status, witness };
+}
+
+/** /3: a Base floor. The header is checked against the signed floor; only the ceiling in time is waited for. */
+async function buildBaseFloorFile(
+  config: ApiConfig, committedBytes: Uint8Array, fileName: string, proof: BitGraphProof, signed: SignedFloor,
+  opts: { waitForCeilingMs?: number; floorHeader?: string; baseRpcUrl?: string },
+): Promise<BuiltCarrier> {
+  const header = await baseFloorHeader(signed, opts);
+  let ceilingInTime: CarrierCeilingInTime = { status: "unfetched" };
+  const deadline = Date.now() + (opts.waitForCeilingMs ?? 0);
+  for (;;) {
+    const { sidecar, pending } = await fetchCeilingInTime(config, proof);
+    if (sidecar !== null) ceilingInTime = { status: "present", sidecar };
+    else if (!pending) ceilingInTime = { status: "unfetched", searched: { at: new Date().toISOString() } };
+    if (ceilingInTime.status === "present" || Date.now() + 2_000 > deadline) break;
+    await sleep(2_000);
+  }
+  if (ceilingInTime.status === "unfetched" && !ceilingInTime.searched) ceilingInTime = { status: "unfetched", searched: { at: new Date().toISOString() } };
+  const settlement = settlementFromSidecar(ceilingInTime.status === "present" ? ceilingInTime.sidecar : null);
+  const { payload, witness } = payloadWithinLimits(committedBytes, { v: 3, parts: {
+    proof: proof as unknown as CarrierProof,
+    floor: { status: "present", basis: "base-header", header },
+    ceilingInTime,
+    ...(settlement ? { settlement } : {}),
+  } });
+  return { bytes: buildCarrier(committedBytes, payload), fileName: carrierFileName(fileName), ceiling: "none", ceilingInTime: ceilingInTime.status, witness };
 }
 
 export interface CompletedCarrier {
   bytes: Uint8Array;
   changed: boolean;
-  ceiling: "present" | "unfetched";
+  /** "none" on a /3 file: no ceiling in position exists for a Base floor. */
+  ceiling: "present" | "unfetched" | "none";
   /** "n/a" on a bitgraph-carrier/1 file, which has no such field. */
   ceilingInTime: "present" | "unfetched" | "n/a";
 }
@@ -237,7 +322,8 @@ export interface CompletedCarrier {
 export async function completeBitGraphedFile(config: ApiConfig, carrierBytes: Uint8Array, opts?: { waitForCeilingMs?: number }): Promise<CompletedCarrier> {
   let parsed = parseCarrier(carrierBytes);
   if (parsed.kind !== "carrier") throw new ApiError(400, parsed.kind === "corrupt" ? `unreadable carrier block: ${parsed.reason}` : "these bytes carry no proof inside");
-  const v2 = carrierVersionOf(parsed.payload) === 2;
+  // v2 and v3 both carry the ceiling in time; v3 has no ceiling in position to fetch.
+  const v2 = carrierVersionOf(parsed.payload) >= 2;
   const commit = (parsed.payload.proof as { commit?: { counter?: string; epochId?: string } }).commit;
   if (typeof commit?.counter !== "string" || typeof commit?.epochId !== "string") throw new ApiError(400, "the carried proof carries no position");
 
@@ -247,7 +333,7 @@ export async function completeBitGraphedFile(config: ApiConfig, carrierBytes: Ui
   const deadline = Date.now() + waitMs;
   for (;;) {
     let stillPending = false;
-    if (parsed.payload.ceiling.status !== "present") {
+    if (parsed.payload.ceiling.status === "unfetched") {
       const { found: after, pending } = await fetchAnchorSide(config, commit.counter, commit.epochId, "after");
       if (after !== null) {
         await vetAnchor(after.anchor, after.witness, "ceiling");
@@ -278,7 +364,7 @@ export async function completeBitGraphedFile(config: ApiConfig, carrierBytes: Ui
     const again = parseCarrier(bytes);
     if (again.kind !== "carrier") throw new ApiError(500, "the completed block does not parse");
     parsed = again;
-    const complete = parsed.payload.ceiling.status === "present" && (!v2 || parsed.payload.ceilingInTime?.status === "present");
+    const complete = parsed.payload.ceiling.status !== "unfetched" && (!v2 || parsed.payload.ceilingInTime?.status === "present");
     if (complete || !stillPending || Date.now() + 2_000 > deadline) break;
     await sleep(2_000);
   }

@@ -1,21 +1,25 @@
 // Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
- * verifyCarrier — the offline read path for a BitGraphed file (bitgraph-carrier/1
- * or /2), one result per claim, each saying what it rests on.
+ * verifyCarrier: the offline read path for a BitGraphed file (bitgraph-carrier/1,
+ * /2 or /3), one result per claim, each saying what it rests on.
  *
  * Given the file and nothing else, it strips the block by structure and checks:
  *
  *   the bytes       SHA-256 of the committed bytes is the digest the proof names
  *   the proof       Ed25519 signature, the position record and its bindings, the
- *                   fused commitment rebuilt (bitgraph-fuse/1 or /2), proofHash
+ *                   fused commitment rebuilt (bitgraph-fuse/1, /2 or /3), proofHash
  *   the attestation ES384 signature, the certificate chain to the AWS Nitro root
  *                   (641A0321…), validity at the document's own instant, PCR0 against
  *                   the proof's measurement, user_data against the signed body; and,
  *                   on a v2 block, the openssl-checkable witness against the document
- *   the floor       the anchor proof named by the signed slotAnchor, verified over its
- *                   own message, matched by identity; its Ethereum header recomputed
- *   the ceilings    in position: the next anchor, same checks; in time (v2): the Base
+ *   the floor       v1, v2: the anchor proof named by the signed slotAnchor, verified over
+ *                   its own message, matched by identity; its Ethereum header recomputed.
+ *                   v3: the Base header, checked against the signed slotFloor (hash,
+ *                   number, time, Base mainnet's schedule). Either way the floor's time
+ *                   is a bound only when no later than the attestation document.
+ *   the ceilings    in position (v1, v2): the next anchor, same checks; v3 has none, its
+ *                   order is the chain of proof hashes; in time (v2, v3): the Base
  *                   sidecar's whole chain of custody (verifyCeiling); settled (v2): the
  *                   Ethereum block that committed the batch data (verifySettlementPointer)
  *   the pins        what the file declares it was made under, against the verifier's own
@@ -37,10 +41,11 @@
 
 import { verify, verifyProofIntegrity, createVerificationContext } from "./verifier.js";
 import { verifyFuse } from "./fuse-verify.js";
-import { readFuseAttribution } from "./fuse.js";
+import { readFuseAttribution, signedFloorOf, type SignedFloor } from "./fuse.js";
 import { computeProofHash, computeSignedBodyHash } from "./proof-hash.js";
 import { verifyNitroAttestation, witnessMatchesAttestation, awsNitroRootSha256, type AttestationWitness } from "./nitro.js";
-import { baseTimeIsBound, verifyCeiling, checkCeilingOnline, type CeilingSidecar } from "./ceiling.js";
+import { baseTimeIsBound, checkFloorHeader, floorTimeIsBound, verifyCeiling, checkCeilingOnline, type CeilingSidecar } from "./ceiling.js";
+import { hexToBytes as evmHex } from "./ceiling-evm.js";
 import { PUBLISHED_PCR0S, publishedMeasurement } from "./measurements.js";
 import { verifySettlementPointer, checkSettlementOnline, BASE_MAINNET_SETTLEMENT_PINS, type SettlementPointer, type SettlementPins } from "./settlement.js";
 import type { BitGraphProof } from "./types.js";
@@ -99,14 +104,17 @@ export interface CarrierVerifyResult {
   verdict: "TRUE" | "FALSE" | "UNDETERMINED";
   /** Why the Base block's time is not stated as a bound, when it is not (see baseTimeIsBound). */
   baseTimeWithheld?: string | null;
+  /** Why the floor block's time is not stated as a bound, when it is not: it is stamped after the attestation document (see floorTimeIsBound). */
+  floorTimeWithheld?: string | null;
   /** "ok" | "none" | "corrupt" — whether the bytes carried a readable block at all. */
   carrier: "ok" | "none" | "corrupt";
-  version: 1 | 2 | null;
+  version: 1 | 2 | 3 | null;
   /** Every failed or undetermined check, in the order met. Empty on a clean TRUE. */
   reasons: string[];
   /** Stated only when the block was readable. notAfter null = NOT FETCHED, in those words. */
   bounds: CarrierBounds | null;
-  ceiling: "present" | "unfetched" | null;
+  /** The ceiling in position: "none" on v3, where none exists (order is the chain of proof hashes). */
+  ceiling: "present" | "unfetched" | "none" | null;
   claims: CarrierClaim[];
   /** Plain language, written from the claims. */
   reading: string;
@@ -159,7 +167,7 @@ export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8
   } catch (e) {
     const detail = `a part of this proof block is malformed: ${e instanceof Error ? e.message : String(e)}`;
     add("wellformed", "Every part of the proof block is well formed", "FALSE", "", detail);
-    let version: 1 | 2 | null = null;
+    let version: 1 | 2 | 3 | null = null;
     try { version = carrierVersionOf(payload); } catch { /* unreadable */ }
     const ceilingStatus = (payload as { ceiling?: { status?: unknown } } | null)?.ceiling?.status;
     return {
@@ -169,7 +177,7 @@ export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8
       version,
       reasons: claims.filter((c) => c.result === "FALSE").map((c) => `${c.name}: ${c.detail}`),
       bounds: null,
-      ceiling: ceilingStatus === "present" || ceilingStatus === "unfetched" ? ceilingStatus : null,
+      ceiling: ceilingStatus === "present" || ceilingStatus === "unfetched" || ceilingStatus === "none" ? ceilingStatus : null,
       claims,
       reading: `This file does not verify: ${detail}. Nothing here is a verdict on what the bytes say, only that the evidence does not hold together.`,
       payload,
@@ -214,7 +222,7 @@ async function verifyCarrierPayloadChecks(
     add("proof.hash", "The ledger's proofHash is this proof's", ok ? "TRUE" : "FALSE", "SHA-256", ok ? "recomputed over the signed-body subset and equal" : "the proofHash field is not the hash of this proof's signed-body subset");
   }
 
-  // 3. Fused: the commitment inside the bytes, rebuilt from the signed record (fuse/2: and the signed floor block).
+  // 3. Fused: the commitment inside the bytes, rebuilt from the signed record (fuse/2 and fuse/3: and the signed floor block).
   const marker = readFuseAttribution(proof);
   if (marker !== null && inner === null) {
     add("proof.fused", "The bytes carry the position commitment", "NOT_CARRIED", "", `the file is not in hand; its bytes carry a bitgraph-fuse/${marker.version ?? 1} commitment to check`);
@@ -222,8 +230,8 @@ async function verifyCarrierPayloadChecks(
     const f = await verifyFuse({ proof, bytes: inner });
     const good = f.category === "FUSED_DIRECT" || f.category === "CARRIED_INLINE";
     add("proof.fused", "The bytes carry the position commitment", good ? "TRUE" : "FALSE",
-      marker.version === 2 ? "SHA-256 over the signed position record, its nonce and the signed floor block hash" : "SHA-256 over the signed position record and its nonce",
-      good ? `${f.category}: ${marker.version === 2 ? "the commitment binds the floor block, so the bytes could not have been finished before that block existed" : "the commitment was made from the position record before the bytes were finished"}` : `${f.category}${f.reason ? `: ${f.reason}` : ""}`);
+      (marker.version ?? 1) >= 2 ? "SHA-256 over the signed position record, its nonce and the signed floor block hash" : "SHA-256 over the signed position record and its nonce",
+      good ? `${f.category}: ${(marker.version ?? 1) >= 2 ? "the commitment binds the floor block, so the bytes could not have been finished before that block existed" : "the commitment was made from the position record before the bytes were finished"}` : `${f.category}${f.reason ? `: ${f.reason}` : ""}`);
   } else {
     add("proof.fused", "The bytes carry the position commitment", "NOT_CARRIED", "", "an ordinary recording: the position was taken after the bytes existed, and no commitment is inside them");
   }
@@ -268,7 +276,7 @@ async function verifyCarrierPayloadChecks(
           ? usingDefault && pub ? `PCR0 ${measured.slice(0, 16)}… is BitGraph's published ${pub.version} image (since ${pub.since})` : `PCR0 ${measured.slice(0, 16)}… is on the verifier's list`
           : usingDefault ? `PCR0 ${measured.slice(0, 16)}… is not an image BitGraph published, so this proof is not BitGraph's` : `PCR0 ${measured.slice(0, 16)}… is not on the verifier's list`);
     }
-    if (version === 2 && payload.attestation) {
+    if (version >= 2 && payload.attestation) {
       const w = witnessMatchesAttestation(payload.attestation as unknown as AttestationWitness, att.reportB64);
       add("attestation.witness", "The openssl witness is what the document decodes to", w.ok ? "TRUE" : "FALSE", "recomputed from the attestation document", w.detail);
     }
@@ -276,21 +284,60 @@ async function verifyCarrierPayloadChecks(
     add("attestation.signature", "AWS hardware signed the attestation", "NOT_CARRIED", "", "the proof carries no aws-nitro attestation");
   }
 
-  // 5. The floor: the anchor proof verifies over its own signed message, and
-  //    it is the anchor the enclave fixed at allocation, matched by identity.
-  const floorMsg = anchorMessageBytes(payload.floor.anchor);
-  if (floorMsg.error !== null) add("floor.anchor", "The floor anchor is a genuine anchor proof", "FALSE", "", `floor anchor: ${floorMsg.error}`);
-  else {
-    const floorResult = await verify({ proof: payload.floor.anchor as unknown as BitGraphProof, bytes: floorMsg.bytes, context: createVerificationContext() });
-    add("floor.anchor", "The floor anchor is a genuine anchor proof", floorResult.valid ? "TRUE" : "FALSE", "Ed25519", floorResult.valid ? "the anchor proof verifies over its own signed block-hash message, under the same key" : `the floor anchor proof does not verify: ${floorResult.reason ?? "unspecified"}`);
+  // 5. The floor. One floor per proof (signedFloorOf); a proof that signs two is ambiguous and floors nothing.
+  let signed: SignedFloor | null = null;
+  let ambiguous: string | null = null;
+  try {
+    signed = signedFloorOf(proof);
+  } catch (e) {
+    ambiguous = (e as Error).message;
   }
-  const floorBind = checkFloorBinding(payload.proof, payload.floor);
-  add("floor.binding", "The floor is the anchor the enclave fixed for this position", floorBind.length === 0 ? "TRUE" : "FALSE", "the proof's signed commit.slotAnchor", floorBind.length === 0 ? "the anchor's counter, block number and block hash equal the signed slotAnchor" : floorBind.join("; "));
-  const floorWitness = verifyWitnessHeader(payload.floor.witness);
-  add("floor.header", "The floor block's header is the one with that hash", floorWitness.ok ? "TRUE" : "FALSE", `Ethereum block ${payload.floor.witness.blockNumber}, header as given`, floorWitness.ok ? `keccak-256 of the header equals the signed block hash; its time is ${iso(floorWitness.timestamp)}` : `floor witness: ${floorWitness.error}`);
+  let floorTs: number | null = null;
+  let floorChain: "ethereum" | "base" = "ethereum";
+  if (payload.floor.basis === "base-header") {
+    // v3: the Base header itself, checked against the signed slotFloor. No anchor proof stands under it.
+    floorChain = "base";
+    const header = payload.floor.header;
+    let raw: Uint8Array | null = null;
+    try { raw = evmHex(header); } catch { raw = null; }
+    const fh = ambiguous !== null || signed === null || raw === null ? null : checkFloorHeader(signed, raw, "base");
+    const why = ambiguous ?? (signed === null ? "the proof signs no floor block (commit.slotFloor)" : raw === null ? "the floor header is not hex" : fh && !fh.ok ? fh.reason : "");
+    add("floor.binding", "The floor is the Base block the enclave fixed for this position", fh?.ok ? "TRUE" : "FALSE", "the proof's signed commit.slotFloor",
+      fh?.ok ? "the header's block number, hash and time equal the signed slotFloor, on Base mainnet's schedule" : why);
+    if (fh?.ok) {
+      floorTs = fh.header.timestamp;
+      add("floor.header", "The floor block's header is the one with that hash", "TRUE", `Base block ${fh.header.number}, header as given`, `keccak-256 of the header equals the signed block hash; its time is ${iso(fh.header.timestamp)}`);
+    } else {
+      add("floor.header", "The floor block's header is the one with that hash", "FALSE", "", `floor header: ${why}`);
+    }
+  } else {
+    // v1, v2: the anchor proof verifies over its own signed message, and it
+    // is the anchor the enclave fixed at allocation, matched by identity.
+    const floorMsg = anchorMessageBytes(payload.floor.anchor);
+    if (floorMsg.error !== null) add("floor.anchor", "The floor anchor is a genuine anchor proof", "FALSE", "", `floor anchor: ${floorMsg.error}`);
+    else {
+      const floorResult = await verify({ proof: payload.floor.anchor as unknown as BitGraphProof, bytes: floorMsg.bytes, context: createVerificationContext() });
+      add("floor.anchor", "The floor anchor is a genuine anchor proof", floorResult.valid ? "TRUE" : "FALSE", "Ed25519", floorResult.valid ? "the anchor proof verifies over its own signed block-hash message, under the same key" : `the floor anchor proof does not verify: ${floorResult.reason ?? "unspecified"}`);
+    }
+    const floorBind = ambiguous !== null ? [ambiguous]
+      : signed?.chain === "base" ? ["the proof signs a Base floor (commit.slotFloor), and this block carries an Ethereum anchor as its floor"]
+      : checkFloorBinding(payload.proof, payload.floor);
+    add("floor.binding", "The floor is the anchor the enclave fixed for this position", floorBind.length === 0 ? "TRUE" : "FALSE", "the proof's signed commit.slotAnchor", floorBind.length === 0 ? "the anchor's counter, block number and block hash equal the signed slotAnchor" : floorBind.join("; "));
+    const floorWitness = verifyWitnessHeader(payload.floor.witness);
+    floorTs = floorWitness.ok ? floorWitness.timestamp : null;
+    add("floor.header", "The floor block's header is the one with that hash", floorWitness.ok ? "TRUE" : "FALSE", `Ethereum block ${payload.floor.witness.blockNumber}, header as given`, floorWitness.ok ? `keccak-256 of the header equals the signed block hash; its time is ${iso(floorWitness.timestamp)}` : `floor witness: ${floorWitness.error}`);
+  }
+  // The floor's time is a bound only when it is no later than the attestation document (review, 2026-10-06).
+  let floorTimeWithheld: string | null = null;
+  if (floorTs !== null) {
+    const bound = floorTimeIsBound(floorTs, attestedAtMs);
+    if (!bound.ok) floorTimeWithheld = bound.reason;
+  }
 
-  // 6. The ceiling in position, only when the carrier claims one.
-  if (payload.ceiling.status === "present") {
+  // 6. The ceiling in position: v1 and v2 when the carrier claims one; v3 has none.
+  if (payload.ceiling.status === "none") {
+    add("ceiling.position", "A closing anchor follows the record", "NOT_CARRIED", "", "none exists for a Base-floor BitGraph: anchors ended with the cutover, and its order among BitGraphs is the chain of proof hashes");
+  } else if (payload.ceiling.status === "present") {
     const ceilMsg = anchorMessageBytes(payload.ceiling.anchor);
     if (ceilMsg.error !== null) add("ceiling.position.anchor", "The closing anchor is a genuine anchor proof", "FALSE", "", `ceiling anchor: ${ceilMsg.error}`);
     else {
@@ -305,11 +352,11 @@ async function verifyCarrierPayloadChecks(
     add("ceiling.position.binding", "The record was committed before the closing anchor", "NOT_CARRIED", "", "closing anchor not fetched: the floor stands on its own");
   }
 
-  // 7. v2: the ceiling in time, the Base block the record existed by.
+  // 7. v2 and v3: the ceiling in time, the Base block the record existed by.
   let ceilingTime: { blockNumber: number; blockHash: string; blockTimestamp: number; status: string } | null = null;
   let baseTimeWithheld: string | null = null;
   let sidecar: CeilingSidecar | null = null;
-  if (version === 2) {
+  if (version >= 2) {
     const ct = payload.ceilingInTime;
     if (ct && ct.status === "present") {
       sidecar = ct.sidecar as unknown as CeilingSidecar;
@@ -320,11 +367,11 @@ async function verifyCarrierPayloadChecks(
       add("ceiling.time.payload", "The transaction carries that root", r(byName("payload")), "the 84-byte BGC1 payload", byName("payload")?.detail ?? c.reason ?? "not reached");
       add("ceiling.time.sender", "The transaction was signed by the ceiling writer", r(byName("sender")), `secp256k1; the writer pin ${pinnedWriter.slice(0, 8)}…`, byName("sender")?.detail ?? c.reason ?? "not reached");
       add("ceiling.time.inclusion", "The transaction is in the Base block", r(byName("inclusion")), `Merkle-Patricia proof; Base block ${sidecar.anchor?.blockNumber ?? "?"}, header as given`, byName("inclusion")?.detail ?? c.reason ?? "not reached");
-      add("ceiling.time.floor", "The floor header the ceiling carries is the signed floor", r(byName("floor")), "the proof's signed commit.slotAnchor", byName("floor")?.detail ?? "the sidecar carries no floor header");
+      add("ceiling.time.floor", "The floor header the ceiling carries is the signed floor", r(byName("floor")), floorChain === "base" ? "the proof's signed commit.slotFloor" : "the proof's signed commit.slotAnchor", byName("floor")?.detail ?? "the sidecar carries no floor header");
       const win = c.ok ? c.window?.ceiling : undefined;
       if (win) {
         // The inclusion holds either way; a stamp that cannot be a bound is withheld as a time.
-        const stamp = baseTimeIsBound(win.blockTimestamp, { floorTimestampSec: floorWitness.timestamp ?? c.window?.floor.blockTimestamp ?? null, attestedAtMs });
+        const stamp = baseTimeIsBound(win.blockTimestamp, { floorTimestampSec: floorTs ?? c.window?.floor.blockTimestamp ?? null, attestedAtMs });
         if (stamp.ok) ceilingTime = { blockNumber: win.blockNumber, blockHash: win.blockHash, blockTimestamp: win.blockTimestamp, status: c.status ?? "included" };
         else baseTimeWithheld = stamp.reason;
       }
@@ -334,7 +381,7 @@ async function verifyCarrierPayloadChecks(
       add("ceiling.time.record", "The record existed by a Base block", "NOT_CARRIED", "", ct?.status === "unfetched" ? "the ceiling in time was not fetched when this file was made" : "no ceiling in time is stated");
     }
 
-    // 8. v2: settlement on Ethereum, when carried.
+    // 8. v2 and v3: settlement on Ethereum, when carried.
     const st = payload.settlement;
     if (st && st.status === "present") {
       const pointer = st.pointer as unknown as SettlementPointer;
@@ -362,12 +409,21 @@ async function verifyCarrierPayloadChecks(
     }
   }
 
-  // 10. Confirmed: the block hashes against nodes the caller named.
+  // 10. Confirmed: the block hashes against nodes the caller named. The floor
+  //     is asked of its own chain, by height: the chain's block at N must be
+  //     the one the header hashes to.
   const lk = opts.lookups;
+  const nb = carrierBounds(payload).notBefore;
+  const floorAsk = floorChain === "base" ? lk?.baseBlockHash : lk?.ethereumBlockHash;
+  const floorChainName = floorChain === "base" ? "Base" : "Ethereum";
+  if (floorAsk) {
+    const h = (await safe(() => floorAsk(nb.blockNumber)))?.toLowerCase();
+    const ok = h === nb.blockHash;
+    add("confirmed.floor", `The floor block is ${floorChainName}'s own`, h ? (ok ? "TRUE" : "FALSE") : "UNDETERMINED", `the ${floorChainName} node the caller named`, h ? (ok ? `${floorChainName} block ${nb.blockNumber} matches the node` : `the node's block ${nb.blockNumber} is ${h}, not this header`) : "the node did not answer", "confirmed");
+  } else {
+    add("confirmed.floor", `The floor block is ${floorChainName}'s own`, "UNDETERMINED", "", `no ${floorChainName} node given: the header is taken as the one matching its hash; confirm block ${nb.blockNumber} against any node or explorer`, "confirmed");
+  }
   if (lk?.ethereumBlockHash) {
-    const h = (await safe(() => lk.ethereumBlockHash!(payload.floor.witness.blockNumber)))?.toLowerCase();
-    const ok = h === payload.floor.witness.blockHash.toLowerCase();
-    add("confirmed.floor", "The floor block is Ethereum's own", h ? (ok ? "TRUE" : "FALSE") : "UNDETERMINED", "the Ethereum node the caller named", h ? (ok ? `Ethereum block ${payload.floor.witness.blockNumber} matches the node` : `the node's block ${payload.floor.witness.blockNumber} is ${h}, not this header`) : "the node did not answer", "confirmed");
     const pc = payload.ceiling;
     if (pc.status === "present") {
       const h2 = (await safe(() => lk.ethereumBlockHash!(pc.witness.blockNumber)))?.toLowerCase();
@@ -379,8 +435,6 @@ async function verifyCarrierPayloadChecks(
       const r = await checkSettlementOnline(st.pointer as unknown as SettlementPointer, lk.ethereumBlockHash);
       add("confirmed.settlement", "The settling Ethereum block is Ethereum's own", r.ok ? "TRUE" : "FALSE", "the Ethereum node the caller named", r.detail, "confirmed");
     }
-  } else {
-    add("confirmed.floor", "The floor block is Ethereum's own", "UNDETERMINED", "", "no Ethereum node given: the header is taken as the one matching its hash; confirm block " + payload.floor.witness.blockNumber + " against any node or explorer", "confirmed");
   }
   if (sidecar) {
     if (lk?.baseBlockHash) {
@@ -400,16 +454,19 @@ async function verifyCarrierPayloadChecks(
   const bounds = carrierBounds(payload);
   // The ceiling in time reaches callers only as verified here, and only when its stamp is a bound.
   bounds.existedBy = ceilingTime ? { chain: "base", blockNumber: ceilingTime.blockNumber, blockHash: ceilingTime.blockHash, timestamp: ceilingTime.blockTimestamp } : null;
+  // So does the floor's time: from a verified header, and only when it is a bound.
+  bounds.notBefore.timestamp = floorTimeWithheld === null ? floorTs : null;
   return {
     verdict,
     baseTimeWithheld,
+    floorTimeWithheld,
     carrier: "ok",
     version,
     reasons,
     bounds,
     ceiling: payload.ceiling.status,
     claims,
-    reading: writeReading(verdict, claims, bounds, proof, ceilingTime, floorWitness.timestamp, baseTimeWithheld),
+    reading: writeReading(verdict, claims, bounds, proof, ceilingTime, bounds.notBefore.timestamp, baseTimeWithheld, floorTimeWithheld),
     payload,
     inner,
   };
@@ -435,6 +492,7 @@ function writeReading(
   ceilingTime: { blockNumber: number; blockHash: string; blockTimestamp: number } | null,
   floorTs: number | null,
   baseTimeWithheld: string | null = null,
+  floorTimeWithheld: string | null = null,
 ): string {
   const get = (id: string) => claims.find((c) => c.id === id);
   if (verdict === "FALSE") {
@@ -444,10 +502,13 @@ function writeReading(
   const position = proof.commit?.counter ?? "?";
   const epoch = (proof.commit?.epochId ?? "").replace(/=+$/, "").slice(0, 8);
   const fused = get("proof.fused");
-  const after = floorTs !== null ? `Recorded after Ethereum block ${bounds.notBefore.blockNumber} (${iso(floorTs)})` : `Recorded after Ethereum block ${bounds.notBefore.blockNumber}`;
+  const floorChain = bounds.notBefore.chain === "base" ? "Base" : "Ethereum";
+  const after = floorTs !== null ? `Recorded after ${floorChain} block ${bounds.notBefore.blockNumber} (${iso(floorTs)})` : `Recorded after ${floorChain} block ${bounds.notBefore.blockNumber}`;
   const by = ceilingTime ? `, and existed by Base block ${ceilingTime.blockNumber} (${iso(ceilingTime.blockTimestamp)})` : "";
   const settled = bounds.settledBy ? `, whose batch data Ethereum committed in block ${bounds.settledBy.blockNumber} (${iso(bounds.settledBy.timestamp)})` : "";
-  const before = bounds.notAfter ? `; committed before the anchoring of Ethereum block ${bounds.notAfter.blockNumber}, a bound in position` : "";
+  const before = bounds.notAfter
+    ? `; committed before the anchoring of Ethereum block ${bounds.notAfter.blockNumber}, a bound in position`
+    : get("ceiling.position") ? "; its order among BitGraphs is the chain of proof hashes" : "";
   const digest = get("bytes.digest");
   // Two floors (SPEC 8.6): every record has the record floor; only bytes that
   // carry the commitment have the content floor. Without it, the bytes
@@ -460,7 +521,7 @@ function writeReading(
   const att = get("attestation.root");
   const rests: string[] = ["SHA-256", "Ed25519"];
   if (att?.result === "TRUE") rests.push(`the AWS Nitro root (${awsNitroRootSha256().slice(0, 8)}…)`);
-  rests.push(`Ethereum block ${bounds.notBefore.blockNumber}`);
+  rests.push(`${floorChain} block ${bounds.notBefore.blockNumber}`);
   if (ceilingTime) rests.push(`Base block ${ceilingTime.blockNumber}`);
   if (bounds.settledBy) rests.push(`Ethereum block ${bounds.settledBy.blockNumber}`);
   const confirmed = claims.filter((c) => c.level === "confirmed");
@@ -470,7 +531,8 @@ function writeReading(
     : "Offline, the blocks are taken from their headers, each of which hashes to the hash the evidence names; confirm them against any node or explorer to remove that reliance.";
   const pins = get("attestation.pins");
   const pinLine = pins?.result === "TRUE" ? ` ${pins.detail.replace(/^PCR0 [0-9a-f]+… is /, "The enclave image is ")}.` : pins?.result === "UNDETERMINED" ? ` ${pins.detail}.` : !pins ? " The proof carries no attestation, so which enclave image signed it is not established." : "";
-  const withheld = baseTimeWithheld ? ` The record is in a Base block, but its time is not used as a bound: ${baseTimeWithheld}.` : "";
+  const withheld = (floorTimeWithheld ? ` The floor block's time is not used as a bound: ${floorTimeWithheld}.` : "")
+    + (baseTimeWithheld ? ` The record is in a Base block, but its time is not used as a bound: ${baseTimeWithheld}.` : "");
   const lead = verdict === "UNDETERMINED" ? "Not judged in full. " : "";
   return `${lead}${subject} ${after}${by}${settled}${before}. Position ${position} of epoch ${epoch}…. Rests on: ${rests.join(", ")}. ${tail}${withheld}${pinLine}`;
 }

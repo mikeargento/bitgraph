@@ -555,14 +555,21 @@ export class BitGraph {
     return { verdict: r.valid ? "TRUE" : "FALSE", carrier: "none", bounds: null, reasons: r.valid ? [] : [r.reason ?? "the proof does not verify"], claims: [], reading: null };
   }
 
-  /** Build the BitGraphed file (bitgraph-carrier/2) for committed bytes already on record: the proof, the floor, both ceilings when they exist, and the attestation as openssl-checkable evidence, all inside. */
-  async bitgraphedFile(input: string | Uint8Array, opts: { fileName?: string; waitForCeilingMs?: number } = {}): Promise<BuiltCarrier> {
+  /**
+   * Build the BitGraphed file for committed bytes already on record: the proof, the floor, the ceilings that exist, and the attestation as openssl-checkable evidence, all inside.
+   * bitgraph-carrier/2 for an Ethereum floor; bitgraph-carrier/3 for a Base floor (enclave v10), whose header comes from `floorHeader` or the Base node at `baseRpcUrl` (default https://mainnet.base.org).
+   */
+  async bitgraphedFile(input: string | Uint8Array, opts: { fileName?: string; waitForCeilingMs?: number; floorHeader?: string; baseRpcUrl?: string } = {}): Promise<BuiltCarrier> {
     const bytes = typeof input === "string" ? new Uint8Array(await readFile(input)) : input;
     const name = opts.fileName ?? (typeof input === "string" ? (input.split("/").pop() as string) : "artifact");
-    return buildBitGraphedFile(this.config, bytes, name, opts.waitForCeilingMs !== undefined ? { waitForCeilingMs: opts.waitForCeilingMs } : {});
+    return buildBitGraphedFile(this.config, bytes, name, {
+      ...(opts.waitForCeilingMs !== undefined ? { waitForCeilingMs: opts.waitForCeilingMs } : {}),
+      ...(opts.floorHeader !== undefined ? { floorHeader: opts.floorHeader } : {}),
+      ...(opts.baseRpcUrl !== undefined ? { baseRpcUrl: opts.baseRpcUrl } : {}),
+    });
   }
 
-  /** Fetch what followed the commit into an existing BitGraphed file: the closing anchor and, on a /2 file, the Base block. Nothing already inside is overwritten. */
+  /** Fetch what followed the commit into an existing BitGraphed file: the closing anchor (none exists on a /3 file) and, on a /2 or /3 file, the Base block. Nothing already inside is overwritten. */
   async complete(input: string | Uint8Array, opts: { waitForCeilingMs?: number } = {}): Promise<CompletedCarrier> {
     const bytes = typeof input === "string" ? new Uint8Array(await readFile(input)) : input;
     return completeBitGraphedFile(this.config, bytes, opts.waitForCeilingMs !== undefined ? { waitForCeilingMs: opts.waitForCeilingMs } : {});

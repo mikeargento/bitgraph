@@ -69,8 +69,8 @@ export interface TreeSummary {
   count: number;
   /** Every leaf in tree order, base64 (count x 65 bytes): the owner's list. */
   leavesB64: string;
-  /** The floor block the proof signs (commit.slotAnchor). */
-  floor: { counter: string; blockNumber: number; blockHash: string };
+  /** The floor block the proof signs: an Ethereum anchor (commit.slotAnchor, with its counter) or a Base block (commit.slotFloor, chain "base"). */
+  floor: { counter: string; blockNumber: number; blockHash: string } | { chain: "base"; evmChainId: 8453; blockNumber: number; blockHash: string; blockTimestamp: number };
   recovered: boolean;
   /** True when the proof's metadata carries the root document; exports carry it either way. */
   rootDocumentEchoed: boolean;

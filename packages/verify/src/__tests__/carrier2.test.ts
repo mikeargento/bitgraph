@@ -211,7 +211,7 @@ test("a v1 reader's view of a v2 block: an unknown version is UNDETERMINED, neve
   // A reader from before /2 rejects the version string in payloadShapeError; the same
   // path is taken here for any version this reader does not know.
   const p = golden() as unknown as Record<string, unknown>;
-  p["carrier"] = "bitgraph-carrier/3";
+  p["carrier"] = "bitgraph-carrier/4"; // /3 exists since 2026-10-06 (a Base floor); /4 does not
   const r = await verifyCarrier(buildCarrier(inner, p as unknown as CarrierPayload));
   assert.equal(r.verdict, "UNDETERMINED");
   assert.equal(r.carrier, "corrupt");

@@ -15,7 +15,9 @@
  *                       rebuilt from it, and it lists every file, so it is
  *                       the owner's to keep.
  *
- * At make time the floor header can be in hand (the site's witness route);
+ * At make time the floor header can be in hand (the site's witness route for
+ * an Ethereum floor; for a Base floor, enclave v10, a Base node's block at the
+ * signed height);
  * the ceiling (a Base block, seconds after the commit) and the settlement
  * (Base's output root on Ethereum, much later) cannot, so they start as
  * { status: "pending" }. completeExport fetches all three. Nothing fetched is
@@ -35,8 +37,8 @@ import {
   bytesEqual,
   bytesToBase64,
   bytesToHex,
+  checkFloorHeader,
   computeProofHash,
-  decodeHeader,
   encodeTreeLeaves,
   evmHexToBytes,
   MerkleTree,
@@ -49,11 +51,14 @@ import {
   verifyOutputRootSettlement,
   verifyTreeLeaves,
   CEILING_VERSION,
+  headerRlpFromRpc,
+  signedFloorOf,
+  evmBytesToHex,
 } from "@mikeargento/bitgraph-verify";
-import type { BitGraphExport, BitGraphProof, CeilingSidecar, OutputRootSettlement, TreeLeaf } from "@mikeargento/bitgraph-verify";
+import type { BitGraphExport, BitGraphProof, CeilingSidecar, OutputRootSettlement, RpcBlockHeader, SignedFloor, TreeLeaf } from "@mikeargento/bitgraph-verify";
 import type { FuseTreeResult } from "./fuse.js";
 
-/** An export's floor: the Ethereum block the proof signs as commit.slotAnchor, with its RLP header (0x hex). */
+/** An export's floor: the block the proof signs (commit.slotAnchor on Ethereum, or commit.slotFloor on Base, with chain "base"), with its RLP header (0x hex). */
 export type ExportFloor = NonNullable<BitGraphExport["floor"]>;
 
 /** What an export is built from. A FuseTreeResult is one; so is the same data read back from an owner's export. */
@@ -140,19 +145,32 @@ export function namesByLeaf(result: Pick<FuseTreeResult, "members" | "count">): 
   return names;
 }
 
+/** The floor a proof signs, or null when it signs none or is ambiguous (two floors). */
+function signedFloor(proof: BitGraphProof): SignedFloor | null {
+  try {
+    return signedFloorOf(proof);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The floor for an export from a block header, or null unless the header
  * decodes and hashes to the block the proof signs as its floor, at that
- * height. The header is never trusted for anything it does not hash to.
+ * height (for a Base floor, also at the signed time, on Base mainnet's
+ * schedule). The header is never trusted for anything it does not hash to.
  */
 export function floorFromHeader(proof: BitGraphProof, headerHex: string): ExportFloor | null {
-  const signed = proof.commit?.slotAnchor;
+  const signed = signedFloor(proof);
   if (!signed || typeof headerHex !== "string") return null;
   try {
-    const h = decodeHeader(evmHexToBytes(headerHex));
-    if (h.hash !== signed.blockHash.toLowerCase() || h.number !== signed.blockNumber) return null;
+    const r = checkFloorHeader(signed, evmHexToBytes(headerHex), signed.chain);
+    if (!r.ok) return null;
     const hex = headerHex.toLowerCase();
-    return { blockNumber: h.number, blockHash: h.hash, header: hex.startsWith("0x") ? hex : `0x${hex}` };
+    const header = hex.startsWith("0x") ? hex : `0x${hex}`;
+    return signed.chain === "base"
+      ? { chain: "base", blockNumber: r.header.number, blockHash: r.header.hash, header }
+      : { blockNumber: r.header.number, blockHash: r.header.hash, header };
   } catch {
     return null;
   }
@@ -163,11 +181,14 @@ export interface ExportFetchOptions {
   baseUrl?: string;
   /** Per request. Default 20 s. */
   timeoutMs?: number;
+  /** The Base node asked for a Base floor's header (enclave v10 floors), by height. Default https://mainnet.base.org. */
+  baseRpcUrl?: string;
 }
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
 const DEFAULT_SITE = "https://bitgraph.ing";
+const DEFAULT_BASE_RPC = "https://mainnet.base.org";
 
 function siteOf(opts: ExportFetchOptions): string {
   return (opts.baseUrl ?? DEFAULT_SITE).replace(/\/+$/, "");
@@ -190,17 +211,56 @@ async function getJson(fetcher: Fetcher, url: string, timeoutMs: number): Promis
 }
 
 /**
- * The floor header for a proof, from the site's witness route
- * (GET /api/proofs/witness?block=N&hash=0x...), checked against the floor
- * the proof signs. Null when the proof signs no floor, the route has no
- * header, or the header is not that block's.
+ * The floor header for a proof, checked against the floor the proof signs:
+ * for an Ethereum floor, from the site's witness route
+ * (GET /api/proofs/witness?block=N&hash=0x...); for a Base floor, the Base
+ * node's block at the signed height (eth_getBlockByNumber), its header rebuilt
+ * from the node's JSON and kept only when it hashes to the signed block hash.
+ * Null when the proof signs no floor, nothing answered with a header, or the
+ * header is not that block's.
  */
 export async function fetchFloorHeader(proof: BitGraphProof, fetcher: Fetcher = fetch, opts: ExportFetchOptions = {}): Promise<ExportFloor | null> {
-  const signed = proof.commit?.slotAnchor;
-  if (!signed) return null;
-  const r = await getJson(fetcher, `${siteOf(opts)}/api/proofs/witness?block=${signed.blockNumber}&hash=${encodeURIComponent(signed.blockHash)}`, opts.timeoutMs ?? 20_000);
-  if ("error" in r || r.status !== 200) return null;
-  return floorFromHeader(proof, witnessHeader(r.json) ?? "");
+  const r = await floorHeaderLookup(proof, fetcher, opts);
+  return "floor" in r ? r.floor : null;
+}
+
+/** One floor-header lookup on the floor's own chain: the floor, or why there is none. Never throws. */
+async function floorHeaderLookup(proof: BitGraphProof, fetcher: Fetcher, opts: ExportFetchOptions): Promise<{ floor: ExportFloor } | { note: string } | { none: true }> {
+  const signed = signedFloor(proof);
+  if (!signed) return { none: true };
+  const timeoutMs = opts.timeoutMs ?? 20_000;
+  if (signed.chain === "base") {
+    const url = opts.baseRpcUrl ?? DEFAULT_BASE_RPC;
+    const r = await postJson(fetcher, url, { jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: [`0x${signed.blockNumber.toString(16)}`, false] }, timeoutMs);
+    if ("error" in r) return { note: `floor header: ${r.error}` };
+    if (r.status !== 200) return { note: `floor header: the Base node answered ${r.status}` };
+    const block = (r.json as { result?: RpcBlockHeader | null } | null)?.result ?? null;
+    if (block === null) return { note: `floor header: the Base node has no block ${signed.blockNumber}` };
+    const rlp = headerRlpFromRpc(block, signed.blockHash);
+    const f = rlp === null ? null : floorFromHeader(proof, evmBytesToHex(rlp));
+    return f !== null ? { floor: f } : { note: `floor header: the Base node's block ${signed.blockNumber} is not the floor block the proof signs; not embedded` };
+  }
+  const r = await getJson(fetcher, `${siteOf(opts)}/api/proofs/witness?block=${signed.blockNumber}&hash=${encodeURIComponent(signed.blockHash)}`, timeoutMs);
+  if ("error" in r) return { note: `floor header: ${r.error}` };
+  if (r.status !== 200) return { note: `floor header: the witness route answered ${r.status}` };
+  const f = floorFromHeader(proof, witnessHeader(r.json) ?? "");
+  return f !== null ? { floor: f } : { note: "floor header: the witness route answered a header that is not the floor block the proof signs; not embedded" };
+}
+
+/** One JSON-RPC POST: status and parsed JSON, or the reason it failed. Never throws. */
+async function postJson(fetcher: Fetcher, url: string, body: unknown, timeoutMs: number): Promise<{ status: number; json: unknown } | { error: string }> {
+  try {
+    const res = await fetcher(url, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(body), redirect: "error", signal: AbortSignal.timeout(timeoutMs) });
+    let json: unknown = null;
+    try {
+      json = await res.json();
+    } catch {
+      json = null;
+    }
+    return { status: res.status, json };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /** The header in a witness answer: the bitgraph-anchor-witness/1 object, or the same inside a { witness } envelope. */
@@ -244,7 +304,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Fill what an export is waiting for, from read-only GETs on the site:
- *   floor       GET /api/proofs/witness?block=N&hash=0x...  (or the ceiling sidecar's own floor header)
+ *   floor       GET /api/proofs/witness?block=N&hash=0x...  for an Ethereum floor; a Base floor is
+ *               the Base node's block N (opts.baseRpcUrl); or the ceiling sidecar's own floor header
  *   ceiling     GET /api/ceilings/<proofHash, URL-safe>      404: still pending
  *   settlement  GET /api/ceilings/settlement/<Base block>    404: still pending
  * Each is verified here before it is embedded, and nothing already present is
@@ -258,7 +319,6 @@ export async function completeExport(input: BitGraphExport, fetcher: Fetcher = f
   const writerAddress = opts.writerAddress ?? BITGRAPH_CEILING_WRITER;
   const chainId = opts.baseChainId ?? BASE_MAINNET_CHAIN_ID;
   const proof = exp.proof;
-  const signedFloor = proof.commit?.slotAnchor;
   const notes = new Set<string>();
   let floor: BitGraphExport["floor"] = exp.floor ?? null;
   let ceiling: BitGraphExport["ceiling"] = exp.ceiling ?? null;
@@ -267,18 +327,13 @@ export async function completeExport(input: BitGraphExport, fetcher: Fetcher = f
   const deadline = Date.now() + (opts.waitMs ?? 0);
 
   for (;;) {
-    // 1. The floor header: the witness route, checked against the signed floor.
-    if (floor === null && signedFloor) {
-      const r = await getJson(fetcher, `${site}/api/proofs/witness?block=${signedFloor.blockNumber}&hash=${encodeURIComponent(signedFloor.blockHash)}`, timeoutMs);
-      if ("error" in r) notes.add(`floor header: ${r.error}`);
-      else if (r.status !== 200) notes.add(`floor header: the witness route answered ${r.status}`);
-      else {
-        const f = floorFromHeader(proof, witnessHeader(r.json) ?? "");
-        if (f !== null) {
-          floor = f;
-          changed = true;
-        } else notes.add("floor header: the witness route answered a header that is not the floor block the proof signs; not embedded");
-      }
+    // 1. The floor header, on the floor's own chain, checked against the signed floor.
+    if (floor === null) {
+      const r = await floorHeaderLookup(proof, fetcher, opts);
+      if ("floor" in r) {
+        floor = r.floor;
+        changed = true;
+      } else if ("note" in r) notes.add(r.note);
     }
 
     // 2. The ceiling on Base: the sidecar, verified for this proof and writer.
