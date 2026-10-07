@@ -243,7 +243,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
               was drawn from a code; the code itself is under Technical details (Commitment). */}
           <div className="actions art-actions">
-            <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image and proof"}</button>
+            <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image, proof inside"}</button>
             {/* For print (Mike, 10-06: "4 stacked buttons now 2 and 2 with one new one being the high res
                 download for printing"): the same image redrawn at 4096 x 4096 from its code. */}
             {PRINTABLE.includes(made.manifest.algorithm) && (
