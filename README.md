@@ -9,7 +9,7 @@
 
 **Position commitment for AI automation.**
 
-BitGraph begins the proof before the record arrives, so its position cannot be chosen afterward.
+BitGraph begins the proof before the bits arrive, so their position cannot be chosen afterward.
 
 BitGraphs are not labels or metadata added after the fact. They are new computations created when your file's hash *fills* a pre-existing, cryptographically reserved position, constraining the commitment so it cannot be made after the fact. The commit happens off-chain, inside the enclave, and produces a proof permanently bound to that exact digital state. Seconds later, a Merkle root over new records' proof hashes is written to Base, so each record also gets a ceiling in time.
 

@@ -53,7 +53,7 @@ export default function HomePage() {
           2026-09-26, left aligned, after a day of trying shorter heroes ("GPS for files.", "The
           position comes first.", "First the position. Then the file."; all in the git history).
           Claim discipline holds: a position is what is verified, never the content, never "when". */}
-      {/* "AI automation" (Mike, 2026-10-07) replaced "AI records" (10-05): the larger market by name; the lede still says "the record", which is what automation leaves behind. */}
+      {/* "AI automation" (Mike, 2026-10-07) replaced "AI records" (10-05): the larger market by name. The lede says "the bits" (Mike, 2026-10-07, over "the record"): any bits, the brand's reach. */}
       {/* Static (Mike, 10-05): one "for", the first market. The typing version cycled AI records → AI agent
           actions → AI evaluations → predictions → sealed bids → chain of custody → any file → any bytes →
           any bits (components/home-headline.tsx, 694a5646). */}
@@ -67,7 +67,7 @@ export default function HomePage() {
           record, and nobody has to host it." (2048aed6, 0f1cac1c), distilled to one sentence
           (Mike, 10-05). */}
       <p className="lede">
-        BitGraph begins the proof before the record arrives,<br className="br-desk" /> so its position cannot be chosen&nbsp;afterward.
+        BitGraph begins the proof before the bits arrive,<br className="br-desk" /> so their position cannot be chosen&nbsp;afterward.
       </p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}

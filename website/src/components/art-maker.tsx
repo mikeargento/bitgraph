@@ -238,8 +238,8 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
             <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`Abstract image drawn from the code ${made.position.commitment}`} />
           </div>
           {/* The caption under the image (Mike, 10-06: "it should caption under image"). */}
-          <p className="art-explain art-explain-one art-caption">{/* Mike, 10-06: "The proof for this image began before the image existed." Accurate: the position (the
-                      proof's start) is opened and signed before the image is drawn; the signed record comes after. */}The proof for this image began before the image&nbsp;existed.</p>
+          <p className="art-explain art-explain-one art-caption">{/* Mike, 10-06: "The proof for this image began before the image existed."; "the bits" from 10-07. Accurate: the position (the
+                      proof's start) is opened and signed before the image is drawn; the signed record comes after. */}The proof for this image began before the bits&nbsp;existed.</p>
           {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
               was drawn from a code; the code itself is under Technical details (Commitment). */}
           <div className="actions art-actions">
