@@ -28,6 +28,8 @@ import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/fi
 import { redrawRecordedArt } from "@/lib/art-position";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpackSetMember, checkInline, isInlineProof, makeTreeHere, treeInputOf } from "@/lib/fuse-client";
 import { rebuildTreeFromFiles, rebuildMatches } from "@/lib/fuse-tree-make";
+import { recoverRows, treePositionKey } from "@/lib/recovery-fold";
+import { browserRecoveryQueue } from "@/lib/recovery-queue";
 import { SPEC_FILE_NAME, specFileFor, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, rootOnlyTree, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource, type BoundTree } from "@/lib/fuse-tree";
 import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence, fetchBaseFloorHeader } from "@/lib/carrier-site";
 import { verifyCarrierPayload, type CarrierClaim, type CarrierLookups, blobSource, } from "@mikeargento/bitgraph-verify";
@@ -862,7 +864,13 @@ export default function ProofPage() {
       // enough that no separate reconcile is needed.
       if (!seeded && warmHit && "promise" in warmHit) {
         try {
-          const data = await warmHit.promise;
+          // Bounded (2026-10-07): a warm request that never settles (one a navigation or the
+          // browser dropped) left the page on "Loading BitGraph…" for good, with no request of
+          // its own ever sent. After 2.5 s it is not waited on: the fresh fetch below runs.
+          const data = await Promise.race([
+            warmHit.promise,
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("warm fetch did not settle")), 2500)),
+          ]);
           if (cancelled) return;
           if (applyData(data)) { setLoading(false); return; }
         } catch { /* fall through to a fresh fetch */ }
@@ -2330,6 +2338,28 @@ function BringYourFile({
           setState(rebuildMatches(r.placed, bound.tree) || rebuildMatches(r.asIs, bound.tree) ? "treeAll" : "treeNo");
           return;
         }
+        /* Fewer files than the tree: each one's recovery entry (sealed under the file's own hash when
+           the tree was made, opened only by those bytes) names its place, checked against this tree
+           before it is believed (Mike, 2026-10-07: "if i have file 98. how do i find that proof?").
+           The first file placed in THIS tree opens, exactly as one placed by its export would. */
+        if (dropped.rest.length > 0) {
+          const rows: Array<{ status: string; digestB64: string; file: File }> = [];
+          for (const f of dropped.rest) {
+            rows.push({ status: "new", digestB64: await hashBytes(new Uint8Array(await f.arrayBuffer())), file: f });
+            setProgress({ done: rows.length, total: dropped.rest.length });
+          }
+          const here = treePositionKey(proof);
+          try {
+            const recovered = await recoverRows(rows, {
+              local: (d) => browserRecoveryQueue().localEntriesFor(d),
+              onProgress: (done, total) => setProgress({ done, total }),
+            });
+            for (const [i, trees] of recovered.found) {
+              const t = trees.find((x) => x.proofKey === here);
+              if (t) { onTreeEvidence?.(t.evidence); await accept(rows[i]!.file); return; }
+            }
+          } catch { /* no recovery answer: said below, never a verdict */ }
+        }
         setCheckedCount(dropped.rest.length);
         setState(dropped.rest.length > 0 ? "treeNo" : "tree");
         return;
@@ -2568,7 +2598,7 @@ function BringYourFile({
       ) : state === "tree" ? (
         <>
           <div className="dropbox-title" style={{ color: "var(--dim)" }}>This BitGraph is a tree of {treeCountLabel} files</div>
-          <div className="dropbox-line">Drop the whole folder to check every file at once, or one file together with the tree&rsquo;s export.</div>
+          <div className="dropbox-line">Drop one of its files to find its place, or the whole folder to check every file at once.</div>
         </>
       ) : state === "treeAll" ? (
         <>
@@ -2579,7 +2609,7 @@ function BringYourFile({
         <>
           <div className="dropbox-title" style={{ color: "var(--err)" }}>{checkedCount < (treeBoundCount ?? 0) ? `${checkedCount.toLocaleString()} of ${treeCountLabel} files` : "These files do not rebuild this tree"}</div>
           <div className="dropbox-line">{checkedCount < (treeBoundCount ?? 0)
-            ? "To check every file, drop the whole folder. To check one, drop it together with the tree\u2019s export."
+            ? "None of them was found in this tree by its recovery entry. Drop the whole folder to check every file, or one file together with the tree\u2019s export."
             : "The folder must hold exactly the files that were recorded, unchanged. To find which file differs, drop it together with the tree\u2019s export."}</div>
         </>
       ) : mismatch ? (
