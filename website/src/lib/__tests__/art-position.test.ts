@@ -9,7 +9,7 @@ import { sha256 } from "@noble/hashes/sha256";
 import { bytesToBase64, verifyFuse } from "@mikeargento/bitgraph-verify";
 import { createArtImage, verifyArtFile, redrawRecordedArt, ArtError, type ArtStage } from "../art-position.ts";
 import { decodePng, toBase64Url } from "../commitment-art.ts";
-import { decodeV8 } from "../commitment-art-v8.ts";
+import { decodeV9 } from "../commitment-art-v9.ts";
 import { makeStub } from "./tree1-helpers.ts";
 
 const isArtError = (code: string) => (e: unknown) => e instanceof ArtError && e.code === code;
@@ -34,7 +34,7 @@ test("one click: the position opens first, the commitment is shown before drawin
   assert.equal((await verifyFuse({ proof: made.proof, bytes: made.png })).category, "CARRIED_INLINE");
   // And the picture spells it: read back from the pixels alone.
   const d = await decodePng(made.png);
-  assert.equal(toBase64Url(decodeV8(d.rgba, d.width, d.height)!), made.position.commitment);
+  assert.equal(toBase64Url(decodeV9(d.rgba, d.width, d.height)!), made.position.commitment); // the default is version 9
   assert.equal(made.checks.regenerated.result, "TRUE");
   assert.equal(made.checks.strip.result, "TRUE");
 });
