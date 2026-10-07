@@ -113,41 +113,6 @@ function formatHashAlg(alg: string): string {
    page shows: a deliberate trade, not a regression. Do not re-add a row without
    putting the file back in the same commit, or the page fetches a 404 on every
    load. */
-const JEV_LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.bitgraph.ing";
-
-/** What live.bitgraph.ing says about an Ask Jev record (its own claims, shown beside the tree check). */
-interface JevRecordView {
-  code: string;
-  questions: { both: { text: string }; first: { text: string } };
-  truth: { both: boolean; first: string };
-  answers: { both: { yes: boolean; p: number }; first: { choice: string; confidence: number | null } } | null;
-  right: { both: boolean; first: boolean } | null;
-  jev: { model: string };
-  jevError: string | null;
-}
-
-/* The exchange, as the Jev service kept it: the two questions made from the position's code and what Jev
-   answered. Its words; the tree check under it is what the page can vouch for. */
-function JevCard({ record }: { record: JevRecordView }) {
-  const a = record.answers;
-  const row = (q: string, ans: string, ok: boolean | null) => (
-    <div style={{ display: "flex", gap: 12, alignItems: "baseline", padding: "8px 0", borderTop: "1px solid var(--line-2)" }}>
-      <span style={{ flex: 1 }}>{q}</span>
-      <span style={{ whiteSpace: "nowrap", fontWeight: 600, color: ok === null ? "var(--dim)" : ok ? "var(--ok)" : "var(--err)" }}>{ans}{ok === null ? "" : ok ? " · right" : " · wrong"}</span>
-    </div>
-  );
-  return (
-    <div className="pv-filecard" style={{ marginBottom: 14 }}>
-      <div className="pv-filecard-head"><span className="pv-filecard-name"><strong>Ask Jev</strong> · {record.jev.model}</span></div>
-      <div style={{ padding: "4px 16px 10px", fontSize: 14 }}>
-        <div style={{ padding: "8px 0", color: "var(--dim)" }}>Two questions made from this position&rsquo;s code <code className="break" style={{ fontSize: 12 }}>{record.code}</code></div>
-        {row(record.questions.both.text, a ? (a.both.yes ? "Yes" : "No") : "no answer", record.right?.both ?? null)}
-        {row(record.questions.first.text, a ? (a.first.choice === "neither" ? "Neither" : `The ${a.first.choice}`) : (record.jevError ?? "no answer"), record.right?.first ?? null)}
-      </div>
-    </div>
-  );
-}
-
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
@@ -205,24 +170,9 @@ export default function ProofPage() {
   // the loading state can both tell "you just recorded this" from "you opened a
   // link" — the former seeds instantly and waits with "Recording…", not the
   // lookup skeleton.
-  const [jev, setJev] = useState<{ record: JevRecordView; files: File[] } | null>(null);
   const freshRef = useRef<boolean | null>(null);
   if (freshRef.current === null) {
     freshRef.current = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("fresh") === "1";
-    /* Arriving from /jev (?jev=1): the record's four files live on live.bitgraph.ing, so the page fetches
-       them and the record, and the drop box rebuilds the tree from them the way a dropped folder would.
-       The host is trusted for nothing: the files are shown only if they rebuild the signed root. */
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("jev") === "1") {
-      const id = decodeURIComponent(digestParam);
-      Promise.all([
-        fetch(`${JEV_LIVE}/api/result/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(8000) }).then((r) => (r.ok ? r.json() : null)),
-        fetch(`${JEV_LIVE}/api/result/${encodeURIComponent(id)}/download`, { signal: AbortSignal.timeout(8000) }).then((r) => (r.ok ? r.json() : null)),
-      ]).then(([record, bundle]: [JevRecordView | null, { files?: Record<string, string> } | null]) => {
-        if (!record || !bundle?.files) return;
-        const files = Object.entries(bundle.files).map(([name, text]) => new File([text], name, { type: "application/json" }));
-        setJev({ record, files });
-      }).catch(() => {});
-    }
   }
 
   const [proof, setProof] = useState<BitGraphProof | null>(null);
@@ -1946,8 +1896,7 @@ export default function ProofPage() {
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
           ) : (
             <div style={{ padding: 16 }}>
-              {jev && <JevCard record={jev.record} />}
-              <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} autoFiles={jev ? { files: jev.files, from: "live.bitgraph.ing" } : null} />
+              <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} />
             </div>
           );
           const hashes: FieldView[] = isEth
@@ -2292,7 +2241,6 @@ function BringYourFile({
   onMatch,
   onResolvedMember,
   onTreeEvidence,
-  autoFiles,
 }: {
   proof: BitGraphProof;
   /** The bound set manifest when this is a set proof: a drop is searched for
@@ -2307,12 +2255,8 @@ function BringYourFile({
   onResolvedMember?: (row: SetMemberRow | null) => void;
   /** tree/1: the evidence an export dropped with the file placed it by. */
   onTreeEvidence?: (evidence: TreeMemberEvidence | null) => void;
-  /** Files the page fetched itself (a Jev record's four, from live.bitgraph.ing): checked the moment they
-   *  arrive, exactly as a dropped folder is, so the page shows the tree rebuilt without a drop. */
-  autoFiles?: { files: File[]; from: string } | null;
 }) {
   const [state, setState] = useState<"idle" | "reading" | "checking" | "looking" | "mismatch" | "tree" | "treeAll" | "treeNo">("idle");
-  const autoRan = useRef(false);
   // The tree's size, for the tree messages: bound from the signed root document, never from the drop.
   const treeBoundCount = (() => { if (!isTreeTitled(proof)) return null; const b = bindTree(proof); return b.ok ? b.tree.count : null; })();
   const treeCountLabel = (treeBoundCount ?? 0).toLocaleString();
@@ -2333,14 +2277,6 @@ function BringYourFile({
      "this is where you drop files" — so the solved-per-edge drawing has one
      home instead of a copy per box. */
   const edges = useDashedEdges();
-
-  // Fetched files are checked like a dropped folder, once, and the box opens to show the result.
-  useEffect(() => {
-    if (!autoFiles || autoRan.current) return;
-    autoRan.current = true;
-    setOpen(true);
-    void check(autoFiles.files);
-  }, [autoFiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The drop may be many files, or whole folders, and the matching file is
   // FOUND by hashing rather than the person knowing which it is: drop your
@@ -2667,7 +2603,7 @@ function BringYourFile({
       ) : state === "treeAll" ? (
         <>
           <div className="dropbox-title" style={{ color: "var(--ok)" }}>All {treeCountLabel} files match this BitGraph</div>
-          <div className="dropbox-line">{autoFiles ? `Rebuilt here from the ${treeCountLabel} files fetched from ${autoFiles.from}: every one is in this tree, unchanged.` : "Rebuilt from the files you dropped: every one is in this tree, unchanged."}</div>
+          <div className="dropbox-line">Rebuilt from the files you dropped: every one is in this tree, unchanged.</div>
         </>
       ) : state === "treeNo" ? (
         <>
