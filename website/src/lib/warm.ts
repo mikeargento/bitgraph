@@ -92,11 +92,12 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
 
 /** The home page's "See a real BitGraph" target. Its own constant rather than
  *  EXAMPLE_PROOF, which is the ChatGPT image used elsewhere: the home example is
- *  BitGraph #199 (2026-10-07): Mike's almanac line as a 186-byte text file, so the proof page
+ *  BitGraph #201 (2026-10-07): Mike's almanac line as a 186-byte text file, so the proof page
  *  shows it at once (Mike: "it should be a txt file so it loads super fast"). Made INSIDE its
- *  BitGraph in one run (SDK beginTask, the text written with the position commitment as its
- *  last line, sealTask; 2.3 s): bitgraph-fuse/3, so the bytes were finished after the Base floor
- *  block. Floor 52,278,163, recorded 1 s later, ceiling 52,278,165. Hosted at
+ *  BitGraph in one run (SDK beginTask, the text written with "position commitment" and the
+ *  commitment on its own last two lines, sealTask; 3 s): bitgraph-fuse/3, so the bytes were
+ *  finished after the Base floor block. Floor 52,278,218, ceiling 52,278,221. (#199, with the
+ *  label and commitment on one line, wrapped mid-commitment in the preview; unused.) Hosted at
  *  /example/bitgraph-almanac-text.txt (EXAMPLE_FILES, keyed by this digest).
  *  The same words as an image, BitGraph #135 (/example/bitgraph-almanac.png, 6 s window), were
  *  home's example for an hour; drafts #127 to #133 stay on the chain unused.
@@ -107,7 +108,7 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
  *  ?counter/?epoch, so the proof page computes proofFeedKey(digest, null, null).
  *  Warming any other shape stores a response nobody reads, which is exactly the
  *  failure LEDGER_FEED_KEY below was written to stop happening twice. */
-export const HOME_EXAMPLE_DIGEST = "iEmI_Bc9wh19Wx-PSNqUCyGaqrcvBbB4UNpg5mBeguo";
+export const HOME_EXAMPLE_DIGEST = "0lf7NPmzZTzTs2BftkfvtIcox8uIu78Et395H5UnLPk";
 
 /** The ledger feed's initial (files-only, no-cursor) URL. This MUST stay byte-
  *  identical to Explorer's `feedUrl()` with its default state, because warm
