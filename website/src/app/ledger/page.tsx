@@ -129,7 +129,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
                   Etherscan and take the day's anchors away as a file. */}
               {/* "Floors" and "Ceilings", side by side in the nav (Mike, 2026-09-29).
                   The lede keeps saying Ethereum, so the pair never reads as one chain. */}
-              <h1 className="bg-page-title" style={{ margin: 0 }}>Floors</h1>
+              <h1 className="bg-page-title" style={{ margin: 0 }}>Ethereum anchors</h1>
               {/* No line under the live title: the rows say what they are
                   (Mike, 2026-09-09: "it doesnt need to say this"). A past day
                   keeps its date, which is the one thing the rows cannot say. */}
@@ -146,7 +146,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
               {/* How to read the rows. The title is rendered by the Explorer,
                   so the one place between it and the rows is this slot. */}
               <p className="lede" style={{ margin: "10px 0 0" }}>
-                Each row is an anchor: a position whose file is the hash of the Ethereum block it names, with the block linked to Etherscan and the time read from the block itself, in UTC. These are the floors every position that day rests on.
+                Each row is an anchor: a position whose file is the hash of the Ethereum block it names, with the block linked to Etherscan and the time read from the block itself, in UTC. These were the floors of the positions made that day, before enclave v10.
               </p>
               </div>
             </div>

@@ -34,7 +34,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "What is a floor, and is there a ceiling?",
-    a: "The floor is the Base block the proof names in `commit.slotFloor`, the newest Base block when the position opened: the enclave hashed its header and checked it, the block existed before the position did, so the record was made after that block's time. Proofs made before the switch name an Ethereum anchor instead, in `commit.slotAnchor`. The ceiling in time is the Base block that includes the record: seconds after each commit, BitGraph writes a Merkle root over new records to Base, and the record existed by that block's time. After that, the next BitGraph in the chain carries this proof's hash: order, not a clock reading. See Ceilings.",
+    a: "The floor is the Base block the proof names in `commit.slotFloor`, the newest Base block when the position opened: the enclave hashed its header and checked it, the block existed before the position did, so the record was made after that block's time. Proofs made before the switch name an Ethereum anchor instead, in `commit.slotAnchor`. The ceiling in time is the Base block that includes the record: seconds after each commit, BitGraph writes a Merkle root over new records to Base, and the record existed by that block's time. After that, the next BitGraph in the chain carries this proof's hash: order, not a clock reading. See the Base page.",
     href: "/docs/overview#time", label: "Where time comes from",
   },
   {
