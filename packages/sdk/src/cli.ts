@@ -19,7 +19,7 @@
  *   bitgraph export complete <export.json>        fetch the floor header, the Base ceiling and its settlement into an export
  *   bitgraph export member <owner.json> <file>    one member's export from the owner's
  *   bitgraph bitgraphed <path>        write the BitGraphed file (carrier/2) beside the original
- *   bitgraph complete <path>          fetch the closing anchor and the Base ceiling into a BitGraphed file
+ *   bitgraph complete <path>          fetch the Base ceiling (and, on files with an Ethereum floor, the closing anchor) into a BitGraphed file
  *   bitgraph ceiling verify <proof> <ceiling>   check a ceiling in time (offline; --rpc asks Base)
  *   bitgraph serve [--port 8791]      the same verbs on 127.0.0.1 for every runtime
  *
@@ -132,7 +132,7 @@ function timeLines(v: VerifyOutcome): string[] {
   if (t === undefined) return [];
   const lines: string[] = [];
   if (v.member) lines.push(`  file: leaf ${v.member.index + 1} of ${v.member.count} (${v.member.placement})`);
-  if (t.floor) lines.push(`  floor: after Ethereum block ${t.floor.blockNumber} (${isoOf(t.floor.blockTimestamp)})`);
+  if (t.floor) lines.push(`  floor: after ${(t.floor as { chain?: string }).chain === "base" ? "Base" : "Ethereum"} block ${t.floor.blockNumber} (${isoOf(t.floor.blockTimestamp)})`);
   if (t.ceilingBase) lines.push(`  ceiling: existed by Base block ${t.ceilingBase.blockNumber} (${isoOf(t.ceilingBase.blockTimestamp)}${t.ceilingBase.provisional ? ", provisional until checked against Base" : ""})`);
   if (t.ceilingEthereum) lines.push(`  settled: existed by Ethereum block ${t.ceilingEthereum.blockNumber} (${isoOf(t.ceilingEthereum.blockTimestamp)})`);
   return lines;
@@ -411,8 +411,10 @@ async function main(): Promise<void> {
       const done = await bg.complete(target, typeof wait === "string" ? { waitForCeilingMs: Number(wait) } : {});
       if (done.changed) await writeFile(target, done.bytes);
       out({ path: target, changed: done.changed, ceiling: done.ceiling, ceilingInTime: done.ceilingInTime }, () => {
-        const complete = done.ceiling === "present" && done.ceilingInTime !== "unfetched";
-        if (done.changed) return complete ? "fetched in; the window is complete" : "fetched in; still waiting for " + (done.ceiling !== "present" ? "the closing anchor" : "the Base ceiling");
+        // A Base-floor file (carrier/3) has no closing anchor ("none"): order after it is the hash chain.
+        const positionDone = done.ceiling === "present" || done.ceiling === "none";
+        const complete = positionDone && done.ceilingInTime !== "unfetched";
+        if (done.changed) return complete ? "fetched in; the window is complete" : "fetched in; still waiting for " + (!positionDone ? "the closing anchor" : "the Base ceiling");
         return complete ? "already complete; nothing changed" : "nothing has landed yet; try again in a moment";
       });
       return;
@@ -444,8 +446,9 @@ async function main(): Promise<void> {
         if (!r.ok) return `NOT VERIFIED: ${r.reason}`;
         const w = r.window!;
         const lines = [`VERIFIED  ${r.label}`];
-        if (w.floor.blockTimestamp != null) lines.push(`  window: ${w.widthSeconds} s, from Ethereum block ${w.floor.blockNumber} to Base block ${w.ceiling.blockNumber}`);
-        else lines.push(`  floor: Ethereum block ${w.floor.blockNumber} (no header carried, so its time needs an Ethereum node)`);
+        const floorChain = w.floor.chain === "base" ? "Base" : "Ethereum";
+        if (w.floor.blockTimestamp != null) lines.push(`  window: ${w.widthSeconds} s, from ${floorChain} block ${w.floor.blockNumber} to Base block ${w.ceiling.blockNumber}`);
+        else lines.push(`  floor: ${floorChain} block ${w.floor.blockNumber} (no header carried, so its time needs a ${floorChain} node)`);
         lines.push(`  ${online.detail}`);
         for (const c of r.checks) lines.push(`  ${c.ok ? "ok " : "!! "} ${c.name}${c.detail ? `: ${c.detail}` : ""}`);
         return lines.join("\n");

@@ -1391,7 +1391,8 @@ export async function fuseTree(members: readonly FuseTreeMember[], options: Fuse
     }
     rootDocumentEchoed = true;
   }
-  const floor = proof.commit.slotAnchor!;
+  // The floor the proof signs: a Base block (fuse/3) or an Ethereum anchor (fuse/2).
+  const floor: FloorMark = proof.commit.slotFloor ? { ...proof.commit.slotFloor } : proof.commit.slotAnchor!;
 
   // Every member is bound to the verified root by its own path (the
   // verifier's check, run here once per member); no member's bytes are read
@@ -1443,7 +1444,7 @@ export async function fuseTree(members: readonly FuseTreeMember[], options: Fuse
     count,
     rootHex: bytesToHex(built.root),
     commitment,
-    floor: { counter: floor.counter, blockNumber: floor.blockNumber, blockHash: floor.blockHash },
+    floor: "chain" in floor ? { ...floor } : { counter: floor.counter, blockNumber: floor.blockNumber, blockHash: floor.blockHash },
     specHashB64,
     leaves: built.sorted,
     tree: built.tree,
