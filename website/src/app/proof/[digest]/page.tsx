@@ -114,7 +114,11 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
   [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
-  // The home page's "See a real BitGraph" since 2026-10-07: BitGraph #135, Mike's almanac line as an image
+  // The home page's "See a real BitGraph" since 2026-10-07: BitGraph #199, Mike's almanac line as a text
+  // file made inside its own BitGraph (the commitment is its last line). Keyed by its own digest.
+  "iEmI_Bc9wh19Wx-PSNqUCyGaqrcvBbB4UNpg5mBeguo":
+    { path: "/example/bitgraph-almanac-text.txt", name: "bitgraph-almanac.txt", mime: "text/plain" },
+  // Home's example for an hour on 2026-10-07: BitGraph #135, the same line as an image
   // made inside its own BitGraph (its position commitment is printed at the foot). Keyed by its own digest.
   "sq_qZ7Tuu4h-Jj-HBlRRVDaPcq5CHaJjuSI7faDsppM":
     { path: "/example/bitgraph-almanac.png", name: "bitgraph-almanac.png", mime: "image/png" },

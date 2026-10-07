@@ -92,17 +92,14 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
 
 /** The home page's "See a real BitGraph" target. Its own constant rather than
  *  EXAMPLE_PROOF, which is the ChatGPT image used elsewhere: the home example is
- *  BitGraph #135 (2026-10-07): an image of Mike's line, "BitGraph doesn't stop anyone from
- *  lying between 1955 and 1985. It stops anyone from going back to 1955 with the almanac.", made
- *  INSIDE its BitGraph, in one run (SDK beginTask, then the image drawn with the position
- *  commitment at its foot and in a PNG text chunk, then sealTask; 3 s from open to sealed):
- *  bitgraph-fuse/3, so the commitment binds the Base floor block's hash and the picture could
- *  not have existed before that block or before its BitGraph began. Floor Base block
- *  52,277,792, recorded 3 s later, ceiling 52,277,795. Lines: "BitGraph doesn't stop anyone
- *  from / lying between 1955 and 1985. / It stops anyone from going back / to 1955 with the
- *  almanac." (Mike chose these breaks.) Drafts #127, #129, #131 and #133 were made step by step
- *  through the MCP tools, 16 to 26 s windows ("yuck"), and stay on the chain unused. Hosted at
- *  /example/bitgraph-almanac.png (EXAMPLE_FILES, keyed by this digest).
+ *  BitGraph #199 (2026-10-07): Mike's almanac line as a 186-byte text file, so the proof page
+ *  shows it at once (Mike: "it should be a txt file so it loads super fast"). Made INSIDE its
+ *  BitGraph in one run (SDK beginTask, the text written with the position commitment as its
+ *  last line, sealTask; 2.3 s): bitgraph-fuse/3, so the bytes were finished after the Base floor
+ *  block. Floor 52,278,163, recorded 1 s later, ceiling 52,278,165. Hosted at
+ *  /example/bitgraph-almanac-text.txt (EXAMPLE_FILES, keyed by this digest).
+ *  The same words as an image, BitGraph #135 (/example/bitgraph-almanac.png, 6 s window), were
+ *  home's example for an hour; drafts #127 to #133 stay on the chain unused.
  *  Before it: BitGraph #14 (an image from /image, 2026-10-07 morning) and the one-line text
  *  file BitGraph #1,281 (2026-10-05, Ethereum floor).
  *
@@ -110,7 +107,7 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
  *  ?counter/?epoch, so the proof page computes proofFeedKey(digest, null, null).
  *  Warming any other shape stores a response nobody reads, which is exactly the
  *  failure LEDGER_FEED_KEY below was written to stop happening twice. */
-export const HOME_EXAMPLE_DIGEST = "sq_qZ7Tuu4h-Jj-HBlRRVDaPcq5CHaJjuSI7faDsppM";
+export const HOME_EXAMPLE_DIGEST = "iEmI_Bc9wh19Wx-PSNqUCyGaqrcvBbB4UNpg5mBeguo";
 
 /** The ledger feed's initial (files-only, no-cursor) URL. This MUST stay byte-
  *  identical to Explorer's `feedUrl()` with its default state, because warm
