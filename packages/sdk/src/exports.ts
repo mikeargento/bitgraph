@@ -193,21 +193,29 @@ async function newFolder(nameAt: (attempt: number) => string): Promise<string> {
 const sha256B64 = (b: Uint8Array) => createHash("sha256").update(b).digest("base64");
 
 /**
- * SPEC.md as the site serves it (GET /spec/SPEC.md), kept only when its
+ * The spec text the proof pins, as the site serves it (GET /spec/SPEC.md for v1,
+ * /spec/SPEC-v2.md for v2), kept only when its
  * SHA-256 is the spec hash the proof pins: shipping other text beside an
  * export would hand its reader the wrong rules under the right name. Null
  * when it cannot be had. Never throws.
  */
 export async function fetchPinnedSpec(config: Pick<ApiConfig, "baseUrl">, specHashB64: string, fetcher: typeof fetch = fetch): Promise<Uint8Array | null> {
-  try {
-    const res = await fetcher(`${config.baseUrl.replace(/\/+$/, "")}/spec/SPEC.md`, { redirect: "error", signal: AbortSignal.timeout(20_000) });
-    if (res.status !== 200) return null;
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    return sha256B64(bytes) === specHashB64 ? bytes : null;
-  } catch {
-    return null;
+  // Every published version, each at its own path: v1 (an Ethereum floor) and v2 (a Base floor).
+  for (const name of PUBLISHED_SPEC_FILES) {
+    try {
+      const res = await fetcher(`${config.baseUrl.replace(/\/+$/, "")}/spec/${name}`, { redirect: "error", signal: AbortSignal.timeout(20_000) });
+      if (res.status !== 200) continue;
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (sha256B64(bytes) === specHashB64) return bytes;
+    } catch {
+      // the next version, or none
+    }
   }
+  return null;
 }
+
+/** The spec files the site serves under /spec/, oldest first. */
+export const PUBLISHED_SPEC_FILES: readonly string[] = ["SPEC.md", "SPEC-v2.md"];
 
 /** Put SPEC.md beside the exports: reuse one already there with the same text, never replace a different one. */
 async function writeSpecBeside(dir: string, spec: Uint8Array): Promise<string> {
