@@ -13,7 +13,7 @@ const ZIP_URL: string | null = "https://github.com/mikeargento/sealed-exam/relea
 /* Recomputed from the zip that sealed-exam's scripts/build-package.sh wrote on
    2026-10-07 (the October sittings, enclave v10, Base floor and ceilings); rebuild
    the package and this line moves with it. */
-const ZIP_SHA256 = "d32df9a11e519642229597c093033ad283c5f33535e04200c9b2a6ef91b38614";
+const ZIP_SHA256 = "ecd0e82dd7ae679053412b0a11461abb1d323492d600d3ebef7ed93614804e5a";
 const ZIP_SIZE = "10.7 MB";
 
 export const metadata: Metadata = {
