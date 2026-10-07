@@ -3104,6 +3104,11 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 /* The gap from the floor block reads as part of the time, not a side note (Mike, 10-06: "make the 39 s
    after the floor block darker"). Ink, not green: it is a measurement, not a passed check. */
 .pv-moment-since { color: var(--ink); }
+/* The dim part of a timeline row (the block's time, "3 s after the floor block") takes its own
+   line and drops its " · ", at every width (Mike, 2026-10-07: "can dots be removed just on
+   mobile?", then "its actually easier to read that way on desk also"). */
+.pv-moment-dim { display: block !important; padding-left: 0 !important; }
+.pv-moment-dim .pv-sep { display: none; }
 .art-result .art-explain { margin: 0 0 22px !important; } /* above the image now */
 /* The three actions one width, a third of the column each, stacked on phones (Mike, 10-06: "these
    buttons should be same width and then stack on mobile"). */

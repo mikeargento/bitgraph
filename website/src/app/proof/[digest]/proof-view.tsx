@@ -400,7 +400,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <div className="pv-section-title">Where it sits in time</div>
         <div className="pv-moments">
           {isAnchor && m.anchorBlock && (
-            <Moment label="Ethereum block" title={<>Block {m.anchorBlock.number ? `#${fmtNum(m.anchorBlock.number)}` : "#?"}{m.anchorBlock.minedMs !== null ? <span className="pv-moment-dim"> · mined {whenBeside(m.anchorBlock.minedMs, attested)}</span> : null}</>} note="This anchor is a BitGraph of that block's hash. The block existed before it, so everything placed after this anchor came after the block.">
+            <Moment label="Ethereum block" title={<>Block {m.anchorBlock.number ? `#${fmtNum(m.anchorBlock.number)}` : "#?"}{m.anchorBlock.minedMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>mined {whenBeside(m.anchorBlock.minedMs, attested)}</span> : null}</>} note="This anchor is a BitGraph of that block's hash. The block existed before it, so everything placed after this anchor came after the block.">
               {m.anchorBlock.etherscanUrl && <Pill href={m.anchorBlock.etherscanUrl} external>Etherscan</Pill>}
             </Moment>
           )}
@@ -408,7 +408,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {!isAnchor && m.floor && (
             <Moment
               label="Floor in time" chain="eth"
-              title={<>Recorded after Ethereum block #{fmtNum(m.floor.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"> · mined {whenBeside(floorMs, attested)}</span> : null}</>}
+              title={<>Recorded after Ethereum block #{fmtNum(m.floor.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>mined {whenBeside(floorMs, attested)}</span> : null}</>}
               note={<>Fixed by the enclave when the position opened and signed into the proof; a block hash cannot be known before its block exists.{m.floor.recordedMs !== null ? <> Recorded as anchor #{fmtNum(m.floor.counter)} at {whenBeside(m.floor.recordedMs, attested)}.</> : null}{m.commitAfter ? <> The commit also follows anchor #{fmtNum(m.commitAfter.counter)}, Ethereum block #{fmtNum(m.commitAfter.blockNumber)}{m.commitAfter.blockTime ? <> (mined {whenBeside(new Date(m.commitAfter.blockTime).getTime(), attested)})</> : null}, by the chain of proof hashes: a tighter bound on the commit, not on the bytes.</> : null}{m.floorNote ? <> {m.floorNote}</> : null}</>}
             >
               {m.floor.etherscanUrl && <Pill href={m.floor.etherscanUrl} external>Etherscan</Pill>}
@@ -419,7 +419,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {bf && (
             <Moment
               label="Floor in time" chain="base"
-              title={<>Recorded after Base block #{fmtNum(bf.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"> · {whenBeside(floorMs, attested)}</span> : null}</>}
+              title={<>Recorded after Base block #{fmtNum(bf.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(floorMs, attested)}</span> : null}</>}
               note={<>Fixed by the enclave when the position opened and signed into the proof; a block hash cannot exist before its block.{m.floorNote ? <> {m.floorNote}</> : null}</>}
             >
               <Pill href={`https://basescan.org/block/${bf.blockNumber}`} external>Basescan</Pill>
@@ -429,7 +429,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {!isAnchor && attested !== null && (
             <Moment
               label="Recorded"
-              title={<>{whenBeside(attested, floorMs)}{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"> · {sinceFloor} s after the floor block</span> : null}</>}
+              title={<>{whenBeside(attested, floorMs)}{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor block</span> : null}</>}
               note="The instant of the commit, per the enclave platform's signed clock, carried in the attestation under Details."
               accent
             />
@@ -438,7 +438,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {!isAnchor && ct && ct.anchor && ctMs !== null && (
             <Moment
               label="Ceiling in time" chain="base"
-              title={<>Existed by Base block #{fmtNum(ct.anchor.blockNumber)}{ctStampOk ? <span className="pv-moment-dim"> · {whenBeside(ctMs, attested)}</span> : null}</>}
+              title={<>Existed by Base block #{fmtNum(ct.anchor.blockNumber)}{ctStampOk ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(ctMs, attested)}</span> : null}</>}
               note={<>
                 A Merkle root over this record&rsquo;s proof hash, in that block.{" "}
                 {!ctStampOk && <>Base stamped that block {whenBeside(ctMs, attested)}, before this record was recorded, as Base does when it refills time after a halt, so that time is not a bound for this record.{" "}</>}
@@ -460,7 +460,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {!isAnchor && m.ceilingPos && (
             <Moment
               label="Ceiling in position" chain="eth"
-              title={<>Committed before anchor #{fmtNum(m.ceilingPos.counter)}{m.ceilingPos.recordedMs !== null ? <span className="pv-moment-dim"> · recorded {whenBeside(m.ceilingPos.recordedMs, attested)}</span> : null}</>}
+              title={<>Committed before anchor #{fmtNum(m.ceilingPos.counter)}{m.ceilingPos.recordedMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>recorded {whenBeside(m.ceilingPos.recordedMs, attested)}</span> : null}</>}
               note={<>The next anchor in the sequence, carrying Ethereum block #{fmtNum(m.ceilingPos.blockNumber)}{posMined !== null ? <> (mined {whenBeside(posMined, attested)})</> : null}. A bound in position, not a clock time: an anchor is made after the block it carries.</>}
             >
               {m.ceilingPos.etherscanUrl && <Pill href={m.ceilingPos.etherscanUrl} external>Etherscan</Pill>}
@@ -471,7 +471,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <Moment label="Ceiling in position" chain="eth" title={<span className="pv-moment-dim">Waiting for the next anchor<span className="pv-dots" aria-hidden /></span>} note="An anchor lands about every 12 seconds. This page keeps asking." />
           )}
           {isAnchor && attested !== null && (
-            <Moment label="Recorded" title={<>{whenBeside(attested, blockMs)}{sinceBlock !== null ? <span className="pv-moment-dim pv-moment-since"> · {sinceBlock} s after the block</span> : null}</>} note="The instant the enclave signed this anchor, per the enclave platform's signed clock: after the block it carries." accent />
+            <Moment label="Recorded" title={<>{whenBeside(attested, blockMs)}{sinceBlock !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceBlock} s after the block</span> : null}</>} note="The instant the enclave signed this anchor, per the enclave platform's signed clock: after the block it carries." accent />
           )}
         </div>
       </section>
