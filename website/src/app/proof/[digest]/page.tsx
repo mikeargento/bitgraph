@@ -229,6 +229,10 @@ export default function ProofPage() {
   const [redrawn, setRedrawn] = useState(false);
   useEffect(() => {
     if (!proof || cachedFile || !isInlineProof(proof)) return;
+    // A record whose file this site hosts (EXAMPLE_FILES: home's example) is not an /image picture to
+    // redraw: trying every art algorithm on it froze the page for about 2 s, twice, before the file and
+    // the checks could paint (Mike, 2026-10-07: "the sample bitgraph loads SLOOOOOW").
+    if (Object.hasOwn(EXAMPLE_FILES, decodeURIComponent(digestParam))) return;
     let live = true;
     void redrawRecordedArt(proof as never).then((r) => {
       if (!live || !r) return;

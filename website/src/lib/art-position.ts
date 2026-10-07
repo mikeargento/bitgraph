@@ -219,6 +219,9 @@ export async function redrawRecordedArt(proof: BitGraphProof): Promise<{ png: Ui
   let commitment: Uint8Array;
   try { commitment = commitmentForProof(proof, proof.slotAllocation); } catch { return null; }
   for (const algorithm of [ART_ALGORITHM_V8, ART_ALGORITHM_V7, ART_ALGORITHM_V6, ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
+    // Each drawing is a few hundred ms of main thread; yield between them so the page paints and
+    // stays responsive while a record that is not an /image picture is ruled out (2026-10-07).
+    await new Promise((r) => setTimeout(r, 0));
     const art = await makeArt(commitment, algorithm);
     if (bytesToBase64(sha256(art.png)) === proof.artifact?.digestB64) return { png: art.png, algorithm };
   }
