@@ -48,7 +48,7 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
       </div>
       {/* One column (Mike, 2026-10-04: "thats not aligned right"): the title and "Records" sat in the
           centred reading measure while the cards ran the full frame, so neither edge lined up. */}
-      <div style={{ maxWidth: "var(--measure)", margin: "0 auto" }}>
+      <div style={{ maxWidth: "var(--measure)", margin: "0 auto 0 0" }}>
       <h1 className="bg-page-title" style={{ margin: 0 }}>Base block {fmt(w.blockNumber)}</h1>
       <p className="lede" style={{ margin: "10px 0 0" }}>
         {w.records === 1 ? "This record" : `These ${fmt(w.records)} records`} existed by {time}, the time of the Base block that includes this transaction.

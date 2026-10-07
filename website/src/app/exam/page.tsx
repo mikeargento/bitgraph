@@ -45,7 +45,7 @@ export default function ExamPage() {
           <li><b>Does not prove</b><span>that the template families are unfamiliar to the model; that the model worked alone, without tools, or quickly; that the answers came from the model the sheet names.</span></li>
         </ul>
 
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, margin: "1.5rem auto 0.75rem", maxWidth: "var(--measure)" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, margin: "1.5rem 0 0.75rem", maxWidth: "var(--measure)" }}>
           {REPO_URL !== null ? (
             <a className="btn is-primary" href={REPO_URL} target="_blank" rel="noopener">
               Read the source on GitHub

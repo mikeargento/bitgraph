@@ -21,7 +21,7 @@ export default function Loading() {
         .rl-skel { background: linear-gradient(90deg, var(--line-2) 25%, var(--line) 37%, var(--line-2) 63%); background-size: 400% 100%; animation: rlSkel 1.4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) { .rl-skel { animation: none; } }
       `}</style>
-      <div style={{ width: "90%", maxWidth: "var(--measure)", margin: "0 auto", padding: "56px 0 96px" }} aria-hidden>
+      <div className="frame" style={{ maxWidth: "var(--measure)", padding: "56px 0 96px" }} aria-hidden>
         {/* Heading: the real title (it never varies), a shimmer where the
             live-vs-day subtitle will land. */}
         <div style={{ marginBottom: 12 }}>

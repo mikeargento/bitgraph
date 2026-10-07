@@ -35,7 +35,7 @@ export function ProofSkeleton() {
         .bg-skel { background: linear-gradient(90deg, var(--line-2) 25%, var(--line) 37%, var(--line-2) 63%); background-size: 400% 100%; animation: bgSkel 1.4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) { .bg-skel { animation: none; } }
       `}</style>
-      <div style={{ width: "90%", maxWidth: "var(--measure)", margin: "0 auto", padding: "56px 0 96px" }}>{/* the proof's own 1040px column (Mike, 10-06: "skeleton for proof pages is still wide width") */}
+      <div className="frame" style={{ maxWidth: "var(--measure)", padding: "56px 0 96px" }}>{/* the proof's own 1040px column (Mike, 10-06: "skeleton for proof pages is still wide width") */}
         {/* No page title above the cards (2026-09-26): the record card's label names
             the record, so the skeleton opens straight on the rows. */}
         <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }} aria-hidden>
