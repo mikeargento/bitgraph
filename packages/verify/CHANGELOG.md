@@ -2,6 +2,15 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.17.0 (2026-10-06)
+
+- **The Base floor** (enclave v10, SPEC v2 in `spec/SPEC-v2.md`). A proof's floor can now be a Base block, signed as `commit.slotFloor = {chain: "base", evmChainId: 8453, blockNumber, blockHash, blockTimestamp}`; earlier proofs keep their Ethereum floor (`commit.slotAnchor`) and verify exactly as before. `signedFloorOf(proof)` reads either, and refuses a proof that signs both (ambiguous) or a `slotFloor` that does not name Base mainnet.
+- **bitgraph-fuse/3**: `commitment/3 = SHA-256("bitgraph-fuse/3" || 0x00 || slotRecordHash || nonce || floorBlockHash)` binds the Base floor; `FUSE3_*`, `computeSlotCommitment3`, `slotCommitment3Preimage`, `fuseNameOfVersion`. `commitmentForProof` and `producerCommitment` pick fuse/3 for a Base floor. A fuse/2 marker over a Base floor, or fuse/3 over an Ethereum one, is refused.
+- **tree/1 under SPEC v2**: each spec pins its marker (v1: fuse/2, v2: fuse/3) and a tree whose marker disagrees with its pinned spec is INVALID_TREE_MARKER. `TREE_SPEC_V1_HASH`, `TREE_SPEC_V2_HASH`; `currentTreeSpecHash(2 | 3)` follows the floor.
+- **Floor headers on their own chain**: `checkFloorHeader` (keccak, number, and for Base the signed time and Base mainnet's schedule, 1686789347 + 2n); a header given as one chain's block for a proof that signs the other fails. `floorTimeIsBound`: a floor stamped after the commit's attestation document has its time withheld (the hash still floors the record). The export's `floor` names `chain: "base"`; `confirmed.floor` asks the floor's own chain for the block at that height.
+- **carrier/3**: a BitGraphed file for a Base-floored proof carries the floor header (`basis: "base-header"`) and no closing anchor (`ceiling: {status: "none", basis: "hash-chain"}`); /1 and /2 parse and verify as before.
+- The ceiling sidecar's floor may name `chain: "base"`; `verifyCeiling` checks it against the signed floor.
+
 ## 1.16.0 (2026-10-04)
 
 - **The specification is frozen.** `spec/SPEC.md` version 1, SHA-256 `QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs=` (`spec/FROZEN.json`), is the one hash every tree/1 proof signs in `attribution.message`; it is the first entry of `KNOWN_TREE_SPEC_HASHES` and never changes. A later specification is a new hash added beside it.
