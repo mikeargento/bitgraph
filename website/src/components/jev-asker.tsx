@@ -311,7 +311,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
           <p className="art-explain art-explain-one art-caption">{/* The same claim as /image's caption (Mike, 10-06: "do both"; "the bits" from 10-07). */}The proof for these questions began before the bits&nbsp;existed.</p>
           <div className="actions art-actions">
             <a className="bg-action-link is-make" href={proofHref}><span>See the full proof</span></a>
-            <a className="bg-action-link" href={`${LIVE}/api/result/${record.id}/download`}><span>Download the record</span></a>
+            <a className="bg-action-link" href={`${LIVE}/api/result/${record.id}/download`}><span>Download the files and proof</span></a>
             <button type="button" className="bg-action-link" onClick={copyLink}>{copied ? "Link copied" : "Copy link"}</button>
             <button type="button" className="bg-action-link" onClick={ask}>Ask two new questions</button>
           </div>
