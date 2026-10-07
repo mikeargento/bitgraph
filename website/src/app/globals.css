@@ -3173,6 +3173,11 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 /* Home's headline the size of /jev's and /image's at every width (Mike, 10-06: "i think home would be beeter 60"):
    one scale for the three pages that open with a headline and one button. */
 .home.home-typing h1 { font-size: clamp(34px, 5.4vw, 60px) !important; }
+/* Phones: two lines always, "Position commitment" whole on the first (Mike, 2026-10-07: "should phone h1
+   be 3 lines"; no, both three-line breaks are bad). The 34px floor wrapped it to "Position / commitment /
+   for AI automation." at 320 (302px of text in a 288px column); scaled with the width it fills the line,
+   about 37px at 375 and 31px at 320. */
+@media (max-width: 600px) { .home.home-typing h1 { font-size: 9.8vw !important; } }
 /* And the line under it, the same as /jev's and /image's (Mike, 10-06: "h2 same?"). */
 .home.home-typing .lede { font-size: clamp(17px, 2vw, 20px) !important; line-height: 1.45 !important; } /* 22 to 20 (Mike, 2026-10-07: "a tad too big") when the lede grew a second clause */
 /* A little more air between headline lines, the same on all three pages (Mike, 10-06: "enough space between h1 lines?"). */
@@ -3212,3 +3217,15 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 /* The space before " · " is collapsed inside an inline-block (my 10-06 wrap fix showed "#26,135,587· mined"):
    put it back as padding, so the dot sits apart from the bold text whether or not the part wraps. */
 .pv-moment-dim { padding-left: 0.3em; }
+
+/* /image and /jev conform to home (Mike, 2026-10-07: "the style needs to match make an image and ask jev
+   so those should conform to home"): the headline at home's size at every width (home's phone rule is
+   9.8vw), and home's gaps, measured on home: headline to line 28px desk / 18px phone, line to button
+   32px desk / 26px phone (the button row adds 12px of its own). */
+@media (max-width: 600px) { .art-page h1 { font-size: 9.8vw !important; } }
+.art-page h1, .art-page h1.jev-title { margin-bottom: 28px !important; }
+.art-page .jev-lede { margin-bottom: 20px !important; }
+@media (max-width: 600px) {
+  .art-page h1, .art-page h1.jev-title { margin-bottom: 18px !important; }
+  .art-page .jev-lede { margin-bottom: 14px !important; }
+}

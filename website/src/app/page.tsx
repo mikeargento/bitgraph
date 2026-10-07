@@ -67,7 +67,7 @@ export default function HomePage() {
           record, and nobody has to host it." (2048aed6, 0f1cac1c), distilled to one sentence
           (Mike, 10-05). */}
       <p className="lede">
-        BitGraph begins the proof before the record arrives,<br className="br-desk" /> so its position can&rsquo;t be chosen&nbsp;afterward.
+        BitGraph begins the proof before the record arrives,<br className="br-desk" /> so its position cannot be chosen&nbsp;afterward.
       </p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}
