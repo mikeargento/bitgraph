@@ -420,6 +420,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // Ledger-check progress (digests looked up). Only meaningful when the check
   // is chunked (large drops); a single-request check has nothing to count.
   const [checkProgress, setCheckProgress] = useState({ current: 0, total: 0 });
+  /* The recovery lookup after the ledger lookup (2026-10-07: 50,000 files sat on
+     "Checking 50000 of 50000" with no sign of life while it ran). */
+  const [recoveryProgress, setRecoveryProgress] = useState({ current: 0, total: 0 });
   // The scan is two honest phases: hashing files locally ("reading"), then
   // one batch round trip to the ledger ("checking"). The label tracks them;
   // "N of N checked" sitting under a full bar while the lookup ran was a lie.
@@ -1183,7 +1186,11 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      * read leaves the row "new" and says so in the console: the recovery store
      * being unreachable must not stop a first recording.
      */
-    const recovered = await recoverRows(results, { local: (d) => browserRecoveryQueue().localEntriesFor(d) });
+    const recovered = await recoverRows(results, {
+      local: (d) => browserRecoveryQueue().localEntriesFor(d),
+      onProgress: (current, total) => setRecoveryProgress(total > 1000 ? { current, total } : { current: 0, total: 0 }),
+    });
+    setRecoveryProgress({ current: 0, total: 0 });
     for (const [i, trees] of recovered.found) {
       const r = results[i]!;
       // ADDED to what the plain index found, never substituted (2026-10-04): a file can hold an
@@ -3268,7 +3275,14 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             {/* Digest lookups are one round trip and only worth counting when
                 chunked; a folder check is per-export round trips, so its count
                 is live from the first export. */}
-            {checkProgress.total > 50 || (folderChecking && checkProgress.total > 0) ? (
+            {recoveryProgress.total > 0 ? (
+              <>
+                <div style={waitLabel}>Looking for earlier recordings: {recoveryProgress.current.toLocaleString("en-US")} of {recoveryProgress.total.toLocaleString("en-US")}</div>
+                <div style={waitTrack}>
+                  <div style={waitFill((recoveryProgress.current / recoveryProgress.total) * 100)} />
+                </div>
+              </>
+            ) : checkProgress.total > 50 || (folderChecking && checkProgress.total > 0) ? (
               <>
                 <div style={waitLabel}>Checking {checkProgress.current} of {checkProgress.total}</div>
                 <div style={waitTrack}>

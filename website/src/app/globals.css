@@ -1073,7 +1073,7 @@ a { color: var(--accent); }
   border: 0 !important; background: none !important; padding: 4px 0 !important;
   margin: 0 18px 0 0 !important; color: var(--accent) !important;
 }
-.bg-action-link:not(.bg-download-link):hover { text-decoration: underline; text-underline-offset: 3px; }
+@media (hover: hover) { .bg-action-link:not(.bg-download-link):hover { text-decoration: underline; text-underline-offset: 3px; } }
 .bg-nav-links > div > button {
   border: 0 !important; background: none !important; padding: 0 !important;
   min-width: 0 !important; height: auto !important; color: var(--text) !important;
@@ -1271,7 +1271,7 @@ h1, h2, h3 { text-wrap: balance; }
 
 /* The few controls: the form submit, a download, a file picker. */
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; line-height: 1.2; text-decoration: none; cursor: pointer; }
-.btn:hover { border-color: var(--ink); color: var(--ink); }
+@media (hover: hover) { .btn:hover { border-color: var(--ink); color: var(--ink); } }
 .btn.is-primary { border-color: var(--accent); color: var(--accent); }
 .btn.is-primary:hover { background: var(--accent); color: var(--bg); }
 .btn:disabled { color: var(--faint); border-color: var(--line-2); cursor: default; background: transparent; }
@@ -1785,9 +1785,13 @@ figcaption { font-family: var(--font-serif); }
   line-height: 20px; letter-spacing: 0 !important; text-decoration: none !important; white-space: nowrap; cursor: pointer;
   transition: background-color .12s, border-color .12s;
 }
-.bg-action-link:not(.bg-download-link):hover, .bg-arrow-link:hover, .btn:hover {
-  background: color-mix(in srgb, var(--panel-2) 80%, var(--ink) 8%) !important; border-color: var(--faint) !important;
-  color: var(--ink) !important; text-decoration: none !important;
+/* Hover only where there is a pointer that hovers: on touch, :hover sticks to the
+   last tapped button until the next tap elsewhere (Mike, 2026-10-07, phone). */
+@media (hover: hover) {
+  .bg-action-link:not(.bg-download-link):hover, .bg-arrow-link:hover, .btn:hover {
+    background: color-mix(in srgb, var(--panel-2) 80%, var(--ink) 8%) !important; border-color: var(--faint) !important;
+    color: var(--ink) !important; text-decoration: none !important;
+  }
 }
 .bg-action-link:not(.bg-download-link):disabled, .btn:disabled { color: var(--faint) !important; background: transparent !important; border-color: var(--line-2) !important; cursor: default; }
 .bg-action-link:focus-visible, .bg-arrow-link:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -2030,7 +2034,7 @@ body { background: var(--bg); }
    "that make a bitgraph button should be blue"). Last in the file so it outranks the grey .bg-action-link rules
    of equal weight. */
 .bg-action-link.is-make { background: var(--btn-primary) !important; border-color: var(--btn-primary) !important; color: var(--btn-primary-text) !important; text-decoration: none !important; }
-.bg-action-link.is-make:hover:not(:disabled) { background: var(--btn-primary-hover) !important; border-color: var(--btn-primary-hover) !important; color: var(--btn-primary-text) !important; }
+@media (hover: hover) { .bg-action-link.is-make:hover:not(:disabled) { background: var(--btn-primary-hover) !important; border-color: var(--btn-primary-hover) !important; color: var(--btn-primary-text) !important; } }
 
 /* THE HOME HEADLINE IS A DISPLAY SIZE, not the ladder's 32px (Mike, 2026-09-21:
    judge this page on its own). The ladder exists so fifteen documentation pages
@@ -2309,7 +2313,7 @@ footer { border-top: 1px solid var(--line); }
 /* Buttons: Google's pills. Primary is the blue fill; the rest are white with a hairline. */
 .btn, .bg-action-link { border-radius: 999px !important; }
 .bg-action-link:not(.is-make) { background: var(--paper) !important; border: 1px solid var(--line) !important; color: var(--accent) !important; }
-.bg-action-link:not(.is-make):hover:not(:disabled) { background: #e8f0fe !important; }
+@media (hover: hover) { .bg-action-link:not(.is-make):hover:not(:disabled) { background: #e8f0fe !important; } }
 .home .actions .bg-action-link { border-radius: 999px !important; }
 
 /* Inline code: the grey chip, rounded. */
@@ -2347,8 +2351,12 @@ main .btn.is-primary:hover:not(:disabled) { background: var(--btn-primary-hover)
 .bg-page-nav .bg-action-link.back { padding-left: 18px !important; }
 .bg-page-nav .bg-action-link:not(.back) { padding-right: 18px !important; }
 .bg-page-nav .bg-action-link .arrow { display: block !important; flex: none; color: var(--dim); transition: translate 0.2s ease, color 0.2s ease; }
-.bg-page-nav .bg-action-link:hover .arrow, .bg-page-nav .bg-action-link:focus-visible .arrow { translate: 5px 0; color: var(--accent); }
-.bg-page-nav .bg-action-link.back:hover .arrow, .bg-page-nav .bg-action-link.back:focus-visible .arrow { translate: -5px 0; }
+.bg-page-nav .bg-action-link:focus-visible .arrow { translate: 5px 0; color: var(--accent); }
+.bg-page-nav .bg-action-link.back:focus-visible .arrow { translate: -5px 0; }
+@media (hover: hover) {
+  .bg-page-nav .bg-action-link:hover .arrow { translate: 5px 0; color: var(--accent); }
+  .bg-page-nav .bg-action-link.back:hover .arrow { translate: -5px 0; }
+}
 @media (prefers-reduced-motion: reduce) { .bg-page-nav .bg-action-link .arrow { transition: color 0.2s ease; } .bg-page-nav .bg-action-link:hover .arrow, .bg-page-nav .bg-action-link:focus-visible .arrow { translate: none; } }
 /* On a narrow phone the pill's label wraps rather than pushing the arrow out of the pill. */
 .bg-page-nav .bg-action-link > span { min-width: 0; }
@@ -2400,8 +2408,8 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 :not(pre) > code { background: var(--paper) !important; border: 1px solid var(--line) !important; border-radius: 6px !important; padding: 0.05em 0.35em !important; color: var(--ink) !important; }
 /* The prev/next pills move as one: label and arrow both blue at rest, both ink on hover. */
 .bg-page-nav .bg-action-link, .bg-page-nav .bg-action-link .arrow { color: var(--accent) !important; }
-.bg-page-nav .bg-action-link:hover, .bg-page-nav .bg-action-link:hover .arrow,
 .bg-page-nav .bg-action-link:focus-visible, .bg-page-nav .bg-action-link:focus-visible .arrow { color: var(--ink) !important; }
+@media (hover: hover) { .bg-page-nav .bg-action-link:hover, .bg-page-nav .bg-action-link:hover .arrow { color: var(--ink) !important; } }
 /* The copy pill nests inside the header band: 7px above and below, 8px from the right edge,
    the file label centred on the same line (it had crossed the band's bottom rule). */
 .code-block-header { padding: 7px 8px 7px 16px !important; min-height: 44px; box-sizing: border-box; align-items: center !important; }

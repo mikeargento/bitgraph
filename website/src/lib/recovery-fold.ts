@@ -55,7 +55,17 @@ export interface RecoveryFold {
 export const treePositionKey = (p: { commit?: { epochId?: string; counter?: string }; artifact: { digestB64: string } }): string =>
   `${p.commit?.epochId ?? ""}:${p.commit?.counter ?? ""}:${p.artifact.digestB64}`;
 
-export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: FetchLike; baseUrl?: string; local?: (digest32: Uint8Array) => Promise<LocalEntry[]>; trust?: "published" | "none" } = {}): Promise<RecoveryFold> {
+/**
+ * How many files' lookups are asked together, and how many such groups at once
+ * (2026-10-07: a 50,000-file drop sat on "Checking 50000 of 50000" for minutes:
+ * the lookup had no progress of its own, and every file's local-record read was
+ * started at once). One group is one batch POST (MAX_LOOKUP_ADDRESSES), measured
+ * at about 3.4 s on production for 1,000 addresses.
+ */
+export const RECOVERY_GROUP = 1000;
+export const RECOVERY_GROUPS_IN_FLIGHT = 8;
+
+export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: FetchLike; baseUrl?: string; local?: (digest32: Uint8Array) => Promise<LocalEntry[]>; trust?: "published" | "none"; onProgress?: (done: number, total: number) => void } = {}): Promise<RecoveryFold> {
   const out: RecoveryFold = { found: new Map(), unknown: new Map(), failed: 0 };
   // EVERY file with bytes is asked, found or new (2026-10-04). Until then only "new" rows were
   // asked, so a file that already held an older solo position was never asked about its tree:
@@ -73,9 +83,29 @@ export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: 
     asked.push([r, i]);
     digests.push(digest32);
   }
-  const answers = await recoverFromDigests(digests, opts.fetch, lookupOpts);
-  await Promise.all(asked.map(async ([r, i], k) => {
-    const a = answers[k]!;
+  // Groups of RECOVERY_GROUP files, RECOVERY_GROUPS_IN_FLIGHT at a time: each group is one lookup
+  // POST, then its files' local reads one after another, so neither the server nor this tab's
+  // own records are asked for everything at once, and progress moves with every group.
+  const total = asked.length;
+  let done = 0;
+  let next = 0;
+  opts.onProgress?.(0, total);
+  const worker = async (): Promise<void> => {
+    while (next < total) {
+      const from = next;
+      const to = Math.min(total, from + RECOVERY_GROUP);
+      next = to;
+      const answers = await recoverFromDigests(digests.slice(from, to), opts.fetch, lookupOpts);
+      for (let k = from; k < to; k++) await foldRow(asked[k]![0], asked[k]![1], k, answers[k - from]!);
+      done += to - from;
+      opts.onProgress?.(done, total);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(RECOVERY_GROUPS_IN_FLIGHT, Math.ceil(total / RECOVERY_GROUP)) }, worker));
+  out.failed = out.unknown.size;
+  return out;
+
+  async function foldRow(r: RecoveryRow, i: number, k: number, a: Awaited<ReturnType<typeof recoverFromDigests>>[number]): Promise<void> {
     // What this browser still owes comes first: those trees are on record whatever the store says.
     // Its own records that cannot be read are an unknown of their own, never an empty history.
     let local: LocalEntry[] = [];
@@ -123,7 +153,5 @@ export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: 
       if (out.found.has(i)) return;
       out.unknown.set(i, e instanceof Error ? e.message : String(e));
     }
-  }));
-  out.failed = out.unknown.size;
-  return out;
+  }
 }
