@@ -54,9 +54,9 @@ test("version 9 is pinned: this commitment's pixels and file never change, and b
   assert.equal(wrong.strip.result, "FALSE");
 });
 
-test("version 9 is registered but not the default: a new image is still drawn with version 8", () => {
+test("version 9 is registered and is the default: a new image is drawn with it (Mike, 2026-10-07)", () => {
   assert.ok(ART_ALGORITHMS.includes(ART_ALGORITHM_V9));
-  assert.equal(ART_ALGORITHM, "bitgraph-art/8");
+  assert.equal(ART_ALGORITHM, "bitgraph-art/9");
   assert.equal(artRecipe(C1, ART_ALGORITHM_V9).v9?.dominant, planV9(C1).dominant);
 });
 

@@ -68,7 +68,7 @@ export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
 /** What a new image is drawn with: version 3 from 2026-10-06 (Mike: "lose barcode use version 3"),
  *  version 4 (the Truchet maze) the same night (Mike: "build the truchet maze as version 4"). */
-export const ART_ALGORITHM = "bitgraph-art/8"; // version 8 from 2026-10-06 (Mike: "less lines ... make the image landscape"); version 7 before it
+export const ART_ALGORITHM = "bitgraph-art/9"; // version 9 from 2026-10-07 (Mike: "i want them all mixed together"): five families in one picture; version 8 before it
 /** Built 2026-10-06 for a side-by-side look (Mike: "build it and show me side by side"): the art spells the commitment. */
 export const ART_ALGORITHM_V3 = "bitgraph-art/3";
 /** Built 2026-10-06 (Mike: "build the truchet maze as version 4"): every tile is one bit. */
