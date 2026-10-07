@@ -2991,11 +2991,25 @@ function FileCard({ cachedFile, label, preview, pending }: {
           above are what stop a huge file taking over the page, and they are
           unchanged; this cap only has to clear a short file whose lines wrap
           on a narrow screen. */}
-      {kind === "text" && excerpt && (
-        <pre style={{ margin: 0, padding: 16, fontFamily: "var(--font-mono)", fontSize: "clamp(11px, 3vw, 12.5px)", lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {excerpt.text}{excerpt.truncated ? "\n…" : ""}
-        </pre>
-      )}
+      {kind === "text" && excerpt && (() => {
+        /* Words are never broken: the font shrinks just enough for the longest unbroken run (a
+           hash, a word) to fit the box, and lines wrap only at spaces. So a hash stays whole on a
+           phone, and a line like "(position commitment) <hash>" sits on one line on a desk and
+           breaks at its space on a phone (Mike, 2026-10-07: "keep the number on same line").
+           0.6em is the mono face's advance width; 100cqi is the box, less the 32px of padding. A
+           run over 60 characters (a base64 blob) would shrink the text too far, so that file
+           breaks words as before. */
+        const longest = excerpt.text.split(/\s+/).reduce((m, w) => Math.max(m, w.length), 0);
+        const fit = !excerpt.formatted && longest > 0 && longest <= 60;
+        const base = "clamp(11px, 3vw, 12.5px)";
+        return (
+          <div style={fit ? { containerType: "inline-size" } : undefined}>
+            <pre style={{ margin: 0, padding: 16, fontFamily: "var(--font-mono)", fontSize: fit ? `min(${base}, calc((100cqi - 32px) / ${(longest * 0.6).toFixed(2)}))` : base, lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: fit ? "normal" : "break-word", overflowWrap: fit ? "normal" : undefined }}>
+              {excerpt.text}{excerpt.truncated ? "\n…" : ""}
+            </pre>
+          </div>
+        );
+      })()}
       {kind === "text" && excerpt?.truncated && !excerpt.formatted && (
         <div style={{ padding: "0 16px 14px", fontSize: 12.5, color: "var(--dim)" }}>The first 50,000 characters. Open shows the whole file.</div>
       )}
