@@ -248,7 +248,8 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
   const floorChain = record?.floorChain ?? (codeCheck?.status === "ok" ? codeCheck.floorChain : null) ?? null;
   const floorBlockName = (num: number) => `${floorChain === "base" ? "Base block" : floorChain === "ethereum" ? "Ethereum block" : "block"} ${n(num)}`;
   const right = a && t ? { both: a.both.yes === t.both, first: a.first.choice === t.first } : null;
-  const proofHref = record ? `/proof/${record.id}` : "#";
+  // ?jev=1 tells the proof page to fetch the record's four files from the service and rebuild the tree from them.
+  const proofHref = record ? `/proof/${record.id}?jev=1` : "#";
   const yesNo = (b: boolean) => (b ? "Yes" : "No");
   const firstLabel = (c: string) => (c === "neither" ? "Neither" : `The ${c}`);
 
