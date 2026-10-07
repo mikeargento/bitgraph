@@ -114,6 +114,10 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
   [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
+  // The home page's "See a real BitGraph" since 2026-10-07: BitGraph #129, Mike's almanac line as an image
+  // made inside its own BitGraph (its position commitment is printed at the foot). Keyed by its own digest.
+  "bgH8IddxZ8V_bM9eCU9tJgqaPwKXE2MEoySdEIV1OcQ":
+    { path: "/example/bitgraph-almanac.png", name: "bitgraph-almanac.png", mime: "image/png" },
   // The home page's "See a real BitGraph" from 2026-10-05 to 10-07 (Mike: "extremely simple and short"): one
   // line, "This file was recorded with BitGraph.", a tree/1 of one (BitGraph #1,281, container/2). Pinned to
   // its own digest, not HOME_EXAMPLE_DIGEST: when home moved to #14 (an image) the mapping followed the
