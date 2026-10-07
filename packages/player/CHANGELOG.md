@@ -2,7 +2,7 @@
 
 All notable changes to `@mikeargento/bitgraph-player` are documented here.
 
-## Unreleased (Base floors, enclave v10)
+## 0.16.0 (2026-10-06): Base floors, enclave v10
 
 - `check` reads Base floors when the audit reports them (`temporal.signedFloors`, `floorProblems`, and `source` / `chain` / `timeSource` on segment bounds), structurally, so it behaves as before against an audit without them. A recording's bound reads "after Base block N", with the header checked or "confirming the block needs a Base lookup"; a fuse/3 recording's fused floor is the Base block it signs (`CheckFloor.evidence: "signed-floor"`); a withheld floor says why; a floor problem is a contradiction (FALSE). Bounds on different chains compare by time, never by block number. Not checked gains whether the Base floor blocks are Base's own.
 - `compare`: anchor-bound ordering reads anchor bounds only; a Base floor orders no epoch.

@@ -30,7 +30,7 @@ has been run against production.
    (`PUBLISHED_ENCLAVE_MEASUREMENTS`), the player's `KNOWN_ENCLAVE_MEASUREMENTS`, `PINS.md`,
    `/docs/self-host-tee`, and a rebuilt `website/public/verify.html`. Run the full tests.
 6. **Mike: publish** (each ends in a browser auth step; wait for `+ pkg@ver`), in dependency order:
-   verify 1.17.0, core (`@mikeargento/bitgraph`) 1.12.0, audit, player, sdk 0.5.0, mcp 0.10.0.
+   verify 1.17.0, core (`@mikeargento/bitgraph`) 1.12.0, audit 0.10.0, player 0.16.0, sdk 0.5.0, mcp 0.10.0.
 7. **Lockfile and site deps**: `npm install` at the root (refreshes package-lock.json against the
    published versions), `cd website && npm install` (the ranges are already bumped). Root `npm test`
    and the website tests, then merge `base-floor` into `main` and push. Vercel deploys the site;

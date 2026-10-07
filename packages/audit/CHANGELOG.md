@@ -2,7 +2,7 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
-## Unreleased (Base floors, enclave v10)
+## 0.10.0 (2026-10-06): Base floors, enclave v10
 
 - Base floors. A proof that signs a Base block as its floor (`commit.slotFloor`, enclave v10; read through `signedFloorOf`) gets a not-before segment bound with `source: "signed-floor"`, `chain: "base"` and `timeSource` (`"header"` when a header in the bundle checks against the signed block, `"signed"` when none is there and confirming the block needs a Base lookup). Proofs after it inherit the bound by hash link or, weaker, by counter. A floor never gives a not-after. New `BoundEvidence` value `"signed-floor"`. Epoch not-before coverage counts Base-floored proofs; cross-epoch ordering pairs stay anchor-only, so floors never order epochs.
 - `TemporalAnalysis.signedFloors` (one record per Base floor: header checked or not carried, bound or withheld with the reason, such as a floor stamped after the attestation document) and `floorProblems` (`floor-ambiguous` for a proof signing both floors, `floor-malformed`, `floor-off-schedule`, `floor-header-mismatch`, `floor-header-malformed`, `floor-header-unmatched`). Any floor problem sets exit bit 2; a floor with a problem bounds nothing.
