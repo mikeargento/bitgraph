@@ -4,5 +4,12 @@
     "frozen_on": "2026-10-04",
     "frozen_at_commit": "be31b54e",
     "note": "SPEC.md version 1. This hash is signed into every tree/1 proof as attribution.message and never changes; a later specification is a new version added beside it. Verifiers keep every hash they have ever accepted."
+  },
+  "v2": {
+    "sha256_b64": "9O3sqlxqi6IQPVJd50NfjJtwWWoslZ9gpIIzbrRzAiU=",
+    "frozen_on": "2026-10-07",
+    "frozen_at_commit": "654aa083",
+    "file": "spec/SPEC-v2.md",
+    "note": "SPEC v2: the Base floor (enclave v10). This hash is signed into every tree/1 proof made under it (bitgraph-fuse/3) as attribution.message and never changes; a later specification is a new version added beside it."
   }
 }
