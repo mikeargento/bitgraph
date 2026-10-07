@@ -591,3 +591,64 @@ export function planTrees(files: readonly PlanFile[], rereadBudget = DEFAULT_TRE
   if (current.length > 0) out.push(current);
   return out;
 }
+
+/* ── Checking a whole tree from its files (Mike, 2026-10-07: "shouldnt i be able to drop the whole
+ * folder in"). A tree's leaves are a function of its files and the position's commitment, so the
+ * complete set of files rebuilds the tree with no export: each file is hashed (streamed, never read
+ * whole), its placement decided from its bytes exactly as makeTree decides it, its committed digest
+ * finished under the commitment the signed root document carries, and the sorted leaves give a root.
+ * Equal count and root mean every file is a member, unchanged. A partial set, an extra file or an
+ * edited one gives another root; which file differs needs the export (the leaves), not this. Files
+ * the maker kept as is (no placement) are tried as a second reading of the same drop. */
+export interface TreeRebuild {
+  /** Distinct files read (the same bytes twice are one leaf, as makeTree counts them). */
+  count: number;
+  root: Uint8Array;
+  /** "placed": every file under its placement; "as-is": every file kept as is. */
+  reading: "placed" | "as-is";
+}
+
+export async function rebuildTreeFromFiles(
+  files: readonly File[],
+  commitment: Uint8Array,
+  opts: { onProgress?: (done: number, total: number) => void; paint?: () => Promise<void>; paintEveryMs?: number } = {},
+): Promise<{ placed: TreeRebuild | null; asIs: TreeRebuild }> {
+  const everyMs = opts.paintEveryMs ?? 250;
+  let lastPaint = performance.now();
+  const breathe = async (): Promise<void> => {
+    if (performance.now() - lastPaint < everyMs) return;
+    if (opts.paint !== undefined) await opts.paint();
+    else await new Promise((r) => setTimeout(r, 0));
+    lastPaint = performance.now();
+  };
+  const placedLeaves = new Map<string, TreeLeaf>();
+  const asIsLeaves = new Map<string, TreeLeaf>();
+  let placedOk = true;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i]!;
+    const scan = await hashBlob(f);
+    const origin = base64ToBytes(scan.digestB64);
+    if (origin === null || origin.length !== 32) throw new FuseError("bad-input", `${f.name}: the scan left no 32-byte digest`);
+    if (!asIsLeaves.has(scan.digestB64)) asIsLeaves.set(scan.digestB64, { placement: LEAF_AS_IS, artifact: origin, origin });
+    if (placedOk && !placedLeaves.has(scan.digestB64)) {
+      const p = scan.state !== null ? getPlacement(scan.placement) : undefined;
+      if (p?.frame === undefined || scan.state === null) placedOk = false;
+      else {
+        const artifact = await finishState(scan.state, p.frame({ originalSize: f.size, originDigest: origin, commitment }).suffix);
+        placedLeaves.set(scan.digestB64, { placement: codeFor(scan.placement), artifact, origin });
+      }
+    }
+    opts.onProgress?.(i + 1, files.length);
+    await breathe();
+  }
+  const asIsBuilt = buildTree([...asIsLeaves.values()]);
+  const asIs: TreeRebuild = { count: asIsBuilt.sorted.length, root: asIsBuilt.root, reading: "as-is" };
+  if (!placedOk) return { placed: null, asIs };
+  const placedBuilt = buildTree([...placedLeaves.values()]);
+  return { placed: { count: placedBuilt.sorted.length, root: placedBuilt.root, reading: "placed" }, asIs };
+}
+
+/** True when a rebuild is the bound tree: the same number of leaves and the same root. */
+export function rebuildMatches(r: TreeRebuild | null, tree: { count: number; root: Uint8Array }): boolean {
+  return r !== null && r.count === tree.count && bytesEqual(r.root, tree.root);
+}

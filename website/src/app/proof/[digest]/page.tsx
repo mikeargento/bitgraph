@@ -27,6 +27,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { redrawRecordedArt } from "@/lib/art-position";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpackSetMember, checkInline, isInlineProof, makeTreeHere, treeInputOf } from "@/lib/fuse-client";
+import { rebuildTreeFromFiles, rebuildMatches } from "@/lib/fuse-tree-make";
 import { SPEC_FILE_NAME, specFileFor, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, rootOnlyTree, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource, type BoundTree } from "@/lib/fuse-tree";
 import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence, fetchBaseFloorHeader } from "@/lib/carrier-site";
 import { verifyCarrierPayload, type CarrierClaim, type CarrierLookups, blobSource, } from "@mikeargento/bitgraph-verify";
@@ -2247,7 +2248,10 @@ function BringYourFile({
   /** tree/1: the evidence an export dropped with the file placed it by. */
   onTreeEvidence?: (evidence: TreeMemberEvidence | null) => void;
 }) {
-  const [state, setState] = useState<"idle" | "reading" | "checking" | "looking" | "mismatch" | "tree">("idle");
+  const [state, setState] = useState<"idle" | "reading" | "checking" | "looking" | "mismatch" | "tree" | "treeAll" | "treeNo">("idle");
+  // The tree's size, for the tree messages: bound from the signed root document, never from the drop.
+  const treeBoundCount = (() => { if (!isTreeTitled(proof)) return null; const b = bindTree(proof); return b.ok ? b.tree.count : null; })();
+  const treeCountLabel = (treeBoundCount ?? 0).toLocaleString();
   const [dragOver, setDragOver] = useState(false);
   const [hover, setHover] = useState(false);
   // How many files the last run hashed (for the mismatch wording) and live
@@ -2315,7 +2319,19 @@ function BringYourFile({
           setState("mismatch");
           return;
         }
-        setState("tree");
+        /* The whole set rebuilds the tree with no export (Mike, 2026-10-07: "shouldnt i be able to
+           drop the whole folder in"): every leaf is a function of a file and the commitment the signed
+           root document carries, so the complete set gives the signed root, and anything else does
+           not. Fewer files than the tree holds cannot be the set: said plainly, no hashing spent. */
+        if (dropped.rest.length >= bound.tree.count) {
+          setProgress({ done: 0, total: dropped.rest.length });
+          const r = await rebuildTreeFromFiles(dropped.rest, bound.tree.commitment, { onProgress: (done, total) => setProgress({ done, total }) });
+          setCheckedCount(dropped.rest.length);
+          setState(rebuildMatches(r.placed, bound.tree) || rebuildMatches(r.asIs, bound.tree) ? "treeAll" : "treeNo");
+          return;
+        }
+        setCheckedCount(dropped.rest.length);
+        setState(dropped.rest.length > 0 ? "treeNo" : "tree");
         return;
       }
       // Every digest the pass computes, kept: the set branch below needs the
@@ -2551,8 +2567,20 @@ function BringYourFile({
         </div>
       ) : state === "tree" ? (
         <>
-          <div className="dropbox-title" style={{ color: "var(--dim)" }}>This BitGraph is a tree of files</div>
-          <div className="dropbox-line">To check a file in it, drop the file and its export together.</div>
+          <div className="dropbox-title" style={{ color: "var(--dim)" }}>This BitGraph is a tree of {treeCountLabel} files</div>
+          <div className="dropbox-line">Drop the whole folder to check every file at once, or one file together with the tree&rsquo;s export.</div>
+        </>
+      ) : state === "treeAll" ? (
+        <>
+          <div className="dropbox-title" style={{ color: "var(--ok)" }}>All {treeCountLabel} files match this BitGraph</div>
+          <div className="dropbox-line">Rebuilt from the files you dropped: every one is in this tree, unchanged.</div>
+        </>
+      ) : state === "treeNo" ? (
+        <>
+          <div className="dropbox-title" style={{ color: "var(--err)" }}>{checkedCount < (treeBoundCount ?? 0) ? `${checkedCount.toLocaleString()} of ${treeCountLabel} files` : "These files do not rebuild this tree"}</div>
+          <div className="dropbox-line">{checkedCount < (treeBoundCount ?? 0)
+            ? "To check every file, drop the whole folder. To check one, drop it together with the tree\u2019s export."
+            : "The folder must hold exactly the files that were recorded, unchanged. To find which file differs, drop it together with the tree\u2019s export."}</div>
         </>
       ) : mismatch ? (
         <>
