@@ -92,12 +92,14 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
 
 /** The home page's "See a real BitGraph" target. Its own constant rather than
  *  EXAMPLE_PROOF, which is the ChatGPT image used elsewhere: the home example is
- *  BitGraph #129 (2026-10-07): an image of Mike's line, "BitGraph doesn't stop anyone from
- *  lying between 1955 and 1985. It stops anyone going back to 1955 with the almanac.", made
+ *  BitGraph #133 (2026-10-07): an image of Mike's line, "BitGraph doesn't stop anyone from
+ *  lying between 1955 and 1985. It stops anyone from going back to 1955 with the almanac.", made
  *  INSIDE its BitGraph (bitgraph_open, then the image drawn with the position commitment at
  *  its foot and in a PNG text chunk, then bitgraph_commit): so the picture itself could not
- *  have existed before its BitGraph began. Base floor 52,277,464. (A first draft, #127, has the
- *  same words on three lines; Mike moved 1955 to the last line.) The file is hosted at
+ *  have existed before its BitGraph began. Base floor 52,277,665. Mike's own line breaks:
+ *  "BitGraph doesn't stop anyone / from lying between 1955 and 1985. / It stops anyone from
+ *  going / back to 1955 with the almanac." (Drafts #127, #129 and #131 have earlier breaks and
+ *  wording and stay on the chain unused.) The file is hosted at
  *  /example/bitgraph-almanac.png (EXAMPLE_FILES, keyed by this digest).
  *  Before it: BitGraph #14 (an image from /image, 2026-10-07 morning) and the one-line text
  *  file BitGraph #1,281 (2026-10-05, Ethereum floor).
@@ -106,7 +108,7 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
  *  ?counter/?epoch, so the proof page computes proofFeedKey(digest, null, null).
  *  Warming any other shape stores a response nobody reads, which is exactly the
  *  failure LEDGER_FEED_KEY below was written to stop happening twice. */
-export const HOME_EXAMPLE_DIGEST = "bgH8IddxZ8V_bM9eCU9tJgqaPwKXE2MEoySdEIV1OcQ";
+export const HOME_EXAMPLE_DIGEST = "ZwtodTolAzAcGOIW2UBZfSi2xtZD-i1bdV6Kpu_6KPw";
 
 /** The ledger feed's initial (files-only, no-cursor) URL. This MUST stay byte-
  *  identical to Explorer's `feedUrl()` with its default state, because warm
