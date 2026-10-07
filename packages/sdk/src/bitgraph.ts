@@ -138,9 +138,10 @@ export interface Slot {
   commitmentB64: string;
   slotCounter: string;
   epoch: string;
-  floor: { block: number } | null;
-  /** 2 when the commitment binds the floor block (bitgraph-fuse/2), else 1. */
-  fuseVersion: 1 | 2;
+  /** The floor the commitment binds: a Base block (enclave v10) or an Ethereum block (v9). */
+  floor: { block: number; chain: "ethereum" | "base" } | null;
+  /** 3 when the commitment binds a Base floor (bitgraph-fuse/3), 2 an Ethereum floor (bitgraph-fuse/2), else 1. */
+  fuseVersion: 1 | 2 | 3;
   /** Survives process boundaries: `bitgraph seal --token ...` or BitGraph.seal(token, ...). */
   token: string;
   ttlSeconds: number;

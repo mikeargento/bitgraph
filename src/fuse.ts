@@ -117,15 +117,36 @@ export interface AnchorMark {
   blockHash: string;
 }
 
+/** The Base floor an enclave v10 allocation hands back: the one it signs at commit as commit.slotFloor. */
+export interface BaseFloorMark {
+  chain: "base";
+  evmChainId: 8453;
+  blockNumber: number;
+  blockHash: string;
+  blockTimestamp: number;
+}
+
+/** Either floor an allocation can return. A Base floor makes a fuse/3 commitment, an Ethereum anchor a fuse/2 one. */
+export type FloorMark = AnchorMark | BaseFloorMark;
+
+export function isBaseFloorMark(x: unknown): x is BaseFloorMark {
+  if (x === null || typeof x !== "object" || Array.isArray(x)) return false;
+  const a = x as Record<string, unknown>;
+  return a.chain === "base" && a.evmChainId === 8453
+    && typeof a.blockNumber === "number" && Number.isSafeInteger(a.blockNumber) && a.blockNumber > 0
+    && typeof a.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(a.blockHash)
+    && typeof a.blockTimestamp === "number" && Number.isSafeInteger(a.blockTimestamp);
+}
+
 /** What the builder receives. The raw nonce is deliberately absent. */
 export interface BuilderInput {
-  /** 32-byte commitment to the signed slot record (bitgraph-fuse/2 also binds the floor block). Write this into the artifact. */
+  /** 32-byte commitment to the signed slot record (fuse/2 and fuse/3 also bind the floor block). Write this into the artifact. */
   commitment: Uint8Array;
   commitmentHex: string;
-  /** Which commitment this is: 2 when the boundary returned its floor anchor (enclave v9 and later), else 1. */
-  fuseVersion: 1 | 2;
-  /** The floor bound into a fuse/2 commitment, when there is one. */
-  floor?: AnchorMark;
+  /** Which commitment this is: 3 for a Base floor (enclave v10), 2 for an Ethereum floor anchor (v9), else 1. */
+  fuseVersion: 1 | 2 | 3;
+  /** The floor bound into the commitment, when there is one. */
+  floor?: FloorMark;
   /** The origin digest, when the fused artifact names a source. */
   originDigest?: Uint8Array;
   /** The signed slot record, for producers that want to embed its fields. Contains the nonce: do not copy it into the artifact. */
@@ -368,11 +389,12 @@ function isAnchorMark(x: unknown): x is AnchorMark {
 
 /**
  * 1. nonce. The signed slot record from the boundary; it must sit on the
- * anchored chain. Since enclave v9 the response also carries the floor anchor
- * the boundary will sign at commit; with it the producer makes a
- * bitgraph-fuse/2 commitment, without it a fuse/1 one.
+ * anchored chain. The response also carries the floor the boundary will sign
+ * at commit: a Base block since enclave v10 (a fuse/3 commitment), an Ethereum
+ * anchor on v9 (fuse/2); without one the producer makes a fuse/1 commitment.
+ * A response carrying both is refused: a proof has one floor.
  */
-async function allocateSlot(t: BoundTransport): Promise<{ slot: SlotAllocation; anchor: AnchorMark | null }> {
+async function allocateSlot(t: BoundTransport): Promise<{ slot: SlotAllocation; anchor: FloorMark | null }> {
   const alloc = await request(t, t.allocatePath, { method: "POST", body: {} });
   if (alloc.status === 503 && codeOf(alloc.json) === "tee-restarting") throw new FuseError("tee-restarting", messageOf(alloc.json, "the boundary is restarting"), 503);
   if (alloc.status !== 200) throw new FuseError("allocate-failed", messageOf(alloc.json, `allocation failed (${alloc.status})`), alloc.status);
@@ -381,7 +403,11 @@ async function allocateSlot(t: BoundTransport): Promise<{ slot: SlotAllocation; 
   if (!isSlotRecord(slot) || slotId !== slot.nonceB64) throw new FuseError("allocate-failed", "the allocation response is not a slot record", alloc.status);
   if (slot.chainId !== "bitgraph:main") throw new FuseError("allocate-failed", "the slot is not on the anchored chain; a fused floor needs bitgraph:main");
   const anchorRaw = (alloc.json as { anchor?: unknown } | null)?.anchor;
-  return { slot, anchor: isAnchorMark(anchorRaw) ? anchorRaw : null };
+  const floorRaw = (alloc.json as { floor?: unknown } | null)?.floor;
+  const eth = isAnchorMark(anchorRaw) ? anchorRaw : null;
+  const base = isBaseFloorMark(floorRaw) ? floorRaw : null;
+  if (eth && base) throw new FuseError("allocate-failed", "the allocation returned two floors (an Ethereum anchor and a Base block); a proof has one, so nothing was bound");
+  return { slot, anchor: base ?? eth };
 }
 
 /**
@@ -492,7 +518,8 @@ export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<
     chainId: "bitgraph:main",
     attribution,
     // fuse/2: the boundary checks the bound floor against its ledger before spending the slot.
-    ...(version === 2 ? { anchor } : {}),
+    // fuse/3: the bound Base floor, so the boundary can check it is the one it handed out.
+    ...(version === 2 ? { anchor } : version === 3 ? { floor: anchor } : {}),
   };
   if (options.agency !== undefined) body.agency = options.agency;
   const { proof, recovered } = await commitUnderSlot(t, body, artifactDigestB64, slot);
@@ -543,10 +570,10 @@ export type SetMemberPlacement = "trailer/1" | "container/1" | "container/2";
 
 /** What a hashed member's fused digest is computed for: the held slot and its commitment. */
 export interface FusedDigestInput {
-  /** Which commitment this is: 2 when the boundary returned its floor anchor, else 1. */
-  fuseVersion: 1 | 2;
-  /** The floor bound into a fuse/2 commitment, when there is one. */
-  floor?: AnchorMark;
+  /** Which commitment this is: 3 for a Base floor, 2 for an Ethereum floor anchor, else 1. */
+  fuseVersion: 1 | 2 | 3;
+  /** The floor bound into the commitment, when there is one. */
+  floor?: FloorMark;
   commitment: Uint8Array;
   commitmentHex: string;
   slot: SlotAllocation;
@@ -887,7 +914,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     chainId: "bitgraph:main",
     attribution: fuseAttribution(setKind === "set/1" ? SET_PLACEMENT_ID_LOCAL : SET2_PLACEMENT_ID, undefined, version),
     metadata: { [SET_METADATA_KEY]: manifest },
-    ...(version === 2 ? { anchor } : {}),
+    ...(version === 2 ? { anchor } : version === 3 ? { floor: anchor } : {}),
   };
   if (options.agency !== undefined) body.agency = options.agency;
   report("commit", 0, 1);
@@ -1099,10 +1126,10 @@ export interface FuseTreeResult {
   count: number;
   /** The tree's root, lowercase hex. */
   rootHex: string;
-  /** commitment/2, which every placed member's committed bytes carry. committedBytesFor(member.code, original, commitment) rebuilds them. */
+  /** commitment/2 or /3, which every placed member's committed bytes carry. committedBytesFor(member.code, original, commitment) rebuilds them. */
   commitment: Uint8Array;
-  /** The floor block the commitment binds, as the proof signs it (commit.slotAnchor). */
-  floor: AnchorMark;
+  /** The floor block the commitment binds, as the proof signs it (commit.slotAnchor or commit.slotFloor). */
+  floor: FloorMark;
   /** The spec hash the signed attribution pins, standard base64. */
   specHashB64: string;
   /** Every leaf, in tree order (strictly ascending artifact digest). */
@@ -1238,10 +1265,16 @@ export async function fuseTree(members: readonly FuseTreeMember[], options: Fuse
   // 1. nonce: one slot for the whole tree, and the floor it binds.
   const { slot, anchor } = await allocateSlot(t);
   if (anchor === null) {
-    throw new FuseError("floor-missing", "the allocation returned no floor anchor, so no tree/1 commitment can be made (tree/1 binds the floor block: bitgraph-fuse/2, enclave v9 and later); nothing was committed and the position will expire");
+    throw new FuseError("floor-missing", "the allocation returned no floor, so no tree/1 commitment can be made (tree/1 binds the floor block: bitgraph-fuse/2 or /3, enclave v9 and later); nothing was committed and the position will expire");
   }
   const { commitment, version } = producerCommitment(slot, anchor);
-  if (version !== 2) throw new FuseError("floor-missing", "the floor anchor could not be bound into the commitment; nothing was committed and the position will expire");
+  if (version === 1) throw new FuseError("floor-missing", "the floor could not be bound into the commitment; nothing was committed and the position will expire");
+  // The spec follows the floor: SPEC v1 defines tree/1 under fuse/2, SPEC v2 under fuse/3.
+  try {
+    specHash = currentTreeSpecHash(version);
+  } catch (err) {
+    throw new FuseError("bad-input", `no tree/1 spec hash to pin for bitgraph-fuse/${version}: ${err instanceof Error ? err.message : String(err)}; nothing was committed and the position will expire`);
+  }
   const commitmentHex = bytesToHex(commitment);
   const expiring = "nothing was committed and the slot will expire";
 
@@ -1330,7 +1363,8 @@ export async function fuseTree(members: readonly FuseTreeMember[], options: Fuse
     attribution: treeAttribution(specHash),
     metadata: { [TREE_METADATA_KEY]: bytesToHex(rootDocument) },
     // fuse/2: the boundary checks the bound floor against its ledger before spending the slot.
-    anchor,
+    // fuse/3: the bound Base floor, so the boundary can check it is the one it handed out.
+    ...(version === 2 ? { anchor } : { floor: anchor }),
   };
   if (options.agency !== undefined) body.agency = options.agency;
   report("commit", 0, 1);

@@ -204,9 +204,76 @@ export const FUSE2_DOMAIN: Uint8Array = (() => {
   return out;
 })();
 
-/** Which commitment a fused proof's signed marker declares: 1, 2, or null when the proof is not fused. */
-export function fuseVersionOfName(name: unknown): 1 | 2 | null {
-  return name === FUSE_ATTRIBUTION_NAME ? 1 : name === FUSE2_ATTRIBUTION_NAME ? 2 : null;
+// ---------------------------------------------------------------------------
+// bitgraph-fuse/3 (2026-10-06, enclave v10): the floor is a Base block.
+//
+//   commitment/3 = SHA256(UTF8("bitgraph-fuse/3") || 0x00 || slotRecordHash || nonce || floorBlockHash)
+//
+// floorBlockHash is the 32 raw bytes of commit.slotFloor.blockHash: the Base
+// block the enclave fixed at allocation from a header it hashed itself, and
+// signed into the proof with its chain named. fuse/2 is unchanged and still
+// binds commit.slotAnchor (an Ethereum anchor). A proof carries one floor or
+// the other, never both: a proof with both is ambiguous and binds nothing.
+// ---------------------------------------------------------------------------
+
+export const FUSE3_PROFILE = "bitgraph-fuse/3" as const;
+export const FUSE3_ATTRIBUTION_NAME = FUSE3_PROFILE;
+
+/** "bitgraph-fuse/3" followed by one zero byte. */
+export const FUSE3_DOMAIN: Uint8Array = (() => {
+  const label = new TextEncoder().encode(FUSE3_PROFILE);
+  const out = new Uint8Array(label.length + 1);
+  out.set(label, 0);
+  out[label.length] = 0x00;
+  return out;
+})();
+
+/** The fused commitment versions: 1 binds no floor, 2 an Ethereum anchor, 3 a Base block. */
+export type FuseVersion = 1 | 2 | 3;
+
+/** Which commitment a fused proof's signed marker declares, or null when the proof is not fused. */
+export function fuseVersionOfName(name: unknown): FuseVersion | null {
+  return name === FUSE_ATTRIBUTION_NAME ? 1 : name === FUSE2_ATTRIBUTION_NAME ? 2 : name === FUSE3_ATTRIBUTION_NAME ? 3 : null;
+}
+
+/** The signed marker name for a version. */
+export function fuseNameOfVersion(version: FuseVersion): string {
+  return version === 3 ? FUSE3_ATTRIBUTION_NAME : version === 2 ? FUSE2_ATTRIBUTION_NAME : FUSE_ATTRIBUTION_NAME;
+}
+
+/**
+ * The floor a proof signs, whichever kind it is: an Ethereum anchor fixed at
+ * allocation (commit.slotAnchor, enclave v7 to v9) or a Base block
+ * (commit.slotFloor, enclave v10). Null when the proof signs no floor. Throws
+ * when it signs both, or a slotFloor that does not name Base: such a proof is
+ * ambiguous and nothing should be read from it as a floor.
+ */
+export interface SignedFloor {
+  chain: "ethereum" | "base";
+  blockNumber: number;
+  /** 0x-prefixed lowercase hex. */
+  blockHash: string;
+  /** Unix seconds; signed only for a Base floor (an Ethereum floor's time is read from its header). */
+  blockTimestamp?: number;
+  /** The anchor proof's counter, for an Ethereum floor. */
+  anchorCounter?: string;
+}
+
+export function signedFloorOf(proof: BitGraphProof): SignedFloor | null {
+  const a = proof.commit?.slotAnchor;
+  const f = proof.commit?.slotFloor;
+  if (a && f) throw new TypeError("the proof signs two floors (commit.slotAnchor and commit.slotFloor); it is ambiguous and binds neither");
+  if (f) {
+    if (f.chain !== "base" || f.evmChainId !== 8453) throw new TypeError("commit.slotFloor does not name Base mainnet");
+    if (typeof f.blockHash !== "string" || !/^0x[0-9a-f]{64}$/.test(f.blockHash)) throw new TypeError("commit.slotFloor.blockHash is not a 32-byte hash");
+    if (!Number.isSafeInteger(f.blockNumber) || !Number.isSafeInteger(f.blockTimestamp)) throw new TypeError("commit.slotFloor carries no block number or time");
+    return { chain: "base", blockNumber: f.blockNumber, blockHash: f.blockHash, blockTimestamp: f.blockTimestamp };
+  }
+  if (a) {
+    if (typeof a.blockHash !== "string") throw new TypeError("commit.slotAnchor.blockHash is missing");
+    return { chain: "ethereum", blockNumber: a.blockNumber, blockHash: a.blockHash.toLowerCase(), anchorCounter: a.counter };
+  }
+  return null;
 }
 
 /** True for either fused marker name. Use this, never a string compare against one version. */
@@ -234,30 +301,54 @@ export function computeSlotCommitment2(slot: SlotAllocation, floorBlockHash: str
   return sha256(slotCommitment2Preimage(slot, floorBlockHash));
 }
 
+/** The exact preimage of commitment/3: domain/3 || slotRecordHash || nonce || floorBlockHash (a Base block). */
+export function slotCommitment3Preimage(slot: SlotAllocation, floorBlockHash: string | Uint8Array): Uint8Array {
+  const nonce = base64ToBytes(slot.nonceB64);
+  if (nonce === null || nonce.length !== 32) {
+    throw new TypeError("slot.nonceB64 must decode to exactly 32 bytes");
+  }
+  return concat(FUSE3_DOMAIN, computeSlotRecordHash(slot), nonce, floorHashBytes(floorBlockHash));
+}
+
+/** commitment/3 = SHA256(domain/3 || slotRecordHash || nonce || floorBlockHash). */
+export function computeSlotCommitment3(slot: SlotAllocation, floorBlockHash: string | Uint8Array): Uint8Array {
+  return sha256(slotCommitment3Preimage(slot, floorBlockHash));
+}
+
 /**
  * The commitment a fused proof's bytes must carry, chosen by its signed marker:
- * fuse/2 binds the proof's own signed commit.slotAnchor block, fuse/1 does not.
- * Throws when a fuse/2 proof has no signed floor to bind.
+ * fuse/3 binds the proof's signed Base floor (commit.slotFloor), fuse/2 its
+ * signed Ethereum anchor (commit.slotAnchor), fuse/1 no floor. Throws when the
+ * marker's floor is missing, or the proof signs both floors.
  */
 export function commitmentForProof(proof: BitGraphProof, slot: SlotAllocation): Uint8Array {
-  if (fuseVersionOfName(proof.attribution?.name) === 2) {
-    const hash = proof.commit?.slotAnchor?.blockHash;
-    if (typeof hash !== "string") throw new TypeError("a bitgraph-fuse/2 proof must carry a signed commit.slotAnchor to bind");
-    return computeSlotCommitment2(slot, hash);
+  const version = fuseVersionOfName(proof.attribution?.name);
+  if (version === 1 || version === null) return computeSlotCommitment(slot);
+  const floor = signedFloorOf(proof);
+  if (version === 2) {
+    if (floor?.chain !== "ethereum") throw new TypeError("a bitgraph-fuse/2 proof must carry a signed commit.slotAnchor to bind");
+    return computeSlotCommitment2(slot, floor.blockHash);
   }
-  return computeSlotCommitment(slot);
+  if (floor?.chain !== "base") throw new TypeError("a bitgraph-fuse/3 proof must carry a signed commit.slotFloor (a Base block) to bind");
+  return computeSlotCommitment3(slot, floor.blockHash);
 }
 
 /**
  * The commitment a PRODUCER writes into new bytes, from what the allocation
- * returned: fuse/2 when the enclave handed back its floor anchor (v9 and
- * later), else fuse/1. The attribution name must be chosen to match; see
- * fuseAttribution's version argument.
+ * returned: fuse/3 when the enclave handed back a Base floor (v10), fuse/2 for
+ * an Ethereum floor anchor (v9), else fuse/1. The attribution name must match;
+ * see fuseAttribution's version argument.
  */
-export function producerCommitment(slot: SlotAllocation, floor?: { blockHash: string } | null): { commitment: Uint8Array; version: 1 | 2 } {
-  return floor && typeof floor.blockHash === "string"
-    ? { commitment: computeSlotCommitment2(slot, floor.blockHash), version: 2 }
-    : { commitment: computeSlotCommitment(slot), version: 1 };
+export function producerCommitment(
+  slot: SlotAllocation,
+  floor?: { blockHash: string; chain?: string } | null,
+): { commitment: Uint8Array; version: FuseVersion } {
+  if (floor && typeof floor.blockHash === "string") {
+    return floor.chain === "base"
+      ? { commitment: computeSlotCommitment3(slot, floor.blockHash), version: 3 }
+      : { commitment: computeSlotCommitment2(slot, floor.blockHash), version: 2 };
+  }
+  return { commitment: computeSlotCommitment(slot), version: 1 };
 }
 
 // ---------------------------------------------------------------------------
@@ -998,11 +1089,11 @@ export function getPlacement(id: string): Placement | undefined {
  * set/1 refuses an origin digest: a set/1 marker carrying one is out of
  * profile and verifyFuseMember refuses it.
  */
-export function fuseAttribution(placement: PlacementId, originDigest?: Uint8Array, version: 1 | 2 = 1): Attribution {
+export function fuseAttribution(placement: PlacementId, originDigest?: Uint8Array, version: FuseVersion = 1): Attribution {
   if (originDigest !== undefined && originDigest.length !== 32) throw new TypeError("originDigest must be 32 bytes");
   if ((placement === SET_PLACEMENT_ID || placement === SET2_PLACEMENT_ID) && originDigest !== undefined) throw new TypeError(`${placement} has no single origin; a set marker carries no origin digest`);
   return {
-    name: version === 2 ? FUSE2_ATTRIBUTION_NAME : FUSE_ATTRIBUTION_NAME,
+    name: fuseNameOfVersion(version),
     title: placement,
     ...(originDigest !== undefined ? { message: bytesToBase64(originDigest) } : {}),
   };
@@ -1025,7 +1116,7 @@ export interface FuseMarker {
   /** "attribution" when the proof's signed attribution marks it fused, else "manifest". */
   source: MarkerSource;
   /** Which commitment the signed marker declares; absent on a manifest-only marker, which means 1. */
-  version?: 1 | 2;
+  version?: FuseVersion;
 }
 
 /** Read the fused marker from a proof's signed attribution, or null when the proof is not marked fused. */
@@ -1076,15 +1167,15 @@ export function findCommitment(bytes: Uint8Array, commitment: Uint8Array, encodi
 }
 
 /** The attribution a producer sends for an artifact made with the commitment inside it. */
-export function inlineAttribution(version: 1 | 2 = 1): { name: string; title: string } {
-  return { name: version === 2 ? FUSE2_ATTRIBUTION_NAME : FUSE_ATTRIBUTION_NAME, title: ENCODING_BASE64URL };
+export function inlineAttribution(version: FuseVersion = 1): { name: string; title: string } {
+  return { name: fuseNameOfVersion(version), title: ENCODING_BASE64URL };
 }
 
 export function readFuseAttribution(proof: BitGraphProof): FuseMarker | null {
   const a = proof.attribution;
   const version = fuseVersionOfName(a?.name);
   if (a === undefined || version === null) return null;
-  // A tree/1 proof carries the fuse/2 name, but it is not a single fused file:
+  // A tree/1 proof carries the fuse/2 or fuse/3 name, but it is not a single fused file:
   // its committed artifact is the tree's root document and its message is the
   // SPEC hash, not an origin. Read it with verifyTreeMember (tree.ts), never
   // here, or the spec hash would be taken for an origin digest.

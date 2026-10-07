@@ -43,6 +43,7 @@ import {
   bytesToHex,
   commitmentForProof,
   FUSE2_ATTRIBUTION_NAME,
+  FUSE3_ATTRIBUTION_NAME,
   fuseVersionOfName,
   getPlacement,
   hexToBytes,
@@ -81,9 +82,25 @@ export const TREE_METADATA_KEY = TREE_PROFILE;
  * Appending a revised spec here is how a verifier learns it; nothing is ever
  * removed, so every proof made under an earlier spec keeps verifying.
  */
+/** SPEC.md v1 (spec/SPEC.md). Frozen 2026-10-04 (spec/FROZEN.json): tree/1 under bitgraph-fuse/2, an Ethereum floor. */
+export const TREE_SPEC_V1_HASH = "QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs=";
+/** SPEC v2 (spec/SPEC-v2.md): tree/1 under bitgraph-fuse/3, a Base floor (enclave v10). */
+export const TREE_SPEC_V2_HASH = "__SPEC_V2_HASH__";
+
 export const KNOWN_TREE_SPEC_HASHES: readonly string[] = Object.freeze([
-  // SPEC.md v1 (spec/SPEC.md). Frozen 2026-10-04 (spec/FROZEN.json): it never changes; a later spec is added beside it, never in its place.
-  "QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs=",
+  // Each spec never changes; a later spec is added beside it, never in its place.
+  TREE_SPEC_V1_HASH,
+  TREE_SPEC_V2_HASH,
+]);
+
+/**
+ * The marker each spec requires: v1 defines tree/1 under fuse/2 (the floor an
+ * Ethereum anchor), v2 under fuse/3 (the floor a Base block). A tree proof
+ * whose marker and spec disagree is refused, so neither spec's meaning moves.
+ */
+const TREE_SPEC_FUSE_VERSION: ReadonlyMap<string, 2 | 3> = new Map([
+  [TREE_SPEC_V1_HASH, 2],
+  [TREE_SPEC_V2_HASH, 3],
 ]);
 
 /** Placement codes: the first byte of a leaf. */
@@ -210,16 +227,26 @@ export function readTreeMetadata(proof: BitGraphProof): Uint8Array | null {
 // The signed marker
 // ---------------------------------------------------------------------------
 
-/** The attribution a producer sends for a tree/1 commit. specHash is the 32-byte SHA-256 of the SPEC.md the producer follows. */
+/**
+ * The attribution a producer sends for a tree/1 commit. specHash is the 32-byte
+ * SHA-256 of the spec the producer follows; the marker is the one that spec
+ * requires (fuse/2 for v1, fuse/3 for v2).
+ */
 export function treeAttribution(specHash: Uint8Array): Attribution {
   if (specHash.length !== 32) throw new TypeError("the spec hash is 32 bytes");
-  return { name: FUSE2_ATTRIBUTION_NAME, title: TREE_PLACEMENT_ID, message: bytesToBase64(specHash) };
+  const b64 = bytesToBase64(specHash);
+  const version = TREE_SPEC_FUSE_VERSION.get(b64) ?? 2;
+  return { name: version === 3 ? FUSE3_ATTRIBUTION_NAME : FUSE2_ATTRIBUTION_NAME, title: TREE_PLACEMENT_ID, message: b64 };
 }
 
-/** The current spec hash a producer pins, as raw bytes. Throws while the spec hash is still a placeholder. */
-export function currentTreeSpecHash(): Uint8Array {
-  const latest = KNOWN_TREE_SPEC_HASHES[KNOWN_TREE_SPEC_HASHES.length - 1]!;
-  const b = base64ToBytes(latest);
+/**
+ * The spec hash a producer pins, as raw bytes, for the floor its allocation
+ * returned: a Base floor (fuse/3) follows SPEC v2, an Ethereum floor anchor
+ * (fuse/2) follows SPEC v1. Throws while the requested spec hash is a placeholder.
+ */
+export function currentTreeSpecHash(fuseVersion: 2 | 3 = 2): Uint8Array {
+  const hash = fuseVersion === 3 ? TREE_SPEC_V2_HASH : TREE_SPEC_V1_HASH;
+  const b = base64ToBytes(hash);
   if (b === null || b.length !== 32) throw new Error("the tree/1 spec hash has not been set");
   return b;
 }
@@ -429,14 +456,19 @@ export async function verifyTreeMember(opts: TreeVerifyOptions): Promise<TreeVer
     if (!v.valid) return base("INVALID_UNDERLYING_PROOF", `the proof does not verify (${v.reason ?? "invalid"})`, { proof: proofResult });
   }
 
-  // 2. The signed marker: fuse/2 (the floor is bound) and a known spec.
+  // 2. The signed marker: fuse/2 or fuse/3 (the floor is bound) and a known spec that requires it.
   const a = proof.attribution!;
-  if (fuseVersionOfName(a.name) !== 2) return base("INVALID_TREE_MARKER", "a tree/1 proof must be marked bitgraph-fuse/2, which binds the floor block into the commitment", { proof: proofResult });
+  const markerVersion = fuseVersionOfName(a.name);
+  if (markerVersion !== 2 && markerVersion !== 3) return base("INVALID_TREE_MARKER", "a tree/1 proof must be marked bitgraph-fuse/2 or bitgraph-fuse/3, which bind the floor block into the commitment", { proof: proofResult });
   const specBytes = typeof a.message === "string" ? base64ToBytes(a.message) : null;
   if (specBytes === null || specBytes.length !== 32) return base("INVALID_TREE_MARKER", "a tree/1 proof must pin its spec: the signed message is the base64 SHA-256 of SPEC.md", { proof: proofResult });
   const specHashB64 = a.message as string;
   const known = new Set([...KNOWN_TREE_SPEC_HASHES, ...(opts.extraSpecHashes ?? [])]);
   if (!known.has(specHashB64)) return base("UNKNOWN_SPEC", `the proof follows a spec this verifier does not know (${specHashB64})`, { proof: proofResult, specHashB64 });
+  const required = TREE_SPEC_FUSE_VERSION.get(specHashB64);
+  if (required !== undefined && required !== markerVersion) {
+    return base("INVALID_TREE_MARKER", `the proof pins a spec that defines tree/1 under bitgraph-fuse/${required}, but is marked bitgraph-fuse/${markerVersion}`, { proof: proofResult, specHashB64 });
+  }
 
   // 3. The commitment, from the proof's own slot record and signed floor block.
   if (!proof.slotAllocation) return base("INVALID_SLOT_COMMITMENT", "the proof carries no slot record, so no commitment can be recomputed", { proof: proofResult, specHashB64 });

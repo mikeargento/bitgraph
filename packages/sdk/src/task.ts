@@ -35,12 +35,37 @@ export interface AnchorMark {
   blockHash: string;
 }
 
+/** The Base floor an enclave v10 allocation hands back: the one it signs at commit as commit.slotFloor. */
+export interface BaseFloorMark {
+  chain: "base";
+  evmChainId: 8453;
+  blockNumber: number;
+  blockHash: string;
+  blockTimestamp: number;
+}
+
 export interface TaskState {
   v: 1;
   task: true;
   slot: SlotAllocation;
-  /** Present when the boundary returned its floor (enclave v9 and later): the task then carries a bitgraph-fuse/2 commitment. */
+  /** Present when the boundary returned an Ethereum floor (enclave v9): the task then carries a bitgraph-fuse/2 commitment. */
   anchor?: AnchorMark;
+  /** Present when the boundary returned a Base floor (enclave v10): the task then carries a bitgraph-fuse/3 commitment. */
+  floor?: BaseFloorMark;
+}
+
+function isBaseFloorMark(x: unknown): x is BaseFloorMark {
+  if (x === null || typeof x !== "object" || Array.isArray(x)) return false;
+  const a = x as Record<string, unknown>;
+  return a.chain === "base" && a.evmChainId === 8453
+    && typeof a.blockNumber === "number" && Number.isSafeInteger(a.blockNumber) && a.blockNumber > 0
+    && typeof a.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(a.blockHash)
+    && typeof a.blockTimestamp === "number" && Number.isSafeInteger(a.blockTimestamp);
+}
+
+/** The one floor a task binds: a Base floor if the boundary returned one, else an Ethereum anchor, else none. */
+function taskFloor(state: { anchor?: AnchorMark | undefined; floor?: BaseFloorMark | undefined }): AnchorMark | BaseFloorMark | null {
+  return state.floor ?? state.anchor ?? null;
 }
 
 function isAnchorMark(x: unknown): x is AnchorMark {
@@ -68,8 +93,10 @@ export function decodeTaskToken(token: string): TaskState | null {
   if (typeof parsed !== "object" || parsed === null) return null;
   const s = parsed as Record<string, unknown>;
   if (s.v !== 1 || s.task !== true || !isSlotRecord(s.slot)) return null;
-  // A token made before v9 carries no anchor and stays a fuse/1 task.
-  return { v: 1, task: true, slot: s.slot, ...(isAnchorMark(s.anchor) ? { anchor: s.anchor } : {}) };
+  // A token made before v9 carries no floor and stays a fuse/1 task; a token
+  // carrying both floors is refused (a proof has one).
+  if (isAnchorMark(s.anchor) && isBaseFloorMark(s.floor)) return null;
+  return { v: 1, task: true, slot: s.slot, ...(isAnchorMark(s.anchor) ? { anchor: s.anchor } : {}), ...(isBaseFloorMark(s.floor) ? { floor: s.floor } : {}) };
 }
 
 async function post(config: ApiConfig, path: string, body: unknown, timeoutMs: number): Promise<{ status: number; json: unknown; retryAfterSec: number | null }> {
@@ -95,9 +122,9 @@ export interface Begun {
   commitmentB64: string;
   slotCounter: string;
   epoch: string;
-  floor: { block: number } | null;
-  /** 2 when the commitment binds the floor block (bitgraph-fuse/2; the boundary returned its floor), else 1. */
-  fuseVersion: 1 | 2;
+  floor: { block: number; chain: "ethereum" | "base" } | null;
+  /** 3 when the commitment binds a Base floor (enclave v10), 2 an Ethereum floor (v9), else 1. */
+  fuseVersion: 1 | 2 | 3;
 }
 
 /** Step one of the task form: a held slot and its commitment, before any work exists. */
@@ -107,17 +134,20 @@ export async function beginTask(config: ApiConfig): Promise<Begun> {
   const slot = (r.json as { slot?: unknown } | null)?.slot;
   if (!isSlotRecord(slot)) throw new ApiError(502, "the allocation response is not a slot record on bitgraph:main");
   const anchorRaw = (r.json as { anchor?: unknown } | null)?.anchor;
+  const floorRaw = (r.json as { floor?: unknown } | null)?.floor;
   const anchor = isAnchorMark(anchorRaw) ? anchorRaw : undefined;
-  const { commitment: commitmentBytes, version } = producerCommitment(slot, anchor ?? null);
+  const baseFloor = isBaseFloorMark(floorRaw) ? floorRaw : undefined;
+  if (anchor && baseFloor) throw new ApiError(502, "the allocation returned two floors (an Ethereum anchor and a Base block); a proof has one, so nothing was bound");
+  const { commitment: commitmentBytes, version } = producerCommitment(slot, taskFloor({ anchor, floor: baseFloor }));
   const commitmentB64 = bytesToBase64(commitmentBytes);
-  let floor: Begun["floor"] = anchor ? { block: anchor.blockNumber } : null;
+  let floor: Begun["floor"] = baseFloor ? { block: baseFloor.blockNumber, chain: "base" } : anchor ? { block: anchor.blockNumber, chain: "ethereum" } : null;
   if (floor === null) try {
     const res = await fetch(`${config.baseUrl}/api/proofs/anchors?counter=${encodeURIComponent(slot.counter)}&epoch=${encodeURIComponent(slot.epochId)}&before=1`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(10_000) });
     const data = res.status === 200 ? ((await res.json()) as { anchors?: Array<{ commit?: { anchor?: { blockNumber?: number } } }> }) : null;
     const b = data?.anchors?.[0]?.commit?.anchor?.blockNumber;
-    if (typeof b === "number") floor = { block: b };
+    if (typeof b === "number") floor = { block: b, chain: "ethereum" };
   } catch { floor = null; }
-  return { token: encodeTaskToken({ v: 1, task: true, slot, ...(anchor ? { anchor } : {}) }), commitment: toUrlSafeB64(commitmentB64), commitmentB64, slotCounter: slot.counter, epoch: toUrlSafeB64(slot.epochId), floor, fuseVersion: version };
+  return { token: encodeTaskToken({ v: 1, task: true, slot, ...(anchor ? { anchor } : {}), ...(baseFloor ? { floor: baseFloor } : {}) }), commitment: toUrlSafeB64(commitmentB64), commitmentB64, slotCounter: slot.counter, epoch: toUrlSafeB64(slot.epochId), floor, fuseVersion: version };
 }
 
 export interface SealedTask {
@@ -135,7 +165,7 @@ export interface SealedTask {
  */
 export async function sealTask(config: ApiConfig, state: TaskState, task: { path: string } | { bytes: Uint8Array } | { digestB64: string }): Promise<SealedTask> {
   const { slot } = state;
-  const { commitment, version } = producerCommitment(slot, state.anchor ?? null);
+  const { commitment, version } = producerCommitment(slot, taskFloor(state));
   let bytes: Uint8Array | null = null;
   let artifactDigestB64: string;
   if ("digestB64" in task) {
@@ -150,7 +180,7 @@ export async function sealTask(config: ApiConfig, state: TaskState, task: { path
     throw new ApiError(400, `the task bytes do not contain the commitment string ${toUrlSafeB64(bytesToBase64(commitment))}; put it in before sealing. Nothing was committed and the position is still held.`);
   }
   const attribution = inlineAttribution(version);
-  const r = await post(config, "/api/fuse/commit", { digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }], slotId: slot.nonceB64, slot, chainId: CHAIN, attribution, ...(version === 2 ? { anchor: state.anchor } : {}) }, 40_000);
+  const r = await post(config, "/api/fuse/commit", { digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }], slotId: slot.nonceB64, slot, chainId: CHAIN, attribution, ...(version === 2 ? { anchor: state.anchor } : version === 3 ? { floor: state.floor } : {}) }, 40_000);
   let proof: BitGraphProof | null = null;
   if (r.status === 200) proof = ((r.json as { proof?: BitGraphProof } | null)?.proof ?? null);
   else if (r.status === 409 || r.status === 503) proof = await recover(config, artifactDigestB64, slot);

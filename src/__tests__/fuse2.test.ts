@@ -35,7 +35,7 @@ test("the fuse/2 vector: preimage and commitment are exactly the spec's", () => 
 test("marker names: fuse/2 is recognized as fused, with its version", () => {
   assert.equal(fuseVersionOfName("bitgraph-fuse/1"), 1);
   assert.equal(fuseVersionOfName(FUSE2_ATTRIBUTION_NAME), 2);
-  assert.equal(fuseVersionOfName("bitgraph-fuse/3"), null);
+  assert.equal(fuseVersionOfName("bitgraph-fuse/4"), null);
   assert.ok(isFuseMarkerName("bitgraph-fuse/2"));
   const m = readFuseAttribution(proofOf("trailer2.proof.json"));
   assert.equal(m?.version, 2);

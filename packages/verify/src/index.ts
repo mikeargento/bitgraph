@@ -62,6 +62,13 @@ export {
   FUSE2_PROFILE,
   FUSE2_DOMAIN,
   FUSE2_ATTRIBUTION_NAME,
+  FUSE3_PROFILE,
+  FUSE3_DOMAIN,
+  FUSE3_ATTRIBUTION_NAME,
+  fuseNameOfVersion,
+  signedFloorOf,
+  slotCommitment3Preimage,
+  computeSlotCommitment3,
   fuseVersionOfName,
   isFuseMarkerName,
   slotCommitment2Preimage,
@@ -82,7 +89,7 @@ export {
   hexToBytes,
   bytesEqual,
 } from "./fuse.js";
-export type { PlacementId, Placement, Located, FusePayload, FuseFrame, FuseMarker, MarkerSource, SetMember, SetManifest, FusedFrame } from "./fuse.js";
+export type { PlacementId, Placement, Located, FusePayload, FuseFrame, FuseMarker, MarkerSource, SetMember, SetManifest, FusedFrame, FuseVersion, SignedFloor } from "./fuse.js";
 export { MAX_CONTAINER_ENTRY_BYTES } from "./fuse.js";
 /* Streaming checks: a file of any size against its leaf, in constant memory. */
 export { bytesSource, blobSource, streamDigest, streamLeafCheck } from "./stream.js";
@@ -150,7 +157,7 @@ export type { RlpItem, DecodedHeader, DecodedTx } from "./ceiling-evm.js";
 /* tree/1 (2026-10-03): every BitGraph is a Merkle tree under one position; a single file is a tree of one. */
 export {
   TREE_PLACEMENT_ID, TREE_PROFILE, TREE_DOMAIN, TREE_LEAF_BYTES, TREE_ROOT_DOCUMENT_BYTES, MAX_TREE_LEAVES, TREE_METADATA_KEY,
-  KNOWN_TREE_SPEC_HASHES, LEAF_AS_IS, LEAF_PLACEMENTS, TREE_MEMBER_CATEGORIES,
+  KNOWN_TREE_SPEC_HASHES, TREE_SPEC_V1_HASH, TREE_SPEC_V2_HASH, LEAF_AS_IS, LEAF_PLACEMENTS, TREE_MEMBER_CATEGORIES,
   leafCodeOf, encodeTreeLeaf, decodeTreeLeaf, treeLeafHash, sortTreeLeaves, buildTree,
   buildTreeRootDocument, parseTreeRootDocument, readTreeMetadata, treeAttribution, currentTreeSpecHash, isTreeProof,
   buildTreeMemberEvidence, parseTreeMemberEvidence, treeRootFromMember, encodeTreeLeaves, decodeTreeLeaves, verifyTreeLeaves,
