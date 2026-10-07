@@ -84,6 +84,7 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
         .cl-dropped { background: #fce8e6; color: #c5221f; text-decoration: line-through; }
         .cl-blocks { flex-shrink: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
         .cl-blocks a { font-weight: 600; white-space: nowrap; }
+        .cl-blocks .cl-side { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
         .cl-blocks .cl-by { margin-left: 6px; }
         .cl-eth { flex-shrink: 0; font-size: 12.5px; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; text-decoration: none; }
         .cl-writer { font-family: var(--mono, ui-monospace, monospace); font-size: 13px; }
@@ -97,7 +98,8 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
           .cl-when-short { display: inline; }
           .cl-when { margin-left: auto; }
           .cl-row { flex-wrap: wrap; row-gap: 8px; }
-          .cl-blocks { order: 1; flex-basis: 100%; }
+          .cl-blocks { order: 1; flex-basis: 100%; flex-wrap: wrap; row-gap: 6px; }
+          .cl-blocks .cl-by { margin-left: 0; }
         }
       `}</style>
       <div className="xp-head">
@@ -144,17 +146,19 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
                 </a>
                 <span className="cl-blocks">
                   {floor && (
-                    <>
+                    <span className="cl-side">
                       after{" "}
                       <a href={floorBlockUrl(floor)} target="_blank" rel="noopener" title="Floor">
                         {floorChainWord(floor)} #{fmt(floor.blockNumber)}
                       </a>
-                    </>
+                    </span>
                   )}
-                  <span className={floor ? "cl-by" : undefined}>by</span>{" "}
-                  <a href={`${BASESCAN}/tx/${w.txHash}`} target="_blank" rel="noopener" title="Ceiling">
-                    Base block #{fmt(w.blockNumber)}
-                  </a>
+                  <span className={floor ? "cl-side cl-by" : "cl-side"}>
+                    by{" "}
+                    <a href={`${BASESCAN}/tx/${w.txHash}`} target="_blank" rel="noopener" title="Ceiling">
+                      Base block #{fmt(w.blockNumber)}
+                    </a>
+                  </span>
                 </span>
                 <a href={detail} className="cl-pos" style={{ textDecoration: "none" }}>
                   {w.firstPos === w.lastPos ? `#${fmt(w.firstPos)}` : `#${fmt(w.firstPos)} to #${fmt(w.lastPos)}`}
