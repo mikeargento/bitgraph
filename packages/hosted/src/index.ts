@@ -149,8 +149,14 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("");
   console.log(`  Dashboard:  http://localhost:${PORT}`);
   console.log(`  Anchor API: http://localhost:${PORT}/api/anchor/status`);
-  console.log(`  ETH Anchor: every 12s → TEE → S3 (same chain)`);
+  // Enclave v10 (2026-10-06) takes every floor from a Base block it fixes at
+  // allocation, so the Ethereum anchor stream is no longer in any proof's path.
+  // ANCHOR_STREAM=off stops it without removing it: setting it back (or
+  // unsetting it) restarts anchoring on the next deploy, and v10 still accepts
+  // authenticated anchor claims.
+  const streamOff = (process.env.ANCHOR_STREAM || "").toLowerCase() === "off";
+  console.log(streamOff ? "  ETH Anchor: OFF (ANCHOR_STREAM=off; floors come from Base, enclave v10)" : `  ETH Anchor: every 12s → TEE → S3 (same chain)`);
   console.log("");
 
-  startBitcoinAnchor();
+  if (!streamOff) startBitcoinAnchor();
 });
