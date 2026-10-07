@@ -107,7 +107,7 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
           <h1 className="bg-page-title" style={{ margin: 0 }}>Base</h1>
           {day && <p style={{ fontSize: 14, color: "var(--dim)", margin: "2px 0 0" }}>{`${longLabel(day)} (UTC)`}</p>}
           <p className="lede" style={{ margin: "10px 0 0" }}>
-            Each row is one Base transaction carrying a Merkle root over the records made since the last one. Every record under it was made after the row&rsquo;s floor block and existed by the time of the transaction&rsquo;s block, read from the block itself, in UTC. Floors before enclave v10 are Ethereum blocks.
+            Each row is one Base transaction carrying a Merkle root over the records made since the last one. Every record under it was made after the row&rsquo;s floor block and existed by the time of the transaction&rsquo;s block, read from the block itself, in UTC.
           </p>
           <p style={{ margin: "12px 0 0", fontSize: 14, color: "var(--dim)" }}>
             Sent from BitGraph&rsquo;s ceiling address:{" "}
