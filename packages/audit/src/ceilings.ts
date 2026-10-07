@@ -74,6 +74,7 @@ export async function verifyCeilings(ingest: IngestResult, options: CeilingAudit
           status: "verified",
           ...(r.label ? { label: r.label } : {}),
           window: {
+            ...(w.floor.chain === "base" ? { floorChain: "base" as const } : {}),
             floorBlock: w.floor.blockNumber || null,
             floorTime: w.floor.blockTimestamp,
             ceilingChainId: w.ceiling.chainId,

@@ -128,6 +128,8 @@ export function buildJsonReport(result: AuditResult): AuditJsonReport {
       segments: result.temporal.segments,
       verifiedAnchorProofHashes: result.temporal.verifiedAnchorProofHashes,
       unverifiedAnchorProofHashes: result.temporal.unverifiedAnchorProofHashes,
+      ...(result.temporal.signedFloors !== undefined ? { signedFloors: result.temporal.signedFloors } : {}),
+      ...(result.temporal.floorProblems !== undefined ? { floorProblems: result.temporal.floorProblems } : {}),
     },
     summary,
   };
@@ -287,6 +289,8 @@ function buildSummary(
     if (proof.measurement !== undefined) measurements.add(proof.measurement);
   }
 
+  const floors = result.temporal.signedFloors ?? [];
+  const floorProblems = result.temporal.floorProblems ?? [];
   const segmentCount = (status: TemporalSegmentStatus): number =>
     result.temporal.segments.filter((s) => s.status === status).length;
 
@@ -333,6 +337,17 @@ function buildSummary(
       segmentsLowerBounded: segmentCount("lower-bounded"),
       segmentsUpperBounded: segmentCount("upper-bounded"),
       segmentsUnanchored: segmentCount("ordered-but-unanchored"),
+      ...(floors.length > 0 || floorProblems.length > 0
+        ? {
+            baseFloors: {
+              signed: floors.length,
+              bounding: floors.filter((f) => f.bound === "not-before").length,
+              headersChecked: floors.filter((f) => f.header === "checked").length,
+              withheld: floors.filter((f) => f.bound === "withheld").length,
+              problems: floorProblems.length,
+            },
+          }
+        : {}),
     },
     ...(exportChecks.length > 0
       ? {

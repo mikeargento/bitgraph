@@ -2,6 +2,13 @@
 
 All notable changes to `@mikeargento/bitgraph-player` are documented here.
 
+## Unreleased (Base floors, enclave v10)
+
+- `check` reads Base floors when the audit reports them (`temporal.signedFloors`, `floorProblems`, and `source` / `chain` / `timeSource` on segment bounds), structurally, so it behaves as before against an audit without them. A recording's bound reads "after Base block N", with the header checked or "confirming the block needs a Base lookup"; a fuse/3 recording's fused floor is the Base block it signs (`CheckFloor.evidence: "signed-floor"`); a withheld floor says why; a floor problem is a contradiction (FALSE). Bounds on different chains compare by time, never by block number. Not checked gains whether the Base floor blocks are Base's own.
+- `compare`: anchor-bound ordering reads anchor bounds only; a Base floor orders no epoch.
+- `KNOWN_ENCLAVE_MEASUREMENTS`: a TODO marks where enclave v10's PCR0 goes once the host build publishes it.
+- TODO at release: bump the `@mikeargento/bitgraph-audit` range to the release that carries `signedFloors` (the workspace currently resolves 0.7.0 from npm for the Player).
+
 ## 0.15.0 (2026-09-30)
 
 - `KNOWN_ENCLAVE_MEASUREMENTS` gains enclave v9 (PCR0 `934feb8b…c1fcf8`, tag

@@ -71,6 +71,43 @@ import { kleeneAll } from "./logic.js";
 import { PLAYER_VERSION } from "./verdict.js";
 
 // ---------------------------------------------------------------------------
+// Base floors (enclave v10), read structurally
+// ---------------------------------------------------------------------------
+
+/**
+ * What an audit that reads Base floors adds (bitgraph-audit after 0.9.0:
+ * TemporalAnalysis.signedFloors and floorProblems, and source / chain /
+ * timeSource on a segment bound). Read structurally, so the Player builds and
+ * behaves exactly as before against an audit without them; every field is
+ * optional and absent means an Ethereum anchor bound.
+ * TODO(release): bump the bitgraph-audit dependency to the release that
+ * carries signedFloors, then these can be the audit's own exported types.
+ */
+export interface SignedFloorRecord {
+  proofHash: string;
+  chain: "base";
+  blockNumber: number;
+  blockHash: string;
+  blockTimestamp: number;
+  header: "checked" | "not-carried";
+  headerPath?: string;
+  bound: "not-before" | "withheld";
+  withheldReason?: string;
+}
+export interface FloorProblem {
+  code: string;
+  proofHash?: string;
+  path?: string;
+  message: string;
+}
+type FloorAwareBound = SegmentBound & { source?: "signed-floor"; chain?: "base"; timeSource?: "header" | "signed" };
+
+function floorView(audit: AuditResult): { floors: SignedFloorRecord[]; problems: FloorProblem[] } {
+  const t = audit.temporal as { signedFloors?: SignedFloorRecord[]; floorProblems?: FloorProblem[] };
+  return { floors: t.signedFloors ?? [], problems: t.floorProblems ?? [] };
+}
+
+// ---------------------------------------------------------------------------
 // Declared knowledge: published enclave measurements
 // ---------------------------------------------------------------------------
 
@@ -121,6 +158,12 @@ export const KNOWN_ENCLAVE_MEASUREMENTS: ReadonlyArray<{ pcr0: string; label: st
     label: "enclave v9 (reproducible; the allocation returns the floor anchor, for bitgraph-fuse/2)",
     period: "2026-09-30 onward",
   },
+  // TODO(enclave v10): add enclave v10's PCR0 here once the host build of tag
+  // enclave-v10 publishes it (PINS.md). v10 signs a Base floor
+  // (commit.slotFloor, bitgraph-fuse/3) instead of an Ethereum anchor. Until
+  // the entry exists, a v10 proof's enclave line is UNDETERMINED (an unknown
+  // measurement), never FALSE. When it is added, close v9's period at the
+  // cutover date.
 ];
 
 // ---------------------------------------------------------------------------
@@ -134,15 +177,24 @@ export interface CheckLine {
   detail: string;
 }
 
-/** A verified Ethereum bound on a recording, from a witness in the bundle. */
+/**
+ * A verified bound on a recording: an Ethereum anchor's, from a witness in
+ * the bundle, or (enclave v10) the Base block a recording signs as its floor,
+ * which is a not-before only.
+ */
 export interface CheckBound {
+  /** Absent for Ethereum (an anchor); "base" for a Base floor (commit.slotFloor). */
+  chain?: "base";
   blockNumber?: string;
   blockHash: string;
-  /** Unix seconds from the verified block header. */
+  /** Unix seconds: from the verified block header, or for a Base floor without one, the time the proof signs. */
   timestamp: number;
+  /** The anchor proof, or for a Base floor the recording that signs it. */
   anchorProofHash: string;
-  evidence: "chain-link" | "counter-order";
+  evidence: "chain-link" | "counter-order" | "signed-floor";
   weaker: boolean;
+  /** Base floors only: "header" checked in the bundle, or "signed" (confirming the block needs a Base lookup). */
+  timeSource?: "header" | "signed";
 }
 
 export interface CheckBounds {
@@ -153,18 +205,26 @@ export interface CheckBounds {
 }
 
 /**
- * The wall-clock floor of a fused artifact: the last verified anchored
- * block preceding its SLOT counter in the same epoch chain. Counter-order
- * evidence by construction (no hash path reaches a slot record), reported
- * with the same "genuine block" assumption as every other bound.
+ * The wall-clock floor of a fused artifact. Ethereum floors (enclave v9 and
+ * before): the last verified anchored block preceding its SLOT counter in
+ * the same epoch chain, counter-order evidence by construction (no hash path
+ * reaches a slot record). Base floors (enclave v10): the block the recording
+ * itself signs as commit.slotFloor, which a bitgraph-fuse/3 commitment binds
+ * ("signed-floor"). Either is reported with the same "genuine block"
+ * assumption as every other bound.
  */
 export interface CheckFloor {
+  /** Absent for Ethereum; "base" for the recording's own Base floor. */
+  chain?: "base";
   blockNumber?: string;
   blockHash: string;
-  /** Unix seconds from the verified block header. */
+  /** Unix seconds from the verified block header, or for a Base floor without one, the signed time. */
   timestamp: number;
+  /** The anchor proof, or for a Base floor the recording itself. */
   anchorProofHash: string;
-  evidence: "counter-order";
+  evidence: "counter-order" | "signed-floor";
+  /** Base floors only: "header" checked in the bundle, or "signed" (confirming the block needs a Base lookup). */
+  timeSource?: "header" | "signed";
 }
 
 /** What the bundle establishes about a recording marked fused (profile bitgraph-fuse/1, working name). */
@@ -337,6 +397,7 @@ export function buildCheckReport(audit: AuditResult, options?: CheckOptions): Ch
   const attestationByHash = new Map<string, ProofAttestationRecord>(
     audit.attestations.records.map((r) => [r.proofHash, r])
   );
+  const floorByHash = new Map<string, SignedFloorRecord>(floorView(audit).floors.map((f) => [f.proofHash, f]));
   const segmentByHash = new Map<string, TemporalSegment>();
   for (const segment of audit.temporal.segments) {
     for (const hash of segment.memberProofHashes) segmentByHash.set(hash, segment);
@@ -373,7 +434,8 @@ export function buildCheckReport(audit: AuditResult, options?: CheckOptions): Ch
           artifactPathByProof.get(proof.proofHash),
           webCrypto,
           options?.fuseEvidence,
-          anchorByHash
+          anchorByHash,
+          floorByHash.get(proof.proofHash)
         )
       );
     }
@@ -383,7 +445,7 @@ export function buildCheckReport(audit: AuditResult, options?: CheckOptions): Ch
   sortByPosition(anchors);
   const contradictions = collectContradictions(audit);
   const notes = collectNotes(audit, recordings, anchors, options?.fuseOriginHexes);
-  const notChecked = collectNotChecked(anchors.length > 0);
+  const notChecked = collectNotChecked(anchors.length > 0, floorByHash.size > 0);
 
   const allLines: ThreeValued[] = [
     ...recordings.map((r) => r.result),
@@ -437,7 +499,8 @@ function buildRecording(
   filePath: string | undefined,
   webCrypto: boolean,
   fuseEvidence?: ReadonlyMap<string, FuseVerifyResult>,
-  anchorByHash?: ReadonlyMap<string, AnchorRecord>
+  anchorByHash?: ReadonlyMap<string, AnchorRecord>,
+  signedFloor?: SignedFloorRecord
 ): CheckRecording {
   const lines: CheckLine[] = [];
   const v = proof.verification;
@@ -493,12 +556,13 @@ function buildRecording(
   // fused: the proof's signed attribution marks a fused artifact (profile
   // bitgraph-fuse/1). The commitment check runs over the fused bytes, or
   // over the original by reconstruction; its floor is the last verified
-  // anchor preceding the SLOT, not the commit.
+  // anchor preceding the SLOT, not the commit, or for a recording that signs
+  // a Base floor (enclave v10, bitgraph-fuse/3) that block itself.
   const marker = readFuseAttribution(proof.proof);
   let fused: CheckFused | undefined;
   if (marker !== null) {
-    const floor = fusedFloor(segment, anchorByHash, proof.slotCounter, proof.chainId);
-    const built = fusedLine(marker.placement, marker.originDigest !== undefined ? proof.proof.attribution?.message ?? null : null, fuseEvidence?.get(proof.proofHash), floor, proof);
+    const floor = signedFloor !== undefined ? ownBaseFloor(signedFloor) : fusedFloor(segment, anchorByHash, proof.slotCounter, proof.chainId);
+    const built = fusedLine(marker.placement, marker.originDigest !== undefined ? proof.proof.attribution?.message ?? null : null, fuseEvidence?.get(proof.proofHash), floor, proof, signedFloor);
     lines.push(built.line);
     fused = built.fused;
   }
@@ -516,7 +580,7 @@ function buildRecording(
     ...(filePath !== undefined && v?.tier === "full" ? { filePath } : {}),
     lines,
     result,
-    bounds: boundsFor(segment),
+    bounds: boundsFor(segment, signedFloor),
     ...(fused !== undefined ? { fused } : {}),
   };
 }
@@ -561,11 +625,29 @@ export function fusedFloor(
   };
 }
 
+/**
+ * The fused floor of a recording that signs a Base floor (enclave v10): the
+ * block itself, which a bitgraph-fuse/3 commitment binds. Null when the audit
+ * withheld it as a bound (the reason is in the floor detail).
+ */
+export function ownBaseFloor(floor: SignedFloorRecord): CheckFloor | null {
+  if (floor.bound !== "not-before") return null;
+  return {
+    chain: "base",
+    blockNumber: String(floor.blockNumber),
+    blockHash: floor.blockHash,
+    timestamp: floor.blockTimestamp,
+    anchorProofHash: floor.proofHash,
+    evidence: "signed-floor",
+    timeSource: floor.header === "checked" ? "header" : "signed",
+  };
+}
+
 const FLOOR_UNDETERMINED = "floor undetermined: no anchor precedes this slot in its epoch";
 
 function floorClause(floor: CheckFloor): string {
   const block = floor.blockNumber !== undefined ? `#${floor.blockNumber}` : floor.blockHash;
-  return `anchored block ${block} (${new Date(floor.timestamp * 1000).toISOString()})`;
+  return `${floor.chain === "base" ? "Base" : "anchored"} block ${block} (${new Date(floor.timestamp * 1000).toISOString()})`;
 }
 
 function fusedLine(
@@ -573,13 +655,19 @@ function fusedLine(
   originMessage: string | null,
   ev: FuseVerifyResult | undefined,
   floor: CheckFloor | null,
-  proof: ObservedProof
+  proof: ObservedProof,
+  signedFloor?: SignedFloorRecord
 ): { line: CheckLine; fused: CheckFused } {
   const slot = proof.slotCounter ?? "?";
   const where = placement !== null ? ` (placement ${placement})` : " (placement undeclared)";
-  const floorDetail = floor !== null
+  const floorDetail = floor !== null && floor.chain === "base"
+    ? `assembled after ${floorClause(floor)}, the Base block this recording signs as its floor` +
+      (floor.timeSource === "signed" ? "; no header for it is in this bundle, so confirming the block needs a Base lookup" : "")
+    : floor !== null
     ? `assembled after ${floorClause(floor)}, the last verified anchor preceding slot ${slot} in this epoch`
-    : proof.chainId !== ANCHORED_CHAIN
+    : signedFloor !== undefined
+      ? `floor undetermined: the Base floor this recording signs is not used as a bound (${signedFloor.withheldReason ?? "withheld"})`
+      : proof.chainId !== ANCHORED_CHAIN
       ? `floor undetermined: the slot is on chain "${proof.chainId}", not the anchored chain`
       : FLOOR_UNDETERMINED;
   const span = ev?.span !== undefined && ev.span !== null
@@ -713,9 +801,13 @@ function enclaveLine(attestedPcr0: string | undefined, attestationResult: ThreeV
   };
 }
 
-function boundsFor(segment: TemporalSegment | undefined): CheckBounds {
+function boundsFor(segment: TemporalSegment | undefined, signedFloor?: SignedFloorRecord): CheckBounds {
+  const withheld =
+    signedFloor !== undefined && signedFloor.bound === "withheld"
+      ? `; the Base floor it signs is not used as a bound (${signedFloor.withheldReason ?? "withheld"})`
+      : "";
   if (segment === undefined) {
-    return { status: "unanchored", detail: "no verified Ethereum anchor bounds this recording in this bundle" };
+    return { status: "unanchored", detail: `no verified Ethereum anchor bounds this recording in this bundle${withheld}` };
   }
   const lower = tightest(segment.lowerBounds, "not-before");
   const upper = tightest(segment.upperBounds, "not-after");
@@ -731,8 +823,8 @@ function boundsFor(segment: TemporalSegment | undefined): CheckBounds {
           : "unanchored";
   const detail =
     status === "unanchored"
-      ? "no verified Ethereum anchor bounds this recording in this bundle"
-      : `recorded ${boundsPhrase(status, notBefore, notAfter)}`;
+      ? `no verified Ethereum anchor bounds this recording in this bundle${withheld}`
+      : `recorded ${boundsPhrase(status, notBefore, notAfter)}${withheld}`;
   return {
     status,
     ...(notBefore !== undefined ? { notBefore } : {}),
@@ -756,11 +848,11 @@ function boundsPhrase(
   switch (status) {
     case "lower-bounded-with-following-anchor":
       return (
-        `after Ethereum block ${blockRef(notBefore as CheckBound)} (header verified in this bundle); precedes an anchor that consumed block ${blockRef(notAfter as CheckBound)} (header verified), an anchor-latency assumption rather than an upper bound on this recording` +
+        `${afterBlock(notBefore as CheckBound)}; precedes an anchor that consumed block ${blockRef(notAfter as CheckBound)} (header verified), an anchor-latency assumption rather than an upper bound on this recording` +
         weakerSuffix((notBefore as CheckBound).weaker || (notAfter as CheckBound).weaker)
       );
     case "lower-bounded":
-      return `after Ethereum block ${blockRef(notBefore as CheckBound)} (header verified in this bundle); no verified upper bound here` + weakerSuffix((notBefore as CheckBound).weaker);
+      return `${afterBlock(notBefore as CheckBound)}; no verified upper bound here` + weakerSuffix((notBefore as CheckBound).weaker);
     case "upper-bounded":
       return `with no verified lower bound in this bundle; an anchor that consumed block ${blockRef(notAfter as CheckBound)} followed (header verified), which is not an upper bound` + weakerSuffix((notAfter as CheckBound).weaker);
     default:
@@ -769,16 +861,30 @@ function boundsPhrase(
 }
 
 /**
+ * "after Ethereum block N (header verified in this bundle)", or for a Base
+ * floor (enclave v10) "after Base block N" with where its time comes from.
+ */
+function afterBlock(b: CheckBound): string {
+  if (b.chain !== "base") return `after Ethereum block ${blockRef(b)} (header verified in this bundle)`;
+  return b.timeSource === "header"
+    ? `after Base block ${blockRef(b)} (its floor, header checked in this bundle)`
+    : `after Base block ${blockRef(b)} (its floor, at the time the proof signs; confirming the block needs a Base lookup)`;
+}
+
+/**
  * The tightest bound of a kind: for not-before the LARGEST block number
  * (latest verified anchor known to precede), for not-after the SMALLEST.
+ * Block numbers compare only within one chain: across Ethereum and Base
+ * (enclave v10 floors) the block times compare instead.
  * Ties resolve by preferring chain-link evidence over counter-order.
  */
-function tightest(bounds: SegmentBound[], kind: "not-before" | "not-after"): SegmentBound | undefined {
+function tightest(bounds: FloorAwareBound[], kind: "not-before" | "not-after"): FloorAwareBound | undefined {
   const ofKind = bounds.filter((b) => b.kind === kind);
   if (ofKind.length === 0) return undefined;
   const sorted = [...ofKind].sort((a, b) => {
-    const an = a.blockNumber !== undefined ? BigInt(a.blockNumber) : BigInt(a.timestamp);
-    const bn = b.blockNumber !== undefined ? BigInt(b.blockNumber) : BigInt(b.timestamp);
+    const sameChain = a.chain === b.chain;
+    const an = sameChain && a.blockNumber !== undefined ? BigInt(a.blockNumber) : BigInt(a.timestamp);
+    const bn = sameChain && b.blockNumber !== undefined ? BigInt(b.blockNumber) : BigInt(b.timestamp);
     if (an !== bn) return kind === "not-before" ? (an > bn ? -1 : 1) : an < bn ? -1 : 1;
     if (a.weaker !== b.weaker) return a.weaker ? 1 : -1;
     return 0;
@@ -786,14 +892,16 @@ function tightest(bounds: SegmentBound[], kind: "not-before" | "not-after"): Seg
   return sorted[0];
 }
 
-function toBound(b: SegmentBound): CheckBound {
+function toBound(b: FloorAwareBound): CheckBound {
   return {
+    ...(b.chain === "base" ? { chain: "base" as const } : {}),
     ...(b.blockNumber !== undefined ? { blockNumber: b.blockNumber } : {}),
     blockHash: b.blockHash,
     timestamp: b.timestamp,
     anchorProofHash: b.anchorProofHash,
     evidence: b.evidence,
     weaker: b.weaker,
+    ...(b.timeSource !== undefined ? { timeSource: b.timeSource } : {}),
   };
 }
 
@@ -801,14 +909,18 @@ function toBound(b: SegmentBound): CheckBound {
 function shortBoundsPhrase(b: CheckBounds): string {
   switch (b.status) {
     case "lower-bounded-with-following-anchor":
-      return `after Ethereum block ${blockRef(b.notBefore as CheckBound)}, then an anchor at block ${blockRef(b.notAfter as CheckBound)}`;
+      return `after ${chainWord(b.notBefore as CheckBound)} block ${blockRef(b.notBefore as CheckBound)}, then an anchor at block ${blockRef(b.notAfter as CheckBound)}`;
     case "lower-bounded":
-      return `after Ethereum block ${blockRef(b.notBefore as CheckBound)}`;
+      return `after ${chainWord(b.notBefore as CheckBound)} block ${blockRef(b.notBefore as CheckBound)}`;
     case "upper-bounded":
       return `with no lower bound in this bundle, then an anchor at block ${blockRef(b.notAfter as CheckBound)} (not an upper bound)`;
     default:
       return "with no Ethereum bound in this bundle";
   }
+}
+
+function chainWord(b: CheckBound): string {
+  return b.chain === "base" ? "Base" : "Ethereum";
 }
 
 function blockRef(b: CheckBound): string {
@@ -915,6 +1027,12 @@ function collectContradictions(audit: AuditResult): CheckLine[] {
       push(`${finding.code}: ${finding.message}`);
     }
   }
+  // A floor problem (enclave v10 floors): a recording that signs two floors,
+  // a malformed or off-schedule Base floor, a floor header that contradicts
+  // the signed floor or matches none. Evidence that contradicts itself.
+  for (const problem of floorView(audit).problems) {
+    push(`${problem.code}: ${problem.message}${problem.path !== undefined ? ` (${problem.path})` : ""}`);
+  }
   // An embedded proofHash that does not match the recomputed one: the
   // stored proof file was altered after the ledger wrote it, or is not
   // what it claims.
@@ -1000,11 +1118,16 @@ function collectNotes(audit: AuditResult, recordings: CheckRecording[], anchors:
   return notes;
 }
 
-function collectNotChecked(hasAnchors: boolean): string[] {
+function collectNotChecked(hasAnchors: boolean, hasBaseFloors = false): string[] {
   const out: string[] = [];
   if (hasAnchors) {
     out.push(
       "whether the anchored Ethereum blocks are canonical: their headers are recomputed here, but canonicality needs an Ethereum node or a block explorer"
+    );
+  }
+  if (hasBaseFloors) {
+    out.push(
+      "whether the Base floor blocks are Base's own: a header in the bundle is checked here against the signed block, but that the block is on Base's chain needs a Base node or a block explorer"
     );
   }
   out.push(

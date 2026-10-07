@@ -159,8 +159,9 @@ const WITNESS_VERIFICATION_FAILURE_CODES: ReadonlySet<string> = new Set([
  * documented on the ExitFlags type: bit 1 is verification failures
  * (including unsupported-version rejections, and any export with a FALSE
  * claim or an export-shaped file that could not be checked), bit 2 is chain
- * or authority anomalies, divergences between valid proofs, or anchor
- * witness verification failures. artifact-unavailable is never a failure by
+ * or authority anomalies, divergences between valid proofs, anchor
+ * witness verification failures, a failed ceiling, or a floor problem
+ * (TemporalAnalysis.floorProblems). artifact-unavailable is never a failure by
  * itself; the attestation stage's results and informational anchor findings
  * never set bits (an export's own attestation claims are part of its
  * verdict); benign ingest findings never set bits.
@@ -180,8 +181,13 @@ export function computeExitFlags(result: AuditResult): ExitFlags {
   // A ceiling file that is present and wrong is failed evidence, like a bad
   // witness: bit 2. Pending, unmatched and status notes are reported, never bits.
   const ceilingFailures = (result.ceilings?.checks ?? []).some((c) => c.status === "failed");
+  // A floor problem (a proof signing two floors, a malformed or off-schedule
+  // Base floor, a floor header that contradicts or matches no signed floor)
+  // is bad evidence too: bit 2, never silently bounded.
+  const floorProblems = (result.temporal.floorProblems ?? []).length > 0;
   const chainAnomaliesOrDivergences =
     ceilingFailures ||
+    floorProblems ||
     result.anomalies.anomalies.length > 0 ||
     result.anomalies.divergences.length > 0 ||
     result.authorities.anomalies.length > 0 ||

@@ -31,7 +31,10 @@
  *   - "anchor-bounds": strict block separation between verified segment
  *     bounds; always assumption-dependent (anchor freshness). If BOTH
  *     directions satisfy strict separation the evidence is contradictory
- *     and answers nothing.
+ *     and answers nothing. Only ANCHOR bounds take part: a Base floor
+ *     (enclave v10, a segment bound with source "signed-floor") is a
+ *     not-before for its own recording and orders nothing across epochs,
+ *     and its block numbers are Base's, never comparable to Ethereum's.
  * Epoch pairs supported by neither are concurrent-or-unordered, and the
  * honest answer is "unordered", never a coin flip.
  */
@@ -215,13 +218,21 @@ function boundsStrictlyOrdered(upper: SegmentBound, lower: SegmentBound): boolea
   return upper.timestamp < lower.timestamp;
 }
 
+/** A Base floor bound (enclave v10; audit field source "signed-floor"), read structurally. */
+function isFloorBound(b: SegmentBound): boolean {
+  return (b as { source?: string }).source !== undefined;
+}
+
 function anchorPrecedes(
   firstSegment: TemporalSegment,
   secondSegment: TemporalSegment
 ): { weaker: boolean; upper: SegmentBound; lower: SegmentBound } | undefined {
   let best: { weaker: boolean; upper: SegmentBound; lower: SegmentBound } | undefined;
   for (const upper of firstSegment.upperBounds) {
+    if (isFloorBound(upper)) continue;
     for (const lower of secondSegment.lowerBounds) {
+      // Anchor bounds only: a Base floor orders no epoch.
+      if (isFloorBound(lower)) continue;
       if (!boundsStrictlyOrdered(upper, lower)) continue;
       const weaker = upper.weaker || lower.weaker;
       if (best === undefined || (best.weaker && !weaker)) {

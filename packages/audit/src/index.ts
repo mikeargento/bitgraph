@@ -65,6 +65,10 @@ export type {
   TemporalSegment,
   AnchorOrderedPair,
   TemporalAnalysis,
+  SignedFloorRecord,
+  FloorProblem,
+  FloorProblemCode,
+  FloorHeaderFile,
   AttestationCheck,
   NitroValidationOptions,
   NitroValidationResult,
@@ -109,6 +113,10 @@ export { identifyAnchors } from "./anchors.js";
 export { verifyAnchorWitnesses, verifyAnchorWitness } from "./witness.js";
 
 export { deriveTemporalBounds } from "./temporal.js";
+// Base floors (enclave v10): the floor each proof signs, read through signedFloorOf.
+export { readSignedFloors } from "./floors.js";
+export type { FloorEvidence, FloorReading } from "./floors.js";
+export { FLOOR_HEADER_VERSION } from "./ingest.js";
 export { verifyCeilings, BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID } from "./ceilings.js";
 export type { CeilingAuditOptions } from "./ceilings.js";
 

@@ -390,41 +390,51 @@ function executiveSummary(
   lines.push("### External time evidence");
   lines.push("");
   const t = s.temporal;
-  if (t.anchorsIdentified === 0) {
+  const bf = t.baseFloors;
+  if (t.anchorsIdentified === 0 && bf === undefined) {
     lines.push(
       "No Ethereum anchor proofs were observed. The causal order of the " +
         "proofs stands on its own; this report makes no wall-clock claims."
     );
     lines.push("");
   } else {
-    lines.push(
-      `${withCommas(t.anchorsIdentified)} Ethereum anchor ${plural(t.anchorsIdentified, "proof was", "proofs were")} ` +
-        "identified. An anchor is an ordinary chain member that committed " +
-        "the fingerprint of a public Ethereum block, giving the chain a " +
-        "contact point with a public timeline. " +
-        `${withCommas(t.anchorsWithVerifiedWitness)} ${plural(t.anchorsWithVerifiedWitness, "anchor", "anchors")} ` +
-        "came with witness material (the block header) that let this tool " +
-        "reconstruct the block fingerprint locally and confirm it against " +
-        "the signed anchor, entirely offline."
-    );
-    lines.push("");
-    lines.push(
-      "A verified anchor bounds time in one direction at a time. Proofs " +
-        "that come after an anchor in the chain were committed no earlier " +
-        "than that block's timestamp, because the block's fingerprint " +
-        "could not have been known before the block existed. That lower " +
-        "bound additionally assumes the anchored header is a genuine, " +
-        "publicly published Ethereum block: this offline audit checks the " +
-        "header's structure and hash binding, not proof-of-work, " +
-        "consensus, or chain membership, so it cannot confirm the block " +
-        "is real. Proofs that come before an anchor existed before the " +
-        "commit that consumed the block; reading that as a wall-clock " +
-        "ceiling additionally assumes the anchor consumed a recently " +
-        "published block. Every such bound in this report states its " +
-        "assumption. No individual proof's exact creation time is ever " +
-        "stated."
-    );
-    lines.push("");
+    if (t.anchorsIdentified > 0) {
+      lines.push(
+        `${withCommas(t.anchorsIdentified)} Ethereum anchor ${plural(t.anchorsIdentified, "proof was", "proofs were")} ` +
+          "identified. An anchor is an ordinary chain member that committed " +
+          "the fingerprint of a public Ethereum block, giving the chain a " +
+          "contact point with a public timeline. " +
+          `${withCommas(t.anchorsWithVerifiedWitness)} ${plural(t.anchorsWithVerifiedWitness, "anchor", "anchors")} ` +
+          "came with witness material (the block header) that let this tool " +
+          "reconstruct the block fingerprint locally and confirm it against " +
+          "the signed anchor, entirely offline."
+      );
+      lines.push("");
+      lines.push(
+        "A verified anchor bounds time in one direction at a time. Proofs " +
+          "that come after an anchor in the chain were committed no earlier " +
+          "than that block's timestamp, because the block's fingerprint " +
+          "could not have been known before the block existed. That lower " +
+          "bound additionally assumes the anchored header is a genuine, " +
+          "publicly published Ethereum block: this offline audit checks the " +
+          "header's structure and hash binding, not proof-of-work, " +
+          "consensus, or chain membership, so it cannot confirm the block " +
+          "is real. Proofs that come before an anchor existed before the " +
+          "commit that consumed the block; reading that as a wall-clock " +
+          "ceiling additionally assumes the anchor consumed a recently " +
+          "published block. Every such bound in this report states its " +
+          "assumption. No individual proof's exact creation time is ever " +
+          "stated."
+      );
+      lines.push("");
+    } else {
+      lines.push(
+        "No Ethereum anchor proofs were observed. After the cutover to Base floors (enclave v10) there " +
+          "are none: order after a record is the chain of proof hashes."
+      );
+      lines.push("");
+    }
+    if (bf !== undefined) baseFloorSummary(lines, report);
     lines.push(
       ...table(
         ["Temporal coverage", "Segments"],
@@ -436,6 +446,50 @@ function executiveSummary(
         ]
       )
     );
+    lines.push("");
+  }
+}
+
+/** The executive summary's paragraph on Base floors (enclave v10). Only written when a proof signs one or a floor problem was found. */
+function baseFloorSummary(lines: string[], report: AuditJsonReport): void {
+  const bf = report.summary.temporal.baseFloors;
+  if (bf === undefined) return;
+  if (bf.signed > 0) {
+    const rest = bf.signed - bf.headersChecked;
+    lines.push(
+      `${withCommas(bf.signed)} ${plural(bf.signed, "proof signs", "proofs sign")} a Base block as ` +
+        `${plural(bf.signed, "its", "their")} floor (commit.slotFloor, enclave v10). A proof that signs a floor was ` +
+        "committed no earlier than that block's time: the block's hash could not exist before the block, and the " +
+        "proof signs it. Proofs after it in the chain carry the same bound. A floor is a lower bound only: it " +
+        "bounds nothing from above, and it orders no epoch. " +
+        `${withCommas(bf.headersChecked)} of ${withCommas(bf.signed)} came with the block's header, checked against ` +
+        "the signed hash, number and time" +
+        (rest > 0
+          ? `; for the other ${withCommas(rest)} the time is the one the proof signs, on Base mainnet's schedule for ` +
+            "that block, and confirming the block needs a Base lookup. "
+          : ". ") +
+        "Like an anchored block, a floor additionally assumes the block is a genuine, publicly published Base " +
+        "block, which this offline audit cannot confirm." +
+        (bf.withheld > 0
+          ? ` ${withCommas(bf.withheld)} ${plural(bf.withheld, "floor is", "floors are")} not used as a bound; ` +
+            "the reasons are in the temporal bounds section."
+          : "")
+    );
+    lines.push("");
+  }
+  const problems = report.temporal.floorProblems ?? [];
+  if (problems.length > 0) {
+    lines.push(
+      `${withCommas(problems.length)} floor ${plural(problems.length, "problem was", "problems were")} found ` +
+        "(exit bit 2). A floor with a problem bounds nothing:"
+    );
+    lines.push("");
+    for (const p of problems.slice(0, MAX_TABLE_ROWS)) {
+      lines.push(
+        `- ${inlineCode(p.code)}${p.path !== undefined ? ` ${inlineCode(p.path)}` : ""}` +
+          `${p.proofHash !== undefined ? `, proof ${inlineCode(p.proofHash)}` : ""}: ${p.message}`
+      );
+    }
     lines.push("");
   }
 }
@@ -841,6 +895,22 @@ function temporalDetails(lines: string[], report: AuditJsonReport): void {
     }
     lines.push("");
   }
+  const floors = report.temporal.signedFloors ?? [];
+  if (floors.length > 0) {
+    lines.push("Base floors the proofs sign (enclave v10), each a not-before for its proof and never an upper bound:");
+    lines.push("");
+    for (const f of floors.slice(0, MAX_TABLE_ROWS)) {
+      lines.push(
+        `- Base block ${withCommas(f.blockNumber)} (${formatTimestamp(f.blockTimestamp)}, hash ${inlineCode(f.blockHash)}), ` +
+          `signed by ${inlineCode(f.proofHash)}: ` +
+          (f.header === "checked"
+            ? `header checked (${inlineCode(f.headerPath ?? "")})`
+            : "no header in the bundle; confirming the block needs a Base lookup") +
+          (f.bound === "not-before" ? "; bounds the proof not before that time." : `; not used as a bound: ${f.withheldReason ?? "withheld"}.`)
+      );
+    }
+    lines.push("");
+  }
   if (report.epochRelationships.anchorOrderedPairs.length > 0) {
     lines.push("Anchor-derived epoch ordering (assumption-dependent, covered portions only):");
     lines.push("");
@@ -859,6 +929,13 @@ function temporalDetails(lines: string[], report: AuditJsonReport): void {
 }
 
 function boundLine(bound: SegmentBound): string {
+  if (bound.source === "signed-floor") {
+    return (
+      `Committed no earlier than ${formatTimestamp(bound.timestamp)} ` +
+      `(Base block ${bound.blockNumber ?? "?"}, the floor signed by ${inlineCode(bound.anchorProofHash)}, ` +
+      `evidence: ${bound.evidence}${bound.weaker ? ", weaker" : ""}). ${bound.claim}`
+    );
+  }
   const direction =
     bound.kind === "not-before"
       ? "Committed no earlier than"
@@ -1005,12 +1082,13 @@ function exportDetail(lines: string[], e: ExportCheck): void {
   const t = e.times;
   lines.push(
     t.floor !== null
-      ? `- Floor: Ethereum block ${withCommas(t.floor.blockNumber)}, mined at ${formatTimestamp(t.floor.blockTimestamp)}, ` +
+      ? `- Floor: ${t.floor.chain === "base" ? "Base" : "Ethereum"} block ${withCommas(t.floor.blockNumber)}, ` +
+          `${t.floor.chain === "base" ? "stamped" : "mined"} at ${formatTimestamp(t.floor.blockTimestamp)}, ` +
           `hash ${inlineCode(t.floor.blockHash)}: the proof's signed floor block, its header checked by hash. ` +
           "Every file in the tree was recorded after it (the record floor). Committed bytes that carry this position's " +
           "commitment were also finished after it (the content floor); an original inside them, and a file recorded as is, " +
           "are not dated by it. What the floor covers for each file is stated per run below." +
-          confirmedNote("confirmed.floor", "Ethereum")
+          confirmedNote("confirmed.floor", t.floor.chain === "base" ? "Base" : "Ethereum")
       : `- Floor: not established (${why("floor.header")}).`
   );
   lines.push(

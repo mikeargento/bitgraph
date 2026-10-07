@@ -34,6 +34,7 @@
     "build": "tsc",
     "prepack": "rm -rf dist && tsc",
     "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test src/__tests__/*.test.ts",
     "bench": "node scripts/bench-audit.mjs"
   },
   "engines": {

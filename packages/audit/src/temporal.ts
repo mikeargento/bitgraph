@@ -47,6 +47,18 @@
  * are evidence, never divergence; overlapping or absent bounds mean
  * concurrent-or-unordered.
  *
+ * Base floors (enclave v10). A proof that signs a Base block as its floor
+ * (commit.slotFloor, read through floors.ts and signedFloorOf) is bounded
+ * NOT-BEFORE by that block, with evidence "signed-floor": the proof's own
+ * signed field. Proofs after it in the chain inherit the bound like an
+ * anchor's ("chain-link", or "counter-order", weaker). A floor never gives a
+ * not-after, to any proof: a later proof's floor block can predate this
+ * proof. Floors count toward an epoch's lower-bound coverage; cross-epoch
+ * ordering pairs stay anchor-only (a pair needs a not-after, which only an
+ * anchor supplies, and the after side is read from anchor bounds alone, so
+ * no ordering is ever claimed from floors). Proofs without slotFloor are not
+ * touched: a bundle from before the cutover yields exactly the bounds it did.
+ *
  * Run after verifyObservedProofs, reconstructChains, identifyAnchors, and
  * verifyAnchorWitnesses. Populates EpochRecord.anchorBounds on the given
  * reconstruction (the typed Phase 4c extension point) and returns the
@@ -68,6 +80,7 @@ import type {
   TemporalSegment,
 } from "./types.js";
 import { byCounterThenHash, parseCounter, pushMap } from "./validity.js";
+import { baseFloorTimeSentence, readSignedFloors, type FloorEvidence } from "./floors.js";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -102,20 +115,28 @@ export function deriveTemporalBounds(
     .filter((h) => !evidence.has(h))
     .sort();
 
+  // Base floors the proofs sign (enclave v10). Empty for older bundles.
+  const floors = readSignedFloors(ingest);
+
   // Per-partition segments.
   const segments: TemporalSegment[] = [];
+  const anchorLower = new Map<string, SegmentBound[]>();
   for (const partition of reconstruction.partitions) {
-    segments.push(...buildPartitionSegments(partition, byHash, evidence));
+    const built = buildPartitionSegments(partition, byHash, evidence, floors.bounds);
+    segments.push(...built.segments);
+    for (const [h, b] of built.anchorLower) anchorLower.set(h, b);
   }
 
   // Epoch-level aggregation and cross-epoch ordering.
-  const anchorOrderedPairs = aggregateEpochs(reconstruction, segments);
+  const anchorOrderedPairs = aggregateEpochs(reconstruction, segments, anchorLower);
 
   return {
     segments,
     anchorOrderedPairs,
     verifiedAnchorProofHashes,
     unverifiedAnchorProofHashes,
+    ...(floors.records.length > 0 ? { signedFloors: floors.records } : {}),
+    ...(floors.problems.length > 0 ? { floorProblems: floors.problems } : {}),
   };
 }
 
@@ -124,6 +145,32 @@ interface VerifiedAnchorEvidence {
   timestamp: number;
   blockHash: string;
   blockNumber?: string;
+  /** Present for a Base floor: how its time was read. Absent for an anchor. */
+  floor?: { timeSource: "header" | "signed" };
+}
+
+/** Tie-break strength of bound evidence at an equal block time. */
+const EVIDENCE_RANK: Record<BoundEvidence, number> = { "signed-floor": 2, "chain-link": 1, "counter-order": 0 };
+
+/** Candidate key of a Base floor: kept apart from anchor keys (a proof hash). */
+const FLOOR_KEY = "floor:";
+
+function floorSource(f: FloorEvidence): VerifiedAnchorEvidence {
+  return {
+    anchorProofHash: f.proofHash,
+    timestamp: f.timestamp,
+    blockHash: f.blockHash,
+    blockNumber: String(f.blockNumber),
+    floor: { timeSource: f.timeSource },
+  };
+}
+
+/** The tighter of two floors (later block time; at a tie, the lower proof hash, for determinism). */
+function laterFloor(a: FloorEvidence | undefined, b: FloorEvidence | undefined): FloorEvidence | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  if (a.timestamp !== b.timestamp) return a.timestamp > b.timestamp ? a : b;
+  return a.proofHash <= b.proofHash ? a : b;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,15 +186,26 @@ interface MemberBounds {
 function buildPartitionSegments(
   partition: ChainPartition,
   byHash: Map<string, ObservedProof>,
-  evidence: Map<string, VerifiedAnchorEvidence>
-): TemporalSegment[] {
+  anchorEvidence: Map<string, VerifiedAnchorEvidence>,
+  floorBounds: Map<string, FloorEvidence>
+): { segments: TemporalSegment[]; anchorLower: Map<string, SegmentBound[]> } {
   const members = partition.memberProofHashes.map((h) => byHash.get(h) as ObservedProof);
   // Keyed by CHAIN hash: this map is used only to resolve prevB64 pointers
   // (here and in collectAncestors), and prevB64 references the predecessor's
   // chain hash, not its identity hash.
   const memberSet = new Map<string, ObservedProof>(members.map((m) => [m.chainHash, m]));
 
-  const anchors = members.filter((m) => evidence.has(m.proofHash));
+  const anchors = members.filter((m) => anchorEvidence.has(m.proofHash));
+
+  // Base floors signed in this partition. Floor sources join the evidence
+  // map under their own keys, so selection treats a floor exactly as it
+  // treats an anchor's not-before.
+  const floored = members.filter((m) => floorBounds.has(m.proofHash));
+  let evidence = anchorEvidence;
+  if (floored.length > 0) {
+    evidence = new Map(anchorEvidence);
+    for (const m of floored) evidence.set(FLOOR_KEY + m.proofHash, floorSource(floorBounds.get(m.proofHash) as FloorEvidence));
+  }
 
   // Hash-link structure within the partition.
   const successors = new Map<string, ObservedProof[]>();
@@ -166,6 +224,58 @@ function buildPartitionSegments(
     chainAfter.set(anchor.proofHash, collectDescendants(anchor, successors));
     chainBefore.set(anchor.proofHash, collectAncestors(anchor, memberSet));
   }
+
+  // Base floors reach a member three ways: its own signed floor; the
+  // tightest floor among its hash-link ancestors (chain-link); the tightest
+  // floor signed at a lower commit counter (counter-order). Both inherited
+  // forms are computed in one pass each, never per pair.
+  const chainFloor = new Map<string, FloorEvidence | undefined>();
+  const counterFloor = new Map<string, FloorEvidence | undefined>();
+  if (floored.length > 0) {
+    const pred = (m: ObservedProof): ObservedProof | undefined => {
+      if (m.prevB64 === undefined) return undefined;
+      const p = memberSet.get(m.prevB64);
+      return p === undefined || p.proofHash === m.proofHash ? undefined : p;
+    };
+    for (const m of members) {
+      const path: ObservedProof[] = [];
+      const seen = new Set<string>();
+      let cur: ObservedProof | undefined = m;
+      while (cur !== undefined && !chainFloor.has(cur.proofHash) && !seen.has(cur.proofHash)) {
+        seen.add(cur.proofHash);
+        path.push(cur);
+        cur = pred(cur);
+      }
+      let carry =
+        cur !== undefined && chainFloor.has(cur.proofHash)
+          ? laterFloor(chainFloor.get(cur.proofHash), floorBounds.get(cur.proofHash))
+          : undefined;
+      for (let i = path.length - 1; i >= 0; i--) {
+        const node = path[i] as ObservedProof;
+        chainFloor.set(node.proofHash, carry);
+        carry = laterFloor(carry, floorBounds.get(node.proofHash));
+      }
+    }
+    const counted = members
+      .map((m) => ({ m, c: parseCounter(m.counter) }))
+      .filter((x): x is { m: ObservedProof; c: bigint } => x.c !== undefined)
+      .sort((a, b) => (a.c < b.c ? -1 : a.c > b.c ? 1 : 0));
+    let running: FloorEvidence | undefined;
+    for (let i = 0; i < counted.length; ) {
+      let j = i;
+      while (j < counted.length && (counted[j] as { c: bigint }).c === (counted[i] as { c: bigint }).c) j++;
+      let group: FloorEvidence | undefined;
+      for (let k = i; k < j; k++) {
+        const m = (counted[k] as { m: ObservedProof }).m;
+        counterFloor.set(m.proofHash, running);
+        group = laterFloor(group, floorBounds.get(m.proofHash));
+      }
+      running = laterFloor(running, group);
+      i = j;
+    }
+  }
+  const mixed = floored.length > 0 && anchors.length > 0;
+  const anchorLower = new Map<string, SegmentBound[]>();
 
   // Candidate bounds per member.
   const memberBounds: MemberBounds[] = members.map((member) => {
@@ -202,6 +312,26 @@ function buildPartitionSegments(
         memberCounter < anchorCounter
       ) {
         if (!upperCandidates.has(anchorHash)) upperCandidates.set(anchorHash, "counter-order");
+      }
+    }
+
+    // A partition holding both anchors and floors keeps each member's
+    // anchor-only not-before apart, for the cross-epoch pairs.
+    if (mixed && lowerCandidates.size > 0) {
+      anchorLower.set(member.proofHash, selectBounds("not-before", lowerCandidates, evidence));
+    }
+
+    // Base floors: not-before only. Never an upper candidate.
+    if (floored.length > 0) {
+      const own = floorBounds.get(member.proofHash);
+      if (own !== undefined) lowerCandidates.set(FLOOR_KEY + own.proofHash, "signed-floor");
+      const viaChain = chainFloor.get(member.proofHash);
+      if (viaChain !== undefined && !lowerCandidates.has(FLOOR_KEY + viaChain.proofHash)) {
+        lowerCandidates.set(FLOOR_KEY + viaChain.proofHash, "chain-link");
+      }
+      const viaCounter = counterFloor.get(member.proofHash);
+      if (viaCounter !== undefined && !lowerCandidates.has(FLOOR_KEY + viaCounter.proofHash)) {
+        lowerCandidates.set(FLOOR_KEY + viaCounter.proofHash, "counter-order");
       }
     }
 
@@ -245,7 +375,7 @@ function buildPartitionSegments(
   }
 
   segments.sort(compareSegments);
-  return segments;
+  return { segments, anchorLower };
 }
 
 /**
@@ -277,8 +407,9 @@ function selectBounds(
         ? a.info.timestamp > b.info.timestamp
         : a.info.timestamp < b.info.timestamp;
     }
-    // Tie: prefer chain-link evidence, then the lower anchor hash.
-    if (a.evidenceKind !== b.evidenceKind) return a.evidenceKind === "chain-link";
+    // Tie: prefer the proof's own signed floor, then chain-link evidence over
+    // counter order, then the lower key.
+    if (a.evidenceKind !== b.evidenceKind) return EVIDENCE_RANK[a.evidenceKind] > EVIDENCE_RANK[b.evidenceKind];
     return a.anchorHash < b.anchorHash;
   };
 
@@ -286,15 +417,11 @@ function selectBounds(
   let bestChain: (typeof entries)[number] | undefined;
   for (const entry of entries) {
     if (better(entry, best)) best = entry;
-    if (entry.evidenceKind === "chain-link" && better(entry, bestChain)) bestChain = entry;
+    if (entry.evidenceKind !== "counter-order" && better(entry, bestChain)) bestChain = entry;
   }
 
   const bounds: SegmentBound[] = [makeBound(kind, best as (typeof entries)[number])];
-  if (
-    bestChain !== undefined &&
-    ((best as (typeof entries)[number]).anchorHash !== bestChain.anchorHash ||
-      (best as (typeof entries)[number]).evidenceKind !== "chain-link")
-  ) {
+  if (bestChain !== undefined && bestChain !== best) {
     bounds.push(makeBound(kind, bestChain));
   }
   return bounds;
@@ -305,6 +432,7 @@ function makeBound(
   entry: { anchorHash: string; evidenceKind: BoundEvidence; info: VerifiedAnchorEvidence }
 ): SegmentBound {
   const { info, evidenceKind } = entry;
+  if (info.floor !== undefined) return makeFloorBound(entry);
   const iso = new Date(info.timestamp * 1000).toISOString();
   const blockName =
     info.blockNumber !== undefined ? `Ethereum block ${info.blockNumber}` : "an Ethereum block";
@@ -342,9 +470,48 @@ function makeBound(
   };
 }
 
+/**
+ * A not-before from a Base floor (enclave v10). The proof that signs the
+ * floor block is named in anchorProofHash; source, chain and timeSource say
+ * what it is. Always evidence, never an assumption, and never a not-after.
+ */
+function makeFloorBound(entry: { anchorHash: string; evidenceKind: BoundEvidence; info: VerifiedAnchorEvidence }): SegmentBound {
+  const { info, evidenceKind } = entry;
+  const timeSource = (info.floor as { timeSource: "header" | "signed" }).timeSource;
+  const iso = new Date(info.timestamp * 1000).toISOString();
+  const evidenceSentence =
+    evidenceKind === "signed-floor"
+      ? "Evidence: the proof signs this block as its floor (commit.slotFloor)."
+      : evidenceKind === "chain-link"
+        ? "Evidence: a verified hash-link path connects these proofs to a proof that signs this block as its floor."
+        : "Evidence: commit-counter ordering within the partition only, after a proof that signs this block as its " +
+          "floor; this relies on the authority's counter discipline rather than verifiable hash links (weaker).";
+  const claim =
+    `These proofs were committed no earlier than ${iso} (unix ${info.timestamp}), the time of Base block ` +
+    `${info.blockNumber}: the block hash was unpredictable before that time and the floor proof signs it. ` +
+    `${baseFloorTimeSentence(info.blockNumber as string, info.timestamp, timeSource)} Reading this as a wall-clock ` +
+    `floor additionally assumes the block is a genuine, publicly published Base block, which this offline audit ` +
+    `cannot confirm. A floor is never an upper bound on anything. ${evidenceSentence}`;
+  return {
+    kind: "not-before",
+    anchorProofHash: info.anchorProofHash,
+    source: "signed-floor",
+    chain: "base",
+    timeSource,
+    ...(info.blockNumber !== undefined ? { blockNumber: info.blockNumber } : {}),
+    blockHash: info.blockHash,
+    timestamp: info.timestamp,
+    evidence: evidenceKind,
+    weaker: evidenceKind === "counter-order",
+    basis: "block-hash-unpredictability",
+    boundClass: "evidence",
+    claim,
+  };
+}
+
 function boundSetKey(mb: MemberBounds): string {
   const part = (bounds: SegmentBound[]): string =>
-    bounds.map((b) => `${b.anchorProofHash}:${b.evidence}`).join(",");
+    bounds.map((b) => `${b.source === "signed-floor" ? FLOOR_KEY : ""}${b.anchorProofHash}:${b.evidence}`).join(",");
   return `${part(mb.lower)}|${part(mb.upper)}`;
 }
 
@@ -420,6 +587,8 @@ interface CoverageRepresentative {
   anchorProofHash: string;
   blockHash: string;
   blockNumber?: string;
+  /** Present when the representative is a Base floor. */
+  floor?: true;
   /** Evidence class of the bound chosen as the conservative representative. */
   evidence: BoundEvidence;
   /** True when that representative rests on counter-order evidence. */
@@ -428,9 +597,16 @@ interface CoverageRepresentative {
 
 interface EpochCoverage {
   totalProofCount: number;
-  /** Distinct members covered by any not-before bound, and the most conservative (minimum) covering timestamp. */
+  /** Distinct members covered by any not-before bound (anchor or Base floor), and the most conservative (minimum) covering timestamp. */
   lowerCovered: Set<string>;
   lowerMin?: CoverageRepresentative;
+  /** Whether any not-before bound counted here is a Base floor (changes the claim's wording only). */
+  lowerFromFloors: boolean;
+  /** Whether any not-before bound counted here is an anchor. */
+  lowerFromAnchors: boolean;
+  /** The same, from anchor bounds alone: the after side of a cross-epoch pair. Floors never order epochs. */
+  anchorLowerCovered: Set<string>;
+  anchorLowerMin?: CoverageRepresentative;
   /** Distinct members covered by any not-after bound, and the most conservative (maximum) covering timestamp. */
   upperCovered: Set<string>;
   upperMax?: CoverageRepresentative;
@@ -457,15 +633,69 @@ function weakerCaveat(weaker: boolean): string {
     : "";
 }
 
+/** Fold one not-before bound into a coverage minimum, preferring stronger evidence at an equal time. */
+function foldLower(current: CoverageRepresentative | undefined, bound: SegmentBound): CoverageRepresentative {
+  if (
+    current === undefined ||
+    bound.timestamp < current.timestamp ||
+    (bound.timestamp === current.timestamp && current.weaker && !bound.weaker)
+  ) {
+    return {
+      timestamp: bound.timestamp,
+      anchorProofHash: bound.anchorProofHash,
+      blockHash: bound.blockHash,
+      ...(bound.blockNumber !== undefined ? { blockNumber: bound.blockNumber } : {}),
+      ...(bound.source === "signed-floor" ? { floor: true as const } : {}),
+      evidence: bound.evidence,
+      weaker: bound.weaker,
+    };
+  }
+  return current;
+}
+
+/** The epoch-level not-before claim, worded for what grounds it. Pure-anchor wording is unchanged. */
+function lowerClaim(cov: EpochCoverage): string {
+  const min = cov.lowerMin as CoverageRepresentative;
+  if (!cov.lowerFromFloors) {
+    return (
+      `${cov.lowerCovered.size} of ${cov.totalProofCount} observed proofs of this epoch were ` +
+      `committed no earlier than unix ${min.timestamp}, grounded in block-hash ` +
+      `unpredictability through verified anchor witnesses. This additionally assumes the anchored ` +
+      `header is a genuine, publicly published Ethereum block, which this offline audit cannot ` +
+      `confirm.` +
+      weakerCaveat(min.weaker) +
+      ` The remaining proofs sit causally before the covering anchors and carry no lower bound ` +
+      `from this evidence.`
+    );
+  }
+  const grounds = cov.lowerFromAnchors
+    ? "the Base blocks the proofs sign as their floors and verified Ethereum anchor witnesses"
+    : "the Base blocks the proofs sign as their floors";
+  const blocks = cov.lowerFromAnchors ? "Base or Ethereum block" : "Base block";
+  return (
+    `${cov.lowerCovered.size} of ${cov.totalProofCount} observed proofs of this epoch were ` +
+    `committed no earlier than unix ${min.timestamp} (${min.floor ? `Base block ${min.blockNumber}` : `Ethereum block ${min.blockNumber ?? "(unnumbered)"}`}), ` +
+    `grounded in block-hash unpredictability through ${grounds}. This additionally assumes each ` +
+    `${blocks} is a genuine, publicly published one, which this offline audit cannot confirm.` +
+    weakerCaveat(min.weaker) +
+    ` The remaining proofs sign no Base floor and follow no covering floor or anchor; they carry no ` +
+    `lower bound from this evidence. A floor is a lower bound only: it orders no epoch.`
+  );
+}
+
 function aggregateEpochs(
   reconstruction: ReconstructionResult,
-  segments: TemporalSegment[]
+  segments: TemporalSegment[],
+  anchorLower: Map<string, SegmentBound[]>
 ): AnchorOrderedPair[] {
   const coverage = new Map<string, EpochCoverage>();
   for (const epoch of reconstruction.epochRelationships.epochs) {
     coverage.set(epoch.epochId, {
       totalProofCount: epoch.proofCount,
       lowerCovered: new Set(),
+      lowerFromFloors: false,
+      lowerFromAnchors: false,
+      anchorLowerCovered: new Set(),
       upperCovered: new Set(),
     });
   }
@@ -483,19 +713,25 @@ function aggregateEpochs(
     // never marked weaker when a hash-link bound justifies the same time.
     for (const bound of segment.lowerBounds) {
       for (const h of segment.memberProofHashes) cov.lowerCovered.add(h);
-      if (
-        cov.lowerMin === undefined ||
-        bound.timestamp < cov.lowerMin.timestamp ||
-        (bound.timestamp === cov.lowerMin.timestamp && cov.lowerMin.weaker && !bound.weaker)
-      ) {
-        cov.lowerMin = {
-          timestamp: bound.timestamp,
-          anchorProofHash: bound.anchorProofHash,
-          blockHash: bound.blockHash,
-          ...(bound.blockNumber !== undefined ? { blockNumber: bound.blockNumber } : {}),
-          evidence: bound.evidence,
-          weaker: bound.weaker,
-        };
+      if (bound.source === "signed-floor") cov.lowerFromFloors = true;
+      else cov.lowerFromAnchors = true;
+      cov.lowerMin = foldLower(cov.lowerMin, bound);
+    }
+    // Anchor-only coverage, for the pairs. In a partition holding both
+    // anchors and floors a member's anchor bound may have been displaced
+    // from its segment by a tighter floor, so it is read per member there.
+    if (segment.memberProofHashes.some((h) => anchorLower.has(h))) {
+      for (const h of segment.memberProofHashes) {
+        for (const bound of anchorLower.get(h) ?? []) {
+          cov.anchorLowerCovered.add(h);
+          cov.anchorLowerMin = foldLower(cov.anchorLowerMin, bound);
+        }
+      }
+    } else {
+      for (const bound of segment.lowerBounds) {
+        if (bound.source === "signed-floor") continue;
+        for (const h of segment.memberProofHashes) cov.anchorLowerCovered.add(h);
+        cov.anchorLowerMin = foldLower(cov.anchorLowerMin, bound);
       }
     }
     // Maximum timestamp for not-after, same chain-link tie preference.
@@ -526,6 +762,7 @@ function aggregateEpochs(
       bounds.push({
         kind: "not-before",
         anchorProofHash: cov.lowerMin.anchorProofHash,
+        ...(cov.lowerMin.floor ? { source: "signed-floor" as const, chain: "base" as const } : {}),
         ...(cov.lowerMin.blockNumber !== undefined ? { blockNumber: cov.lowerMin.blockNumber } : {}),
         blockHash: cov.lowerMin.blockHash,
         witnessTimestamp: cov.lowerMin.timestamp,
@@ -535,15 +772,7 @@ function aggregateEpochs(
         basis: "block-hash-unpredictability",
         evidence: cov.lowerMin.evidence,
         weaker: cov.lowerMin.weaker,
-        claim:
-          `${cov.lowerCovered.size} of ${cov.totalProofCount} observed proofs of this epoch were ` +
-          `committed no earlier than unix ${cov.lowerMin.timestamp}, grounded in block-hash ` +
-          `unpredictability through verified anchor witnesses. This additionally assumes the anchored ` +
-          `header is a genuine, publicly published Ethereum block, which this offline audit cannot ` +
-          `confirm.` +
-          weakerCaveat(cov.lowerMin.weaker) +
-          ` The remaining proofs sit causally before the covering anchors and carry no lower bound ` +
-          `from this evidence.`,
+        claim: lowerClaim(cov),
       });
     }
     if (cov.upperMax !== undefined) {
@@ -583,18 +812,20 @@ function aggregateEpochs(
     for (const after of epochs) {
       if (after.epochId === before.epochId) continue;
       const covB = coverage.get(after.epochId) as EpochCoverage;
-      if (covB.lowerMin === undefined) continue;
-      if (covA.upperMax.timestamp >= covB.lowerMin.timestamp) continue;
+      // The after side is read from anchor bounds alone: floors order no epoch.
+      const lowerB = covB.anchorLowerMin;
+      if (lowerB === undefined) continue;
+      if (covA.upperMax.timestamp >= lowerB.timestamp) continue;
       const upperEvidence = covA.upperMax.evidence;
-      const lowerEvidence = covB.lowerMin.evidence;
-      const weaker = covA.upperMax.weaker || covB.lowerMin.weaker;
+      const lowerEvidence = lowerB.evidence;
+      const weaker = covA.upperMax.weaker || lowerB.weaker;
       pairs.push({
         beforeEpochId: before.epochId,
         afterEpochId: after.epochId,
         upperAnchorProofHash: covA.upperMax.anchorProofHash,
         upperBoundTimestamp: covA.upperMax.timestamp,
-        lowerAnchorProofHash: covB.lowerMin.anchorProofHash,
-        lowerBoundTimestamp: covB.lowerMin.timestamp,
+        lowerAnchorProofHash: lowerB.anchorProofHash,
+        lowerBoundTimestamp: lowerB.timestamp,
         basis: "anchor-bounds",
         assumptionDependent: true,
         upperEvidence,
@@ -602,15 +833,15 @@ function aggregateEpochs(
         weaker,
         beforeCoveredProofCount: covA.upperCovered.size,
         beforeTotalProofCount: covA.totalProofCount,
-        afterCoveredProofCount: covB.lowerCovered.size,
+        afterCoveredProofCount: covB.anchorLowerCovered.size,
         afterTotalProofCount: covB.totalProofCount,
         note:
           `The anchor-covered portion of epoch ${before.epochId} ` +
           `(${covA.upperCovered.size} of ${covA.totalProofCount} proofs) precedes the ` +
           `anchor-covered portion of epoch ${after.epochId} ` +
-          `(${covB.lowerCovered.size} of ${covB.totalProofCount} proofs): the first is bounded ` +
+          `(${covB.anchorLowerCovered.size} of ${covB.totalProofCount} proofs): the first is bounded ` +
           `not-after unix ${covA.upperMax.timestamp} and the second not-before unix ` +
-          `${covB.lowerMin.timestamp}. One-sided evidence about the covered portions only; the ` +
+          `${lowerB.timestamp}. One-sided evidence about the covered portions only; the ` +
           `not-after side rests on the anchor-freshness assumption documented on its bound.` +
           (weaker
             ? ` At least one side rests on commit-counter ordering rather than a verified hash-link ` +

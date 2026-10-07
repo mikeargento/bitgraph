@@ -24,8 +24,9 @@
  * about its file) with their places in verifyExport's order, and
  * exportRunClaims puts a run's whole list back together. The three time
  * claims are kept apart, never merged: the floor (the committed bytes were
- * finished after Ethereum block N; an as-is leaf has no floor), the ceiling
- * on Base (the record existed by Base block B, provisional until B is
+ * finished after the block the proof signs: Ethereum block N for an anchor
+ * floor, Base block N for a Base floor, enclave v10; an as-is leaf has no
+ * floor), the ceiling on Base (the record existed by Base block B, provisional until B is
  * checked against Base) and the ceiling on Ethereum (the record existed by
  * Ethereum block H). An export with any FALSE claim fails the audit (exit
  * bit 1), as a bad proof does; its attestation claims count, because an
@@ -394,7 +395,10 @@ function claimKey(c: ExportClaimRecord): string {
 
 function copyTimes(t: ExportVerifyResult["times"]): ExportTimes {
   return {
-    floor: t.floor === null ? null : { blockNumber: t.floor.blockNumber, blockHash: t.floor.blockHash, blockTimestamp: t.floor.blockTimestamp },
+    floor:
+      t.floor === null
+        ? null
+        : { ...(t.floor.chain === "base" ? { chain: "base" as const } : {}), blockNumber: t.floor.blockNumber, blockHash: t.floor.blockHash, blockTimestamp: t.floor.blockTimestamp },
     ceilingBase:
       t.ceilingBase === null
         ? null

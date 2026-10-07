@@ -254,6 +254,8 @@ function whenRow(rec: CheckRecording): HTMLElement {
       line.append(grey("after "), dark(fmtTime(b.notBefore.timestamp, true)), grey(", then an anchor at "), dark(fmtTime(b.notAfter.timestamp, false)), grey(" (not an upper bound)"));
     } else if (b.notBefore !== undefined) {
       line.append(grey("after "), dark(fmtTime(b.notBefore.timestamp, true)));
+      // A Base floor (enclave v10) names its block: there is no anchor to open below.
+      if (b.notBefore.chain === "base") line.append(grey(`, Base block ${b.notBefore.blockNumber ?? b.notBefore.blockHash}, the floor this recording signs`));
     } else if (b.notAfter !== undefined) {
       line.append(grey("no lower bound in this bundle; an anchor followed at "), dark(fmtTime(b.notAfter.timestamp, true)), grey(" (not an upper bound)"));
     }
@@ -273,7 +275,13 @@ function floorRow(rec: CheckRecording): HTMLElement | null {
   const row = el("div", { class: "when" });
   const line = el("div", { class: "when-line" });
   if (rec.fused.floor !== null) {
-    line.append(grey("fused bytes assembled after "), dark(fmtTime(rec.fused.floor.timestamp, true)), grey(`, the last anchor before slot ${rec.fused.span?.slotCounter ?? "?"}`));
+    line.append(
+      grey("fused bytes assembled after "),
+      dark(fmtTime(rec.fused.floor.timestamp, true)),
+      grey(rec.fused.floor.chain === "base"
+        ? `, Base block ${rec.fused.floor.blockNumber ?? rec.fused.floor.blockHash}, the floor this recording signs`
+        : `, the last anchor before slot ${rec.fused.span?.slotCounter ?? "?"}`),
+    );
   } else {
     line.append(grey(rec.fused.floorDetail));
   }

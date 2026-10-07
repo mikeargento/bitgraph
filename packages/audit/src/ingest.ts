@@ -20,6 +20,10 @@
  * exactly like a proof file. A file that declares another bitgraph-export
  * format, or lacks an export's structure, is listed as rejected.
  *
+ * A floor header file (bitgraph-floor-header/1, found by its version field)
+ * is evidence too: the header of the Base block a proof signs as its floor
+ * (commit.slotFloor, enclave v10), listed for the temporal stage.
+ *
  * Memory: archives are never unpacked to disk and never loaded whole.
  * Every entry is hashed incrementally as it streams. Only small JSON
  * candidates (at most MAX_CANDIDATE_JSON_BYTES) are buffered for parsing,
@@ -51,6 +55,7 @@ import { combineEntryDigests } from "./contents-hash.js";
 import type {
   AnchorWitnessFile,
   CeilingFile,
+  FloorHeaderFile,
   ArtifactRecord,
   AuditFinding,
   BundleManifest,
@@ -108,6 +113,8 @@ const BUNDLE_VERSION = "bitgraph-bundle/1";
 const WITNESS_VERSION = "bitgraph-anchor-witness/1";
 const CEILING_VERSION_TAG = "bitgraph-ceiling/1";
 const CEILING_STATUS_VERSION_TAG = "bitgraph-ceiling-status/1";
+/** A Base floor block's header, beside the proof that signs it (the carrier/3 unpacker writes these). */
+export const FLOOR_HEADER_VERSION = "bitgraph-floor-header/1";
 /** Every export format starts with this; only EXPORT_FORMAT ("bitgraph-export/1") is checked. */
 const EXPORT_FORMAT_PREFIX = "bitgraph-export/";
 
@@ -369,6 +376,7 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
   const witnesses: AnchorWitnessFile[] = [];
   const ceilings: CeilingFile[] = [];
   const ceilingStatuses: CeilingFile[] = [];
+  const floorHeaders: FloorHeaderFile[] = [];
   const exportFiles: ExportFile[] = [];
   const artifactsByHex = new Map<string, ArtifactRecord>();
   let manifest: ManifestReport | undefined;
@@ -481,6 +489,11 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
 
     // A ceiling in time travels beside its proof: evidence, never an artifact.
     const pv = parsed !== undefined ? (parsed as Record<string, unknown>)["version"] : undefined;
+    // So does a Base floor block's header: evidence for the temporal stage.
+    if (pv === FLOOR_HEADER_VERSION) {
+      floorHeaders.push({ path: entry.path, fileSha256Hex: entry.sha256Hex, json: parsed as Record<string, unknown> });
+      continue;
+    }
     if (pv === CEILING_VERSION_TAG || pv === CEILING_STATUS_VERSION_TAG) {
       (pv === CEILING_VERSION_TAG ? ceilings : ceilingStatuses).push({
         path: entry.path,
@@ -517,6 +530,7 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
     unsupportedVersion: unsupportedVersions.length,
     artifacts: artifacts.length,
     witnesses: witnesses.length,
+    ...(floorHeaders.length > 0 ? { floorHeaders: floorHeaders.length } : {}),
     ceilings: ceilings.length + ceilingStatuses.length,
     exports: exportFiles.length,
     skippedUnsafePaths,
@@ -531,6 +545,7 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
     unsupportedVersions,
     artifacts,
     witnesses,
+    ...(floorHeaders.length > 0 ? { floorHeaders } : {}),
     ceilings,
     ceilingStatuses,
     exports: exportFiles,

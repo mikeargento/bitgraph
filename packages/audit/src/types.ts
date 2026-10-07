@@ -342,6 +342,19 @@ export interface AnchorWitnessFile {
   witness: Record<string, unknown>;
 }
 
+/**
+ * A floor header file (bitgraph-floor-header/1):
+ *   { version, chain: "base", evmChainId: 8453, blockNumber, blockHash, blockTimestamp, header }
+ * where header is the block's RLP as 0x hex. Only the header bytes are
+ * evidence: they are checked by keccak-256 against the floor a proof signs,
+ * and the other fields are a convenience for readers.
+ */
+export interface FloorHeaderFile {
+  path: string;
+  fileSha256Hex: string;
+  json: Record<string, unknown>;
+}
+
 // ---------------------------------------------------------------------------
 // Manifest
 // ---------------------------------------------------------------------------
@@ -413,6 +426,8 @@ export interface IngestCounts {
   artifacts: number;
   /** Anchor witness files. */
   witnesses: number;
+  /** Floor header files (bitgraph-floor-header/1). Absent when there are none. */
+  floorHeaders?: number;
   /** Ceiling files (bitgraph-ceiling/1) and ceiling status notes (bitgraph-ceiling-status/1). */
   ceilings?: number;
   /** Export-shaped files (format "bitgraph-export/..."), checked or rejected. */
@@ -486,6 +501,12 @@ export interface IngestResult {
   artifacts: ArtifactRecord[];
   /** Anchor witness files in observation order. */
   witnesses: AnchorWitnessFile[];
+  /**
+   * Floor header files (bitgraph-floor-header/1): the header of a Base block
+   * a proof signs as its floor, the way the carrier/3 unpacker writes it.
+   * Evidence, never artifacts. Optional so older embedders' IngestResults still type.
+   */
+  floorHeaders?: FloorHeaderFile[];
   /** Ceiling files (bitgraph-ceiling/1) in observation order. Optional so older embedders' IngestResults still type. */
   ceilings?: CeilingFile[];
   /** Ceiling status notes (bitgraph-ceiling-status/1): a package saying why a ceiling is absent. */
@@ -668,9 +689,13 @@ export interface EpochAnchorBound {
    * anchor evidence. "not-before": they came after it. Always one-sided.
    */
   kind: "not-after" | "not-before";
-  /** Canonical hash of the anchor proof providing the bound. */
+  /** Canonical hash of the anchor proof providing the bound (for a Base floor, the proof that signs it). */
   anchorProofHash: string;
-  /** Ethereum block number parsed from the signed anchor title URL (decimal string). */
+  /** Absent for an anchor bound; "signed-floor" when the representative bound is a Base floor a proof signs. */
+  source?: "signed-floor";
+  /** Absent for Ethereum; "base" when the representative bound is a Base block. */
+  chain?: "base";
+  /** Block number (decimal string): the anchored Ethereum block, or the Base floor block. */
   blockNumber?: string;
   /** Ethereum block hash from the signed attribution message. */
   blockHash?: string;
@@ -1072,8 +1097,17 @@ export interface AnchorWitnessAnalysis {
  *   "counter-order"  only the commit counters order them. This relies on
  *                    the authority's per-chain counter discipline rather
  *                    than verifiable hash links, and is marked weaker.
+ *   "signed-floor"   the bounded proof itself signs the floor block
+ *                    (commit.slotFloor, a Base block, enclave v10). Nothing
+ *                    stands between the proof and the block: it is the
+ *                    proof's own signed field. Not weaker.
+ *
+ * A Base floor bound reaches other proofs only the way an anchor bound
+ * does: through a verified hash-link path ("chain-link") or by counter
+ * order ("counter-order"), and only as a NOT-BEFORE. A floor never yields a
+ * not-after: a later proof's floor block can predate this proof.
  */
-export type BoundEvidence = "chain-link" | "counter-order";
+export type BoundEvidence = "chain-link" | "counter-order" | "signed-floor";
 
 /**
  * One one-sided temporal bound on a segment, derived from a verified
@@ -1103,7 +1137,27 @@ export type BoundEvidence = "chain-link" | "counter-order";
  */
 export interface SegmentBound {
   kind: "not-before" | "not-after";
+  /**
+   * The proof that supplies the bound: the anchor proof, or for a Base floor
+   * (source "signed-floor") the proof that signs the floor block.
+   */
   anchorProofHash: string;
+  /**
+   * Absent for an anchor bound (an Ethereum anchor proof with a verified
+   * witness, every bound before enclave v10). "signed-floor": the Base block a
+   * proof signs as commit.slotFloor (enclave v10). Always a not-before.
+   */
+  source?: "signed-floor";
+  /** Absent for Ethereum (every anchor bound); "base" for a Base floor. */
+  chain?: "base";
+  /**
+   * Base floors only: where the block time comes from. "header": a header in
+   * the bundle hashes to the signed block and carries the signed number and
+   * time. "signed": no header for the block is in the bundle; the time is the
+   * one the proof signs (on Base mainnet's schedule for its number), and
+   * confirming the block needs a Base lookup.
+   */
+  timeSource?: "header" | "signed";
   /** Block number confirmed by the verified witness header (decimal string). */
   blockNumber?: string;
   /** Locally recomputed block hash (0x + 64 lowercase hex). */
@@ -1197,6 +1251,52 @@ export interface AnchorOrderedPair {
   note: string;
 }
 
+/**
+ * A Base floor one proof signs (commit.slotFloor, enclave v10), as the
+ * temporal pass read it. Listed only for Base floors: an Ethereum floor
+ * (commit.slotAnchor) is read through the anchor proofs, as before.
+ */
+export interface SignedFloorRecord {
+  proofHash: string;
+  chain: "base";
+  blockNumber: number;
+  /** 0x-prefixed lowercase hex, as signed. */
+  blockHash: string;
+  /** Unix seconds, as signed. */
+  blockTimestamp: number;
+  /** "checked": a header in the bundle hashes to the signed block (headerPath names it). "not-carried": none is here. */
+  header: "checked" | "not-carried";
+  /** Bundle path of the header that was checked (a floor header file, a ceiling file or an export). */
+  headerPath?: string;
+  /** "not-before": the floor bounds the proof. "withheld": it does not, for withheldReason. */
+  bound: "not-before" | "withheld";
+  withheldReason?: string;
+}
+
+/** Problem codes of the floor stage. Every one sets exit bit 2. */
+export type FloorProblemCode =
+  /** The proof signs two floors (commit.slotAnchor and commit.slotFloor): ambiguous, bounds nothing. */
+  | "floor-ambiguous"
+  /** commit.slotFloor does not name Base mainnet, or lacks a 32-byte hash, a number or a time. */
+  | "floor-malformed"
+  /** The signed Base floor time is not Base mainnet's schedule for the signed block number. */
+  | "floor-off-schedule"
+  /** A floor header file names a block a proof signs, and does not match it (hash, number, time or chain). */
+  | "floor-header-mismatch"
+  /** A floor header file is unreadable or not a Base header. */
+  | "floor-header-malformed"
+  /** A floor header file hashes to a block no proof in the bundle signs as its floor. */
+  | "floor-header-unmatched";
+
+export interface FloorProblem {
+  code: FloorProblemCode;
+  /** The proof concerned, when there is one. */
+  proofHash?: string;
+  /** The bundle path concerned (a proof file or a floor header file). */
+  path?: string;
+  message: string;
+}
+
 /** Output of the temporal bounds pass. */
 export interface TemporalAnalysis {
   /** Per-partition segments with their bounds, deterministically ordered. */
@@ -1207,6 +1307,10 @@ export interface TemporalAnalysis {
   verifiedAnchorProofHashes: string[];
   /** Identified anchors with no verified witness: they still establish causal order, but confer no wall-clock evidence. Sorted. */
   unverifiedAnchorProofHashes: string[];
+  /** Base floors the proofs sign (enclave v10), in observation order. Absent when no proof signs one. */
+  signedFloors?: SignedFloorRecord[];
+  /** Floor problems (exit bit 2). Absent when there are none. */
+  floorProblems?: FloorProblem[];
 }
 
 // ---------------------------------------------------------------------------
@@ -1378,6 +1482,8 @@ export interface CeilingCheck {
   /** One line for people, e.g. "Ceiling: included in Base block N at hh:mm:ss UTC. ..."; it never claims settlement the file does not prove. */
   label?: string;
   window?: {
+    /** "base" when the floor block (the one the proof signs) is a Base block; absent for Ethereum or no floor. */
+    floorChain?: "base";
     floorBlock: number | null;
     floorTime: number | null;
     ceilingChainId: number;
@@ -1471,8 +1577,14 @@ export interface ExportClaimRecord {
 
 /** The three time claims as verifyExport establishes them. Never merged; a null field was not established. */
 export interface ExportTimes {
-  /** The committed bytes were finished after this Ethereum block (the proof's signed floor block, its header checked by hash). */
-  floor: { blockNumber: number; blockHash: string; blockTimestamp: number } | null;
+  /**
+   * The committed bytes were finished after this block (the proof's signed
+   * floor block, its header checked by hash), on its chain: chain absent is
+   * Ethereum (an anchor floor, commit.slotAnchor), "base" a Base floor
+   * (commit.slotFloor, enclave v10). Absent rather than "ethereum" so reports
+   * on older exports stay byte-identical.
+   */
+  floor: { chain?: "base"; blockNumber: number; blockHash: string; blockTimestamp: number } | null;
   /** The record existed by this Base block, at its time. Provisional until the block is checked against Base (offline, always provisional). */
   ceilingBase: { blockNumber: number; blockHash: string; blockTimestamp: number; provisional: boolean } | null;
   /** The record existed by this Ethereum block (through Base's output root; needs no trust in Base). */
@@ -1626,7 +1738,9 @@ export interface AuditResult {
  *   witness failed its offline verification (a witness-* code: RLP or
  *   header malformation, block-hash mismatch, digest-binding mismatch,
  *   block-number mismatch, an invalid candidate anchor, or an unmatched
- *   witness). Benign findings are reported but never set exit bits: ingest
+ *   witness), or any floor problem (a floor-* code: a proof signing two
+ *   floors, a malformed or off-schedule Base floor, a floor header that
+ *   contradicts the signed floor or matches none). Benign findings are reported but never set exit bits: ingest
  *   advisories (duplicate copies, manifest advisories, unsafe paths,
  *   embedded proofHash mismatches) and informational anchor findings
  *   (anchor-metadata-disagreement, anchor-metadata-only-claim,
@@ -1801,6 +1915,22 @@ export interface ReportSummary {
     segmentsLowerBounded: number;
     segmentsUpperBounded: number;
     segmentsUnanchored: number;
+    /**
+     * Base floors (enclave v10), as counts. Present only when a proof signs a
+     * Base floor or a floor problem was found, so older reports are unchanged.
+     */
+    baseFloors?: {
+      /** Proofs that sign a Base floor (commit.slotFloor). */
+      signed: number;
+      /** Of those, floors that bound their proof not-before. */
+      bounding: number;
+      /** Of those, floors whose header the bundle carries, checked against the signed block. */
+      headersChecked: number;
+      /** Floors not used as a bound (see SignedFloorRecord.withheldReason). */
+      withheld: number;
+      /** Floor problems (exit bit 2). */
+      problems: number;
+    };
   };
   /** Exports (bitgraph-export/1), as counts. Present only when the bundle carries export-shaped files. */
   exports?: {
@@ -1878,6 +2008,10 @@ export interface AuditJsonReport {
     segments: TemporalSegment[];
     verifiedAnchorProofHashes: string[];
     unverifiedAnchorProofHashes: string[];
+    /** Base floors the proofs sign (enclave v10). Absent when there are none. */
+    signedFloors?: SignedFloorRecord[];
+    /** Floor problems (exit bit 2). Absent when there are none. */
+    floorProblems?: FloorProblem[];
   };
   summary: ReportSummary;
 }

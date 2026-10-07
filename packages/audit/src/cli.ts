@@ -21,11 +21,12 @@ import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
-import { parseCarrier, verifyCarrier } from "@mikeargento/bitgraph-verify";
-import type { VerificationPolicy } from "@mikeargento/bitgraph-verify";
+import { CARRIER_VERSION_3, baseHeaderFields, parseCarrier, verifyCarrier } from "@mikeargento/bitgraph-verify";
+import type { CarrierPayload, VerificationPolicy } from "@mikeargento/bitgraph-verify";
 import { auditToolVersion, computeExitFlags, runAudit } from "./audit.js";
 import { attestationTimestampMs } from "./attestation.js";
 import { exportRunClaims } from "./exports.js";
+import { FLOOR_HEADER_VERSION } from "./ingest.js";
 import { buildJsonReport } from "./report-json.js";
 import { buildMarkdownReport } from "./report-md.js";
 import type { ExitFlags } from "./types.js";
@@ -62,11 +63,27 @@ function helpText(): string {
     USAGE_LINE,
     "",
     "The bundle may be a directory, a .tar archive, a .tar.gz/.tgz,",
-    "or a single bitgraph-carrier/1 file (a file with its proof inside):",
-    "a carrier is unpacked and audited as the bundle it carries, and its",
-    "own verdict (TRUE / FALSE / UNDETERMINED, with the time window) is",
-    "printed first.",
-    "archive. The audit runs entirely offline: no RPC, no HTTP, no DNS.",
+    "or a single BitGraphed file (bitgraph-carrier/1, /2 or /3: a file",
+    "with its proof inside): a carrier is unpacked and audited as the",
+    "bundle it carries, and its own verdict (TRUE / FALSE / UNDETERMINED,",
+    "with the time window) is printed first. The unpacked bundle holds the",
+    "committed bytes and proof.json, and the floor: for /1 and /2 the",
+    "Ethereum anchor proofs and their witnesses under ethereum-anchors/",
+    "(anchor-floor.json, anchor-floor.witness.json, and the closing",
+    "anchor's pair when the file carries it); for /3 the Base block the",
+    "proof signs as its floor, as base-floor/floor-header.json",
+    "(bitgraph-floor-header/1: chain, evmChainId, blockNumber, blockHash,",
+    "blockTimestamp, and the header's RLP as 0x hex). A /3 file has no",
+    "closing anchor: order after the record is the chain of proof hashes.",
+    "The audit runs entirely offline: no RPC, no HTTP, no DNS.",
+    "",
+    "Floors. A proof's floor is the block the enclave signs into it: an",
+    "Ethereum anchor (commit.slotAnchor, enclave v7 to v9) or a Base block",
+    "(commit.slotFloor, enclave v10). A Base floor bounds its proof not",
+    "before the block's time, never after anything. A floor header file",
+    "(bitgraph-floor-header/1) anywhere in the bundle is checked against",
+    "the floor a proof signs; without one, the time is the signed one and",
+    "confirming the block needs a Base lookup.",
     "",
     "Exports (bitgraph-export/1) anywhere in the bundle are found by their",
     "format field. Each is checked with verifyExport once per file in the",
@@ -122,6 +139,10 @@ function helpText(): string {
     "      RLP malformation, an invalid candidate anchor, or an unmatched",
     "      witness), or a ceiling in time (bitgraph-ceiling/1) that fails",
     "      its check against its proof (wrong writer, root, block, header).",
+    "      Also a floor problem: a proof that signs two floors (an Ethereum",
+    "      anchor and a Base block), a Base floor that is malformed or off",
+    "      Base mainnet's schedule, or a floor header file that contradicts",
+    "      the floor a proof signs or matches none.",
     "      A pending ceiling or a ceiling status note never sets a bit.",
     "      Benign findings are reported but never set exit bits:",
     "      duplicate copies, manifest advisories, unsafe paths, embedded",
@@ -256,6 +277,45 @@ function exitMeaning(flags: ExitFlags): string {
   return parts.join("; ");
 }
 
+/**
+ * Write a carrier's floor into the unpacked bundle. /1 and /2: the Ethereum
+ * anchor proofs and witnesses under ethereum-anchors/, exactly as before.
+ * /3: the Base block the proof signs as its floor, as
+ * base-floor/floor-header.json (bitgraph-floor-header/1); no anchor proof
+ * stands under it and there is no closing anchor to write.
+ */
+async function writeCarrierFloor(dir: string, payload: CarrierPayload): Promise<void> {
+  const floor = payload.floor;
+  if (floor.basis === "base-header") {
+    const fields = baseHeaderFields(floor.header);
+    const out = join(dir, "base-floor");
+    await mkdir(out);
+    await writeFile(
+      join(out, "floor-header.json"),
+      JSON.stringify(
+        {
+          version: FLOOR_HEADER_VERSION,
+          chain: "base",
+          evmChainId: 8453,
+          ...(fields !== null ? { blockNumber: fields.blockNumber, blockHash: fields.blockHash, blockTimestamp: fields.timestamp } : {}),
+          header: floor.header,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+  const anchors = join(dir, "ethereum-anchors");
+  await mkdir(anchors);
+  await writeFile(join(anchors, "anchor-floor.json"), JSON.stringify(floor.anchor, null, 2));
+  await writeFile(join(anchors, "anchor-floor.witness.json"), JSON.stringify({ version: "bitgraph-anchor-witness/1", ...floor.witness }, null, 2));
+  if (payload.ceiling.status === "present") {
+    await writeFile(join(anchors, "anchor-ceiling.json"), JSON.stringify(payload.ceiling.anchor, null, 2));
+    await writeFile(join(anchors, "anchor-ceiling.witness.json"), JSON.stringify({ version: "bitgraph-anchor-witness/1", ...payload.ceiling.witness }, null, 2));
+  }
+}
+
 async function main(): Promise<number> {
   let parsed: ParsedArgs | "help";
   try {
@@ -286,8 +346,8 @@ async function main(): Promise<number> {
   }
 
   /* A single carrier file: unpack it to a temp bundle (the committed bytes,
-     the proof, the floor anchor and witness, the ceiling pair when present)
-     and audit THAT, after printing the carrier's own offline verdict. The
+     the proof, and the floor: for /1 and /2 the floor anchor and witness and
+     the ceiling pair when present; for /3 the Base floor header) and audit THAT, after printing the carrier's own offline verdict. The
      temp dir is the audit's input, so the reports describe exactly what the
      file carries; everything else about the run is unchanged. Detection is
      from the last 8 bytes only, so no ordinary bundle path changes behaviour. */
@@ -316,11 +376,17 @@ async function main(): Promise<number> {
               ((verdict.payload.proof as { environment?: { attestation?: { reportB64?: string } } }).environment?.attestation?.reportB64) ?? ""
             )
           : null;
+        // carrier/3 (enclave v10): the floor is a Base block and no closing
+        // anchor exists; order after the record is the chain of proof hashes.
+        const v3 = verdict.payload?.carrier === CARRIER_VERSION_3 || b?.notBefore.chain === "base";
+        const chainWord = b?.notBefore.chain === "base" ? "Base" : "Ethereum";
         const lines = [
           `carrier: ${verdict.verdict}${verdict.carrier === "corrupt" ? " (block unreadable: corrupted, not judged)" : ""}`,
-          b ? `  no earlier than: block ${b.notBefore.blockNumber}${b.notBefore.timestamp !== null ? ` (mined ${new Date(b.notBefore.timestamp * 1000).toISOString()})` : ""}` : null,
+          b ? `  no earlier than: ${chainWord} block ${b.notBefore.blockNumber}${b.notBefore.timestamp !== null ? ` (${v3 ? "stamped" : "mined"} ${new Date(b.notBefore.timestamp * 1000).toISOString()})` : ""}` : null,
           attestedMs !== null ? `  committed:       ${new Date(attestedMs).toISOString()} per the enclave platform's signed clock` : null,
-          b ? `  committed before: ${b.notAfter === null ? "NOT FETCHED (the closing anchor is not inside this file)" : `the anchoring of block ${b.notAfter.blockNumber}${b.notAfter.timestamp !== null ? ` (that block mined ${new Date(b.notAfter.timestamp * 1000).toISOString()})` : ""}`}` : null,
+          b && v3
+            ? "  committed before: no ceiling in position (none exists for a Base floor: order after the record is the chain of proof hashes)"
+            : b ? `  committed before: ${b.notAfter === null ? "NOT FETCHED (the closing anchor is not inside this file)" : `the anchoring of block ${b.notAfter.blockNumber}${b.notAfter.timestamp !== null ? ` (that block mined ${new Date(b.notAfter.timestamp * 1000).toISOString()})` : ""}`}` : null,
           ...verdict.reasons.map((r) => `  - ${r}`),
         ].filter((l): l is string => l !== null);
         process.stdout.write(lines.join("\n") + "\n");
@@ -331,14 +397,7 @@ async function main(): Promise<number> {
           const name = basename(parsed.bundlePath).replace(/\.bitgraph(\.[^.]+)$/i, "$1").replace(/\.bitgraph$/i, "") || "artifact";
           await writeFile(join(dir, name), parsedCarrier.inner);
           await writeFile(join(dir, "proof.json"), JSON.stringify(parsedCarrier.payload.proof, null, 2));
-          const anchors = join(dir, "ethereum-anchors");
-          await mkdir(anchors);
-          await writeFile(join(anchors, "anchor-floor.json"), JSON.stringify(parsedCarrier.payload.floor.anchor, null, 2));
-          await writeFile(join(anchors, "anchor-floor.witness.json"), JSON.stringify({ version: "bitgraph-anchor-witness/1", ...parsedCarrier.payload.floor.witness }, null, 2));
-          if (parsedCarrier.payload.ceiling.status === "present") {
-            await writeFile(join(anchors, "anchor-ceiling.json"), JSON.stringify(parsedCarrier.payload.ceiling.anchor, null, 2));
-            await writeFile(join(anchors, "anchor-ceiling.witness.json"), JSON.stringify({ version: "bitgraph-anchor-witness/1", ...parsedCarrier.payload.ceiling.witness }, null, 2));
-          }
+          await writeCarrierFloor(dir, parsedCarrier.payload);
           bundlePath = dir;
         }
       }
@@ -393,6 +452,7 @@ async function main(): Promise<number> {
     for (const line of c.settlement?.lines ?? []) process.stdout.write(`  ${line}\n`);
   }
   for (const s of result.ceilings?.statuses ?? []) process.stdout.write(`ceiling ${s.status} ${s.path}: ${s.note}\n`);
+  for (const p of result.temporal.floorProblems ?? []) process.stdout.write(`floor PROBLEM ${p.code}${p.path !== undefined ? ` ${p.path}` : ""}: ${p.message}\n`);
   for (const e of result.exports?.checks ?? []) {
     if (e.status !== "checked") {
       process.stdout.write(`export NOT CHECKED ${e.path}: ${e.reason ?? e.status}\n`);
@@ -409,7 +469,7 @@ async function main(): Promise<number> {
       const c = firstClaims.find((x) => x.id === id);
       return c ? `not established (${c.result}: ${c.detail})` : "not established";
     };
-    process.stdout.write(`  floor: ${t.floor ? `committed bytes finished after Ethereum block ${t.floor.blockNumber} (mined ${when(t.floor.blockTimestamp)})` : why("floor.header")}\n`);
+    process.stdout.write(`  floor: ${t.floor ? `committed bytes finished after ${t.floor.chain === "base" ? "Base" : "Ethereum"} block ${t.floor.blockNumber} (${t.floor.chain === "base" ? "stamped" : "mined"} ${when(t.floor.blockTimestamp)})` : why("floor.header")}\n`);
     process.stdout.write(`  ceiling on Base: ${t.ceilingBase ? `existed by Base block ${t.ceilingBase.blockNumber} (${when(t.ceilingBase.blockTimestamp)})${t.ceilingBase.provisional ? ", provisional until checked against Base" : ""}` : why("ceiling.base")}\n`);
     process.stdout.write(`  ceiling on Ethereum: ${t.ceilingEthereum ? `existed by Ethereum block ${t.ceilingEthereum.blockNumber} (${when(t.ceilingEthereum.blockTimestamp)})` : why("ceiling.ethereum")}\n`);
   }

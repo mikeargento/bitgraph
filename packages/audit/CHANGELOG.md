@@ -2,6 +2,15 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
+## Unreleased (Base floors, enclave v10)
+
+- Base floors. A proof that signs a Base block as its floor (`commit.slotFloor`, enclave v10; read through `signedFloorOf`) gets a not-before segment bound with `source: "signed-floor"`, `chain: "base"` and `timeSource` (`"header"` when a header in the bundle checks against the signed block, `"signed"` when none is there and confirming the block needs a Base lookup). Proofs after it inherit the bound by hash link or, weaker, by counter. A floor never gives a not-after. New `BoundEvidence` value `"signed-floor"`. Epoch not-before coverage counts Base-floored proofs; cross-epoch ordering pairs stay anchor-only, so floors never order epochs.
+- `TemporalAnalysis.signedFloors` (one record per Base floor: header checked or not carried, bound or withheld with the reason, such as a floor stamped after the attestation document) and `floorProblems` (`floor-ambiguous` for a proof signing both floors, `floor-malformed`, `floor-off-schedule`, `floor-header-mismatch`, `floor-header-malformed`, `floor-header-unmatched`). Any floor problem sets exit bit 2; a floor with a problem bounds nothing.
+- Floor header files (`bitgraph-floor-header/1`, found by version): the header of a Base floor block, evidence for the temporal stage. Ceiling files and exports that carry a Base floor header serve too.
+- CLI: a `bitgraph-carrier/3` file unpacks its floor as `base-floor/floor-header.json` (no anchor proofs, no closing anchor) and its window prints the Base block and that no ceiling in position exists. Export floor lines and `ExportTimes.floor.chain` name Base; ceiling windows carry `floorChain: "base"`.
+- Reports: the JSON report's `temporal.signedFloors` / `floorProblems` and `summary.temporal.baseFloors`; Markdown paragraphs and bound lines for Base floors. A bundle with no `slotFloor` proof yields byte-identical JSON and Markdown reports (checked against 0.9.0 on the real fixtures and the settlement bundle).
+- `npm test` in the package runs its own suites (`src/__tests__/*.test.ts`).
+
 ## 0.9.0 (2026-10-04)
 
 - Exports (`bitgraph-export/1`). Ingest finds an export by its `format` field wherever it sits (directory, `.tar`, `.tar.gz`, in memory); it is evidence, never an artifact. The tree/1 proof it carries is recorded as an observed proof from the export's path, so it joins verification tiers, partitions, chain links, counter gap and collision checks, authority and attestation analysis like any proof file (its artifact is the 84-byte root document, which travels inside the export, so at the proof level it counts as observed without artifact bytes). A file that declares another `bitgraph-export/` format (`export-unsupported-format`), lacks an export's structure (`export-malformed`), or opens an export but is past the export JSON cap (`export-too-large`) is reported and not checked.
