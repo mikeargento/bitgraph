@@ -2,6 +2,15 @@
 // a proof whose slot was allocated before the epoch's first authenticated
 // anchor, so no proof on that chain can lack a floor. Anchors are exempt, which
 // is what stops it deadlocking. Run: node --import tsx/esm anchor-v8.mts
+// SUPERSEDED by enclave v10 (2026-10-06): on the anchored chain every position now
+// carries a Base floor (commit.slotFloor) and no Ethereum slotAnchor, so this v8 floor
+// behaviour is not reachable on the current enclave. Kept as the record of what v8 did;
+// it runs only against a v8 build (HARNESS_LEGACY_ENCLAVE=v8). The anchor checks that
+// still hold in v10 live in base-floor-v10.mts.
+if (process.env["HARNESS_LEGACY_ENCLAVE"] !== "v8") {
+  console.log("skipped: v8 floor behaviour, superseded by enclave v10 (see base-floor-v10.mts)");
+  process.exit(0);
+}
 import { startStack, post, randomDigestB64 } from "./lib.mts";
 import { getPublicKeyAsync, signAsync, utils } from "@noble/ed25519";
 import { sha256 } from "@noble/hashes/sha256";

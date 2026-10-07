@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentEpochHasAnchor, currentEpochId, TEE_URL, teeRestarting503 } from "@/lib/anchor-gate";
+import { commitsMayProceed, currentEpochId, TEE_URL, teeRestarting503 } from "@/lib/anchor-gate";
 import { FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isAnchorMark, isSlotRecord, retryAfterHeaders, rotationGuardActive } from "@/lib/fuse";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     // A slot allocated inside the slot TTL before the daily restart can never
     // be committed; refuse now with the same retryable shape as the restart.
     if (rotationGuardActive()) return teeRestarting503();
-    const gate = await currentEpochHasAnchor();
+    const gate = await commitsMayProceed();
     if (gate !== "yes") return teeRestarting503();
     const gatedEpoch = await currentEpochId();
     if (gatedEpoch === null) return teeRestarting503();

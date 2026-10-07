@@ -131,7 +131,7 @@ function makeFailureText(err: unknown): string {
       case "tee-restarting":
         return `Nothing was BitGraphed: ${err.message}. The boundary restarts once a day at 23:59 UTC; run bitgraph_record again with the same paths in a minute.`;
       case "floor-missing":
-        return `Nothing was BitGraphed: ${err.message}. This boundary does not return the floor block a tree needs; it is older than enclave v9.`;
+        return `Nothing was BitGraphed: ${err.message}. This boundary does not return the floor block a tree needs (a Base block from enclave v10, an Ethereum anchor from v9); it is older than enclave v9, or the floor could not be read.`;
       case "network":
       case "transport":
         return `Nothing is known to be BitGraphed: ${err.message}. Run bitgraph_record again with the same paths: if the tree did land, its files come back as on record once the site indexes them; otherwise they are made again.`;
@@ -171,7 +171,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     },
     {
       instructions:
-        "BitGraph gives a file's bytes a causal position in a public sequence bracketed by Ethereum anchors. bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: one Merkle tree under one position (tree/1), every file one leaf, a single file a tree of one; with as_is=true the files are recorded as they are. " +
+        "BitGraph gives a file's bytes a causal position in a sequence kept inside a hardware enclave, with a public block before it (the floor: a Base block the enclave fixes when the position opens; Ethereum on earlier proofs) and a Base transaction after it (the ceiling). bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: one Merkle tree under one position (tree/1), every file one leaf, a single file a tree of one; with as_is=true the files are recorded as they are. " +
         "Files are read on this machine and never uploaded or modified; the committed bytes are virtual and never written. bitgraph_record writes the BitGraph's export (bitgraph-export/1) beside what was recorded: keep it, because a file proves it is in the BitGraph with its export, the proof alone commits only the tree's root. Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. bitgraph_check and bitgraph_get_proof are read-only. " +
         "A BitGraphed file (one that carries its own proof, bitgraph-carrier/1) is recognized by its structure: bitgraph_check judges it offline from the proof inside and states the window, and bitgraph_record never re-mints it, because the envelope is not the recorded thing, the bytes inside are. " +
         "To do work INSIDE a BitGraph, call bitgraph_open BEFORE starting: it returns a position and its commitment; put the commitment string into the task, seal the task with bitgraph_commit within 120 seconds, then record the outputs with bitgraph_record. The task then could not have existed before the position's floor block, and the outputs sit after it.",
@@ -549,7 +549,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         const structured = { outcome: "opened", task: true, slot_counter: b.slotCounter, epoch: b.epoch, commitment: b.commitment, commitment_base64: b.commitmentB64, floor: b.floor, fuse_token: b.token, expires_in_seconds: SLOT_TTL_SECONDS, instructions: TASK_INSTRUCTIONS };
         if (response_format === "json") return ok(JSON.stringify(structured, null, 2), structured);
         return ok(
-          `Opened position ${b.slotCounter} before any work exists. Floor: ${b.floor ? `not before block ${b.floor.block}` : "the sealed proof will carry the signed floor"}.\n\n` +
+          `Opened position ${b.slotCounter} before any work exists. Floor: ${b.floor ? `not before ${b.floor.chain === "base" ? "Base" : "Ethereum"} block ${b.floor.block}` : "the sealed proof will carry the signed floor"}.\n\n` +
             `Commitment (put this string into the task): ${b.commitment}\n\n${TASK_INSTRUCTIONS}\n\n` +
             "```json\n" + JSON.stringify({ fuse_token: b.token, commitment: b.commitment, slot_counter: b.slotCounter, epoch: b.epoch, floor: b.floor }, null, 2) + "\n```",
           structured
@@ -585,7 +585,9 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         const sealed = await sealTask(config, state, path !== undefined ? { path } : { digestB64: fromUrlSafeB64(digest!.trim()) });
         const counter = sealed.proof.commit?.counter ?? null;
         const epoch = sealed.proof.commit?.epochId ?? null;
-        const floor = sealed.proof.commit?.slotAnchor?.blockNumber ?? null;
+        const signedFloor = sealed.proof.commit?.slotFloor ?? sealed.proof.commit?.slotAnchor ?? null;
+        const floor = signedFloor?.blockNumber ?? null;
+        const floorChain = sealed.proof.commit?.slotFloor ? "Base" : "Ethereum";
         /* The proof goes beside the sealed file, written here, whole. Given
          * only a digest there is no file to put it beside, so it is handed
          * back with the one instruction that matters. */
@@ -601,10 +603,10 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         } else {
           proofNote = "Save the JSON below as a file beside the task bytes, whole and unedited, every field, including environment.attestation.reportB64, the long base64 string, copied exactly: a proof missing slotAllocation, environment, or the attestation cannot be verified. ";
         }
-        const structured = { outcome: "sealed", slot_counter: state.slot.counter, counter, epoch: epoch ? toUrlSafeB64(epoch) : null, floor_block: floor, artifact_digest: toUrlSafeB64(sealed.artifactDigestB64), commitment_offsets: sealed.offsets, proof_path: proofPath, instructions: proofNote.trim(), proof: sealed.proof };
+        const structured = { outcome: "sealed", slot_counter: state.slot.counter, counter, epoch: epoch ? toUrlSafeB64(epoch) : null, floor_block: floor, floor_chain: floor !== null ? floorChain.toLowerCase() : null, artifact_digest: toUrlSafeB64(sealed.artifactDigestB64), commitment_offsets: sealed.offsets, proof_path: proofPath, instructions: proofNote.trim(), proof: sealed.proof };
         if (response_format === "json") return ok(JSON.stringify(structured, null, 2), structured);
         return ok(
-          `Sealed the task at position ${counter ?? "?"} (reserved at ${state.slot.counter}).${floor !== null ? ` Not before block ${floor}.` : ""} ` +
+          `Sealed the task at position ${counter ?? "?"} (reserved at ${state.slot.counter}).${floor !== null ? ` Not before ${floorChain} block ${floor}.` : ""} ` +
             (sealed.offsets !== null ? `The commitment string was found in the sealed bytes at offset ${sealed.offsets[0]}. ` : "The bytes were not read here; a verifier looks for the commitment string in them. ") +
             proofNote +
             "Record the outputs with bitgraph_record when they exist." +
@@ -736,11 +738,11 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     {
       title: "Get a BitGraph proof",
       description:
-        "Fetch a BitGraph proof and its context: causal position, every position the same bytes occupy, the row a set member holds (one of N), and the two-sided Ethereum anchor window " +
-        "(after the floor block's time; before the ANCHORING of the later block, a position bound, never that block's mine time). Look up by digest (base64, either form), by BitGraph number (e.g. '4523' or '#4,523', current epoch), or by file path (hashed locally). " +
+        "Fetch a BitGraph proof and its context: causal position, every position the same bytes occupy, the row a set member holds (one of N), and its window " +
+        "(after the floor block's time, a Base block, or an Ethereum block on earlier proofs; existed by the Base ceiling block). Look up by digest (base64, either form), by BitGraph number (e.g. '4523' or '#4,523', current epoch), or by file path (hashed locally). " +
         "A path to a BitGraphed file (bitgraph-carrier/1) looks up the committed bytes inside it, and when the ledger has no row the proof the file carries answers offline. " +
         "Exactly one of digest, number, or path is required. Read-only. " +
-        "markdown returns a summary; json returns the full proof object with positions and anchor window.",
+        "markdown returns a summary; json returns the full proof object with positions and window.",
       inputSchema: {
         digest: z
           .string()

@@ -1080,6 +1080,10 @@ async function handleRequest(req: Record<string, unknown>): Promise<unknown> {
         measurement,
         enforcement: "measured-tee",
         epochId,
+        // v10: where floors come from. "base": this enclave fixes a Base block at
+        // every allocation and refuses one on the anchored chain without it, so a
+        // caller need not wait for an Ethereum anchor before committing.
+        floor: "base",
       };
     }
     case "commitDigest": {

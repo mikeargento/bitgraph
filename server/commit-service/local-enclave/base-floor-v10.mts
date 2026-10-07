@@ -7,6 +7,15 @@
 import { startStack, post, randomDigestB64, ANCHORED_CHAIN } from "./lib.mts";
 import { VsockClient } from "../src/parent/vsock-client.ts";
 import { encodeBaseHeaderRlp } from "../src/parent/base-head.ts";
+import { getPublicKeyAsync, signAsync, utils } from "@noble/ed25519";
+import { sha256 } from "@noble/hashes/sha256";
+
+// v10 still authenticates anchor claims (so the Ethereum stream can come back
+// without a new enclave): a harness anchor key, as anchor-v7 to v9 used.
+const utf8 = (s: string) => new TextEncoder().encode(s);
+const b64 = (u: Uint8Array) => Buffer.from(u).toString("base64");
+const anchorSeed = utils.randomPrivateKey();
+process.env["HARNESS_ANCHOR_PUBKEY_B64"] = b64(await getPublicKeyAsync(anchorSeed));
 
 const enclavePort = 59500 + Math.floor(Math.random() * 400);
 const stack = await startStack({ quiet: true, enclavePort, parentEnv: { FUSE_ENABLED: "true" } });
@@ -96,7 +105,10 @@ try {
   base.skew(60);
   await sleep(2600);
   const skewed = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
-  ok("when Base's newest block is stamped off schedule, allocation is refused", skewed.status !== 200 && /no-base-floor|schedule|ahead of the enclave clock/.test(JSON.stringify(skewed.json)), skewed.json);
+  // The parent never sends a header stamped after its clock; it falls back to the previous
+  // good one, or has none to send. Either way no floor is ever stamped in the future.
+  ok("when Base's newest block is stamped ahead, no allocation gets a future floor (an older one, or a refusal)",
+    skewed.status === 200 ? skewed.json?.floor?.blockTimestamp <= Math.floor(Date.now() / 1000) : /no-base-floor|schedule|ahead of the enclave clock/.test(JSON.stringify(skewed.json)), skewed.json);
   base.skew(0);
   // Wait until Base's newest block is stamped normally again, and the parent has read it.
   for (let i = 0; i < 40; i++) {
@@ -106,6 +118,33 @@ try {
   }
   const recovered = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
   ok("once Base's newest block is stamped normally again, allocation resumes on its own", recovered.status === 200, recovered.json);
+
+  // 6b. Anchors in v10: a valid claim still commits (and is signed as commit.anchor);
+  //     a bad signature and the reserved name without a claim are still refused;
+  //     an ordinary record after an anchor still carries only its Base floor.
+  const { epochId } = (await (await fetch(`${U}/key`)).json()) as { epochId: string; floor?: string };
+  const keyInfo = (await (await fetch(`${U}/key`)).json()) as { floor?: string };
+  ok("/key says this enclave's floor is Base", keyInfo.floor === "base", keyInfo);
+  const blockHash = "0x" + Buffer.from(sha256(utf8("harness-eth-block-900"))).toString("hex");
+  const sig = await signAsync(utf8(`bitgraph-anchor/1\n${epochId}\n${ANCHORED_CHAIN}\n900\n${blockHash}`), anchorSeed);
+  const anchorBody = (signatureB64: string) => ({
+    digests: [{ digestB64: b64(sha256(utf8(blockHash))), hashAlg: "sha256" }],
+    chainId: ANCHORED_CHAIN,
+    attribution: { name: "Ethereum Anchor", message: blockHash, title: "https://etherscan.io/block/900" },
+    anchor: { blockNumber: 900, blockHash, signatureB64 },
+  });
+  const badSig = await post(`${U}/commit`, anchorBody(b64(new Uint8Array(64))));
+  ok("an anchor with a bad signature is refused", badSig.status !== 200 && /signature/.test(JSON.stringify(badSig.json)), badSig.json);
+  const reserved = await post(`${U}/commit`, { ...anchorBody(""), anchor: undefined });
+  ok("the reserved anchor name without a claim is refused", reserved.status !== 200 && /reserved|Ethereum Anchor/.test(JSON.stringify(reserved.json)), reserved.json);
+  const a1 = await post(`${U}/commit`, anchorBody(b64(sig)));
+  const anchorProof = proofOf(a1);
+  ok("a valid anchor claim still commits, signed as commit.anchor", a1.status === 200 && anchorProof?.commit?.anchor?.blockNumber === 900, a1.json);
+  const afterAnchor = await post(`${U}/commit`, { digests: [{ digestB64: randomDigestB64(), hashAlg: "sha256" }], chainId: ANCHORED_CHAIN });
+  const pa = proofOf(afterAnchor);
+  ok("a record after the anchor carries its Base floor and no Ethereum slotAnchor (one floor per proof)", afterAnchor.status === 200 && pa?.commit?.slotFloor?.chain === "base" && !("slotAnchor" in (pa?.commit ?? {})), pa?.commit);
+  const allocAfter = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
+  ok("an allocation after the anchor returns the Base floor and no anchor", allocAfter.status === 200 && allocAfter.json?.floor?.chain === "base" && !("anchor" in (allocAfter.json ?? {})), allocAfter.json);
 
   // 7. A halt: the floor ages, nothing pauses.
   base.halt();

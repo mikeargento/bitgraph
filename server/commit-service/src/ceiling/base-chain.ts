@@ -128,8 +128,9 @@ export class BaseChain implements Chain {
     return this.client.getBalance({ address: this.account.address });
   }
 
-  async floorHeader(blockHash: string): Promise<{ blockNumber: number; blockTimestamp: number; headerRlp: string } | null> {
-    const b = (await this.ethRpc("eth_getBlockByHash", [blockHash, false])) as RpcBlock | null;
+  /** The floor block's header from its own chain: Base for a v10 floor, Ethereum for an earlier one. */
+  async floorHeader(blockHash: string, chain: "ethereum" | "base" = "ethereum"): Promise<{ blockNumber: number; blockTimestamp: number; headerRlp: string } | null> {
+    const b = (await (chain === "base" ? this.rpc : this.ethRpc)("eth_getBlockByHash", [blockHash, false])) as RpcBlock | null;
     if (!b) return null;
     try {
       const rlp = checkedHeaderRlp(b);

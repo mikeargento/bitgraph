@@ -25,8 +25,12 @@ export interface CeilingQueueItem {
   chainId: string;
   /** Server time, informational only. */
   committedAt: string;
-  /** The proof's signed floor (commit.slotAnchor), so the writer can fetch its header. */
-  floor: { blockNumber: number; blockHash: string } | null;
+  /**
+   * The proof's signed floor, so the writer can fetch its header: commit.slotFloor
+   * (a Base block, enclave v10) or commit.slotAnchor (an Ethereum block, earlier).
+   * chain is absent on items queued before v10, which means Ethereum.
+   */
+  floor: { blockNumber: number; blockHash: string; chain?: "ethereum" | "base" } | null;
 }
 
 export function ceilingQueueEnabled(): boolean {
@@ -42,6 +46,7 @@ export function ceilingItems(proofs: BitGraphProof[], committedAt: Date): Ceilin
       chainId?: string;
       anchor?: unknown;
       slotAnchor?: { counter: string; blockNumber: number; blockHash: string };
+      slotFloor?: { chain: "base"; blockNumber: number; blockHash: string };
     };
     if (!proofHash || !commit.counter || !commit.epochId) continue;
     if (commit.anchor || p.attribution?.name === "Ethereum Anchor") continue;
@@ -52,7 +57,9 @@ export function ceilingItems(proofs: BitGraphProof[], committedAt: Date): Ceilin
       epochId: commit.epochId,
       chainId: commit.chainId ?? "",
       committedAt: committedAt.toISOString(),
-      floor: commit.slotAnchor ? { blockNumber: commit.slotAnchor.blockNumber, blockHash: commit.slotAnchor.blockHash } : null,
+      floor: commit.slotFloor
+        ? { blockNumber: commit.slotFloor.blockNumber, blockHash: commit.slotFloor.blockHash, chain: "base" }
+        : commit.slotAnchor ? { blockNumber: commit.slotAnchor.blockNumber, blockHash: commit.slotAnchor.blockHash, chain: "ethereum" } : null,
     });
   }
   return out;

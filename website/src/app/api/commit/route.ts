@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storeProofByDigest, getProofByDigest } from "@/lib/s3";
 import { FOLDER_VERSION } from "@/lib/folder-version";
-import { currentEpochHasAnchor, TEE_URL, teeRestarting503 as teeRestarting503Bare } from "@/lib/anchor-gate";
+import { commitsMayProceed, TEE_URL, teeRestarting503 as teeRestarting503Bare } from "@/lib/anchor-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     // epoch's first anchor has landed (see the anchor-first gate above).
     // Nothing has been minted when either path fires, so an automatic
     // client retry cannot double-record.
-    const gate = await currentEpochHasAnchor();
+    const gate = await commitsMayProceed();
     if (gate !== "yes") return teeRestarting503();
 
     let teeRes: Response;

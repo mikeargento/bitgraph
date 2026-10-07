@@ -3,6 +3,15 @@
 // slot, unsigned, so a producer can bind the floor block into a fused file's
 // commitment (bitgraph-fuse/2). Nothing signed changes.
 // Run: node --import tsx/esm anchor-v9.mts
+// SUPERSEDED by enclave v10 (2026-10-06): on the anchored chain every position now
+// carries a Base floor (commit.slotFloor) and no Ethereum slotAnchor, so this v9 floor
+// behaviour is not reachable on the current enclave. Kept as the record of what v9 did;
+// it runs only against a v9 build (HARNESS_LEGACY_ENCLAVE=v9). The anchor checks that
+// still hold in v10 live in base-floor-v10.mts.
+if (process.env["HARNESS_LEGACY_ENCLAVE"] !== "v9") {
+  console.log("skipped: v9 floor behaviour, superseded by enclave v10 (see base-floor-v10.mts)");
+  process.exit(0);
+}
 import { startStack, post, randomDigestB64 } from "./lib.mts";
 import { getPublicKeyAsync, signAsync, utils } from "@noble/ed25519";
 import { sha256 } from "@noble/hashes/sha256";

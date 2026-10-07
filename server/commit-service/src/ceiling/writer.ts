@@ -49,8 +49,8 @@ export interface Chain {
   safeHead(): Promise<number>;
   finalizedHead(): Promise<number>;
   balanceWei(): Promise<bigint>;
-  /** Ethereum header RLP for a floor block, checked against its hash; null when unavailable. */
-  floorHeader(blockHash: string): Promise<{ blockNumber: number; blockTimestamp: number; headerRlp: string } | null>;
+  /** Header RLP for a floor block from its own chain, checked against its hash; null when unavailable. */
+  floorHeader(blockHash: string, chain?: "ethereum" | "base"): Promise<{ blockNumber: number; blockTimestamp: number; headerRlp: string } | null>;
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -296,7 +296,7 @@ export class CeilingWriter {
       if (!i.floor || this.floorCache.get(i.floor.blockHash)) continue;
       const onDisk = this.floorOnDisk(i);
       if (onDisk) { this.floorCache.set(i.floor.blockHash, onDisk); continue; }
-      const fetched = await this.o.chain.floorHeader(i.floor.blockHash).catch(() => null);
+      const fetched = await this.o.chain.floorHeader(i.floor.blockHash, i.floor.chain ?? "ethereum").catch(() => null);
       if (fetched) this.floorCache.set(i.floor.blockHash, fetched);
     }
   }
@@ -743,7 +743,7 @@ export class CeilingWriter {
       } : null,
       status,
       statusObserved: inc ? { ...b.statusObserved } : { included: null, safe: null, finalized: null },
-      floor: i.floor && floor ? { blockNumber: floor.blockNumber, blockHash: i.floor.blockHash, blockTimestamp: floor.blockTimestamp, blockHeader: floor.headerRlp } : null,
+      floor: i.floor && floor ? { blockNumber: floor.blockNumber, blockHash: i.floor.blockHash, blockTimestamp: floor.blockTimestamp, blockHeader: floor.headerRlp, ...(i.floor.chain === "base" ? { chain: "base" as const } : {}) } : null,
       settlement: inc && b.settlement ? b.settlement.pointer : null,
     };
     const json = JSON.stringify(s, null, 2);
