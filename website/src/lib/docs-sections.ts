@@ -88,7 +88,7 @@ export const MENU_GROUPS: MenuGroup[] = [
       { href: "/jev", label: "Ask Jev", desc: "Two questions no one could have seen before." },
       { href: "/exam", label: "The sealed exam", desc: "An exam sealed in BitGraph, and how to check it." },
       { href: "/docs/try", label: "Make a BitGraph", desc: "Drop in any file and get its proof." },
-      { href: "/ceilings", label: "Base", desc: "The Base blocks each BitGraph was made after and existed by." },
+      { href: "/ceilings", label: "Base", desc: "The Base blocks around each BitGraph." },
     ],
   },
   {

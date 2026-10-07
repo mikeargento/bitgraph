@@ -92,7 +92,11 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
 
 /** The home page's "See a real BitGraph" target. Its own constant rather than
  *  EXAMPLE_PROOF, which is the ChatGPT image used elsewhere: the home example is
- *  a one-line text file (since 2026-10-05, BitGraph #1,281). The digest lives here because it was
+ *  BitGraph #14 (2026-10-07), an image from /image, the first record under the
+ *  Base floor (enclave v10): floor Base block 52,274,192, recorded 3 s later,
+ *  ceiling Base block 52,274,195. The image redraws from its own commitment, so
+ *  no file is hosted for it. Before it: a one-line text file, BitGraph #1,281
+ *  (2026-10-05, Ethereum floor). The digest lives here because it was
  *  previously written out in both the home link and the proof page's
  *  EXAMPLE_FILES, and the two are only useful when they agree.
  *
@@ -100,7 +104,7 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
  *  ?counter/?epoch, so the proof page computes proofFeedKey(digest, null, null).
  *  Warming any other shape stores a response nobody reads, which is exactly the
  *  failure LEDGER_FEED_KEY below was written to stop happening twice. */
-export const HOME_EXAMPLE_DIGEST = "y9znJvceEa38Exw6SKY0uul3M7IjIu3OleynLsg9soc";
+export const HOME_EXAMPLE_DIGEST = "MnojmSagBo7nisqnI6rzJveUHX0118jKUlwGSa8mU8M";
 
 /** The ledger feed's initial (files-only, no-cursor) URL. This MUST stay byte-
  *  identical to Explorer's `feedUrl()` with its default state, because warm
