@@ -2246,7 +2246,7 @@ body { background: var(--bg); }
   --shadow-lift: 0 1px 3px rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
   --shadow-menu: 0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 1px 2px rgba(60, 64, 67, 0.3);
   --radius: 16px; --radius-card: 16px; --radius-row: 12px; --radius-pill: 999px;
-  --frame: 1200px;          /* STAGED 2026-10-07 (Mike: "stage option 1"): a narrower frame so a LEFT reading column leaves no void; was 1600 */
+  --frame: 1200px;          /* 2026-10-07 (Mike: "stage option 1", pushed the same night): a narrower frame so a LEFT reading column leaves no void; was 1600 */
   --measure: 1040px;
 }
 ::selection { background: rgba(26, 115, 232, 0.2); }
@@ -2264,7 +2264,7 @@ main :is(figure, .fig-well) :is(p, ul, ol, dl, table, figcaption, .note, .meta) 
    void beside every paragraph. Figures and tables still take the frame, now spreading evenly to
    both sides of the text. Text inside stays left-aligned. !important because several of these
    elements set a margin shorthand of their own (h2, h3, .faq h2, .table-scroll). */
-/* STAGED 2026-10-07 (option 1): the reading column sits at the frame's LEFT edge again, the nav on the
+/* 2026-10-07 (option 1): the reading column sits at the frame's LEFT edge again, the nav on the
    right; the home keeps its own centred rules below. The centred rule is one line back:
    main :is(...) { margin-left: auto !important; margin-right: auto !important; } */
 main :is(p, ul, ol, dl, blockquote, h1, h2, h3, h4, .lede, .callout, .facts, .doors, .steps, .receipt, table, .note, .meta, details, .code-block, .table-scroll, .try-zone, .anchor-zone) { margin-left: 0 !important; margin-right: auto !important; }
@@ -2856,7 +2856,7 @@ html { background: #ffffff !important; }
 .nav2-sheet .nav2-tail { border-top: 1px solid #e8eaed; margin-top: 12px; padding: 18px 0 0; gap: 10px 24px; font-size: 15px; }
 /* Mike 10-02: "center it". On wide screens the four groups sit in the middle of the bar, the way Base
    does it, so Make a BitGraph stands alone on the right. */
-/* STAGED 2026-10-07 (option 1): the groups sit on the right beside the button, not centred. The centred
+/* 2026-10-07 (option 1): the groups sit on the right beside the button, not centred. The centred
    rule is one line back: @media (min-width: 961px) { .nav2-cats { position: absolute; left: 50%; transform: translateX(-50%); } } */
 /* Mike 10-02: "maybe a little bolder on the text of buttons?" The phone Menu button matches the bar's groups. */
 #site-nav .nav2-menu { font-weight: 600 !important; }
@@ -3093,7 +3093,7 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 
 /* A proof reads at the site's measure, centred (Mike, 10-06: "should proofs not extend so wide on desk?"):
    at 1600px its notes ran ~200 characters a line. Same 1040px column as the docs and the home text. */
-.pv { max-width: var(--measure); margin-left: 0; margin-right: auto; } /* STAGED 2026-10-07 option 1: left, with the reading column; was margin auto (centred) */
+.pv { max-width: var(--measure); margin-left: 0; margin-right: auto; } /* 2026-10-07 option 1: left, with the reading column; was margin auto (centred) */
 /* No word left alone on a line anywhere in a proof (Mike, 10-06: "check for awkward wrapping"). */
 .pv { text-wrap: pretty; }
 .pv-sub-root { margin-top: 8px; color: var(--dim); }
@@ -3252,12 +3252,12 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
   .art-page .jev-lede { margin-bottom: 14px !important; }
 }
 
-/* STAGED 2026-10-07 (option 1): a page that caps its own column at the measure (ceilings, ledger, the
+/* 2026-10-07 (option 1): a page that caps its own column at the measure (ceilings, ledger, the
    proof page's column) still starts at the same left edge as the nav's wordmark, instead of
    centring itself in the window. Percentages are of the containing block, as the nav's 90% is. */
 .frame { margin-left: max(5%, calc((100% - var(--frame)) / 2)) !important; margin-right: auto !important; }
 
-/* STAGED 2026-10-07 (option 1, Mike: "dont forget homepage and the 2 demos"): the home and the two
+/* 2026-10-07 (option 1, Mike: "dont forget homepage and the 2 demos"): the home and the two
    demos read from the left edge too, like every other page. The centred rules stay where they are
    above; these override them, so one block to delete if centring comes back. */
 .home, .home.home-typing { text-align: left !important; align-items: flex-start !important; }
@@ -3271,9 +3271,14 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-stepper, .art-result { align-self: flex-start; }
 .art-result .art-explain-one { text-align: left !important; }
 .art-step-label { text-align: center; }
-/* STAGED 2026-10-07 (option 1): the dropdowns anchor to the group strip itself now that it is no
+/* 2026-10-07 (option 1): the dropdowns anchor to the group strip itself now that it is no
    longer absolutely centred; without this they fell to the bar's left edge under the wordmark. */
 @media (min-width: 961px) { .nav2-cats { position: relative; } }
-@media (min-width: 961px) { .nav2-drop { left: auto; right: 0; } } /* STAGED: the panel hangs from the strip's right edge, under the buttons, never toward the wordmark */
-.art-go-wrap .art-hero-inner { justify-content: flex-start; } /* STAGED option 1: the demo's one button under its headline, at the left */
-.jev-go-inner { align-items: flex-start; } /* STAGED option 1: the Jev button under its headline, at the left */
+@media (min-width: 961px) { .nav2-drop { left: auto; right: 0; } } /* 2026-10-07: the panel hangs from the strip's right edge, under the buttons, never toward the wordmark */
+.art-go-wrap .art-hero-inner { justify-content: flex-start; } /* 2026-10-07 option 1: the demo's one button under its headline, at the left */
+.jev-go-inner { align-items: flex-start; } /* 2026-10-07 option 1: the Jev button under its headline, at the left */
+/* 2026-10-07: the demos' "why" paragraph, under the lede, above the button. */
+/* Two ledes, one voice: the hook, a clear gap, then the why (Mike, 10-07: "its own separate lede or together as one"). */
+.art-page .lede:not(.art-why) { margin-bottom: 20px !important; }
+.art-page .lede.art-why { margin-top: 0 !important; margin-bottom: 24px !important; }
+.art-page .lede { max-width: var(--measure) !important; } /* 2026-10-07: the demo ledes read at the site's measure, not a 34em cap left from the centred layout */
