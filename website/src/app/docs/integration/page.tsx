@@ -52,8 +52,8 @@ export default function IntegrationPage() {
         <dd>The <code>bitgraph-export/1</code> JSON the holder keeps beside the files, with SPEC.md: the proof, the tree evidence, the floor header, and the ceiling and settlement once they exist. It holds no copy of any file.</dd>
         <dt>Committed bytes</dt>
         <dd>New bytes built around a file that carry a position commitment. Virtual: rebuilt from the file and the proof whenever needed.</dd>
-        <dt>Anchor</dt>
-        <dd>A position whose file is an Ethereum block hash. The anchor before a position is its floor, a time; the one after is its ceiling, a place in the sequence, not a clock reading.</dd>
+        <dt>Floor</dt>
+        <dd>The newest Base block when a position opened, bound into it by the enclave and signed into the proof as <code>commit.slotFloor</code>: the record was made after it, a time. Earlier proofs stand on an Ethereum anchor instead (<code>commit.slotAnchor</code>), a position whose file was an Ethereum block hash.</dd>
         <dt>Epoch</dt>
         <dd>One enclave lifetime, one UTC day in production. The signing key is destroyed at the end of it.</dd>
       </dl>
@@ -91,7 +91,7 @@ export default function IntegrationPage() {
 
       <h3>What comes back</h3>
       <ul className="facts">
-        <li><b>The proof</b><span>An ordinary <code>bitgraph/1</code> proof whose artifact digest is the SHA-256 of the root document. <code>slotAllocation</code> is the position record you held, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position, and the signed <code>attribution</code> is the marker: name <code>bitgraph-fuse/2</code>, title <code>tree/1</code>, message the SHA-256 of SPEC.md. The root document rides unsigned in <code>metadata["bitgraph-tree/1"]</code> as hex and must hash to the signed digest.</span></li>
+        <li><b>The proof</b><span>An ordinary <code>bitgraph/1</code> proof whose artifact digest is the SHA-256 of the root document. <code>slotAllocation</code> is the position record you held, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position, and the signed <code>attribution</code> is the marker: name <code>bitgraph-fuse/3</code> (<code>bitgraph-fuse/2</code> on earlier proofs), title <code>tree/1</code>, message the SHA-256 of SPEC.md. The root document rides unsigned in <code>metadata["bitgraph-tree/1"]</code> as hex and must hash to the signed digest.</span></li>
         <li><b>The export</b><span>From the CLI and the SDK, <code>bitgraph-&lt;counter&gt;.bitgraph.json</code>, a <code>bitgraph-export/1</code> file holding the proof, the root document, every leaf and name, and the floor header. A member export (<code>&lt;name&gt;.bitgraph.json</code>) holds one file&rsquo;s leaf and path instead. SPEC.md is written beside them. The Base ceiling and its settlement are pending at first; <code>bitgraph export complete</code> fills them in later.</span></li>
         <li><b>The committed bytes</b><span>Virtual. Nothing is written beyond the export; the original plus the proof rebuilds them byte for byte whenever they are needed.</span></li>
         <li><b>Recovery entries</b><span>Each file gets sealed entries under names derived from its hash, so the file alone can find its proof again if the export is lost. The hash itself is never indexed. <code>--no-recovery</code> keeps none.</span></li>
@@ -150,11 +150,13 @@ curl -X POST https://bitgraph.ing/api/fuse/allocate
 #   "slotId": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",
 #   "slot": { "version": "bitgraph/slot/1", "nonceB64": "...", "counter": "277",
 #             "epochId": "...", "publicKeyB64": "...", "chainId": "bitgraph:main", "signatureB64": "..." },
-#   "chainId": "bitgraph:main"
+#   "chainId": "bitgraph:main",
+#   "floor": { "chain": "base", "evmChainId": 8453, "blockNumber": 52271417,
+#              "blockHash": "0x...", "blockTimestamp": 1791332181 }   # the Base block the commit will sign
 # }
 
 # 2. Build the committed bytes, the leaves and the 84-byte root document from
-#    that record (SPEC.md section 8), then commit the root document's hash under
+#    that record and the floor's blockHash (SPEC.md section 8), then commit the root document's hash under
 #    the same position within 120 seconds. Exactly one digest per commit.
 curl -X POST https://bitgraph.ing/api/fuse/commit \\
   -H "Content-Type: application/json" \\
@@ -164,16 +166,17 @@ curl -X POST https://bitgraph.ing/api/fuse/commit \\
     "digests": [{ "digestB64": "<SHA-256 of the root document, base64>", "hashAlg": "sha256" }],
     "chainId": "bitgraph:main",
     "attribution": {
-      "name": "bitgraph-fuse/2",
+      "name": "bitgraph-fuse/3",
       "title": "tree/1",
       "message": "<SHA-256 of SPEC.md, base64>"
     },
+    "floor": <the floor from step 1, verbatim>,
     "metadata": { "bitgraph-tree/1": "<the root document, 84 bytes as hex>" }
   }'
 # { "proof": { ... } }   an ordinary bitgraph/1 proof, committed under the position you reserved`}</Code>
       </div>
       <p>
-        The route checks the marker, that it knows the spec hash, the exact metadata shape, the root document&rsquo;s commitment against the named position and floor, and its hash against the digest, all before the position is spent. A commit that fails is reported as a failure; it is never downgraded to an ordinary recording, and the route refuses to return a proof minted under any position other than the one you named. The earlier single-file marker (<code>bitgraph-fuse/1</code>, title a placement) is still accepted. Every request, response, status code and error is in the <Link href="/api-reference">API reference</Link>.
+        The route checks the marker, that it knows the spec hash, the exact metadata shape, the root document&rsquo;s commitment against the named position and floor, and its hash against the digest, all before the position is spent. The enclave signs the floor it fixed when the position opened, so a commitment built on any other block fails verification. A commit that fails is reported as a failure; it is never downgraded to an ordinary recording, and the route refuses to return a proof minted under any position other than the one you named. The earlier single-file marker (<code>bitgraph-fuse/1</code>, title a placement) is still accepted. Every request, response, status code and error is in the <Link href="/api-reference">API reference</Link>.
       </p>
       <p>
         An export and recovery entries are the client&rsquo;s work: the export is built from the proof and the tree you hold (SPEC.md section 12), and entries are written with <code>POST /api/recovery</code> and read back with <code>GET /api/recovery/&lt;address&gt;</code> or <code>POST /api/recovery/lookup</code> (section 13). Check them before making anything again: a file already on record is found, not made twice.
@@ -212,7 +215,7 @@ curl -X POST https://bitgraph.ing/api/fuse/commit \\
 
       <h3>A file with its export: <code>verifyExport</code></h3>
       <p>
-        The current form. One line per claim, each saying what it rests on, and three time claims never merged: the floor (an Ethereum block; the record came after it), the ceiling in time (a Base block; the record existed by it) and its settlement (Ethereum&rsquo;s own record of that Base block). The ceiling in position, the next anchor in the sequence, is a bound in position, never a clock time.
+        The current form. One line per claim, each saying what it rests on, and three time claims never merged: the floor (a Base block, or an Ethereum block on earlier proofs; the record came after it), the ceiling in time (a Base block; the record existed by it) and its settlement (Ethereum&rsquo;s own record of that Base block). Order after the record, the next BitGraph in the chain, is a bound in position, never a clock time.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>TypeScript</span><CopyCode /></div>
@@ -434,12 +437,12 @@ const proofs = await resp.json();
       <ol className="steps">
         <li><strong>Hash locally.</strong> The file never leaves your machine; only digests, the root document, the position record and sealed recovery entries are sent.</li>
         <li><strong>Check before you make.</strong> Consult the recovery entries first: a file already on record is found, not made twice. The SDK, CLI and MCP server do this on their own.</li>
-        <li><strong>Commit through bitgraph.ing.</strong> The site endpoints sit behind the anchor-first gate, so every position they issue carries a floor. Allocate, build, hash and commit within 120 seconds, and treat any failure as a failure: a tree commit is never downgraded to a plain recording.</li>
+        <li><strong>Commit through bitgraph.ing.</strong> The site endpoints sit behind the floor gate, so every position they issue carries a Base floor. Allocate, build, hash and commit within 120 seconds, and treat any failure as a failure: a tree commit is never downgraded to a plain recording.</li>
         <li><strong>Store the export and SPEC.md beside the files.</strong> Keep the files unchanged. The committed bytes are virtual and rebuildable; the export is portable and can also live in a separate system. Run <code>export complete</code> later to add the ceiling and settlement.</li>
         <li><strong>Never expose the slotId.</strong> Only the derived commitment goes into the committed bytes; the nonce goes nowhere.</li>
         <li><strong>Verify with a pinned policy.</strong> <code>verifyExport</code> with <code>pins.pcr0</code> set to the published PCR0, or the default list of BitGraph&rsquo;s published images. Read each claim, not only the verdict. Verification is offline: the export, the file and the public measurement are enough.</li>
         <li><strong>Track counters.</strong> Store the last accepted <code>commit.counter</code> per epoch to notice a replay.</li>
-        <li><strong>Handle the retryable answers.</strong> <code>503 tee-restarting</code> and <code>503 ledger-unavailable</code> mean try again. <code>409 no-anchor-before-slot</code> is final for that position: reserve a new one.</li>
+        <li><strong>Handle the retryable answers.</strong> <code>503 tee-restarting</code> and <code>503 ledger-unavailable</code> mean try again. On earlier <code>bitgraph-fuse/2</code> commits, <code>409 no-anchor-before-slot</code> and <code>409 floor-mismatch</code> were final for that position: reserve a new one.</li>
       </ol>
 
       <h2 id="next">Where next</h2>

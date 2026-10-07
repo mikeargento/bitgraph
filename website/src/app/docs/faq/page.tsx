@@ -19,7 +19,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "What does a proof establish, exactly?",
-    a: "That these exact bytes were committed at this position in one sequence, that the position was allocated before their digest arrived, and that the position was placed after the Ethereum block its proof names as the floor. Not truth, not authorship, not first creation, not an exact time.",
+    a: "That these exact bytes were committed at this position in one sequence, that the position was allocated before their digest arrived, and that the position was placed after the Base block its proof names as the floor (an Ethereum block on earlier proofs). Not truth, not authorship, not first creation, not an exact time.",
     href: "/docs/what-bitgraph-is-not", label: "Limits",
   },
   {
@@ -29,17 +29,17 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "Why not just trust a timestamp?",
-    a: "A timestamp is written by the same key that signs the record. If that key is compromised or its holder is dishonest, backdating costs nothing and leaves no trace. A value signed by the party a check exists to catch is a claim, not evidence. BitGraph's times come from outside: the Ethereum block an anchor names, signed by nobody involved, and the Base block that includes the record's hash afterward.",
+    a: "A timestamp is written by the same key that signs the record. If that key is compromised or its holder is dishonest, backdating costs nothing and leaves no trace. A value signed by the party a check exists to catch is a claim, not evidence. BitGraph's times come from outside: the public Base block the enclave binds into the position when it opens, and the Base block that includes the record's hash afterward. The recorded time itself is the enclave platform's signed clock, the AWS Nitro attestation time.",
     href: "/docs/overview#time", label: "Where time comes from",
   },
   {
     q: "What is a floor, and is there a ceiling?",
-    a: "The floor is the Ethereum block the proof names in `commit.slotAnchor`, the latest anchor when the position was allocated: it was mined before the position existed, so the position was placed after that block's time. The ceiling in position is the next anchor in the sequence: a place, not a clock reading. The ceiling in time is the Base block that includes the record: a few seconds after each commit, BitGraph writes a Merkle root over new records to Base, and the record existed by that block's time. See Ceilings.",
+    a: "The floor is the Base block the proof names in `commit.slotFloor`, the newest Base block when the position opened: the enclave hashed its header and checked it, the block existed before the position did, so the record was made after that block's time. Proofs made before the switch name an Ethereum anchor instead, in `commit.slotAnchor`. The ceiling in time is the Base block that includes the record: seconds after each commit, BitGraph writes a Merkle root over new records to Base, and the record existed by that block's time. After that, the next BitGraph in the chain carries this proof's hash: order, not a clock reading. See Ceilings.",
     href: "/docs/overview#time", label: "Where time comes from",
   },
   {
     q: "Is this a blockchain?",
-    a: "No. There is no consensus, no token and no global ledger. One enclave constrains one sequence, and `prevB64` is a local hash chain. Ethereum is read, never written: an anchor commits the hash of a block into BitGraph's sequence, and no transaction, wallet or contract is involved. The one thing BitGraph writes to a chain is its ceiling in time: one small Base transaction per batch of records, from a published address, carrying a Merkle root over their proof hashes. The order never depends on it.",
+    a: "No. There is no consensus, no token and no global ledger. One enclave constrains one sequence, and `prevB64` is a local hash chain. The floor is read, never written: the enclave binds a Base block header into each position, and no transaction, wallet or contract is involved. The one thing BitGraph writes to a chain is its ceiling in time: one small Base transaction per batch of records, from a published address, carrying a Merkle root over their proof hashes. The order never depends on it.",
     href: "/docs/what-bitgraph-is-not#neighbours", label: "Systems BitGraph is mistaken for",
   },
   {
@@ -54,12 +54,12 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "Can I verify a proof without an internet connection?",
-    a: "Yes. The digest, the Ed25519 signature, the attestation chain to the AWS Nitro root, the position binding and the tree membership are all checked from the export and the bytes: `npx @mikeargento/bitgraph-sdk verify <file> <export.json>` states one line per claim. The floor is read offline from the block header the export carries. The ceiling in time is checked offline from the export too: the Merkle path, the signed Base transaction and the block header. Whether that header is Base's own takes one lookup against any Base node. A proof that pins a SPEC.md the verifier does not know is answered undetermined, never true.",
+    a: "Yes. The digest, the Ed25519 signature, the attestation chain to the AWS Nitro root, the position binding and the tree membership are all checked from the export and the bytes: `npx @mikeargento/bitgraph-sdk verify <file> <export.json>` states one line per claim. The floor block is signed into the proof; whether it is Base's own takes one lookup on Base, by its number, comparing the hash. An earlier proof's Ethereum floor is read offline from the block header its export carries. The ceiling in time is checked offline from the export too: the Merkle path, the signed Base transaction and the block header. Whether that header is Base's own takes one lookup against any Base node. A proof that pins a SPEC.md the verifier does not know is answered undetermined, never true.",
     href: "/docs/verification", label: "Verification",
   },
   {
     q: "What happens when the enclave restarts?",
-    a: "A new epoch begins: a fresh key, a counter at zero, and the old key destroyed. In production that happens every day at 23:59 UTC. Proofs from a closed epoch remain verifiable forever; nothing can be signed under its key again. Epochs relate to each other through the Ethereum blocks their anchors name.",
+    a: "A new epoch begins: a fresh key, a counter at zero, and the old key destroyed. In production that happens every day at 23:59 UTC. Proofs from a closed epoch remain verifiable forever; nothing can be signed under its key again. Epochs relate to each other through the public blocks their floors name: Base blocks, or Ethereum blocks for earlier epochs.",
     href: "/docs/overview#epochs", label: "Compromise and containment",
   },
   {

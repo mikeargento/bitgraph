@@ -18,7 +18,7 @@ export default function CarrierPage() {
     <article className="prose">
       <h1>The BitGraphed file</h1>
       <p className="lede">
-        The file is its own proof. A BitGraphed file is the committed bytes followed by one structural block that holds the <code>bitgraph/1</code> proof and everything a reader needs to check it with no URL, no operator, and no trust beyond mathematics, the AWS Nitro root and two public block hashes: the floor anchor and its Ethereum header, the closing anchor, the Base block the record existed by, its settlement on Ethereum when known, and the enclave&rsquo;s attestation laid out as evidence anyone can check with openssl. Everything travels in the one file, offline, with nothing resolved from this site.
+        The file is its own proof. A BitGraphed file is the committed bytes followed by one structural block that holds the <code>bitgraph/1</code> proof and everything a reader needs to check it with no URL, no operator, and no trust beyond mathematics, the AWS Nitro root and two public block hashes: the floor anchor and its Ethereum header, the closing anchor, the Base block the record existed by, its settlement on Ethereum when known, and the enclave&rsquo;s attestation laid out as evidence anyone can check with openssl. Everything travels in the one file, offline, with nothing resolved from this site. It holds a single-file position, an earlier form made while the floor was an Ethereum anchor; positions made now stand on a Base floor and travel in an export (below).
       </p>
 
       <h2 id="envelope">The envelope rule</h2>
@@ -31,18 +31,18 @@ export default function CarrierPage() {
 
       <h2 id="window">The time window</h2>
       <p>
-        The floor is always inside. It is the anchor the enclave fixed when the position was allocated and signed into the proof, matched to the signed block number and hash, with that block&rsquo;s raw header beside it. Recomputing the header&rsquo;s hash offline shows it is the header the enclave signed, so the time read from it belongs to that block; one lookup on any Ethereum node or explorer, at any time, shows the block is on Ethereum. Together they say the record was placed after this block. A file made with <code>bitgraph-fuse/2</code> says more: its commitment binds that block&rsquo;s hash, so the bytes themselves could not have been finished before the block existed.
+        The floor is always inside. A BitGraphed file holds an earlier single-file position, so its floor is an Ethereum anchor: the anchor the enclave fixed when the position was allocated and signed into the proof, matched to the signed block number and hash, with that block&rsquo;s raw header beside it. Recomputing the header&rsquo;s hash offline shows it is the header the enclave signed, so the time read from it belongs to that block; one lookup on any Ethereum node or explorer, at any time, shows the block is on Ethereum. Together they say the record was placed after this block. A file made with <code>bitgraph-fuse/2</code> says more: its commitment binds that block&rsquo;s hash, so the bytes themselves could not have been finished before the block existed. (A position made now names a Base block instead, signed into the proof as <code>commit.slotFloor</code> and bound by <code>bitgraph-fuse/3</code>; see the <Link href="/docs/proof-format">proof format</Link>.)
       </p>
       <p>
-        Two ceilings follow the commit, and both are carried once they exist:
+        Three things follow the commit, and each is carried once it exists:
       </p>
       <ul>
-        <li><strong>The ceiling in position.</strong> The next Ethereum anchor in the sequence: the record was committed before the anchoring of that block, a bound in position, not a clock time. Every record ever made has one.</li>
+        <li><strong>The closing anchor.</strong> The next Ethereum anchor in the sequence: the record was committed before the anchoring of that block, a bound in position, not a clock time. Every position made while anchors ran has one; the format calls it <code>ceiling</code>.</li>
         <li><strong>The ceiling in time.</strong> A Base block that includes a Merkle root over the record&rsquo;s proof hash: the record existed by that block&rsquo;s time. It lands seconds after the commit, and it is carried as the same <code>bitgraph-ceiling/1</code> file the proof page serves, whole, so the raw Base transaction, its inclusion proof and the Base header are inside. Records made before 2026-09-29 have none, and the file says so.</li>
         <li><strong>Settlement.</strong> When known, Ethereum&rsquo;s own record of that Base block. The current form, which an export carries, goes through Base&rsquo;s output root (<code>bitgraph-output-root/1</code>): an Ethereum header and the proof that the output root in it covers the Base block. A BitGraphed file carries the earlier pointer form (<code>bitgraph-settlement/1</code>): the Ethereum header, the batcher transaction&rsquo;s inclusion proof and the blob commitments for the Base batch data holding the ceiling transaction. No blob bytes travel in either; BitGraph archives them at <code>bitgraph.ing/api/ceilings/blobs/&lt;versioned hash&gt;.bin</code> because Ethereum prunes them after about 18 days. Either form says the record existed by that Ethereum block, whatever Base&rsquo;s own state says.</li>
       </ul>
       <p>
-        Neither ceiling can be inside at the moment of the commit, so each is either present or stated as not fetched, in those words. Completion is a one-step patch from public data: drop the file back on the site, or run <code>bitgraph complete</code>, and what has landed since is fetched in. The committed bytes never change, so the proof is unaffected. Nothing already inside is ever overwritten; a file offered a different ceiling than the one it holds refuses it, because a conflicting embedded ceiling is evidence worth keeping.
+        Neither the closing anchor nor the ceiling in time can be inside at the moment of the commit, so each is either present or stated as not fetched, in those words. Completion is a one-step patch from public data: drop the file back on the site, or run <code>bitgraph complete</code>, and what has landed since is fetched in. The committed bytes never change, so the proof is unaffected. Nothing already inside is ever overwritten; a file offered a different ceiling than the one it holds refuses it, because a conflicting embedded ceiling is evidence worth keeping.
       </p>
       <p>
         Every proof inside also carries its Nitro attestation, whose timestamp is the enclave platform&rsquo;s signed clock. It states the instant of the commit, and the blocks bound that instant from outside.
@@ -128,7 +128,7 @@ xxd -p sigstructure.bin | tr -d '\\n' | grep -c <user_data>   # 1: user_data is 
     "anchor":  { ... },                 // the anchor named by commit.slotAnchor
     "witness": { "headerRlpHex": "...", "blockNumber": 0, "blockHash": "0x..." }
   },
-  "ceiling": { "status": "unfetched" }, // the ceiling in POSITION; or: { "status": "present",
+  "ceiling": { "status": "unfetched" }, // the closing anchor, a bound in POSITION; or: { "status": "present",
                                         //   "basis": "counter-order", "anchor": { ... }, "witness": { ... } }
   "ceilingInTime": { "status": "present", "sidecar": { "version": "bitgraph-ceiling/1", ... } },
                                         // or { "status": "unfetched", "searched": { "at": "<ISO>" } }

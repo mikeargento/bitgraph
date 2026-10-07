@@ -48,7 +48,7 @@ export default function PlayerPage() {
       <ul className="facts">
         <li><b>Runtime</b><span>Node.js. The package runs with <code>npx</code>; nothing else is installed.</span></li>
         <li><b>Package</b><span><code>@mikeargento/bitgraph-player</code> 0.15.0, MIT-licensed.</span></li>
-        <li><b>A bundle</b><span>A directory, <code>.tar</code> or <code>.tar.gz</code> holding <code>proof.json</code> files, or Frame files from the earlier single fused form (<code>&lt;name&gt;.bitgraph-fuse.json</code>), with the files they are about and the anchors that floor them. Player does not yet read the current <code>bitgraph-export/1</code> file; that support is pending.</span></li>
+        <li><b>A bundle</b><span>A directory, <code>.tar</code> or <code>.tar.gz</code> holding <code>proof.json</code> files, or Frame files from the earlier single fused form (<code>&lt;name&gt;.bitgraph-fuse.json</code>), with the files they are about and, for earlier proofs, the Ethereum anchors that floor them (a proof with a Base floor signs its floor block itself). Player does not yet read the current <code>bitgraph-export/1</code> file; that support is pending.</span></li>
         <li><b>A rule</b><span>A JSON file naming each file by its fingerprint (SHA-256 digest) and stating a claim about their order. <code>init</code> writes the skeleton for you.</span></li>
       </ul>
       <p>
@@ -103,7 +103,7 @@ export default function PlayerPage() {
         <code>world: &quot;closed&quot;</code> scopes negative claims to the artifacts declared in the rule. For example, this rule does <strong>not</strong> claim that no cancellation exists anywhere. It claims only that no cancellation represented by the declared <code>cancellation</code> role was established before the approval. Negative claims never extend beyond the evidence the rule declares.
       </p>
       <p>
-        <code>requires.ordering</code> is the rule&rsquo;s security floor. It specifies what kind of ordering evidence the author is willing to accept. <code>hash-linked</code> accepts conclusions supported by hash-linked ordering evidence alone. <code>assumption-dependent</code> also permits ordering conclusions that rely on accepted BitGraph assumptions, including counter order and Ethereum anchor floors.
+        <code>requires.ordering</code> is the rule&rsquo;s security floor. It specifies what kind of ordering evidence the author is willing to accept. <code>hash-linked</code> accepts conclusions supported by hash-linked ordering evidence alone. <code>assumption-dependent</code> also permits ordering conclusions that rely on accepted BitGraph assumptions, including counter order and the Ethereum anchor floors of earlier proofs.
       </p>
       <p>
         There is no default. A rule that does not declare its ordering floor does not parse, because that floor is part of the rule&rsquo;s own security policy. The tool must not choose it for the author.
@@ -145,7 +145,7 @@ export default function PlayerPage() {
         It deliberately leaves <code>requires.ordering</code> unset. The security floor belongs to the rule author. Player will not choose it.
       </p>
       <p>
-        To read an export without a rule, <code>check</code> prints a <code>bitgraph-check/1</code> report: a three-valued line per check for each recording, with its anchor floor. A recording marked fused adds a <code>fused</code> line (the commitment check, over the fused bytes or the original), a fused floor (the last anchored block before its position) and a fused span (reserved position to commit position).
+        To read an export without a rule, <code>check</code> prints a <code>bitgraph-check/1</code> report: a three-valued line per check for each recording, with its floor (the anchor floor, on earlier proofs). A recording marked fused adds a <code>fused</code> line (the commitment check, over the fused bytes or the original), a fused floor (on earlier proofs, the last anchored block before its position) and a fused span (reserved position to commit position).
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>
@@ -177,7 +177,7 @@ export default function PlayerPage() {
         Two runs of the same rule bytes over the same bundle contents produce byte-identical verdicts, on any machine, at any later time. The verdict carries no clock reading, filesystem path, or machine-local state. Every ordering conclusion identifies the evidence it rests on and whether that conclusion depends on an assumption.
       </p>
       <p>
-        Nothing in a check reaches the network. The bundle carries the proof, the file and the Ethereum anchor that gives its position a floor (a tree/1 proof signs its floor block itself); the verifier carries its own copy of the code and the enclave measurement it will accept. Pull the cable and the verdict is the same, which is the whole design: a recording has to stay checkable years from now, by someone who should not have to trust a server to tell them what their own bytes say.
+        Nothing in a check reaches the network. The bundle carries the proof, the file and, for an earlier proof, the Ethereum anchor that gives its position a floor (a tree/1 proof, like any proof with a Base floor, signs its floor block itself); the verifier carries its own copy of the code and the enclave measurement it will accept. Pull the cable and the verdict is the same, which is the whole design: a recording has to stay checkable years from now, by someone who should not have to trust a server to tell them what their own bytes say.
       </p>
       <p>
         That is also why the check does not live on this site. A page loaded from <code>bitgraph.ing</code> is trusted exactly as far as <code>bitgraph.ing</code> is, and we are the party being checked. A signed package you install once, pinned to a version, is a smaller thing to trust. The PCR0 it enforces is reproducible from published inputs, so you can confirm it names the enclave we say it does.
@@ -196,7 +196,7 @@ export default function PlayerPage() {
 
       <h2 id="next">Where next</h2>
       <ul className="doors">
-        <li><Link href="/docs/audit">Audit a bundle</Link><span>Check many proofs, their order and their anchors, offline.</span></li>
+        <li><Link href="/docs/audit">Audit a bundle</Link><span>Check many proofs, their order, floors and ceilings, offline.</span></li>
         <li><Link href="/docs/verification">Verification</Link><span>What a verifier checks on one proof, and what each result means.</span></li>
         <li><Link href="/docs/proof-format">Proof format</Link><span>The fields a rule&rsquo;s evidence is read from.</span></li>
         <li><Link href="/docs/integration">Integration guide</Link><span>Make the proofs a bundle is built from.</span></li>

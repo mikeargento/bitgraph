@@ -81,7 +81,7 @@ bitgraph-title marker origin.pm.json --out consumed.marker.json
 
 # Later, anyone offered a conveyance checks the head it replies to the
 # same way: derive that head's marker and drop it. Fresh means the
-# head was unclaimed as of the latest anchor; a dedup hit means someone
+# head was unclaimed as of that drop's position; a dedup hit means someone
 # already consumed it. Markers are discovery, never validity.
 bitgraph-title marker take.pm.json --out head.marker.json
 ```

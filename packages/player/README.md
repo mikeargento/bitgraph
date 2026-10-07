@@ -5,7 +5,7 @@ Deterministic evaluation of causal rules over BitGraph proof bundles.
 BitGraph records. Player evaluates.
 
 A BitGraph proof bundle establishes facts: these bits were recorded at
-these causal positions, anchored to a public timeline. Player
+these causal positions, tied to a public timeline. Player
 evaluates a rule over those facts and produces a verdict anyone can
 reproduce from the bundle alone: no network, no clock, no account, no
 trust in the machine that ran it first.
@@ -22,7 +22,8 @@ trust in the machine that ran it first.
 
 The bundle is a directory, `.tar`, or `.tar.gz` of BitGraph proofs:
 `proof.json` files beside the files they record, Frame files
-(`bitgraph-fuse/1`), Ethereum anchor witnesses. This build reads through
+(`bitgraph-fuse/1`), Ethereum anchor witnesses for proofs made before
+the Base floor. This build reads through
 `@mikeargento/bitgraph-audit` 0.7.x, which does not read the export
 (`bitgraph-export/1`) a tree/1 BitGraph is kept with. So Player does not
 read exports yet; a file with its export is checked with
@@ -45,6 +46,8 @@ exact proof, that the attested PCR0 is a published BitGraph enclave
 measurement (enclave v9 included), and, from block headers in the bundle,
 the Ethereum block the recording comes after (its floor, a time) and the
 later anchor it was committed before (a position, never a clock time).
+This build predates the Base floor (`commit.slotFloor`): it states the
+floor of Ethereum-anchored proofs only.
 Every line is TRUE, FALSE, or UNDETERMINED:
 FALSE only when evidence in hand contradicts the recording (an edited
 signature, a block header that does not hash to its anchor), UNDETERMINED

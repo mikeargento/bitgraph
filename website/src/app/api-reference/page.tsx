@@ -7,7 +7,7 @@ import { Code, guessLang } from "@/components/code";
 export const metadata: Metadata = {
   title: "API reference",
   description:
-    "Every BitGraph endpoint: making a BitGraph on bitgraph.ing, the enclave host, looking up proofs and anchors, recovery entries, the specification, verifying, the types and the errors.",
+    "Every BitGraph endpoint: making a BitGraph on bitgraph.ing, the enclave host, looking up proofs and earlier anchors, recovery entries, the specification, verifying, the types and the errors.",
 };
 
 const PCR0 = "934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8";
@@ -63,7 +63,7 @@ export default function APIReferencePage() {
         <h2 id="hosts">Hosts and conventions</h2>
         <dl className="terms">
           <dt>https://bitgraph.ing</dt>
-          <dd>The site. Everything under <code>/api/</code>. Making a BitGraph goes through here: these routes sit behind the anchor-first gate, so every position they issue carries a floor, and BitGraph keeps a copy of each proof.</dd>
+          <dd>The site. Everything under <code>/api/</code>. Making a BitGraph goes through here: these routes sit behind the floor gate, so every position they issue carries a floor (a Base block, fixed when the position opens), and BitGraph keeps a copy of each proof.</dd>
           <dt>https://nitro.occproof.com</dt>
           <dd>The enclave host: the EC2 parent in front of the AWS Nitro enclave. The site&rsquo;s routes proxy to it. Commit here directly and the proof is not indexed by the site.</dd>
           <dt>Authentication</dt>
@@ -102,18 +102,24 @@ export default function APIReferencePage() {
     "signatureB64": "..."
   },
   "chainId": "bitgraph:main",
-  "anchor": {                        // since enclave v9 (2026-09-30): the floor the enclave will sign at commit
-    "counter": "270",                //   as commit.slotAnchor. Bind its blockHash into a bitgraph-fuse/2 commitment.
-    "blockNumber": 25949300,
-    "blockHash": "0x..."
+  "floor": {                         // since enclave v10: the Base block the enclave will sign at commit
+    "chain": "base",                 //   as commit.slotFloor. Bind its blockHash into a bitgraph-fuse/3 commitment.
+    "evmChainId": 8453,
+    "blockNumber": 52271417,
+    "blockHash": "0x...",
+    "blockTimestamp": 1791332181     // Unix seconds, read from the header
   }
-}`}
+}
+// Earlier (enclave v9, 2026-09-30 until the switch): "anchor" in place of "floor",
+// an Ethereum anchor { "counter": "270", "blockNumber": 25949300, "blockHash": "0x..." }
+// signed at commit as commit.slotAnchor and bound into a bitgraph-fuse/2 commitment.
+// An allocation never carries both.`}
           />
           <ul>
-            <li><code>anchor</code> is unsigned here and needs no signature: the commit signs the same anchor as <code>commit.slotAnchor</code>, and a <code>bitgraph-fuse/2</code> verifier recomputes the commitment from that signed value, so a wrong answer here only makes the file fail. It is absent before an epoch&rsquo;s first anchor, when no fused commit can succeed anyway.</li>
-            <li>The <code>slotId</code> is the position&rsquo;s nonce: a bearer ticket until the position is consumed. Write only the derived commitment into the file, never the nonce, and do not log it. Two commitments exist. <code>bitgraph-fuse/2</code>, the current one, is SHA-256 over the domain string <code>bitgraph-fuse/2</code>, a zero byte, the SHA-256 of the canonical position record, the nonce, and the 32 bytes of the floor block hash from <code>anchor.blockHash</code>. <code>bitgraph-fuse/1</code> omits the floor: SHA-256 over <code>bitgraph-fuse/1</code>, a zero byte, the record hash and the nonce. tree/1 always uses <code>bitgraph-fuse/2</code>.</li>
-            <li>The chain is bound at allocation and pinned to <code>bitgraph:main</code>, the anchored sequence. A position that is never consumed expires after 120 seconds.</li>
-            <li>The route sits behind the anchor-first gate and a rotation guard: until the current epoch has an anchor, in the window before the daily restart, and when the enclave cannot be reached, it answers <code>503 tee-restarting</code>. Retry. The epoch that issued the position must be the epoch the gate approved; a position from a rotation inside that check is refused the same way and expires on its own.</li>
+            <li><code>floor</code> is unsigned here and needs no signature: the commit signs the same block as <code>commit.slotFloor</code>, and a <code>bitgraph-fuse/3</code> verifier recomputes the commitment from that signed value, so a wrong answer here only makes the file fail. The enclave fixed the block when the position opened, from a Base header it hashed itself: the header&rsquo;s hash, its time on Base mainnet&rsquo;s schedule for its number, a time not after the enclave&rsquo;s clock, and a block number not below the chain&rsquo;s last floor. Earlier allocations returned <code>anchor</code>, an Ethereum anchor, in its place; it is documented here for the files that carry it.</li>
+            <li>The <code>slotId</code> is the position&rsquo;s nonce: a bearer ticket until the position is consumed. Write only the derived commitment into the file, never the nonce, and do not log it. Three commitments exist. <code>bitgraph-fuse/3</code>, the current one, is SHA-256 over the domain string <code>bitgraph-fuse/3</code>, a zero byte, the SHA-256 of the canonical position record, the nonce, and the 32 bytes of the Base floor block hash from <code>floor.blockHash</code>. <code>bitgraph-fuse/2</code>, the earlier one, has the same shape with the domain string <code>bitgraph-fuse/2</code> and the Ethereum floor block hash from <code>anchor.blockHash</code>. <code>bitgraph-fuse/1</code> omits the floor: SHA-256 over <code>bitgraph-fuse/1</code>, a zero byte, the record hash and the nonce. tree/1 uses <code>bitgraph-fuse/3</code> under specification version 2 and <code>bitgraph-fuse/2</code> under version 1.</li>
+            <li>The chain is bound at allocation and pinned to <code>bitgraph:main</code>, the floored sequence. A position that is never consumed expires after 120 seconds.</li>
+            <li>The route sits behind the floor gate and a rotation guard: when no Base floor block can be bound, in the window before the daily restart, and when the enclave cannot be reached, it answers <code>503 tee-restarting</code>. Retry. The epoch that issued the position must be the epoch the gate approved; a position from a rotation inside that check is refused the same way and expires on its own.</li>
             <li><code>429</code> with <code>Retry-After</code> when the per-address allocation budget is spent. <code>404 fuse-disabled</code> on a deployment that has not enabled the route. <code>502</code> if the enclave host&rsquo;s answer is not a position record.</li>
           </ul>
         </Endpoint>
@@ -135,11 +141,13 @@ export default function APIReferencePage() {
   }],
   "chainId": "bitgraph:main",
   "attribution": {
-    "name": "bitgraph-fuse/2",       // tree/1 is always bitgraph-fuse/2: its commitment binds the floor block
+    "name": "bitgraph-fuse/3",       // tree/1 under specification version 2: its commitment binds the Base floor block
     "title": "tree/1",               // the placement id
-    "message": "QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs="   // base64 SHA-256 of /spec/SPEC.md, version 1
+    "message": "<base64 SHA-256 of the specification>"   // version 2 with bitgraph-fuse/3; version 1 with bitgraph-fuse/2
   },
-  "anchor": { "counter": "270", "blockNumber": 25949300, "blockHash": "0x..." },   // the floor bound into the commitment, from /api/fuse/allocate
+  "floor": { "chain": "base", "evmChainId": 8453, "blockNumber": 52271417, "blockHash": "0x...", "blockTimestamp": 1791332181 },
+                                     // the floor bound into the commitment, from /api/fuse/allocate
+                                     // (earlier, bitgraph-fuse/2: "anchor": { "counter", "blockNumber", "blockHash" })
   "metadata": {                      // exactly this key and nothing else
     "bitgraph-tree/1": "<the 84-byte root document, 168 lowercase hex characters>"
   }
@@ -152,11 +160,11 @@ export default function APIReferencePage() {
   "digests": [{ "digestB64": "<SHA-256 of the fused bytes>", "hashAlg": "sha256" }],
   "chainId": "bitgraph:main",
   "attribution": {
-    "name": "bitgraph-fuse/2",       // bitgraph-fuse/1 or bitgraph-fuse/2: which commitment the file carries
+    "name": "bitgraph-fuse/3",       // bitgraph-fuse/1, /2 or /3: which commitment the file carries
     "title": "trailer/1",            // trailer/1 | container/1 | container/2 | produced/1 | set/1 | set/2, or the encoding id base64url
     "message": "<origin digest, standard base64>"   // optional; the original the new file was built from
   },
-  "anchor": { ... },                 // bitgraph-fuse/2 only
+  "floor": { ... },                  // bitgraph-fuse/3 only ("anchor": { ... } for bitgraph-fuse/2)
   "metadata": {                      // set/1 and set/2 only: the manifest or the earlier Merkle root document
     "bitgraph-fuse/1": { ... }
   }
@@ -169,8 +177,8 @@ export default function APIReferencePage() {
     "version": "bitgraph/1",
     "artifact": { "hashAlg": "sha256", "digestB64": "<SHA-256 of the root document>" },
     "commit": { "nonceB64": "...", "counter": "278", "slotCounter": "277", "slotHashB64": "...", "epochId": "...",
-                "slotAnchor": { "counter": "270", "blockNumber": 25949300, "blockHash": "0x..." } },
-    "attribution": { "name": "bitgraph-fuse/2", "title": "tree/1", "message": "QazdIR0JYtHQwQuIISo7bvH1gxUvTS2cY+tW6BjUIRs=" },
+                "slotFloor": { "chain": "base", "evmChainId": 8453, "blockNumber": 52271417, "blockHash": "0x...", "blockTimestamp": 1791332181 } },
+    "attribution": { "name": "bitgraph-fuse/3", "title": "tree/1", "message": "<base64 SHA-256 of the specification>" },
     "slotAllocation": { ... },       // the held position's record
     "metadata": { "bitgraph-tree/1": "<84 bytes, hex>" },   // unsigned; read only once it hashes to artifact.digestB64
     ...
@@ -192,11 +200,11 @@ export default function APIReferencePage() {
           />
           <ul>
             <li>An ordinary <code>bitgraph/1</code> proof: <code>slotAllocation</code> is the held position&rsquo;s record, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position. Keep the response: the proof returned here is the evidence. The service also keeps a copy and indexes it by the committed digest (for tree/1, the root document&rsquo;s hash), so a response lost in transit can be read back by that digest and matched on <code>commit.slotHashB64</code>; but store what comes back. A tree&rsquo;s members are never indexed by their own hash; a member finds its tree again through the recovery routes below.</li>
-            <li>Validation, all <code>400</code>: the body must be a JSON object; <code>slot</code> must be the record the allocate route returned; <code>slotId</code> must equal <code>slot.nonceB64</code>; <code>digests</code> carries exactly one entry with <code>hashAlg: "sha256"</code>; <code>attribution.name</code> must be <code>bitgraph-fuse/1</code> or <code>bitgraph-fuse/2</code>; <code>title</code> is printable ASCII, 1 to 64 characters; <code>message</code>, when present, is printable ASCII up to 128 characters.</li>
-            <li>tree/1, checked before anything is spent, each a <code>400</code> in this order: the name is <code>bitgraph-fuse/2</code>; <code>anchor</code> names the floor the commitment bound; <code>message</code> is the base64 SHA-256 of a SPEC.md this site knows; <code>metadata</code> is exactly <code>{`{ "bitgraph-tree/1": <168 lowercase hex> }`}</code>; the 84 bytes parse as a root document with a leaf count from 1 to 1,000,000; its commitment is the one recomputed from the named position and floor; its SHA-256 is the committed digest. The returned proof carries the root document whether or not the enclave echoed it; a different root document from the enclave is refused with <code>502 root-mismatch</code>.</li>
+            <li>Validation, all <code>400</code>: the body must be a JSON object; <code>slot</code> must be the record the allocate route returned; <code>slotId</code> must equal <code>slot.nonceB64</code>; <code>digests</code> carries exactly one entry with <code>hashAlg: "sha256"</code>; <code>attribution.name</code> must be <code>bitgraph-fuse/1</code>, <code>bitgraph-fuse/2</code> or <code>bitgraph-fuse/3</code>; <code>title</code> is printable ASCII, 1 to 64 characters; <code>message</code>, when present, is printable ASCII up to 128 characters.</li>
+            <li>tree/1, checked before anything is spent, each a <code>400</code> in this order: the name is the one the specification pins (<code>bitgraph-fuse/3</code> for version 2, <code>bitgraph-fuse/2</code> for version 1); <code>floor</code> (or, for <code>bitgraph-fuse/2</code>, <code>anchor</code>) names the floor the commitment bound; <code>message</code> is the base64 SHA-256 of a SPEC.md this site knows; <code>metadata</code> is exactly <code>{`{ "bitgraph-tree/1": <168 lowercase hex> }`}</code>; the 84 bytes parse as a root document with a leaf count from 1 to 1,000,000; its commitment is the one recomputed from the named position and floor; its SHA-256 is the committed digest. The returned proof carries the root document whether or not the enclave echoed it; a different root document from the enclave is refused with <code>502 root-mismatch</code>.</li>
             <li>Backward compatibility: titles <code>set/1</code> and <code>set/2</code> stay accepted because published packages (bitgraph 1.10, mcp 0.8 and earlier) make them. <code>metadata["bitgraph-fuse/1"]</code> then carries the manifest or the earlier root document, verified before the position is spent: exact shape, size cap, strict canonical round trip, the named position&rsquo;s commitment, and the hash to the committed digest. A different manifest from the enclave is refused with <code>502 manifest-mismatch</code>. <code>metadata</code> on any title other than <code>tree/1</code>, <code>set/1</code> or <code>set/2</code> is refused.</li>
-            <li>An anchor must precede the reserved position in its epoch, or the fused floor is undefined: <code>409 no-anchor-before-slot</code>. That condition cannot heal for a given position, so the failure is final: allocate again.</li>
-            <li><code>bitgraph-fuse/2</code>: <code>anchor</code> is required (<code>400</code> without it) and is compared with the ledger&rsquo;s anchor before the position; a floor the ledger contradicts (an older counter, or the same counter with a different block) is <code>409 floor-mismatch</code>, final for that position. A set&rsquo;s manifest or root document must carry the /2 commitment when the marker says /2.</li>
+            <li><code>bitgraph-fuse/3</code>: <code>floor</code> is required (<code>400</code> without it). The enclave signs the Base block it fixed when the position opened, so a commitment built on any other block makes the file fail verification.</li>
+            <li>Earlier, <code>bitgraph-fuse/2</code>: <code>anchor</code> is required (<code>400</code> without it) and is compared with the ledger&rsquo;s Ethereum anchor before the position; a floor the ledger contradicts (an older counter, or the same counter with a different block) is <code>409 floor-mismatch</code>, and no anchor before the position is <code>409 no-anchor-before-slot</code>. Both are final for that position: allocate again. A set&rsquo;s manifest or root document must carry the /2 commitment when the marker says /2.</li>
             <li><code>502 slot-mismatch</code>: the enclave returned a proof under a different position; nothing is reported as success. <code>503 tee-restarting</code> or <code>503 ledger-unavailable</code>: retry. <code>429</code> carries <code>Retry-After</code>.</li>
           </ul>
         </Endpoint>
@@ -205,7 +213,7 @@ export default function APIReferencePage() {
           method="POST"
           path="/api/commit"
           id="post-api-commit"
-          summary="Compatibility: record one or more digests of bytes that already exist. The floor bounds the placement of the digest, not the bytes. The site forwards the body to the enclave host's /commit, waits for the current epoch's first anchor, and indexes each proof by digest."
+          summary="Compatibility: record one or more digests of bytes that already exist. The floor bounds the placement of the digest, not the bytes. The site forwards the body to the enclave host's /commit and indexes each proof by digest."
         >
           <Block
             label="Request"
@@ -234,7 +242,7 @@ export default function APIReferencePage() {
           />
           <ul>
             <li>For each digest the enclave allocates a position and commits the digest under it in one request. The response is the enclave&rsquo;s, an array of proofs. An <code>Authorization</code> header is forwarded when present.</li>
-            <li><code>503 tee-restarting</code> until the current epoch has an anchor, during the daily restart, or when the enclave host answers 502, 503 or 504. Nothing has been minted when this fires, so a retry cannot double-record. Any other enclave error is returned with its status and body. <code>500 {`{ "error": "Commit failed" }`}</code> otherwise.</li>
+            <li><code>503 tee-restarting</code> when no floor can be bound, during the daily restart, or when the enclave host answers 502, 503 or 504. Nothing has been minted when this fires, so a retry cannot double-record. Any other enclave error is returned with its status and body. <code>500 {`{ "error": "Commit failed" }`}</code> otherwise.</li>
             <li>To make a BitGraph whose bytes carry their own floor, use the two calls above instead.</li>
           </ul>
         </Endpoint>
@@ -278,11 +286,13 @@ export default function APIReferencePage() {
       "slotHashB64": "...",
       "time": 1741496392841,
       "epochId": "a1b2c3d4e5f6...",
-      "slotAnchor": {                    // the floor: the chain's latest anchor when the position was allocated (enclave v8)
-        "counter": "270",
-        "blockNumber": 25949300,
-        "blockHash": "0x..."
-      }
+      "slotFloor": {                     // the floor: the Base block fixed when the position opened (enclave v10)
+        "chain": "base",
+        "evmChainId": 8453,
+        "blockNumber": 52271417,
+        "blockHash": "0x...",
+        "blockTimestamp": 1791332181
+      }                                  // earlier proofs carry "slotAnchor" (an Ethereum anchor) here instead
     },
     "signer": {
       "publicKeyB64": "...",
@@ -339,7 +349,7 @@ const proofs = await resp.json();
           />
           <ul>
             <li>Consuming a held position (<code>slotId</code>) is available only where the service enables it, and a held position commits exactly one digest per request.</li>
-            <li>On enclave v8 the anchored chain <code>bitgraph:main</code> refuses to commit until an authenticated anchor has landed in the epoch, and every proof on it carries, as its floor, the latest anchor at the moment its position was allocated.</li>
+            <li>On enclave v10 every position on <code>bitgraph:main</code> is opened with a Base floor: the newest Base block, from a header the enclave hashes and checks itself, signed into the proof as <code>commit.slotFloor</code>. An allocation without one is refused. Proofs from enclave v8 and v9 carry, as their floor, the latest Ethereum anchor at the moment the position was allocated (<code>commit.slotAnchor</code>).</li>
             <li>A proof committed here directly is not indexed by the site. To have it indexed, commit through <code>/api/commit</code>.</li>
           </ul>
         </Endpoint>
@@ -364,13 +374,14 @@ const proofs = await resp.json();
     "chainId": "bitgraph:main",
     "signatureB64": "..."
   },
-  "chainId": "bitgraph:main"
-}`}
+  "chainId": "bitgraph:main",
+  "floor": { "chain": "base", "evmChainId": 8453, "blockNumber": 52271417, "blockHash": "0x...", "blockTimestamp": 1791332181 }
+}                                    // earlier enclaves (v9) returned "anchor" here instead`}
           />
           <ul>
             <li><code>POST /commit</code> without <code>slotId</code> allocates internally; this route is for producers that build a fused file. A position record carries no clock.</li>
             <li>The <code>slotId</code> is the slot&rsquo;s nonce: a bearer ticket until it is consumed, so do not disclose it before the commit. A bare allocation holds one of the enclave&rsquo;s pending positions for up to 120 seconds, then expires.</li>
-            <li>The chain is bound at allocation and defaults to the anchored chain. <code>429</code> with <code>Retry-After</code> when the per-address allocation budget is spent.</li>
+            <li>The chain is bound at allocation and defaults to <code>bitgraph:main</code>. The <code>floor</code> is the Base block the commit will sign as <code>commit.slotFloor</code>. <code>429</code> with <code>Retry-After</code> when the per-address allocation budget is spent.</li>
           </ul>
         </Endpoint>
 
@@ -431,16 +442,16 @@ const proofs = await resp.json();
           <Block label="Response 200" code={`{ "ok": true }`} />
         </Endpoint>
 
-        <h2 id="ledger">Looking up proofs and anchors on bitgraph.ing</h2>
+        <h2 id="ledger">Looking up proofs and earlier anchors on bitgraph.ing</h2>
         <p>
-          The service keeps a copy of each proof it makes and indexes it by digest, and it keeps every anchor by counter. These routes read that copy. Two rules hold on all of them: a read that fails is a <code>503</code>, never an empty answer, because &ldquo;we could not look&rdquo; and &ldquo;nothing is there&rdquo; are opposite claims; and a lookup that finds nothing is not evidence that bytes were never recorded. Proofs made between 8 and 16 September 2026, when the per-proof writes were off, were backfilled afterwards; the holder&rsquo;s copy is the record in every case. A tree/1 BitGraph is indexed under one digest only, the root document&rsquo;s hash. Its members are never indexed by their own hash, by design, so a file inside a tree misses every route here; the <a href="#recovery">recovery routes</a> are how a file finds its tree again.
+          The service keeps a copy of each proof it makes and indexes it by digest, and it keeps every earlier Ethereum anchor by counter. These routes read that copy. A proof with a Base floor carries its floor inside itself (<code>commit.slotFloor</code>), so the anchor routes and fields below concern proofs made before the switch, which stand on an Ethereum anchor. Two rules hold on all of them: a read that fails is a <code>503</code>, never an empty answer, because &ldquo;we could not look&rdquo; and &ldquo;nothing is there&rdquo; are opposite claims; and a lookup that finds nothing is not evidence that bytes were never recorded. Proofs made between 8 and 16 September 2026, when the per-proof writes were off, were backfilled afterwards; the holder&rsquo;s copy is the record in every case. A tree/1 BitGraph is indexed under one digest only, the root document&rsquo;s hash. Its members are never indexed by their own hash, by design, so a file inside a tree misses every route here; the <a href="#recovery">recovery routes</a> are how a file finds its tree again.
         </p>
 
         <Endpoint
           method="GET"
           path="/api/proofs/digest/{digest}"
           id="get-api-proofs-digest"
-          summary="Every position BitGraph's copy holds for a digest, by position, never ranked, with the two anchors that bracket the selected one. The path digest is URL-safe base64 without padding."
+          summary="Every position BitGraph's copy holds for a digest, by position, never ranked, with the two anchors that bracket the selected one when it is an earlier, Ethereum-anchored proof. The path digest is URL-safe base64 without padding."
         >
           <Block
             label="Query"
@@ -456,8 +467,8 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
     {
       "counter": "278",
       "epoch": "<url-safe>",
-      "lowerTime": "2026-03-07T12:00:00.000Z",   // the floor: the block time of the anchor before this position, or null
-      "upperTime": "2026-03-07T12:00:12.000Z",   // the block time of the next anchor, or null; a place in the order, not an upper bound on the bytes
+      "lowerTime": "2026-03-07T12:00:00.000Z",   // earlier proofs: the floor, the block time of the anchor before this position, or null
+      "upperTime": "2026-03-07T12:00:12.000Z",   // earlier proofs: the block time of the next anchor, or null; a place in the order, not an upper bound on the bytes
       "kind": "recorded",             // "recorded" | "fused"
       "artifactDigest": "<url-safe>"
     },
@@ -475,14 +486,14 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
       "setCount": 3                   // earlier set entries only: how many members the set lists
     }
   ],
-  "causalWindow": { "anchorBefore": { ... }, "anchorAfter": { ... } },   // AnchorView each, or null; null when neither exists
-  "anchorBlock": null                 // for an anchor proof: its own block, as an AnchorView
+  "causalWindow": { "anchorBefore": { ... }, "anchorAfter": { ... } },   // earlier proofs: AnchorView each, or null; null when neither exists
+  "anchorBlock": null                 // for an earlier anchor proof: its own block, as an AnchorView
 }`}
           />
           <ul>
             <li>The lead proof is the earliest recording of these bytes. A fused file naming the bytes as its original never stands in for it: when only such descendants exist, <code>lookupKind</code> is <code>origin-only</code> and the bytes themselves are not on record.</li>
             <li>When the digest is a fused file&rsquo;s own, or an earlier set member&rsquo;s, <code>positions</code> is the history of the original it was built from, so dropping the original and dropping the new file land on the same list. A tree/1 member&rsquo;s digest is not indexed and answers a miss here; the tree itself is found by its root document&rsquo;s hash, and a file reaches it through the recovery routes.</li>
-            <li><code>anchorBefore</code> is the floor. <code>anchorAfter</code> is the next anchor in the order: the ceiling, a position, not a clock reading.</li>
+            <li>For an earlier proof, <code>anchorBefore</code> is its Ethereum floor and <code>anchorAfter</code> the next anchor in the order: a place in the order, not a clock reading. A proof with a Base floor reads its floor from <code>commit.slotFloor</code> and its ceiling from the Base write that holds its proof hash.</li>
             <li>A miss is <code>{`{ "proofs": [] }`}</code>. When the service is running with indexing off (<code>LEDGER_WRITES=off</code>) the miss also carries <code>"discovery": "retired"</code> and a note; in either form it is not a finding about the bytes.</li>
             <li><code>503 {`{ "error": "ledger unavailable" }`}</code>: BitGraph&rsquo;s copy could not be read. Not an answer.</li>
           </ul>
@@ -535,7 +546,7 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
           method="GET"
           path="/api/proofs/{digest}"
           id="get-api-proofs-plain-digest"
-          summary="The plain form of the lookup: every proof BitGraph's copy holds under a committed digest, earliest position first, with no anchors and no positions table. This is the route a recovery entry's locator is read through (specification, section 13). The path digest is URL-safe base64 without padding."
+          summary="The plain form of the lookup: every proof BitGraph's copy holds under a committed digest, earliest position first, with no anchors, no window and no positions table. This is the route a recovery entry's locator is read through (specification, section 13). The path digest is URL-safe base64 without padding."
         >
           <Block label="Query" code={`GET /api/proofs/<digest>`} />
           <Block
@@ -557,7 +568,7 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
           method="GET"
           path="/api/proofs/anchors"
           id="get-api-proofs-anchors"
-          summary="The anchors that bracket a position, by counter and epoch, and when one is missing, why. An empty list is never a verdict on its own; the bound state says what the emptiness means."
+          summary="Earlier proofs: the Ethereum anchors that bracket a position, by counter and epoch, and when one is missing, why. An empty list is never a verdict on its own; the bound state says what the emptiness means. A proof with a Base floor needs no anchor: its floor is signed inside it."
         >
           <Block
             label="Query"
@@ -597,7 +608,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
           method="GET"
           path="/api/proofs/window"
           id="get-api-proofs-window"
-          summary="The two anchors that bracket a position, as AnchorViews, from the counter and epoch a proof carries in its signed body. Nothing about the file is looked up or revealed."
+          summary="Earlier proofs: the two Ethereum anchors that bracket a position, as AnchorViews, from the counter and epoch a proof carries in its signed body. Nothing about the file is looked up or revealed."
         >
           <Block label="Query" code={`GET /api/proofs/window?counter=278&epoch=<url-safe>`} />
           <Block
@@ -621,7 +632,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
           method="GET"
           path="/api/proofs/witness"
           id="get-api-proofs-witness"
-          summary="The offline block-header witness for an anchor's Ethereum block: the RLP-encoded header whose keccak256 equals the signed block hash. A verifier reads the block's time from it without an Ethereum node."
+          summary="Earlier proofs: the offline block-header witness for an anchor's Ethereum block, the RLP-encoded header whose keccak256 equals the signed block hash. A verifier reads the block's time from it without an Ethereum node."
         >
           <Block label="Query" code={`GET /api/proofs/witness?block=25949300&hash=0x<64 hex>`} />
           <Block
@@ -823,7 +834,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
           <ul>
             <li>Read <code>artifactBinding</code>, not only <code>verified</code>. <code>checked</code>: the digest you sent matches the one inside the proof. <code>not-checked</code>: the proof is sound but nothing tied it to a file. <code>mismatch</code>: the proof is genuine and is for different bytes; <code>verified</code> is then false.</li>
             <li>With <code>proof</code> supplied, <code>checkedAgainst</code> is <code>supplied proof</code> and the verdict is about the object itself; <code>onRecord</code> says separately whether BitGraph&rsquo;s copy holds those bytes. With only a <code>digest</code>, the earliest recording of the bytes is verified; a fused descendant never stands in for a recording.</li>
-            <li>Time is deliberately absent from the response. A proof carries no clock reading; its bounds are the two anchors, at <code>anchorWindow</code>.</li>
+            <li>Time is deliberately absent from the response. A proof with a Base floor carries its floor block inside it (<code>commit.slotFloor</code>); an earlier proof&rsquo;s bounds are the two Ethereum anchors, at <code>anchorWindow</code>.</li>
             <li><code>400</code>: neither proof nor digest, a malformed digest, or a malformed policy. <code>503 {`{ "error": "ledger unavailable" }`}</code>: BitGraph&rsquo;s copy could not be read, which is not a verdict about the file; retry. This applies even when a proof was supplied, because the record check is part of the answer.</li>
           </ul>
         </Endpoint>
@@ -847,12 +858,19 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
     time?: number;             // Unix ms; advisory
     prevB64?: string;          // chain link
     epochId?: string;          // hex SHA-256
-    slotAnchor?: {             // the floor: the chain's latest anchor at allocation, signed into the proof (enclave v8)
+    slotFloor?: {              // the floor: the Base block fixed when the position opened, signed into the proof (enclave v10)
+      chain: "base";
+      evmChainId: 8453;        // the EVM chain id, not BitGraph's chainId
+      blockNumber: number;
+      blockHash: string;       // keccak-256 of the header the enclave hashed
+      blockTimestamp: number;  // Unix seconds, from the header
+    };
+    slotAnchor?: {             // the earlier floor: the chain's latest Ethereum anchor at allocation (enclave v8, v9); never with slotFloor
       counter: string;
       blockNumber: number;
       blockHash: string;
     };
-    anchor?: {                 // on Ethereum anchor proofs only: the block this proof anchors
+    anchor?: {                 // on earlier Ethereum anchor proofs only: the block this proof anchors
       blockNumber: number;
       blockHash: string;
     };
@@ -872,8 +890,8 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
   slotAllocation?: SlotRecord;       // the position record, made before any digest was received
   agency?: unknown;                  // legacy; present on some older proofs
   attribution?: {                    // signed; creator metadata, or the marker:
-                                     //   tree/1: name "bitgraph-fuse/2", title "tree/1", message base64 SHA-256 of SPEC.md
-                                     //   earlier placements: name "bitgraph-fuse/1" or "bitgraph-fuse/2", title placement id, message origin digest
+                                     //   tree/1: name "bitgraph-fuse/3" (specification v2) or "bitgraph-fuse/2" (v1), title "tree/1", message base64 SHA-256 of SPEC.md
+                                     //   earlier placements: name "bitgraph-fuse/1", "/2" or "/3", title placement id, message origin digest
     name?: string;
     title?: string;
     message?: string;
@@ -897,7 +915,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
   time?: number;                   // advisory
   epochId: string;
   publicKeyB64: string;            // the enclave key that will sign the commit
-  chainId?: string;                // "bitgraph:main" on the anchored sequence
+  chainId?: string;                // "bitgraph:main" on the floored sequence
   signatureB64: string;            // Ed25519 over the canonical position record
 }`}
         />
@@ -936,7 +954,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
         <h3>AnchorView</h3>
         <Block
           label="TypeScript"
-          code={`interface AnchorView {             // one anchor, as the window and digest routes present it
+          code={`interface AnchorView {             // one earlier Ethereum anchor, as the window and digest routes present it
   counter: string;                 // the anchor's position
   attrName: string;                // "Ethereum Anchor"
   blockNumber: number | null;
@@ -971,8 +989,8 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
               <tr><td className="k">404</td><td>Fuse routes on a deployment that has not enabled them</td><td><code>{`{ "error": "...", "code": "fuse-disabled" }`}</code></td></tr>
               <tr><td className="k">404</td><td>No block header witness could be found or re-encoded to match</td><td><code>{`{ "error": "witness unavailable" }`}</code></td></tr>
               <tr><td className="k">404</td><td><code>/api/export/epoch/&lt;epochId&gt;</code>: public epoch export is disabled; every request answers this</td><td><code>{`{ "error": "not found" }`}</code></td></tr>
-              <tr><td className="k">409</td><td>No anchor precedes the reserved position in its epoch (fuse commit); allocate again</td><td><code>{`{ "error": "...", "code": "no-anchor-before-slot" }`}</code></td></tr>
-              <tr><td className="k">409</td><td>The floor bound into the commitment is not the anchor before the position (fuse commit, bitgraph-fuse/2); allocate again</td><td><code>{`{ "error": "...", "code": "floor-mismatch" }`}</code></td></tr>
+              <tr><td className="k">409</td><td>No anchor precedes the reserved position in its epoch (fuse commit, earlier bitgraph-fuse/2); allocate again</td><td><code>{`{ "error": "...", "code": "no-anchor-before-slot" }`}</code></td></tr>
+              <tr><td className="k">409</td><td>The floor bound into the commitment is not the anchor before the position (fuse commit, earlier bitgraph-fuse/2); allocate again</td><td><code>{`{ "error": "...", "code": "floor-mismatch" }`}</code></td></tr>
               <tr><td className="k">413</td><td>Payload too large</td><td><code>{`{ "error": "Request body too large. Max 1 MB." }`}</code></td></tr>
               <tr><td className="k">413</td><td>Recovery body over its limit: 4,000,000 bytes on <code>/api/recovery</code>, 131,072 on <code>/api/recovery/lookup</code></td><td><code>{`{ "error": "...", "code": "too-large" }`}</code></td></tr>
               <tr><td className="k">429</td><td>Per-address allocation budget spent; <code>Retry-After</code> header set</td><td><code>{`{ "error": "..." }`}</code></td></tr>
@@ -982,7 +1000,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
               <tr><td className="k">502</td><td>The enclave returned a different tree/1 root document (fuse commit)</td><td><code>{`{ "error": "...", "code": "root-mismatch" }`}</code></td></tr>
               <tr><td className="k">502</td><td>The enclave returned a different set manifest (fuse commit, set/1 and set/2)</td><td><code>{`{ "error": "...", "code": "manifest-mismatch" }`}</code></td></tr>
               <tr><td className="k">502</td><td>The enclave host&rsquo;s allocation answer is not a position record (fuse allocate)</td><td><code>{`{ "error": "Unexpected allocation response from the boundary" }`}</code></td></tr>
-              <tr><td className="k">503</td><td>Enclave restarting, not yet anchored, or unreachable; retry</td><td><code>{`{ "error": "...", "code": "tee-restarting" }`}</code></td></tr>
+              <tr><td className="k">503</td><td>Enclave restarting, no floor block available, or unreachable; retry</td><td><code>{`{ "error": "...", "code": "tee-restarting" }`}</code></td></tr>
               <tr><td className="k">503</td><td>BitGraph&rsquo;s copy could not be read; not an answer about the bytes; retry</td><td><code>{`{ "error": "...", "code": "ledger-unavailable" }`}</code> or <code>{`{ "error": "ledger unavailable" }`}</code></td></tr>
               <tr><td className="k">503</td><td>BitGraph&rsquo;s copy cannot name the current epoch yet</td><td><code>{`{ "error": "rotating" }`}</code></td></tr>
               <tr><td className="k">503</td><td>Recovery writes are off on this site</td><td><code>{`{ "error": "...", "code": "recovery-writes-off" }`}</code></td></tr>

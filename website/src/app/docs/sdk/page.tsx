@@ -41,7 +41,7 @@ console.log(r.made?.exports?.owner);  // ./bitgraph-<n>.bitgraph.json: keep it w
         The proof commits only the tree&rsquo;s root, so each file shows it is in its BitGraph with its export (bitgraph-export/1), written beside the files: the owner&rsquo;s export holds every leaf and name, a member export holds one file&rsquo;s leaf and path, and <Link href="/spec">SPEC.md</Link>, the text the proof pins, is written beside them. Exports hold no file copies and no anchors. Keep export/1 and SPEC.md with the files. Each file made also gets a sealed recovery entry, stored under a name derived from the file&rsquo;s hash and encrypted with a key derived from it, so the file alone can find its proof again when the export is lost; <code>recovery: false</code> keeps none but still checks them.
       </p>
       <p>
-        The verbs: <code>record</code>, <code>check</code>, <code>proof</code>, <code>open</code> and <code>seal</code>, <code>verify</code> and <code>verifyExport</code>, <code>ownerExport</code>, <code>memberExport</code>, <code>writeExports</code>, <code>completeExport</code>, <code>bitgraphedFile</code>, <code>complete</code>. <code>verify</code> needs no network: a BitGraphed file argues for itself, and a file with its export is judged one line per claim, each saying what it rests on. The window is stated in the protocol&rsquo;s units: the floor in time (the Ethereum block fixed when the position opened), the ceiling in position (committed before the anchoring of the next anchor, a bound in position and never a clock time), the ceiling in time (the Base block carrying a Merkle root over the record) and the settlement (Ethereum&rsquo;s record of that Base block through Base&rsquo;s output root), each once it exists. <code>completeExport</code> adds the floor header, the Base ceiling and the settlement to an export once they exist, each verified first. <code>check</code> is read-only and asks the recovery entries too, so a tree member is reported on record with its leaf and the tree&rsquo;s proof page.
+        The verbs: <code>record</code>, <code>check</code>, <code>proof</code>, <code>open</code> and <code>seal</code>, <code>verify</code> and <code>verifyExport</code>, <code>ownerExport</code>, <code>memberExport</code>, <code>writeExports</code>, <code>completeExport</code>, <code>bitgraphedFile</code>, <code>complete</code>. <code>verify</code> needs no network: a BitGraphed file argues for itself, and a file with its export is judged one line per claim, each saying what it rests on. The window is stated in the protocol&rsquo;s units: the floor in time (the Base block fixed when the position opened, or the Ethereum block on earlier proofs), the ceiling in time (the Base block carrying a Merkle root over the record) and the settlement (Ethereum&rsquo;s record of that Base block through Base&rsquo;s output root), each once it exists. <code>completeExport</code> adds the floor header, the Base ceiling and the settlement to an export once they exist, each verified first. <code>check</code> is read-only and asks the recovery entries too, so a tree member is reported on record with its leaf and the tree&rsquo;s proof page.
       </p>
 
       <h2 id="position-first">The position before the work</h2>
@@ -53,8 +53,9 @@ console.log(r.made?.exports?.owner);  // ./bitgraph-<n>.bitgraph.json: keep it w
         <Code lang="typescript">{`const slot = await bg.open();
 const task = prompt + "\\n<!-- " + slot.commitment + " -->";
 const sealed = await slot.seal(Buffer.from(task));
-// slot.fuseVersion is 2 when the boundary returned its floor (enclave v9): the commitment then
-// binds the floor block's hash, so the task could not have been written before that block existed.`}</Code>
+// slot.fuseVersion is 3 when the boundary returned a Base floor (enclave v10; 2 for an earlier
+// Ethereum floor): the commitment binds the floor block's hash, so the task could not have been
+// written before that block existed.`}</Code>
       </div>
 
       <h2 id="cli">Any language: the CLI</h2>

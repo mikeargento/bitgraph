@@ -26,7 +26,7 @@ export default function SelfHostTEEPage() {
       <div className="callout is-limit">
         <span className="kicker">A separate sequence</span>
         <p>
-          A self-hosted enclave is a separate sequence. Its proofs are signed and attested, but they carry no Ethereum floor unless you run an anchor service of your own on a chain of your own. The <code>bitgraph:main</code> chain and its anchors belong to bitgraph.ing.
+          A self-hosted enclave is a separate sequence. Its proofs are signed and attested, but they carry no Base floor unless your parent reads Base headers and hands them to the enclave (<code>BASE_FLOOR=on</code> with <code>BASE_FLOOR_RPC_URLS</code>). The <code>bitgraph:main</code> chain on bitgraph.ing is a different sequence from yours even under the same name.
         </p>
       </div>
 
@@ -258,7 +258,7 @@ curl -X POST http://localhost:8080/commit \\
   -d "{
     \\"digests\\": [{\\"digestB64\\": \\"$DIGEST\\", \\"hashAlg\\": \\"sha256\\"}]
   }"
-# Returns: signed BitGraph proof with TEE attestation (no floor: without an anchor service on this chain, commit.slotAnchor is absent)
+# Returns: signed BitGraph proof with TEE attestation (commit.slotFloor is present only when the parent sent a Base header)
 
 # Two-phase form, used by producers that build a fused artifact: reserve a
 # position first, then commit into that exact position. Needs FUSE_ENABLED=true in
@@ -266,12 +266,12 @@ curl -X POST http://localhost:8080/commit \\
 # /commit and is metered in positions; a held position commits exactly one
 # digest per request. The slotId is the position's nonce: do not disclose it
 # before the commit. A position never consumed expires after 120 seconds.
-# On enclave v8 the chain bitgraph:main refuses to commit until an authenticated
-# anchor has landed, and only bitgraph.ing's anchor service can produce one, so
-# pass a chain of your own: -d '{"chainId":"your-chain"}'.
+# On enclave v10 the chain bitgraph:main refuses to open a position without a
+# Base floor header, so either run the parent with BASE_FLOOR=on and
+# BASE_FLOOR_RPC_URLS, or pass a chain of your own: -d '{"chainId":"your-chain"}'.
 curl -X POST http://localhost:8080/allocate-slot \\
   -H "Authorization: Bearer your-secret-api-key-here"
-# { "slotId": "...", "slot": { ... }, "chainId": "bitgraph:main" }
+# { "slotId": "...", "slot": { ... }, "chainId": "bitgraph:main", "floor": { ... } }   # floor: with a Base header
 
 curl -X POST http://localhost:8080/commit \\
   -H "Content-Type: application/json" \\
@@ -285,7 +285,7 @@ curl -X POST http://localhost:8080/commit \\
 
       <h2 id="stands">Where a self-hosted enclave stands</h2>
       <p>
-        The BitGraph anchor service and the site are fixed to <code>nitro.occproof.com</code>. A self-hosted enclave is a separate chain with its own key and measurement; nothing on bitgraph.ing points at it, and its positions carry no floor until you run an anchor service of your own. Order inside it is order within that one sequence. Two enclaves run by different operators are two unrelated sequences, related to each other only through the Ethereum blocks their anchors name, if they have any.
+        The site is fixed to <code>nitro.occproof.com</code>. A self-hosted enclave is a separate chain with its own key and measurement; nothing on bitgraph.ing points at it, and its positions carry no floor until its parent hands the enclave Base headers. Order inside it is order within that one sequence. Two enclaves run by different operators are two unrelated sequences, related to each other only through the Base blocks their floors name, if they have any.
       </p>
 
       <h2 id="production">Production checklist</h2>
@@ -296,7 +296,7 @@ curl -X POST http://localhost:8080/commit \\
         <li>Save the PCR0 measurement: this is your enclave&rsquo;s identity for verification</li>
         <li>Set up monitoring on the <code>/health</code> endpoint</li>
         <li>Configure log rotation for parent server and socat logs</li>
-        <li>The enclave generates a new keypair on each restart: the epochId changes and the counter resets to 1. Cross-epoch sequencing is established by Ethereum anchors, not by an in-enclave chain.</li>
+        <li>The enclave generates a new keypair on each restart: the epochId changes and the counter resets to 1. Cross-epoch sequencing is established by the public Base blocks the floors name, not by an in-enclave chain.</li>
       </ul>
 
       <h2 id="deploy">The deploy script</h2>
@@ -342,7 +342,7 @@ curl -X POST http://localhost:8080/commit \\
       </ol>
       <p>For each proof request:</p>
       <ol className="steps">
-        <li>Validates the position exists (no position, no proof). On the anchored chain it also requires the position to have a floor: the latest authenticated anchor, fixed at allocation</li>
+        <li>Validates the position exists (no position, no proof). On <code>bitgraph:main</code> the position always has a floor: the Base block fixed at allocation, from a header the enclave hashed and checked</li>
         <li>Increments the chain counter</li>
         <li>Builds the signed body: artifact, commit, measurement, and any attribution or policy</li>
         <li>Signs with Ed25519</li>
@@ -359,7 +359,7 @@ curl -X POST http://localhost:8080/commit \\
         <li>During restart, all commit requests fail closed.</li>
       </ul>
       <p>
-        This is a containment property, not a limitation. Each epoch is a closed compartment: any compromise of the live epoch cannot retroactively forge proofs under a prior epoch&rsquo;s key. Cross-epoch sequencing is established externally by Ethereum anchors, not by an in-enclave chain.
+        This is a containment property, not a limitation. Each epoch is a closed compartment: any compromise of the live epoch cannot retroactively forge proofs under a prior epoch&rsquo;s key. Cross-epoch sequencing is established externally by the public Base blocks the floors name, not by an in-enclave chain.
       </p>
 
       <h2 id="next">Where next</h2>

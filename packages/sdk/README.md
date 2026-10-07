@@ -1,6 +1,6 @@
 # @mikeargento/bitgraph-sdk
 
-One engine, three sockets. BitGraph gives a file's bytes a causal position in a public sequence bracketed by Ethereum anchors: a floor it cannot move under, a position nothing can be slid beneath. This package is how software plugs in, whatever it is written in.
+One engine, three sockets. BitGraph gives a file's bytes a causal position in a public sequence, bracketed by public blocks: a Base block bound into the position when it opens, a floor it cannot move under, and a Base write after the commit; a position nothing can be slid beneath. This package is how software plugs in, whatever it is written in.
 
 - **TypeScript**: `import { BitGraph } from "@mikeargento/bitgraph-sdk"`
 - **Any language that can spawn a process**: `npx bitgraph <verb> --json`
@@ -26,7 +26,7 @@ Every call makes **one BitGraph**: one Merkle tree under one position (tree/1), 
 await bg.record(["logs/step-001.json", "logs/step-002.json", "logs/step-003.json"], { exportDir: "proofs", exports: "both" });
 ```
 
-The proof commits only the tree's root, so a file shows it is in its BitGraph with its **export** (bitgraph-export/1): the owner's (`bitgraph-<n>.bitgraph.json`, every leaf and its name) or one per member (`<name>.bitgraph.json`, that file's leaf and path), with SPEC.md, the exact text the proof pins (version 1, frozen 2026-10-04), beside them. An export holds no copy of any file and no anchors. Without `exportDir` nothing is written and `r.made` holds everything they are built from (`bg.ownerExport(r.made)`, `bg.memberExport(r.made, leaf)`, `bg.writeExports(r.made, dir)`).
+The proof commits only the tree's root, so a file shows it is in its BitGraph with its **export** (bitgraph-export/1): the owner's (`bitgraph-<n>.bitgraph.json`, every leaf and its name) or one per member (`<name>.bitgraph.json`, that file's leaf and path), with SPEC.md, the exact text the proof pins (version 1, frozen 2026-10-04), beside them. An export holds no copy of any file and no anchor proofs. Without `exportDir` nothing is written and `r.made` holds everything they are built from (`bg.ownerExport(r.made)`, `bg.memberExport(r.made, leaf)`, `bg.writeExports(r.made, dir)`).
 
 Bytes already on record come back `"on record"`, untouched: the ledger is asked, and so are the file's recovery entries, so a file in an earlier tree is found by its own bytes. Unknown is not new: a file whose entries could not all be read is refused with the reason, not recorded, unless `again` says to record regardless. A BitGraphed file (one that carries its own proof, carrier/2) is judged offline from the proof inside and is **never minted**: the envelope is not the recorded thing, the bytes inside are.
 
@@ -56,7 +56,7 @@ await bg.complete("photo.bitgraph.jpg");       // fetch the closing anchor and t
 
 An export starts with its Base ceiling and Ethereum settlement pending: the ceiling lands seconds after the commit, the settlement when Base posts its output root to Ethereum. `completeExport` fetches each from the site's public routes and adds it only once it verifies; nothing already inside is replaced.
 
-`verify` needs no network and no server: a BitGraphed file argues for itself, one line per claim, each saying what it rests on (SHA-256, Ed25519, the AWS Nitro root, an Ethereum block, a Base block). The window is stated in the protocol's own units: no earlier than the floor block (a time), existed by the Base block (a time), committed before the anchoring of the later anchor (a position). Offline, the blocks are taken from their headers; `--eth-rpc` and `--base-rpc` confirm them against nodes you name.
+`verify` needs no network and no server: a BitGraphed file argues for itself, one line per claim, each saying what it rests on (SHA-256, Ed25519, the AWS Nitro root, an Ethereum block, a Base block). The window is stated in the protocol's own units: no earlier than the floor block (a time), existed by the Base block (a time). A BitGraphed file holds an earlier single-file position floored by an Ethereum anchor, so it also states its closing anchor: committed before the anchoring of the later anchor (a position). Offline, the blocks are taken from their headers; `--eth-rpc` and `--base-rpc` confirm them against nodes you name.
 
 ## Any language
 

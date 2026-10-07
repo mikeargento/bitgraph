@@ -25,7 +25,7 @@ The first thing built on it is AI audit. A BitGraph is a verifiable receipt for 
 
 Make one in your browser at [bitgraph.ing/docs/try](https://bitgraph.ing/docs/try): the drop box. The file never leaves your machine; only its fingerprint does. From an agent, connect the [MCP server](https://bitgraph.ing/docs/mcp) at `bitgraph.ing/mcp` with one URL. From code, `npx -p @mikeargento/bitgraph-sdk bitgraph record <paths...>`. To put a commitment inside a record your own system writes, follow the [integration guide](https://bitgraph.ing/docs/integration).
 
-Making a BitGraph of one or more files yields ONE position: a Merkle tree of the files (tree/1), one file a tree of one. What you keep is the **export** (bitgraph-export/1) beside the files, with `SPEC.md`, the exact text the proof pins. The owner's export lists every leaf and name; a member export holds one file's leaf and path. An export holds no copy of any file and no anchors. `bitgraph export complete` adds the floor header, the Base ceiling and the Ethereum settlement later. If the export is lost, the file alone finds its proof again through its recovery entry (SPEC section 13).
+Making a BitGraph of one or more files yields ONE position: a Merkle tree of the files (tree/1), one file a tree of one. What you keep is the **export** (bitgraph-export/1) beside the files, with `SPEC.md`, the exact text the proof pins. The owner's export lists every leaf and name; a member export holds one file's leaf and path. An export holds no copy of any file and no anchor proofs. `bitgraph export complete` adds the floor header, the Base ceiling and the Ethereum settlement later. If the export is lost, the file alone finds its proof again through its recovery entry (SPEC section 13).
 
 Verify a file with its export in code, with the MIT verifier:
 
@@ -103,7 +103,7 @@ A BitGraph proof is a portable proof object, a JSON document, that travels with 
 | Signature | Verifies the proof was issued by the enclave-controlled key |
 | TEE measurement | Shows what code and environment produced the proof |
 | Attestation | Shows the proof came from measured hardware |
-| Public anchor | Tethers BitGraph logical time to a public reference |
+| Public floor | A Base block bound in when the position opened: tethers BitGraph logical time to a public reference |
 | Tree marker | Signed: the format (tree/1) and the SHA-256 of SPEC.md, the exact text the proof pins. The artifact hash is then the tree's 84-byte root document; each file's leaf and path live in the export |
 
 Taken together: this hash was committed into this reserved position, by this measured environment, at this point in logical order, under this signing identity.
@@ -116,15 +116,17 @@ BitGraph proves causal order. It does not assert a clock time.
 
 ## Establishing wall clock time
 
-BitGraph's internal ordering does not require Ethereum. The chain creates internal order through position allocation, consumption, counters, signatures, and chained proof history. What that order lacks, on its own, is a clock. The enclave keeps no trusted one; any clock reading inside a proof is advisory.
+BitGraph's internal ordering does not require a blockchain. The chain creates internal order through position allocation, consumption, counters, signatures, and chained proof history. What that order lacks, on its own, is a public clock. The recorded time is the enclave platform's signed clock, the AWS Nitro attestation time; the public bounds come from outside.
 
-Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is produced, so the anchor, and every proof chained after it, came after that block and its public date. Anchors recur throughout every epoch, and they write nothing to Ethereum. A tree/1 proof signs its own floor: the Ethereum block fixed when the position opened. This is the floor in time, and it runs in one direction: no earlier than.
+Base (Coinbase's Ethereum layer-2, a block every 2 seconds) is where the order meets the public wall clock. When a position opens, the enclave binds the newest Base block into it: it hashes the block's header itself, checks that the block's time is Base mainnet's schedule for its number, that it is not stamped after the enclave's clock, and that floors never go backwards, and signs the block into the proof (`commit.slotFloor`). The record was made after that block. This is the floor in time, and it runs in one direction: no earlier than. That the block is Base's own is one lookup on Base, by its number, comparing the hash; Coinbase runs Base's sequencer. Nothing is written to a chain for the floor.
 
-The other side is stated in two units, never merged. The ceiling in position is the next anchor: the record was committed before that anchor was made, a bound in the sequence and never a clock time. The ceiling in time is the Base block carrying a Merkle root over the record: the record existed by that block. Settlement is Ethereum's record of that Base block through Base's output root (bitgraph-output-root/1), so the Base time rests on Ethereum too.
+The other side is stated apart, never merged. The ceiling in time is the Base block carrying a Merkle root over the record's proof hash, written seconds after the commit: the record existed by that block. Settlement is Ethereum's record of that Base block through Base's output root (bitgraph-output-root/1), so the Base time rests on Ethereum too. Order after the record is the next BitGraph in the chain, which carries this proof's hash: a bound in the sequence, never a clock time.
 
-The anchors also fix history backward, through content. Each anchor is hash-linked to everything before it, so once an anchor exists, the history behind it is fixed: alter any earlier proof and the chain no longer reaches the anchor. When the epoch ends, its signing key is destroyed, and the set closes.
+The ceilings also fix history backward, through content. Each proof's hash is chained into the next, so once a proof hash sits in a Base transaction, the history behind it is fixed: alter any earlier proof and the chain no longer reaches it. When the epoch ends, its signing key is destroyed, and the set closes.
 
-Ethereum is not asked to be a good source of randomness, and it is not asked to establish the artifact's position. BitGraph establishes the position. Ethereum ties the positions to the public timeline, so anyone, years later, can check the order and the earliest date each position could have existed.
+Base is not asked to be a good source of randomness, and it is not asked to establish the artifact's position. BitGraph establishes the position. The public blocks tie the positions to the public timeline, so anyone, years later, can check the order and the earliest date each position could have existed.
+
+Proofs made before the switch to the Base floor stand on an Ethereum floor instead: an anchor, an ordinary proof on the same chain whose artifact was the hash of a recent Ethereum block, fixed when the position was allocated and signed in as `commit.slotAnchor`. They verify exactly as before.
 
 ## Compromise and containment
 
@@ -149,7 +151,7 @@ BitGraph does not ask for blind trust in any single component. It has real depen
 | Atomic binding | Prevents post-hoc attachment |
 | Counters | Internal logical order |
 | Proof chain | Historical continuity |
-| Ethereum anchor | Public wall-clock bound |
+| Base floor and ceiling | Public wall-clock bounds |
 | Epoch rotation | Damage containment |
 | Portable verification | Independence from the original server |
 
@@ -176,7 +178,7 @@ BitGraph is often confused with adjacent systems. The differences are structural
 | Signatures | This key signed this data | This key was controlled by a measured environment that consumed an unused position |
 | Timestamps | This hash existed by time T | This hash consumed a pre-existing position in causal order |
 | C2PA | Here are signed claims about this content | This exact digital state occupied this pre-existing position |
-| Blockchains | Public ordering of shared transactions | Ordering established inside a measured enclave, then anchored publicly |
+| Blockchains | Public ordering of shared transactions | Ordering established inside a measured enclave, then bracketed by public blocks |
 
 Signatures, timestamps, content credentials, and blockchains all answer "who claimed what, when?" BitGraph answers "what position does this exact digital state occupy?" They are complementary, not competing. A signature can be inside a BitGraph proof. A timestamp can decorate one. Content credentials can ride alongside one. None of them, alone, do what BitGraph does.
 
@@ -188,7 +190,7 @@ BitGraph does not restore originality. It makes it unnecessary. The artifact's h
 
 ## The simplest version
 
-A measured TEE reserves a random unused position. The producer writes the position's commitment into the bytes, whether that is a new file around an original or a record with a field of its own, and hashes the finished bytes. That hash arrives. The TEE binds it to the position, consumes the position, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, fixing the history behind it and giving everything after it a public date it provably followed.
+A measured TEE reserves a random unused position. The producer writes the position's commitment into the bytes, whether that is a new file around an original or a record with a field of its own, and hashes the finished bytes. That hash arrives. The TEE binds it to the position, consumes the position, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. Each position opens on the newest Base block, a public date the record provably followed, and seconds after the commit the proof's hash is written to Base, fixing the history behind it.
 
 The result is a protocol that does not say "someone signed this."
 

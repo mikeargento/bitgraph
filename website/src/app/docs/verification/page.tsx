@@ -28,7 +28,7 @@ export default function VerificationPage() {
       <ul className="facts">
         <li><b>The export</b><span>The <code>bitgraph-export/1</code> JSON the holder keeps beside the file, with <code>SPEC.md</code>, the exact text the proof pins. The export carries the <code>bitgraph/1</code> proof (the digest, the position record, both counters, the signature, the enclave&rsquo;s measurement and its attestation) and the tree evidence: the 84-byte root document and, for one file, its leaf and path, or, for the owner, every leaf and name. A proof handed over on its own still verifies as a proof; the member check needs the export.</span></li>
         <li><b>The file</b><span>The exact bytes. For a fused file, either the fused bytes or the original they were built from; the proof rebuilds one from the other. An export holds no copy of any file.</span></li>
-        <li><b>The time evidence</b><span>In the export, when they exist: <code>floor</code>, the Ethereum block header the enclave&rsquo;s signed floor names; <code>ceiling</code>, the Base block that carries a Merkle root over the record; <code>settlement</code>, Ethereum&rsquo;s own record of that Base block. An export holds no anchor proofs. Without the header the floor is a block number in the proof, not a time. <code>bitgraph export complete</code> fills in a ceiling and settlement that had not landed when the export was written.</span></li>
+        <li><b>The time evidence</b><span>In the export, when they exist: <code>floor</code>, the header of the block the enclave&rsquo;s signed floor names (a Base block; an Ethereum block on earlier proofs); <code>ceiling</code>, the Base block that carries a Merkle root over the record; <code>settlement</code>, Ethereum&rsquo;s own record of that Base block. An export holds no anchor proofs. A Base floor carries its block&rsquo;s time in the signed proof; on an earlier proof, without the header the floor is a block number, not a time. <code>bitgraph export complete</code> fills in a ceiling and settlement that had not landed when the export was written.</span></li>
         <li><b>A trust policy</b><span>The list of PCR0 measurements you accept. The published one is <code className="break">{PCR0}</code> (enclave-v9), reproducible from source. A proof from any other image should fail your check, whatever else it passes.</span></li>
       </ul>
 
@@ -38,7 +38,7 @@ export default function VerificationPage() {
         <ul className="facts">
           <li><b>Integrity</b><span>The record in hand is exactly the one that was committed. Change one byte and it no longer matches.</span></li>
           <li><b>Position</b><span>The commitment inside the record points to a position that existed before the record was signed, and the proof commits this record. A commitment copied from another record fails, because its proof commits a different one.</span></li>
-          <li><b>Floor</b><span>The proof names an Ethereum block that had already been mined when the position was allocated. A record carrying the position commitment could not have been finished before that block.</span></li>
+          <li><b>Floor</b><span>The proof names a Base block that the enclave bound into the position when it opened (an Ethereum block on earlier proofs). A record carrying the position commitment could not have been finished before that block.</span></li>
           <li><b>Origin of the proof</b><span>The signature verifies, and a hardware attestation ties the signing key to a published, reproducible enclave image the verifier chooses to accept.</span></li>
         </ul>
         <p>Those are the conclusions. The checks that produce them, in the order the verifier runs them, are below.</p>
@@ -67,7 +67,7 @@ export default function VerificationPage() {
         </li>
         <li>
           <strong>Position binding and floor.</strong>{" "}
-          When <code>slotAllocation</code> is present: the position record&rsquo;s own Ed25519 signature over its canonical body; <code>commit.slotHashB64</code> equal to the SHA-256 of that body; <code>commit.nonceB64</code> equal to the position&rsquo;s nonce; <code>slotCounter</code> smaller than <code>counter</code>, under the same key and the same epoch. Since enclave v8 the position record also names the Ethereum anchor the enclave had authenticated at allocation (<code>commit.slotAnchor</code>): the proof&rsquo;s floor.
+          When <code>slotAllocation</code> is present: the position record&rsquo;s own Ed25519 signature over its canonical body; <code>commit.slotHashB64</code> equal to the SHA-256 of that body; <code>commit.nonceB64</code> equal to the position&rsquo;s nonce; <code>slotCounter</code> smaller than <code>counter</code>, under the same key and the same epoch. The signed commit also names the block the enclave fixed at allocation, the proof&rsquo;s floor: since enclave v10 a Base block whose header the enclave hashed and checked itself (<code>commit.slotFloor</code>); on proofs from enclave v8 and v9, the Ethereum anchor the enclave had authenticated (<code>commit.slotAnchor</code>). A proof carrying both is refused as ambiguous.
         </li>
         <li>
           <strong>Attestation binding.</strong>{" "}
@@ -87,10 +87,10 @@ export default function VerificationPage() {
         <code>verify</code> answers <code>{"{ valid: true }"}</code> or <code>{"{ valid: false, reason }"}</code>. Read a result as one of four outcomes.
       </p>
       <ul className="facts">
-        <li><b>Valid</b><span>Every check passed against the bytes in hand. These exact bytes were committed at the position the proof names, under the key and the enclave image the proof names. On a proof from enclave v8, the position record, signed before any digest reached the enclave, names the anchor that is the position&rsquo;s floor.</span></li>
+        <li><b>Valid</b><span>Every check passed against the bytes in hand. These exact bytes were committed at the position the proof names, under the key and the enclave image the proof names. The commit names the block that is the position&rsquo;s floor, fixed when the position opened, before any digest reached the enclave: a Base block since enclave v10, an Ethereum anchor on proofs from v8 and v9.</span></li>
         <li><b>Incomplete</b><span><code>verifyProofIntegrity</code> runs every check except the digest comparison and answers with <code>artifactBinding: &quot;not-checked&quot;</code>. The proof is sound, but nothing has said which file it belongs to. The audit tool reports this as <code>artifact-unavailable</code>; it is never reported as verified.</span></li>
         <li><b>Invalid</b><span>One check failed, and <code>reason</code> names it: a digest that does not match the bytes, a signature that does not verify, a position record that does not bind, a policy the proof does not meet. An invalid result says nothing about the bytes beyond this: this proof does not stand for them.</span></li>
-        <li><b className="break">Unverifiable</b><span>Evidence is missing, so no verdict is possible on that point. Without the bytes, identity is unchecked. Without the floor block header, the floor stays a block number and cannot be read as a time. A tree/1 proof that pins a spec hash the verifier does not know is answered <code>undetermined</code>, never <code>TRUE</code>. Without a measurement you recognize, the proof may be internally sound and still come from an image you have no reason to trust; a policy with <code>allowedMeasurements</code> turns that into a failure.</span></li>
+        <li><b className="break">Unverifiable</b><span>Evidence is missing, so no verdict is possible on that point. Without the bytes, identity is unchecked. On an earlier proof, without the floor block header, the floor stays a block number and cannot be read as a time. A tree/1 proof that pins a spec hash the verifier does not know is answered <code>undetermined</code>, never <code>TRUE</code>. Without a measurement you recognize, the proof may be internally sound and still come from an image you have no reason to trust; a policy with <code>allowedMeasurements</code> turns that into a failure.</span></li>
       </ul>
 
       <h3 id="fused">Fused files</h3>
@@ -144,7 +144,7 @@ export default function VerificationPage() {
       <ol className="steps">
         <li>
           <strong>Marker.</strong>{" "}
-          The signed <code>attribution</code> is <code>{"{ name: \"bitgraph-fuse/2\", title: \"tree/1\", message }"}</code>, where <code>message</code> is the base64 SHA-256 of the <code>SPEC.md</code> the proof was made under. The verifier must know that hash. A proof that pins a hash it does not know is answered <code>undetermined</code> on every tree claim, never <code>TRUE</code> and never <code>FALSE</code>.
+          The signed <code>attribution</code> is <code>{"{ name: \"bitgraph-fuse/3\", title: \"tree/1\", message }"}</code> (<code>bitgraph-fuse/2</code> on earlier proofs, whose floor is an Ethereum anchor), where <code>message</code> is the base64 SHA-256 of the <code>SPEC.md</code> the proof was made under. The verifier must know that hash. A proof that pins a hash it does not know is answered <code>undetermined</code> on every tree claim, never <code>TRUE</code> and never <code>FALSE</code>.
         </li>
         <li>
           <strong>Root document.</strong>{" "}
@@ -165,7 +165,7 @@ export default function VerificationPage() {
 
       <h2 id="limits">What the checks cannot conclude</h2>
       <p>
-        A valid result is a statement about placement. It does not say the file is true, who made it, that these bytes did not exist somewhere earlier, or at what time the commit happened. The floor is a time: the block the proof names had been mined before the position existed. The ceiling in position is a position: the next anchor in the sequence, which does not convert to a clock reading. No field in a proof is a trusted clock, and the proof verifier makes no upper bound claim in time. That claim comes from the ceiling file, checked on its own: the record's hash under a Merkle root, the root in a Base transaction from the published writer, the transaction in a block, and the block's time.
+        A valid result is a statement about placement. It does not say the file is true, who made it, that these bytes did not exist somewhere earlier, or at what time the commit happened. The floor is a time: the block the proof names had been made before the position existed. Order after the record is a position, not a time: the next BitGraph in the chain carries this proof&rsquo;s hash. No field in a proof is a trusted clock, and the proof verifier makes no upper bound claim in time. That claim comes from the ceiling file, checked on its own: the record's hash under a Merkle root, the root in a Base transaction from the published writer, the transaction in a block, and the block's time.
       </p>
       <div className="table-scroll">
         <table className="table-k">
@@ -195,7 +195,7 @@ export default function VerificationPage() {
             </tr>
             <tr>
               <td>Wall-clock floor of a fused file</td>
-              <td>The proof names its floor in its signed commit (commit.slotAnchor). Turning that into a clock time needs the Ethereum block header, which an export carries as <code>floor.header</code>; the verifier does not fetch it.</td>
+              <td>The proof names its floor in its signed commit (commit.slotFloor): a Base block&rsquo;s number, hash and time, the time checked by the enclave against Base mainnet&rsquo;s schedule for that number. That the block is Base&rsquo;s own is one lookup on Base, which the verifier does not make by itself. On an earlier proof (commit.slotAnchor), turning the floor into a clock time needs the Ethereum block header, which an export carries as <code>floor.header</code>; the verifier does not fetch it.</td>
             </tr>
           </tbody>
         </table>
@@ -346,7 +346,7 @@ Content-Type: application/json
 
       <h2 id="next">Where next</h2>
       <ul className="doors">
-        <li><Link href="/docs/audit">Audit a bundle</Link><span>Many proofs, their order and their anchors, checked offline with one command.</span></li>
+        <li><Link href="/docs/audit">Audit a bundle</Link><span>Many proofs, their order and their floors and ceilings, checked offline with one command.</span></li>
         <li><Link href="/docs/player">Player</Link><span>Evaluate ordering rules over a set of proofs and get a verdict anyone can reproduce.</span></li>
         <li><Link href="/docs/proof-format">Proof format</Link><span>Every field, its encoding, and what is and is not signed.</span></li>
         <li><a href="/spec">SPEC.md</a><span>The normative text: tree/1, the export, recovery entries and every verification rule, byte for byte the file a proof pins.</span></li>

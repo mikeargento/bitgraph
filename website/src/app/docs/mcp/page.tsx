@@ -144,7 +144,7 @@ export default function McpPage() {
             <tr>
               <td>bitgraph_get_proof</td>
               <td>A digest, or a BitGraph number in the current epoch; optionally a counter and epoch to select one position.</td>
-              <td>The proof, every indexed position the same bytes hold, and its window: a floor in time (placed no earlier than a named Ethereum block) and a ceiling in position (committed before the anchoring of the next anchor, never that block&rsquo;s time).</td>
+              <td>The proof, every indexed position the same bytes hold, and its window: a floor in time (placed no earlier than a named Base block, or an Ethereum block on earlier proofs) and the ceiling in time once it exists (the Base block carrying a Merkle root over the proof&rsquo;s hash). An earlier proof also states its closing anchor, a bound in position, never a clock time.</td>
               <td>Nothing. Read-only.</td>
             </tr>
             <tr>
@@ -176,7 +176,7 @@ export default function McpPage() {
         An agent can take a position before it starts a task, so that the task&rsquo;s record could not have existed before that position&rsquo;s floor, and its outputs sit after it.
       </p>
       <ol className="steps">
-        <li><strong>Before the task, call <code>bitgraph_open</code> with no files.</strong> It returns a position (its counter and epoch), its position commitment string, a <code>fuse_token</code>, and the floor block when it is known.</li>
+        <li><strong>Before the task, call <code>bitgraph_open</code> with no files.</strong> It returns a position (its counter and epoch), its position commitment string, a <code>fuse_token</code>, and the floor block when the allocation returns one.</li>
         <li><strong>Put the commitment into the task&rsquo;s record.</strong> Inside the output itself when its format can hold text (a comment, a field, a line that stays in the file), otherwise inside the task: the exact prompt or request.</li>
         <li><strong>Within 120 seconds, call <code>bitgraph_commit</code></strong> with the <code>fuse_token</code>, the digest of those exact bytes, and <code>carry: "base64url"</code>. The bytes are sealed under the position. Keep them unchanged: a verifier recomputes the commitment from the proof and looks for the string inside them.</li>
         <li><strong>When the outputs exist, record them.</strong> Open a second position with the files and commit them. The task is sealed before the output existed, and the output is recorded after.</li>
@@ -188,13 +188,13 @@ export default function McpPage() {
       <h2 id="notes">Notes</h2>
       <ul>
         <li><strong>Files are never uploaded.</strong> Only digests, byte sizes, a file&rsquo;s first bytes, signed position records, recipe bytes and the sealed recovery entries cross the network, to either server.</li>
-        <li><strong>Positions are permanent.</strong> A consumed position is never reused, and the anchors that floor it stay published for ten years. The export comes back to the agent, which keeps it beside the files with <Link href="/spec">SPEC.md</Link>; the proof alone commits only the tree&rsquo;s root. Agents are instructed to make BitGraphs only of files you asked for, and never to generate content just to record it.</li>
+        <li><strong>Positions are permanent.</strong> A consumed position is never reused, and the floor block it stands on stays in BitGraph&rsquo;s public copy under the ten-year lock. The export comes back to the agent, which keeps it beside the files with <Link href="/spec">SPEC.md</Link>; the proof alone commits only the tree&rsquo;s root. Agents are instructed to make BitGraphs only of files you asked for, and never to generate content just to record it.</li>
         <li><strong>Keep the export.</strong> It holds the proof, the root document and each file&rsquo;s leaf and name, no file copies and no anchors; with the file it checks offline with nothing of BitGraph&rsquo;s. <code>bitgraph export complete</code> from the <Link href="/docs/sdk">SDK</Link> adds the floor header, the Base ceiling and the Ethereum settlement once they exist.</li>
         <li><strong>Recovery entries.</strong> After each answer, the server keeps a sealed recovery entry per file, stored under a name derived from the file&rsquo;s hash and encrypted with a key derived from it: anyone holding the file can find and open it, nobody else. It is how a file finds its proof again when the export is lost, and how a file already in a tree is recognised before a new BitGraph is made.</li>
         <li><strong>One way.</strong> A BitGraph is a tree of new bytes built from the originals under a position that existed first, so those bytes could not have been finished before the position: that is what open and commit make, one file as a tree of one or a batch as one tree. Neither server offers digest-only recording; that compatibility operation stays on the HTTP API as <code>POST /api/commit</code>.</li>
         <li><strong>One tree per call.</strong> Everything opened together shares one position, becomes one tree and is committed in one call. A member left out cannot be added afterwards, because the position is consumed; it needs a new open. Earlier forms (sets, the Frame file) still verify; new recordings are tree/1.</li>
-        <li><strong>One sequence.</strong> Whatever MCP makes takes its position in the same sequence as everything else, floored by the same anchors.</li>
-        <li><strong>Limits and errors.</strong> 40 files per open on the hosted endpoint, 500 digests per check, a 120-second position, and a restart at 23:59 UTC every day that voids open positions. <code>no-anchor-before-slot</code> means nothing was committed and the position is still held: commit again in about 15 seconds. <code>slot-unavailable</code> means the position was consumed, expired or lost to a restart: open again and rebuild the new file from the new recipe.</li>
+        <li><strong>One sequence.</strong> Whatever MCP makes takes its position in the same sequence as everything else, floored the same way, by the Base block the enclave binds when the position opens.</li>
+        <li><strong>Limits and errors.</strong> 40 files per open on the hosted endpoint, 500 digests per check, a 120-second position, and a restart at 23:59 UTC every day that voids open positions. <code>no-anchor-before-slot</code> came only from earlier positions floored by an Ethereum anchor: nothing was committed and the position was still held. <code>slot-unavailable</code> means the position was consumed, expired or lost to a restart: open again and rebuild the new file from the new recipe.</li>
       </ul>
 
       <h2 id="next">Where next</h2>

@@ -151,7 +151,7 @@ export function HowFigure() {
             stays put (Mike, 2026-09-11). */}
         <div className="fig-well">
         <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: 760 }} role="img" aria-label="Two lanes, your device over the enclave. In the enclave lane, position N is opened first from a hardware nonce while no digest exists, and its signed position record goes down to your device. In the device lane, your file becomes new bytes that carry a commitment to N and to the floor block, the newest Ethereum block BitGraph had recorded, built on your device. Their digest H goes back up to the enclave and is committed under N, signed and attested; N is consumed. The proof comes back down and leaves with the file. N was held, unspent, between opening and commit.">
+        <div style={{ minWidth: 760 }} role="img" aria-label="Two lanes, your device over the enclave. In the enclave lane, position N is opened first from a hardware nonce while no digest exists, and its signed position record goes down to your device. In the device lane, your file becomes new bytes that carry a commitment to N and to the floor block, the newest Base block, which the enclave bound into the position when it opened, built on your device. Their digest H goes back up to the enclave and is committed under N, signed and attested; N is consumed. The proof comes back down and leaves with the file. N was held, unspent, between opening and commit.">
           <svg viewBox="19 19 962 398" width="100%" style={{ display: "block", fontFamily: "inherit" }}>
             <defs>
               <marker id={`${id}-g`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -206,7 +206,7 @@ export function HowFigure() {
           {/* Plain words, no symbol: N lasted an afternoon and needed
               defining twice (Mike, 2026-09-11: "should N just be replaced by
               position?"). */}
-          The bytes name the position, and the position names the bytes. The position was open before the new bytes were final, so they could not have been finished before it. The commit spends the position on exactly those bytes in one indivisible step, so it can never name any&nbsp;others. The commitment also carries the newest Ethereum block BitGraph had recorded, so the bytes could not have been finished before that block&nbsp;either.
+          The bytes name the position, and the position names the bytes. The position was open before the new bytes were final, so they could not have been finished before it. The commit spends the position on exactly those bytes in one indivisible step, so it can never name any&nbsp;others. The commitment also carries the Base block the enclave bound into the position when it opened, so the bytes could not have been finished before that block&nbsp;either.
         </figcaption>
         </div>
       </div>

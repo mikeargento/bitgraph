@@ -22,7 +22,7 @@ import { WarmExample } from "@/components/warm-example";
 export const metadata: Metadata = {
   title: "BitGraph",
   description:
-    "BitGraph gives an AI audit record a position its producer could not choose: a portable BitGraph that commits the exact record, sits after a public Ethereum block, and verifies offline. It works beside the audit system you already run.",
+    "BitGraph gives an AI audit record a position its producer could not choose: a portable BitGraph that commits the exact record, sits after a public Base block, and verifies offline. It works beside the audit system you already run.",
 };
 
 export default function HomePage() {

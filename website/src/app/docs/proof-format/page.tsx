@@ -6,7 +6,7 @@ import { Code } from "@/components/code";
 export const metadata: Metadata = {
   title: "Proof format",
   description:
-    "The bitgraph/1 proof field by field: the signed body, the position binding, the anchor floor, the tree/1 marker and its placements, the ceiling file, and canonical serialization. The normative text is SPEC.md.",
+    "The bitgraph/1 proof field by field: the signed body, the position binding, the Base floor (and the earlier Ethereum anchor floor), the tree/1 marker and its placements, the ceiling file, and canonical serialization. The normative text is SPEC.md.",
 };
 
 /**
@@ -44,12 +44,19 @@ export default function ProofFormatPage() {
     "prevB64":  "<base64>",          // OPTIONAL - chain link, 32 bytes
     "epochId":  "<base64>",          // OPTIONAL - the epoch identifier, 32 bytes
     "chainId":  "bitgraph:main",     // OPTIONAL - the sequence this proof is on
-    "slotAnchor": {                  // OPTIONAL - the chain's latest Ethereum anchor when the position was allocated (since enclave v7; v9 is current)
+    "slotFloor": {                   // OPTIONAL - the Base block bound into the position when it opened (since enclave v10, current)
+      "chain":          "base",
+      "evmChainId":     8453,         //   Base mainnet; the EVM chain id, not commit.chainId
+      "blockNumber":    52271417,
+      "blockHash":      "0x<hex>",    //   32 bytes, lowercase: keccak-256 of the header the enclave hashed
+      "blockTimestamp": 1791332181    //   Unix seconds, read from the header
+    },
+    "slotAnchor": {                  // OPTIONAL - EARLIER floor (enclave v7 to v9): the chain's latest Ethereum anchor when the position was allocated; never beside slotFloor
       "counter":     "17",           //   counter of that anchor proof on this chain
       "blockNumber": 25921179,
       "blockHash":   "0x<hex>"       //   32 bytes, lowercase
     },
-    "anchor": {                      // OPTIONAL - on Ethereum anchor proofs only: the block this proof anchors (since enclave v7; v9 is current)
+    "anchor": {                      // OPTIONAL - on earlier Ethereum anchor proofs only: the block this proof anchors (enclave v7 to v9)
       "blockNumber": 25921180,
       "blockHash":   "0x<hex>"
     }
@@ -74,7 +81,7 @@ export default function ProofFormatPage() {
     "publicKeyB64": "<base64>",      // enclave Ed25519 key
     "chainId":      "bitgraph:main", // OPTIONAL - same as commit.chainId
     "signatureB64": "<base64>"       // Ed25519 over the canonical position record (every field above except this one)
-  },                                 // no anchor and no time: the enclave allocates without a clock, and the floor is signed at commit as commit.slotAnchor
+  },                                 // no floor and no time: the enclave allocates without a clock, and the floor is signed at commit as commit.slotFloor (commit.slotAnchor on earlier proofs)
   "agency": { ... },                 // OPTIONAL - legacy; present on some older proofs
   "attribution": {                   // OPTIONAL - signed; creator metadata, or the marker (below): for a tree/1 it names the spec the proof pins
     "name":    "string",
@@ -102,8 +109,9 @@ export default function ProofFormatPage() {
             <tr><td>commit.time</td><td>Unix milliseconds from the enclave&rsquo;s clock. Not a trusted clock; order comes from the counters.</td><td>Signed, advisory value</td></tr>
             <tr><td>commit.prevB64</td><td>SHA-256 of the previous proof on the sequence, canonicalized whole, after removing the two top-level fields added outside the enclave after signing (<code>proofHash</code> and <code>ethereum</code>): the link that makes the order checkable.</td><td>Signed</td></tr>
             <tr><td>commit.epochId</td><td>The enclave lifetime that signed this proof, hex SHA-256. Changes at every restart.</td><td>Signed</td></tr>
-            <tr><td>commit.slotAnchor</td><td>The floor: the chain&rsquo;s latest Ethereum anchor when the position was allocated.</td><td>Signed</td></tr>
-            <tr><td>commit.anchor</td><td>On anchor proofs only: the block this proof anchors.</td><td>Signed</td></tr>
+            <tr><td>commit.slotFloor</td><td>The floor: the Base block the enclave bound into the position when it opened, from a header it hashed and checked itself.</td><td>Signed</td></tr>
+            <tr><td>commit.slotAnchor</td><td>The earlier floor (enclave v7 to v9): the chain&rsquo;s latest Ethereum anchor when the position was allocated. A proof carries one floor, never both.</td><td>Signed</td></tr>
+            <tr><td>commit.anchor</td><td>On earlier anchor proofs only: the Ethereum block this proof anchors.</td><td>Signed</td></tr>
             <tr><td>signer.publicKeyB64</td><td>The enclave&rsquo;s Ed25519 key, 32 bytes.</td><td>Signed</td></tr>
             <tr><td>signer.signatureB64</td><td>Ed25519 signature over the canonical signed body, 64 bytes.</td><td>Self-authenticating</td></tr>
             <tr><td>environment.enforcement</td><td>The tier the producer reports; <code>measured-tee</code> in production. Not evidence of the tier on its own.</td><td>Signed</td></tr>
@@ -179,12 +187,17 @@ export default function ProofFormatPage() {
         The position record has its own Ed25519 signature, so the enclave created it. The commit signature includes <code>slotHashB64</code>, which binds the proof to that exact record; a swapped position record breaks the commit signature.
       </p>
 
-      <h3>Anchor floor</h3>
+      <h3>Base floor</h3>
       <p>
-        Since enclave v7 (2026-09-06) the enclave notes the chain&rsquo;s latest Ethereum anchor at the moment it allocates each position, keeps it beside the position inside the enclave, and signs it into the proof at commit as <code>commit.slotAnchor</code>. The position record itself (<code>slotAllocation</code>) does not carry it, and neither does the position commitment derived from that record. Whoever presents the proof cannot move the floor, because it is inside the commit signature. That it was the latest anchor when the position was allocated rests on the measured enclave, the same trust root as the counter: <code>slotAnchor.counter</code> is below <code>commit.slotCounter</code>, and the anchor proof at that counter carries the same block. The commit itself is placed after the block by hash alone, since its <code>prevB64</code> chain runs back through that anchor proof; bytes that carry the position commitment are placed after it through the enclave&rsquo;s counter. A reader checks the time offline from the Ethereum block header: the header&rsquo;s keccak must equal <code>slotAnchor.blockHash</code>, and the time in the block header is then a lower bound on the proof. Since enclave v8 (2026-09-07) the enclave refuses to sign a proof on the anchored chain without a floor, so the field is absent only on proofs from older enclaves and on unanchored chains.
+        Since enclave v10 the enclave binds a public floor into every position when it opens it. The host hands it the header of the newest Base block (Coinbase&rsquo;s Ethereum layer-2, a block every 2 seconds). The enclave hashes the header itself and checks it: the hash is the block hash; the block&rsquo;s time is Base mainnet&rsquo;s schedule for its number; the time is not after the enclave&rsquo;s own clock; and the number is not below the last floor fixed on the chain, so floors never go backwards. It keeps the block beside the position and signs its number, hash and time into the proof at commit as <code>commit.slotFloor</code>, naming the chain, so a verifier never reads it as an Ethereum floor. It refuses to open a position on <code>bitgraph:main</code> without one. The position record itself (<code>slotAllocation</code>) does not carry the floor; the <code>bitgraph-fuse/3</code> commitment derived from it does (below). Whoever presents the proof cannot move the floor, because it is inside the commit signature. The record was made after that block. Offline, a reader checks that the header hashes to <code>slotFloor.blockHash</code> and reads the time from it; that the block is Base&rsquo;s own is one lookup on Base, by block number, comparing the hash. Coinbase runs Base&rsquo;s sequencer.
+      </p>
+
+      <h3>Earlier: Ethereum anchor floor</h3>
+      <p>
+        Proofs made before the switch to the Base floor carry an Ethereum floor instead, and verify exactly as before. Since enclave v7 (2026-09-06) the enclave noted the chain&rsquo;s latest Ethereum anchor at the moment it allocated each position, kept it beside the position inside the enclave, and signed it into the proof at commit as <code>commit.slotAnchor</code>. The position record itself (<code>slotAllocation</code>) does not carry it, and neither does a <code>bitgraph-fuse/1</code> commitment derived from that record (a <code>bitgraph-fuse/2</code> commitment does, below). Whoever presents the proof cannot move the floor, because it is inside the commit signature. That it was the latest anchor when the position was allocated rests on the measured enclave, the same trust root as the counter: <code>slotAnchor.counter</code> is below <code>commit.slotCounter</code>, and the anchor proof at that counter carries the same block. The commit itself is placed after the block by hash alone, since its <code>prevB64</code> chain runs back through that anchor proof; bytes that carry the position commitment are placed after it through the enclave&rsquo;s counter. A reader checks the time offline from the Ethereum block header: the header&rsquo;s keccak must equal <code>slotAnchor.blockHash</code>, and the time in the block header is then a lower bound on the proof. From enclave v8 (2026-09-07) to v9 the enclave refused to sign a proof on the anchored chain without a floor, so on those proofs the field is absent only on unanchored chains.
       </p>
       <p>
-        Anchor proofs themselves carry <code>commit.anchor</code>, holding the block number and hash the enclave signed. The enclave writes it only after verifying the anchor service&rsquo;s Ed25519 signature over the claim against a public key baked into the enclave image, and refuses the attribution name <code>Ethereum Anchor</code> without it. So a v7 or v8 proof whose attribution says anchor but lacks <code>commit.anchor</code> is not an anchor.
+        Anchor proofs themselves carry <code>commit.anchor</code>, holding the block number and hash the enclave signed. The enclave wrote it only after verifying the anchor service&rsquo;s Ed25519 signature over the claim against a public key baked into the enclave image, and refused the attribution name <code>Ethereum Anchor</code> without it. So a v7 or v8 proof whose attribution says anchor but lacks <code>commit.anchor</code> is not an anchor.
       </p>
       <p>
         <code>commit.anchor</code> is what identifies an anchor, and where its block should be read from. The attribution name is the older test and remains valid for proofs written before v7, which carry nothing else; it is not a requirement, and an anchor is free to spend its signed attribution on something else, such as the fuse marker below.
@@ -197,22 +210,23 @@ export default function ProofFormatPage() {
       <div className="code-block">
         <div className="code-block-header"><span>attribution (fused)</span><CopyCode /></div>
         <Code lang="jsonc">{`{
-  "name":    "bitgraph-fuse/2",      // the commitment version: bitgraph-fuse/1 or bitgraph-fuse/2
+  "name":    "bitgraph-fuse/3",      // the commitment version: bitgraph-fuse/3 now; bitgraph-fuse/1 or bitgraph-fuse/2 on earlier proofs
   "title":   "tree/1",               // "tree/1" for every BitGraph made now; a placement id or encoding id on earlier single-file proofs
   "message": "<base64>"              // tree/1: SHA-256 of SPEC.md, standard base64, the spec this proof pins; earlier proofs: the origin digest
 }`}</Code>
       </div>
       <p>
-        The position commitment is derived from the signed position record. The raw nonce never enters the artifact. Since 2026-09-30 (enclave v9) the allocation also returns the floor anchor the enclave will sign at commit, and a producer that has it binds that block&rsquo;s hash into the commitment, marked <code>bitgraph-fuse/2</code>:
+        The position commitment is derived from the signed position record. The raw nonce never enters the artifact. The allocation also returns the floor the enclave will sign at commit, and the producer binds that block&rsquo;s hash into the commitment. Since enclave v10 the floor is a Base block and the commitment is marked <code>bitgraph-fuse/3</code>; from 2026-09-30 (enclave v9) until then it was an Ethereum anchor, marked <code>bitgraph-fuse/2</code>:
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>commitment</span><CopyCode /></div>
         <Code lang="typescript">{`slotRecordHash = SHA-256(canonicalize(slotBody))                                              // = commit.slotHashB64
 commitment/1   = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)                    // nonce: 32 raw bytes
-commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce || floorBlockHash)   // the 32 raw bytes of commit.slotAnchor.blockHash`}</Code>
+commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce || floorBlockHash)   // earlier: the 32 raw bytes of commit.slotAnchor.blockHash
+commitment/3   = SHA-256("bitgraph-fuse/3" || 0x00 || slotRecordHash || nonce || floorBlockHash)   // the 32 raw bytes of commit.slotFloor.blockHash (a Base block)`}</Code>
       </div>
       <p>
-        A verifier chooses the formula by the signed marker name and recomputes commitment/2 from the proof&rsquo;s own signed <code>commit.slotAnchor.blockHash</code>, so a producer can neither tighten nor loosen the floor. What /2 adds: a block hash cannot be known before its block exists, so bytes carrying commitment/2 were finished after that block by the hash alone; with /1, that step rested on the enclave&rsquo;s counter order (the anchor before the position). Placements, payloads and set documents are unchanged between the two; a set&rsquo;s documents keep the <code>bitgraph-fuse/1</code> type and metadata key, and the commitment version is the signed attribution name. A verifier that knows only /1 sees a /2 proof as an ordinary valid proof and says nothing about the file.
+        A verifier chooses the formula by the signed marker name and recomputes commitment/3 from the proof&rsquo;s own signed <code>commit.slotFloor.blockHash</code> (commitment/2 from <code>commit.slotAnchor.blockHash</code>), so a producer can neither tighten nor loosen the floor. A proof carrying both floors is ambiguous and binds nothing. What /2 and /3 add: a block&rsquo;s hash exists only once the block does, so bytes carrying the commitment were finished after that block by the hash alone; with /1, that step rested on the enclave&rsquo;s counter order (the anchor before the position). Placements, payloads and set documents are unchanged between the versions; a set&rsquo;s documents keep the <code>bitgraph-fuse/1</code> type and metadata key, and the commitment version is the signed attribution name. A verifier that knows only /1 sees a /2 or /3 proof as an ordinary valid proof and says nothing about the file. tree/1 under SPEC.md version 2 uses /3; under version 1, /2.
       </p>
       <p>
         Every BitGraph made now is a <strong>tree/1</strong>, whether it holds one file or a hundred thousand: one position, each file a leaf. A leaf is the hash of the file&rsquo;s committed bytes with its placement code (<code>0x00</code> kept as is, <code>0x01</code> trailer/1, <code>0x02</code> container/1, <code>0x03</code> container/2), the leaves form an RFC 9162 tree, and the committed artifact is an 84-byte root document naming the root and the count; <code>artifact.digestB64</code> is its hash. The proof alone commits the root. A file proves it is in the tree with its export, which carries its leaf and path (SPEC.md <a href="/spec">sections 8 and 12</a>). A verifier that does not know the pinned spec hash answers &ldquo;undetermined&rdquo;, never true. Before tree/1, two or more files were a set under one position (set/1, set/2 below); those positions still verify. Registered placements say, byte for byte, where a file&rsquo;s commitment sits:
@@ -232,7 +246,7 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
         </table>
       </div>
       <p>
-        The fused bytes are transient. The original plus the proof rebuilds them byte for byte with the declared placement, and verifying that reconstruction against the leaf, and the leaf against the signed root, is the evidence. What travels with the file is its export, <code>bitgraph-export/1</code>: the proof, the file&rsquo;s leaf and path (the owner&rsquo;s export holds every leaf and name), the floor block&rsquo;s header, and the Base ceiling and its Ethereum settlement once they exist. An export holds no copy of the file and no anchor proofs; SPEC.md travels beside it. Earlier single-file proofs travelled as a Frame file, <code>&lt;name&gt;.bitgraph-fuse.json</code>, with an advisory manifest; those still verify.
+        The fused bytes are transient. The original plus the proof rebuilds them byte for byte with the declared placement, and verifying that reconstruction against the leaf, and the leaf against the signed root, is the evidence. What travels with the file is its export, <code>bitgraph-export/1</code>: the proof, the file&rsquo;s leaf and path (the owner&rsquo;s export holds every leaf and name), the floor block&rsquo;s header, and the Base ceiling and its Ethereum settlement once they exist. An export holds no copy of the file and no anchor proofs (earlier proofs&rsquo; anchors are read from their headers); SPEC.md travels beside it. Earlier single-file proofs travelled as a Frame file, <code>&lt;name&gt;.bitgraph-fuse.json</code>, with an advisory manifest; those still verify.
       </p>
       <p className="note">
         What this bound reaches: the fused bytes could not have been finished before the position was allocated. What it does not reach: the original, which can be any age; the proof says only that it existed no later than the commit.
@@ -266,7 +280,8 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
   },
   "status":         "safe",          // pending | included | safe | finalized: reported, not proven (below)
   "statusObserved": { ... },         // when BitGraph's Base node reported each status
-  "floor": {                         // the proof's commit.slotAnchor block, with its header
+  "floor": {                         // the proof's signed floor block, with its header: commit.slotFloor (Base),
+                                     //   or commit.slotAnchor (Ethereum) on earlier proofs, as in this example
     "blockNumber": 26088457, "blockHash": "0x<hex>", "blockTimestamp": 1790749163, "blockHeader": "0x<hex>"
   },
   "settlement": null                 // filled in later, when Ethereum carries the block (below)
@@ -279,7 +294,7 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
         <strong>The tree</strong> hashes as RFC 9162 does: a leaf is SHA-256 of the byte <code>0x00</code> followed by the 32 raw bytes of the record&rsquo;s <code>proofHash</code>, and an inner node is SHA-256 of <code>0x01</code>, the left child and the right child. Because <code>proofHash</code> leaves out <code>actor</code> and <code>policy</code>, a verifier also checks the proof&rsquo;s own signature, which covers them.
       </p>
       <p>
-        <strong>A verifier checks, offline:</strong> the proof&rsquo;s signature; that the record&rsquo;s leaf and path reach the root; that the payload carries that root; that the raw transaction is signed by the writer the verifier names, sent to that same address, on the expected chain, carrying the payload, and hashes to <code>txHash</code>; that the header hashes to <code>blockHash</code> and the transaction is in it; and that the floor header hashes to the proof&rsquo;s signed <code>commit.slotAnchor</code>. The block time is read from the header, never from the file&rsquo;s own field. Offline, that shows the header is the one with that hash; that it is Base&rsquo;s own block is one lookup on any Base node or explorer, at any time.
+        <strong>A verifier checks, offline:</strong> the proof&rsquo;s signature; that the record&rsquo;s leaf and path reach the root; that the payload carries that root; that the raw transaction is signed by the writer the verifier names, sent to that same address, on the expected chain, carrying the payload, and hashes to <code>txHash</code>; that the header hashes to <code>blockHash</code> and the transaction is in it; and that the floor header hashes to the proof&rsquo;s signed floor block (<code>commit.slotFloor</code>, or <code>commit.slotAnchor</code> on earlier proofs). The block time is read from the header, never from the file&rsquo;s own field. Offline, that shows the header is the one with that hash; that it is Base&rsquo;s own block is one lookup on any Base node or explorer, at any time.
       </p>
       <p>
         <strong>What the file does not prove.</strong> <code>status</code> is what BitGraph&rsquo;s Base node reported when the file was written: included by Base&rsquo;s sequencer, <code>safe</code> once Base had posted the block&rsquo;s data to Ethereum, <code>finalized</code> once that Ethereum block was final. Ask any Base node for its safe or finalized block to check it yourself.
@@ -288,7 +303,7 @@ commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce ||
         <strong>Settlement</strong> is the proof of that step: Ethereum&rsquo;s own record of the Base block, filled in once it exists. The current form, <code>bitgraph-output-root/1</code>, is Base&rsquo;s output root: Base posts to Ethereum, about once an hour, a root over its state that covers a run of blocks, and the settlement carries that root&rsquo;s claim on Ethereum (the dispute game that proposed it, with the Ethereum block and transaction), together with the proof from Base&rsquo;s block header to the root. Offline, a verifier recomputes the output root from the Base header it already holds and matches it to the claim. That shows the Base block existed by that Ethereum block, whatever happens to the block&rsquo;s bytes later; a tree/1 export carries exactly this. The earlier form, <code>bitgraph-settlement/1</code>, pointed at the Ethereum block that committed the Base batch data, its raw header, the batcher&rsquo;s blob transaction with its inclusion proof, and the KZG commitments of the blobs. Ethereum prunes blob bytes after about 18 days, so the older proof packages kept them beside the ceiling file and <code>bitgraph-audit</code> checks each blob against its commitment, decodes the batch and locates the ceiling transaction inside it; exports carry no blob bytes. What neither form proves: that Base&rsquo;s derivation accepted the batch, and that the Ethereum header is canonical, which is one lookup on any node, said and never implied.
       </p>
       <p>
-        <strong>The floor it names</strong> is always the proof&rsquo;s <code>commit.slotAnchor</code> block. A record whose own bytes quote a later anchor, as the demonstration file on the home page quotes the anchor recorded right after its position opened, has a tighter floor of its own, which a reader checks from that quote.
+        <strong>The floor it names</strong> is always the proof&rsquo;s signed floor block: <code>commit.slotFloor</code>, or <code>commit.slotAnchor</code> on earlier proofs. A record whose own bytes quote a later block, as the earlier demonstration file on the home page quotes the anchor recorded right after its position opened, has a tighter floor of its own, which a reader checks from that quote.
       </p>
       <p>
         <strong>The writer.</strong> The key is an ordinary Ethereum key generated on BitGraph&rsquo;s host and held by the operator, outside the enclave. Holding it lets the operator make a ceiling late, or skip one, but never make one early: a <code>proofHash</code> does not exist before its commit. The batch&rsquo;s position range is the operator&rsquo;s statement; the root is not. The writer address sends nothing but ceiling writes, each a zero-value transaction to itself carrying one payload, and account nonces have no gaps, so reading its transactions from nonce 0 lists every ceiling ever written. That is an operating rule, not something the chain enforces: the chain shows whether it has held.

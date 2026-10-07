@@ -76,7 +76,7 @@ export const metadata: Metadata = {
     "BitGraph allocates an unused position before it receives a file's SHA-256 fingerprint, then binds the fingerprint to that position and consumes it. The proof is a file you keep. It verifies offline.",
   keywords: [
     "BitGraph", "causal order", "verifiable order", "proof of position",
-    "tamper-evident", "AI agent records", "Ethereum anchors",
+    "tamper-evident", "AI agent records", "Base floor",
   ],
   openGraph: {
     title: "BitGraph",
