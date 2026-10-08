@@ -3302,3 +3302,10 @@ footer { border-top: 0 !important; }
 
 /* 2026-10-08 (Mike: inline code pills "hard to distinguish" on the white ground): a light grey fill instead of an outlined white pill. */
 :not(pre) > code { background: #e8eaed !important; border: 0 !important; padding: 0.1em 0.4em !important; }
+
+/* 2026-10-08 (Mike: on /spec "some things didnt get left aligned" and "touch more width could avoid awkward wrapping"):
+   tables and code blocks in the spec sit on the left edge like the text, a table may run to the frame's width, and
+   on a desk the field column never breaks a name mid-word. */
+.spec-doc table, .spec-doc pre { margin-left: 0 !important; margin-right: auto !important; }
+.spec-doc table { max-width: var(--frame) !important; }
+@media (min-width: 901px) { .spec-doc td:first-child code { white-space: nowrap !important; } }
