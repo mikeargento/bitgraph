@@ -557,8 +557,18 @@ function makeModel(P: V11Plan) {
       if (P.beard === B_FULL || P.beard === B_STUBBLE) inB = v > m + mq(P.lipL, q(1.2)) + q(0.03) || (v > P.mouth - q(0.02) && au > P.lipW + q(0.14)) || (au > q(0.82) && v > P.e + q(0.42));
       else if (P.beard === B_GOATEE) inB = v > m + mq(P.lipL, q(1.2)) + q(0.03) && au < q(0.3);
       if (bL > 0 && v > P.chin - q(0.12)) inB = true;
-      if (P.beard !== B_GOATEE) inB = inB || (v > P.noseBase + q(0.045) && v < m - q(0.012) && au < P.lipW + q(0.1) && au > q(0.03));
-      if (inB) { region = BEARD; dz += mq(P.beardT, fade); fDir = 1; fDu = side * q(0.3); fDv = Q; }
+      // the moustache is a shaped band, not a box (Mike, 2026-10-08): its top arcs down toward the corners, its lower
+      // edge follows the mouth and droops past it, the ends round off, a small notch at the philtrum; strands sweep out and down
+      let mo = false;
+      if (P.beard !== B_GOATEE) {
+        const w = P.lipW + q(0.1), r = dq(au, w);
+        if (r < Q && au > q(0.02)) {
+          const top = P.noseBase + q(0.045) + mq(q(0.06), sq(r)) + (au < q(0.05) ? q(0.012) : 0), bot = m - q(0.012) + mq(q(0.06), powQ(r, q(3)));
+          const end = mq(bot - top, sqrtQ(clampQ(Q - powQ(r, q(4)))));
+          if (v > top && v < top + end) { inB = true; mo = !(bL > 0 && v > P.chin - q(0.12)); }
+        }
+      }
+      if (inB) { region = BEARD; dz += mq(P.beardT, fade); fDir = 1; if (mo) { fDu = side * q(0.85); fDv = q(0.55); } else { fDu = side * q(0.3); fDv = Q; } }
     }
     // eyes: inside the opening the surface is the eyeball; outside it the lid skin wraps the ball
     {
@@ -909,17 +919,22 @@ function buildField(P: V11Plan, M: Model, pose: Pose): Field {
       const dN = P.backDepth; // clear the back of the skull at its deepest, not the nape (the occiput hid the tail)
       if (hair === H_PONY_HIGH) ponies.push([t, [0, M.napeV - q(0.1), -(dN + q(0.3) + (P.ponyW >> 1))], [side * q(0.12), M.napeV + q(0.35) + mq(P.ponyLen, q(0.6)), -(dN + q(0.2))]]);
       else if (hair === H_PONY_LOW) ponies.push([t, [0, t[1] + q(0.35), -(dN + q(0.15) + (P.ponyW >> 1))], [side * q(0.08), t[1] + q(0.3) + mq(P.ponyLen, q(0.6)), -(dN + q(0.08))]]);
-      else ponies.push([t, [side * q(0.85), (t[1] + endV) >> 1, q(0.25)], [side * q(0.55), endV, q(0.8)]]);
+      else { // over one shoulder: drawn in body space, arcing over the shoulder top and lying on the chest (it was buried in the torso)
+        const u1 = side * q(0.72), u2 = side * q(0.55);
+        ponies.push([t, [u1, torsoTop(P, shV0, u1) - mq(P.ponyW, q(0.6)), q(0.1)], [u2, endV, torsoZ(P, shV0, u2, endV) + mq(P.ponyW, q(0.7))]]);
+      }
     }
     for (const [p0, p1, p2] of [...braids, ...ponies]) {
-      const pony = ponies.length > 0, r = pony ? P.ponyW : hair === H_BRAIDS ? q(0.085) : q(0.1);
+      const pony = ponies.length > 0, r = pony ? P.ponyW : hair === H_BRAIDS ? q(0.085) : q(0.1), onBody = hair === H_PONY_SHOULDER;
       const nA = cdiv(mq(mq(q(9.1106), r), RU), 64) + 6, nB = cdiv(mq(pony ? p2[1] - p0[1] + q(0.6) : q(1.6), RU) * C145, 6400);
       splat(F, nA, nB, (i, j) => {
         const a = idiv(A16 * i, nA), s = idiv(Q * j, nB - 1), s1 = Q - s, w0 = sq(s1), w1 = 2 * mq(s1, s), w2 = sq(s);
         const cx0 = mq(w0, p0[0]) + mq(w1, p1[0]) + mq(w2, p2[0]), cy0 = mq(w0, p0[1]) + mq(w1, p1[1]) + mq(w2, p2[1]), cz0 = mq(w0, p0[2]) + mq(w1, p1[2]) + mq(w2, p2[2]);
-        const ph = sinF(a16Of(mq(s, 40 * Q))) * 4, rr = pony ? mq(r, Q - mq(q(0.85), powQ(s, q(1.7)))) + q(0.01) : mq(r, Q + mq(q(0.15), ph));
+        // a tail is gathered at the tie, swells, then tapers to a soft end (a cone from the head read as a nightcap, Mike, 2026-10-08)
+        const g = s < q(0.25) ? q(0.5) + mq(q(0.5), smQ(dq(s, q(0.25)))) : Q - mq(q(0.75), powQ(dq(s - q(0.25), q(0.75)), q(1.6)));
+        const ph = sinF(a16Of(mq(s, 40 * Q))) * 4, rr = pony ? mq(r, g) + q(0.01) : mq(r, Q + mq(q(0.15), ph));
         const ca = cosF(a) * 4;
-        xf(cx0 + mq(rr, ca), cy0, cz0 + mq(rr, sinF(a) * 4));
+        (pony && onBody ? xfBody : xf)(cx0 + mq(rr, ca), cy0, cz0 + mq(rr, sinF(a) * 4));
         sX = tX; sY = tY; sZ = tZ; sReg = HAIR; sEx = 0;
         if (pony) setDir(mq(q(0.18), nq(mq(s, 24 * Q), mq(radQ(a), 3 * Q), 4 * Q, P.salt + 7)), Q);
         else setDir(sgn(ca) * sgn(ph) * q(0.7), Q);
