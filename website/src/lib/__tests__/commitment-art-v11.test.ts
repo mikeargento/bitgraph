@@ -117,5 +117,5 @@ test("version 11 draws fast: under 1.5 s at the recorded size, whichever palette
   }
 });
 
-const PINNED_PIXELS_V11 = "5480623acf9acbd0104672b7adc21dbd71028d5e7b4ce1aaeb3e80a24050de17";
-const PINNED_PNG_V11 = "fbef359c7019ad6a85ad7c52a14493777467761841c215c41d5a7164e4cab8fc";
+const PINNED_PIXELS_V11 = "de0b4f39ba13e4ad6f9a2ea1c1d712960a6743425b47d3365e1e729504ddb5fc";
+const PINNED_PNG_V11 = "8b760782c642f34a5ac17f329bc55c5bc7336151277e9bb2c8cb451cf2bb2658";

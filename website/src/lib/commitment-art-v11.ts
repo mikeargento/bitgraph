@@ -288,7 +288,10 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const templeW = s.range(0.86, 1.02), cheekW = s.range(0.84, 1.12) - mq(q(0.03), Q - ageT), cheekV = s.range(0.14, 0.3);
   const jawSquare = mq(s.range(0, 1), q(0.5) + mq(q(0.5), ageT));
   const jawW = mq(mq(mq(cheekW, lerpQ(q(0.52), q(0.98), jawSquare)), q(0.88) + mq(q(0.12), ageT)), s.range(0.94, 1.06));
-  const jawV = lerpQ(noseBase - q(0.05), mouth + q(0.1), jawSquare);
+  // the jaw angle sits from half a head-width below the eyes to below the mouth: never up at the cheek knot,
+  // where a narrow jaw made a ledge across the face (the child of seed 13 in the review)
+  const jawTop = Math.min(e + q(0.5), mouth + q(0.05));
+  const jawV = lerpQ(jawTop, mouth + q(0.1), jawSquare);
   const jowl = mq(s.range(0, 1), oldT);
   const chinW = mq(jawW, s.range(0.45, 0.85)) + mq(q(0.06), jowl);
   const nFace = s.range(1.9, 3.0);
@@ -329,7 +332,7 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const fringeP = hair === H_PIXIE ? q(0.6) : hair === H_BOB ? q(0.4) : hair === H_LONG || hair === H_LONG_LOOSE ? q(0.14) : hair === H_BRAID_ONE ? q(0.15) : q(0.25);
   const fringe = fringeOk && s.pick(Q) < mq(fringeP, Q - mq(q(0.7), oldT)) ? 1 : 0;
   const longV = hair === H_BOB ? chin + s.range(-0.2, 0.1) : hair === H_CURLS_OUT ? chin + s.range(0, 0.5) : chin + s.range(0.1, 1.1);
-  const htR = [s.range(0.03, 0.045), s.range(0.07, 0.2), s.range(0.09, 0.2), s.range(0.08, 0.15), s.range(0.07, 0.15), s.range(0.14, 0.26), s.range(0.035, 0.055), s.range(0.26, 0.42), s.range(0.05, 0.1), s.range(0.07, 0.1)];
+  const htR = [s.range(0.03, 0.045), s.range(0.07, 0.2), s.range(0.09, 0.2), s.range(0.08, 0.15), s.range(0.07, 0.15), s.range(0.14, 0.26), s.range(0.035, 0.055), s.range(0.26, 0.42), s.range(0.05, 0.1), s.range(0.1, 0.15)];
   const ht = hair === H_CROPPED ? htR[0]! : hair === H_SHORT || hair === H_PARTED ? htR[1]! : hair === H_TEXTURED ? htR[2]! : hair === H_BOB ? htR[3]! : hair === H_LONG || hair === H_LONG_LOOSE || hair === H_LONG_SWEPT ? htR[4]! : hair === H_CURLY ? htR[5]! : hair === H_BRAIDS ? q(0.06) : isCap(hair) ? htR[6]! : hair === H_CURLS_OUT ? htR[7]! : hair === H_PIXIE ? htR[8]! : hair === H_WRAP ? htR[9]! : q(0.03);
   const sideFactor = hair === H_PIXIE ? s.range(0.35, 0.7) : s.range(0.25, 1), sweep = s.range(-0.6, 0.6), partTh = a16Of(s.range(-0.7, 0.7));
   const quiffR = s.range(0.4, 1.0), quiff = s.pick(100) < 35 && !fringe && !isCap(hair) && hair !== H_WRAP ? quiffR : 0;
@@ -631,7 +634,7 @@ function makeModel(P: V11Plan) {
     let h = P.ht;
     const edge = smQ(dq(scalpV(th) - v, q(0.28)));
     if (P.hair === H_WRAP) {
-      h = mq(h, Q + mq(q(0.25), sinF(a16Of(foldPhase(th, v))) * 4));
+      h = mq(h, Q + mq(q(0.3), sinF(a16Of(foldPhase(th, v))) * 4));
       return q(0.004) + mq(h, q(0.85) + mq(q(0.15), edge));
     }
     const topness = smQ(dq(q(-0.1) - v, q(0.6)));
@@ -811,7 +814,7 @@ function buildField(P: V11Plan, M: Model, pose: Pose): Field {
       const dx = px, dy = mq((v < vRef ? v : vRef) - M.vCap, q(0.6)), dz = pz, L = isqrt(dx * dx + dy * dy + dz * dz) || 1;
       xf(px + idiv(h * dx, L), v + idiv(h * dy, L), pz + idiv(h * dz, L));
       sX = tX; sY = tY; sZ = tZ;
-      if (hair === H_WRAP) { sReg = WRAP; sEx = mq(q(0.14), sinF(a16Of(M.foldPhase(th, v))) * 4); setDir(q(0.868), q(-0.496)); return true; }
+      if (hair === H_WRAP) { sReg = WRAP; sEx = mq(q(0.2), sinF(a16Of(M.foldPhase(th, v))) * 4); setDir(q(0.868), q(-0.496)); return true; }
       sReg = HAIR; sEx = Q - smQ(dq(scalpCol[i]! - v, q(0.14)));
       // strand direction in parameter space
       let d0 = mq(radQ(wrapPi16(th - P.partTh)), q(0.6)), d1 = v - vp + q(0.35);
