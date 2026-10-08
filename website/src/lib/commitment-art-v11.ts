@@ -61,7 +61,7 @@ export const PALETTE_NAMES_V11: readonly string[] = PALS.map((p) => p.name);
 const twin = (c: RGB): RGB => [c[0] < 128 ? c[0] + 1 : c[0] - 1, c[1] < 128 ? c[1] + 1 : c[1] - 1, c[2] < 128 ? c[2] + 1 : c[2] - 1];
 export const TWINS_V11: readonly (readonly RGB[])[] = PALETTES_V11.map((p) => p.map(twin));
 /** The hair silhouettes, by plan.hair. */
-export const HAIR_NAMES_V11: readonly string[] = ["cropped", "short", "side part", "textured short", "bob", "long", "curly", "two braids", "bun", "bald", "long loose", "long over one shoulder", "one braid", "high bun", "low bun", "pulled back", "curls out", "pixie", "hair wrap"];
+export const HAIR_NAMES_V11: readonly string[] = ["cropped", "short", "side part", "textured short", "bob", "long", "curly", "two braids", "bun", "bald", "long loose", "long over one shoulder", "one braid", "high bun", "low bun", "pulled back", "curls out", "pixie", "hair wrap", "high ponytail", "low ponytail", "ponytail over one shoulder"];
 export const EXPRESSION_NAMES_V11: readonly string[] = ["neutral", "slight smile", "serious"];
 export const AGE_BAND_NAMES_V11: readonly string[] = ["child", "teen", "twenties to thirties", "forties to fifties", "elderly"];
 export const GARMENT_NAMES_V11: readonly string[] = ["crew neck", "V neck", "shirt collar", "turtleneck", "lapels", "scoop neck", "boat neck", "blouse collar", "wrap", "shawl", "high collar"];
@@ -220,11 +220,12 @@ class Stream {
 /* ── Regions and names ───────────────────────────────────────────────────────────────────────────── */
 
 const BG = 0, SKIN = 1, HAIR = 2, WHITE = 3, IRIS = 4, PUPIL = 5, HILITE = 6, BROW = 7, LIPU = 8, LIPL = 9, NOSTRIL = 10, EAR = 11, GARM = 12, GARM2 = 13, SHIRT = 14, BEARD = 15, MOUTH = 16, WRAP = 17;
-const H_CROPPED = 0, H_SHORT = 1, H_PARTED = 2, H_TEXTURED = 3, H_BOB = 4, H_LONG = 5, H_CURLY = 6, H_BRAIDS = 7, H_TIED = 8, H_BALD = 9, H_LONG_LOOSE = 10, H_LONG_SWEPT = 11, H_BRAID_ONE = 12, H_BUN_HIGH = 13, H_BUN_LOW = 14, H_PULLED_BACK = 15, H_CURLS_OUT = 16, H_PIXIE = 17, H_WRAP = 18;
+const H_CROPPED = 0, H_SHORT = 1, H_PARTED = 2, H_TEXTURED = 3, H_BOB = 4, H_LONG = 5, H_CURLY = 6, H_BRAIDS = 7, H_TIED = 8, H_BALD = 9, H_LONG_LOOSE = 10, H_LONG_SWEPT = 11, H_BRAID_ONE = 12, H_BUN_HIGH = 13, H_BUN_LOW = 14, H_PULLED_BACK = 15, H_CURLS_OUT = 16, H_PIXIE = 17, H_WRAP = 18, H_PONY_HIGH = 19, H_PONY_LOW = 20, H_PONY_SHOULDER = 21;
 const G_CREW = 0, G_VEE = 1, G_COLLAR = 2, G_TURTLE = 3, G_LAPEL = 4, G_SCOOP = 5, G_BOAT = 6, G_BLOUSE = 7, G_WRAP = 8, G_SHAWL = 9, G_HIGH = 10;
 const B_NONE = 0, B_FULL = 1, B_GOATEE = 2, B_MOUSTACHE = 3, B_STUBBLE = 4;
 const isFall = (h: number): boolean => h === H_LONG || h === H_BOB || h === H_BRAIDS || h === H_CURLY || h === H_LONG_LOOSE || h === H_LONG_SWEPT || h === H_CURLS_OUT;
-const isCap = (h: number): boolean => h === H_TIED || h === H_BRAIDS || h === H_PULLED_BACK || h === H_BRAID_ONE || h === H_BUN_HIGH || h === H_BUN_LOW;
+const isPony = (h: number): boolean => h === H_PONY_HIGH || h === H_PONY_LOW || h === H_PONY_SHOULDER;
+const isCap = (h: number): boolean => h === H_TIED || h === H_BRAIDS || h === H_PULLED_BACK || h === H_BRAID_ONE || h === H_BUN_HIGH || h === H_BUN_LOW || isPony(h);
 const hasBun = (h: number): boolean => h === H_TIED || h === H_BRAIDS || h === H_PULLED_BACK || h === H_BUN_HIGH || h === H_BUN_LOW;
 const hasParting = (h: number): boolean => h === H_PARTED || h === H_PULLED_BACK;
 
@@ -252,6 +253,8 @@ export interface V11Plan {
   hair: number; hairV: number; recede: number; peak: number; fringe: number; longV: number; ht: number; sideFactor: number; sweep: number; partTh: number; quiff: number; crownV: number; hairDark: number; bunV: number; bunR: number;
   /** Which shoulder a swept fall or a single braid comes over (1 right of the picture), and 1 when the braid goes down the back. */
   sweptSide: number; braidBack: number; sideburn: number; wrapTone: number;
+  /** A ponytail's radius at the tie and its length, Q16 head units. */
+  ponyW: number; ponyLen: number;
   /** 0 none, 1 full, 2 goatee, 3 moustache, 4 stubble. */
   beard: number; beardT: number; beardDark: number; beardLen: number;
   glasses: number;
@@ -319,8 +322,8 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const earLen = s.range(0.36, 0.5) + mq(q(0.08), oldT), earD = s.range(0.1, 0.14), earFlare = s.range(0.1, 0.6), earV0 = e - q(0.08) + s.range(-0.03, 0.03);
   const neckR = ageT < Q ? s.range(0.38, 0.54) : s.range(0.42, 0.8), neckLen = s.range(0.18, 0.55);
   const shW = mq(s.range(1.6, 2.8), q(0.75) + mq(q(0.25), ageT)), shDrop = s.range(0.5, 0.9), trap = s.range(0.05, 0.2);
-  // hair: nineteen silhouettes by weight (the table in HAIR_NAMES_V11 order); bald only on adults, with age
-  const hairW = [6, 9, 7, 6, 8, 5, 4, 3, 5, adult ? 2 + idiv(6 * oldT, Q) : 0, 8, 6, 4, 4, 4, 5, 4, 6, 4];
+  // hair: twenty-two silhouettes by weight (the table in HAIR_NAMES_V11 order); bald only on adults, with age
+  const hairW = [6, 9, 7, 6, 8, 5, 4, 3, 5, adult ? 2 + idiv(6 * oldT, Q) : 0, 8, 6, 4, 4, 4, 5, 4, 6, 4, 5, 4, 4];
   let hair = s.weighted(hairW);
   const frontalBob = s.pick(3); // drawn whatever the style, so the stream stays aligned
   if (hair === H_BOB && absI(yaw) < degA(q(15))) hair = frontalBob === 0 ? H_PARTED : frontalBob === 1 ? H_TIED : H_PULLED_BACK; // a frontal bob is a helmet
@@ -328,8 +331,8 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const recedeR = s.range(-0.3, 1.0), recedeOn = s.pick(100) < 45;
   const recede = adult && recedeOn && !isCap(hair) && hair !== H_WRAP ? mq(recedeR < 0 ? 0 : recedeR, q(0.3) + mq(q(0.7), oldT)) : 0;
   const peakR = s.range(0.3, 1), peak = s.pick(100) < 30 ? peakR : 0;
-  const fringeOk = hair === H_SHORT || hair === H_BOB || hair === H_LONG || hair === H_CURLY || hair === H_PIXIE || hair === H_LONG_LOOSE || hair === H_CURLS_OUT || hair === H_BRAID_ONE;
-  const fringeP = hair === H_PIXIE ? q(0.6) : hair === H_BOB ? q(0.4) : hair === H_LONG || hair === H_LONG_LOOSE ? q(0.14) : hair === H_BRAID_ONE ? q(0.15) : q(0.25);
+  const fringeOk = hair === H_SHORT || hair === H_BOB || hair === H_LONG || hair === H_CURLY || hair === H_PIXIE || hair === H_LONG_LOOSE || hair === H_CURLS_OUT || hair === H_BRAID_ONE || isPony(hair);
+  const fringeP = hair === H_PIXIE ? q(0.6) : hair === H_BOB ? q(0.4) : hair === H_LONG || hair === H_LONG_LOOSE ? q(0.14) : hair === H_BRAID_ONE || isPony(hair) ? q(0.15) : q(0.25);
   const fringe = fringeOk && s.pick(Q) < mq(fringeP, Q - mq(q(0.7), oldT)) ? 1 : 0;
   const longV = hair === H_BOB ? chin + s.range(-0.2, 0.1) : hair === H_CURLS_OUT ? chin + s.range(0, 0.5) : chin + s.range(0.1, 1.1);
   const htR = [s.range(0.03, 0.045), s.range(0.07, 0.2), s.range(0.09, 0.2), s.range(0.08, 0.15), s.range(0.07, 0.15), s.range(0.14, 0.26), s.range(0.035, 0.055), s.range(0.26, 0.42), s.range(0.05, 0.1), s.range(0.1, 0.15)];
@@ -343,6 +346,7 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const bunV = hair === H_BUN_HIGH ? -craniumH + q(0.15) + s.range(-0.1, 0.1) : hair === H_BUN_LOW ? e + q(0.5) + s.range(0, 0.1) : s.range(-0.8, 0.2);
   const bunR = hair === H_PULLED_BACK || hair === H_BUN_LOW ? s.range(0.18, 0.3) : s.range(0.25, 0.4);
   const sweptSide = s.sign(), braidBack = s.pick(100) < 35 ? 1 : 0;
+  const ponyW = s.range(0.16, 0.27), ponyLen = s.range(0.7, 1.5);
   const sideburn = adult ? s.range(0.02, 0.12) : q(0.05), wrapTone = s.range(0.2, 0.6);
   // facial hair on at most a fifth of adults, never on children; glasses; gaze
   const fb = s.pick(100);
@@ -373,7 +377,7 @@ export function planV11(commitment: Uint8Array): V11Plan {
     nFace, slopeF, capDepth, chinDepth, backDepth, napeA, chinProj, chinBump, browRidge, socket, cheekU, cheekBone, hollow,
     eyeU, ew, uh, lh, cant, tp, irisFrac, gazeJx, gazeJy, pupilFrac, irisDark, lidW, expr, browLift, browV, browT, browArch, browOut, browIn, crease,
     bridgeH, tipH, tipW, nostrilU, hump, lipW, lipU, lipL, smile, earLen, earD, earFlare, earV0, neckR, neckLen, shW, shDrop, trap,
-    hair, hairV, recede, peak, fringe, longV, ht, sideFactor, sweep, partTh, quiff, crownV, hairDark, bunV, bunR, sweptSide, braidBack, sideburn, wrapTone,
+    hair, hairV, recede, peak, fringe, longV, ht, sideFactor, sweep, partTh, quiff, crownV, hairDark, bunV, bunR, sweptSide, braidBack, sideburn, wrapTone, ponyW, ponyLen,
     beard, beardT, beardDark, beardLen, glasses, gaze, gazeSide, lightSide, az, el, ambient, bg, bgTone, bgAngle, garment, wrapSide, gTone, gTone2,
     earring, necklace, ribbon, lipDark, hatchAngle,
   };
@@ -716,6 +720,15 @@ function setDir(d0: number, d1: number): void { const L = isqrt(d0 * d0 + d1 * d
 const sq = (x: number): number => mq(x, x);
 const hypotQ = (a: number, b: number): number => isqrt(a * a + b * b);
 
+/** Where a ponytail is tied, head space. */
+function tieOf(P: V11Plan, M: Model): V3 {
+  if (P.hair === H_PONY_HIGH) { const v = -P.craniumH + q(0.35); return [0, v, -(M.dBack(v) + q(0.02))]; }
+  if (P.hair === H_PONY_LOW) { const v = M.napeV - q(0.05); return [0, v, -(M.dBack(v) + q(0.03))]; }
+  return [nearSide(P) * q(0.2), M.napeV - q(0.05), q(-0.35)];
+}
+/** The side of the picture a tail or braid comes over: the near side when the head is turned, else the stream's. */
+const nearSide = (P: V11Plan): number => (absI(P.yaw) > degA(q(15)) ? -sgn(P.yaw) : P.sweptSide);
+
 interface Pose { cx: number; cy: number; xf: (x: number, y: number, z: number) => void; xfBody: (x: number, y: number, z: number) => void }
 let tX = 0, tY = 0, tZ = 0;
 function makePose(P: V11Plan): Pose {
@@ -836,8 +849,8 @@ function buildField(P: V11Plan, M: Model, pose: Pose): Field {
       } else if (hasParting(hair)) {
         const dd = wrapPi16(th - P.partTh);
         d0 = sgn(dd) * mq(q(0.9), smQ(dq(q(-0.3) - v, q(0.6)))) + mq(d0, q(0.3));
-      } else if (hair === H_TIED || hair === H_BUN_HIGH || hair === H_BUN_LOW || hair === H_BRAID_ONE) { // combed toward the bun or the nape
-        const target = hair === H_BRAID_ONE ? M.napeV : P.bunV, dv = clampI(target - v, -Q, Q);
+      } else if (hair === H_TIED || hair === H_BUN_HIGH || hair === H_BUN_LOW || hair === H_BRAID_ONE || isPony(hair)) { // combed toward the bun, the nape or the tie
+        const target = hair === H_BRAID_ONE ? M.napeV : isPony(hair) ? tieOf(P, M)[1] : P.bunV, dv = clampI(target - v, -Q, Q);
         d0 = sgn(th) * q(0.8); d1 = mq(dv, q(0.8));
         if (d0 === 0) d0 = q(0.1);
       }
@@ -857,24 +870,33 @@ function buildField(P: V11Plan, M: Model, pose: Pose): Field {
     }
     // braids: tubes along a curve with a chevron texture; one down the back or over a shoulder, or two from
     // behind the ears down the front of the shoulders
-    const braids: Array<[V3, V3, V3]> = [];
+    const braids: Array<[V3, V3, V3]> = [], ponies: Array<[V3, V3, V3]> = [];
     const shV0 = P.chin + P.neckLen, nV0 = M.napeV;
     if (hair === H_BRAID_ONE) {
-      const side = P.sweptSide;
+      const side = nearSide(P);
       braids.push(P.braidBack ? [[0, nV0 - q(0.15), q(-0.45)], [0, nV0 + q(0.6), q(-0.55)], [0, nV0 + q(1.4), q(-0.6)]] : [[side * q(0.3), nV0 - q(0.1), q(-0.4)], [side * q(0.85), shV0 - q(0.1), q(0.15)], [side * q(0.55), shV0 + q(1.3), q(0.75)]]);
     }
     if (hair === H_BRAIDS) for (const side of [-1, 1]) braids.push([[side * q(0.95), P.e + q(0.2), q(-0.15)], [side * q(0.95), P.chin + q(0.25), q(0.3)], [side * q(0.7), P.chin + q(1.3), q(0.75)]]);
-    for (const [p0, p1, p2] of braids) {
-      const r = hair === H_BRAIDS ? q(0.085) : q(0.1);
-      const nA = cdiv(mq(mq(q(9.1106), r), RU), 64) + 6, nB = cdiv(mq(q(1.6), RU) * C145, 6400);
+    // ponytails: a hanging mass from the tie, tapering to a point, strands following gravity with a slight curve
+    // the hanging mass falls from the tie past the neck and forward over one shoulder: the far shoulder when the
+    // head is turned (behind the jaw, beside the neck, then on the chest), either when frontal; the three styles
+    // differ by where they are tied (the crown, the nape, the side of the nape)
+    if (isPony(hair)) {
+      const t = tieOf(P, M), side = absI(P.yaw) > degA(q(15)) ? sgn(P.yaw) : P.sweptSide, endV = shV0 + q(0.3) + mq(P.ponyLen, q(0.5));
+      ponies.push([t, [side * q(0.85), (t[1] + endV) >> 1, q(0.25)], [side * q(0.55), endV, q(0.8)]]);
+    }
+    for (const [p0, p1, p2] of [...braids, ...ponies]) {
+      const pony = ponies.length > 0, r = pony ? P.ponyW : hair === H_BRAIDS ? q(0.085) : q(0.1);
+      const nA = cdiv(mq(mq(q(9.1106), r), RU), 64) + 6, nB = cdiv(mq(pony ? p2[1] - p0[1] + q(0.6) : q(1.6), RU) * C145, 6400);
       splat(F, nA, nB, (i, j) => {
         const a = idiv(A16 * i, nA), s = idiv(Q * j, nB - 1), s1 = Q - s, w0 = sq(s1), w1 = 2 * mq(s1, s), w2 = sq(s);
         const cx0 = mq(w0, p0[0]) + mq(w1, p1[0]) + mq(w2, p2[0]), cy0 = mq(w0, p0[1]) + mq(w1, p1[1]) + mq(w2, p2[1]), cz0 = mq(w0, p0[2]) + mq(w1, p1[2]) + mq(w2, p2[2]);
-        const ph = sinF(a16Of(mq(s, 40 * Q))) * 4, rr = mq(r, Q + mq(q(0.15), ph));
+        const ph = sinF(a16Of(mq(s, 40 * Q))) * 4, rr = pony ? mq(r, Q - mq(q(0.85), powQ(s, q(1.7)))) + q(0.01) : mq(r, Q + mq(q(0.15), ph));
         const ca = cosF(a) * 4;
         xf(cx0 + mq(rr, ca), cy0, cz0 + mq(rr, sinF(a) * 4));
         sX = tX; sY = tY; sZ = tZ; sReg = HAIR; sEx = 0;
-        setDir(sgn(ca) * sgn(ph) * q(0.7), Q);
+        if (pony) setDir(mq(q(0.18), nq(mq(s, 24 * Q), mq(radQ(a), 3 * Q), 4 * Q, P.salt + 7)), Q);
+        else setDir(sgn(ca) * sgn(ph) * q(0.7), Q);
         return true;
       }, true);
     }
@@ -1483,9 +1505,9 @@ function contours(P: V11Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
       return F.reg[q0] === SKIN && F.z[q0]! <= tZ + q(0.06);
     }, 36, q(0.3), q(0.3));
   }
-  // a ribbon round a bun
-  if (P.ribbon && hasBun(P.hair)) {
-    const bc = bunCentre(P, M), rr = mq(P.bunR, q(1.02));
+  // a ribbon round a bun, or the tie of a ponytail
+  if ((P.ribbon && hasBun(P.hair)) || isPony(P.hair)) {
+    const bc = isPony(P.hair) ? tieOf(P, M) : bunCentre(P, M), rr = isPony(P.hair) ? mq(P.ponyW, q(1.12)) : mq(P.bunR, q(1.02));
     drawPlaced((t) => {
       const a = idiv(A16 * t, Q);
       pose.xf(bc[0] + mq(rr, cosF(a) * 4), bc[1] + q(0.01), bc[2] + mq(rr, sinF(a) * 4));
