@@ -59,7 +59,7 @@ const MIN_WAIT_MS = 1000;
  * paragraph saying what just happened. The numbers, the timeline and the precise claim sit under
  * "Technical details", closed.
  *
- * A finished image is never lost by leaving the page: the address becomes /image?p=<digest>, and
+ * A finished image is never lost by leaving the page: the address becomes /portrait?p=<digest>, and
  * that address rebuilds the same image from its proof (restoreArtImage), byte for byte.
  */
 export function ArtMaker({ children }: { children?: ReactNode } = {}) {
@@ -108,7 +108,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     return buildPromise.current;
   }, []);
 
-  // Coming back: /image?p=<digest> rebuilds the recorded image from its proof.
+  // Coming back: /portrait?p=<digest> rebuilds the recorded image from its proof.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("p");
     if (!p) return;
@@ -123,7 +123,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           const m = item.proof ? await restoreArtImage(item.proof as never) : null;
           if (m && !cancelled) { setMade(m); setRestored(!madeHere(urlSafe(m.digestB64))); setShown(true); void buildDownload(m); return; }
         }
-        if (!cancelled) { setError({ message: "That image could not be found. Make a new one below.", recorded: false }); window.history.replaceState(null, "", "/image"); }
+        if (!cancelled) { setError({ message: "That portrait could not be found. Draw a new one below.", recorded: false }); window.history.replaceState(null, "", "/portrait"); }
       } catch {
         if (!cancelled) setError({ message: "That image could not be opened right now. Try reloading the page.", recorded: false });
       } finally {
@@ -144,7 +144,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     window.clearTimeout(showTimer.current);
     startedAt.current = performance.now();
     buildPromise.current = null;
-    window.history.replaceState(null, "", "/image");
+    window.history.replaceState(null, "", "/portrait");
     setError(null); setMade(null); setShown(false); setRestored(false); setBuilt(null); setFailedAt(-1);
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
@@ -153,7 +153,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       });
       setMade(r);
       // The address now opens this image again, so leaving the page loses nothing.
-      window.history.replaceState(null, "", `/image?p=${urlSafe(r.digestB64)}`);
+      window.history.replaceState(null, "", `/portrait?p=${urlSafe(r.digestB64)}`);
       rememberMade(urlSafe(r.digestB64));
       void buildDownload(r); // ready the download and the Base block in the background
       showTimer.current = window.setTimeout(() => setShown(true), Math.max(0, MIN_WAIT_MS - (performance.now() - startedAt.current)));
@@ -211,7 +211,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       <div className={`art-hero art-go-wrap${running || shown || restoring ? " is-away" : ""}`}>
         <div className="art-hero-inner">
           <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running}>
-            {failedAt >= 0 ? "Try again" : "Create a BitGraph image"}
+            {failedAt >= 0 ? "Try again" : "Draw a BitGraph portrait"}
           </button>
         </div>
       </div>

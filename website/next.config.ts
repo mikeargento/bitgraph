@@ -17,6 +17,9 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/overview", destination: "/docs/overview", permanent: true },
+      // The image generator became the portrait page on 2026-10-08 (Mike: "portrait page is replacing images").
+      // Every /image link keeps working, ?p=<digest> included (a redirect carries the query).
+      { source: "/image", destination: "/portrait", permanent: true },
       // The Recorder page left the site on 2026-09-16 (Mike: "no company is
       // going to make bitgraphs with the software"). Anyone holding its URL,
       // the release notes included, lands on the app's own release.
