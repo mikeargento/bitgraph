@@ -7,7 +7,7 @@ import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import { ART_ALGORITHM, ART_ALGORITHM_V13, ART_ALGORITHMS, artRecipe, artSize, checkArt, makeArt, recipeJson, toBase64Url, toHex } from "../commitment-art.ts";
-import { PALETTES_V13, TWINS_V13, HAIR_NAMES_V13, EXPRESSION_NAMES_V13, PALETTE_NAMES_V13, decodeV13, outlinesV13, planV13, renderV13, renderV13At, V13_HEIGHT, V13_WIDTH } from "../commitment-art-v13.ts";
+import { PALETTES_V13, TWINS_V13, HAIR_NAMES_V13, EXPRESSION_NAMES_V13, PALETTE_NAMES_V13, decodeV13, outlinesV13, planV13, pupilsV13, renderV13, renderV13At, V13_HEIGHT, V13_WIDTH } from "../commitment-art-v13.ts";
 import { planV11 } from "../commitment-art-v11.ts";
 import { PRINTABLE, drawPrint, printSizeOf } from "../art-print.ts";
 
@@ -115,6 +115,21 @@ test("version 13 draws fast: plan, drawing and the recorded file under 2 s at 24
   }
 });
 
+test("version 13: every portrait has its pupils (200 codes): two whole discs within 45 degrees of frontal, at least one on every face", () => {
+  // Measured 2026-10-08 on these 200 codes: before the eyes were drawn from their geometry, 63 portraits had no pupil
+  // at all, 4 drew theirs as pixel stamps, and 41 of the 138 within 45 degrees lacked two; after, every frontal face
+  // has two whole discs, every face at least one, and 6 far eyes past 45 degrees show a disc cut by the nose.
+  let cut = 0;
+  for (let i = 0; i < 200; i++) {
+    const plan = planV13(code(`v13-eyes/${i}`)), deg = Math.abs((plan.yaw * 360) / 16384), p = pupilsV13(plan);
+    assert.ok(p.length >= 1, `code ${i} (turned ${deg.toFixed(0)} degrees): at least one pupil`);
+    assert.ok(p.every((x) => x === 1 || x === 2), `code ${i}: every pupil is a disc`);
+    if (deg <= 45) assert.deepEqual(p, [1, 1], `code ${i} (turned ${deg.toFixed(0)} degrees): two whole pupils`);
+    cut += p.filter((x) => x === 2).length;
+  }
+  assert.ok(cut <= 10, `${cut} pupils cut by something in front of them`);
+});
+
 /**
  * The staircase metric (version 13). Each outline is resampled at half a field pixel (32 raster units; a field pixel
  * is 64, four recorded pixels); the heading is taken over one field pixel, and the turn at a sample is the change
@@ -183,5 +198,5 @@ test("version 13: no staircased outlines (zigzags per 100 field pixels of outlin
   assert.ok((100 * z) / c < 1, `${((100 * z) / c).toFixed(2)} zigzags per 100 field pixels over ten people`);
 });
 
-const PINNED_PIXELS_V13 = "4bc2147302928afb39edf26f52db11f35176a9c852ddd330865638a1ae035ba3";
-const PINNED_PNG_V13 = "5fe33aef4feb56aad09a29abfa01ff87f7ac818a7a8b80a781ae6a28801756cd";
+const PINNED_PIXELS_V13 = "e92cdc16d3c571fa7a66dcf1e8cbddb235eaec6e2e3ec5dc3a5bb67481e4d7d5";
+const PINNED_PNG_V13 = "1681369ca879200a6ecdf1a8ee05c2a1512cde879feda6b06ab49f508f3ac0e3";

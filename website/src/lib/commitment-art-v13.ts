@@ -19,6 +19,16 @@
  *    boundary lies flat on the cheek); the side hairline is a monotone cubic through its knots; the fall hangs from
  *    the skull's widest slice blended in over a band (it stepped out at the ear); short hair follows the head at the
  *    nape. The splat fills along a stretched surface between grid neighbours, so no crack opens down a turned head.
+ *  - Eyes, drawn 1.3 x the plan's size (opening, ball, iris and pupil together; less where the face is narrow, a low
+ *    brow rising up to 0.035 to make room) and in detail from their geometry at the output's resolution (eyes()): the
+ *    iris as 72 radial fibres with a collarette, a limbal ring and crypts, darker under the lid; the pupil always one
+ *    disc (the field's few pupil pixels had left small or lid-dropped eyes empty, and a catchlight near the pupil
+ *    had made it a square speck); a crisp paper catchlight, a tiny second one on some draws; a gaze the lids or the
+ *    nose would hide turned toward the opening's centre until 60% of the iris and the whole pupil show. The lids:
+ *    the lash line with a second close line for the margin, fine curved lashes over its outer two thirds (fewer on
+ *    a squarer jaw, a beard, a child), a few faint lower lashes, the lower margin a light line with one gap, the
+ *    caruncle at the inner corner, a little shading in the white's corners, the crease kept between the lid and the
+ *    brow, a soft line under the lower lid. A child's iris is larger for the opening.
  *  - Stray marks: no dark disc at the mouth's corners (with the line's end it read as a teardrop); nostrils smaller,
  *    bean-shaped and without a ring; specks and slivers of outline under a few field pixels are dropped; a shirt
  *    collar's top edge is a light broken line with no dark band under it (it read as a choker).
@@ -164,6 +174,7 @@ const Q_15 = q(15);
 const Q_16 = q(16);
 const Q_1_02 = q(1.02);
 const Q_1_05 = q(1.05);
+const Q_1_06 = q(1.06);
 const Q_1_07 = q(1.07);
 const Q_1_1 = q(1.1);
 const Q_1_12 = q(1.12);
@@ -171,15 +182,12 @@ const Q_1_15 = q(1.15);
 const Q_1_2 = q(1.2);
 const Q_1_25 = q(1.25);
 const Q_1_3 = q(1.3);
-const Q_1_318 = q(1.318);
 const Q_1_35 = q(1.35);
 const Q_1_4 = q(1.4);
-const Q_1_42 = q(1.42);
 const Q_1_5 = q(1.5);
 const Q_1_55 = q(1.55);
 const Q_1_6 = q(1.6);
 const Q_1_8 = q(1.8);
-const Q_1_9 = q(1.9);
 const Q_2 = q(2);
 const Q_22 = q(22);
 const Q_28 = q(28);
@@ -417,13 +425,24 @@ function makeModel(P: V13Plan) {
   };
   // eyes: the opening scaled to the face's width at the eye line, the spacing kept inside the temple
   const rowE = rowOf(P.e), wE = rowE.w;
-  const ew = mq(P.ew, Math.min(Q, dq(wE, Q_0_97))), eyeU = Math.min(P.eyeU, wE - ew - Q_0_12);
-  const eyeR = Q_0_2, eyeR2 = mq(eyeR, eyeR), eyeC = cosF(P.cant) * 4, eyeS = sinF(P.cant) * 4;
+  // version 13: the eye drawn 1.3 x the plan's size (the opening, the ball, the iris and the pupil together; the plan
+  // is unchanged), less where the face is narrow: the inner corners keep 0.1 from the midline and the outer 0.12 from
+  // the face's edge, so the eyes never touch or reach the temple
+  const ew0 = mq(P.ew, Math.min(Q, dq(wE, Q_0_97)));
+  // and the upper lid keeps clear of the brow (its lower edge, with room for the crease): a low brow rises up to
+  // 0.035 to make the room, and past that the eye stays nearer its own size
+  const uh0 = mq(mq(P.uh, P.gaze === 2 ? Q_0_7 : Q), P.expr === 2 ? Q_0_92 : Q), room0 = P.e - P.browV - mq(P.browT, Q_0_6) - q(0.035);
+  const bLift = clampI(mq(uh0, q(1.3)) - room0, 0, Q_0_035), browVE = P.browV - bLift, room = room0 + bLift;
+  let kE = q(1.3);
+  while (kE > Q && (2 * mq(ew0, kE) > wE - q(0.22) || mq(uh0, kE) > room)) kE -= Q_0_05;
+  const ew = mq(ew0, kE), eyeU = Math.min(Math.max(P.eyeU, Q_0_1 + ew), wE - ew - Q_0_12);
+  const eyeR = mq(Q_0_2, kE), eyeR2 = mq(eyeR, eyeR), eyeC = cosF(P.cant) * 4, eyeS = sinF(P.cant) * 4;
   const kp = dq(lnQ(Q_0_5), lnQ(P.tp));
   const upF = (t: number): number => { const tk = powQ(t, kp); return powQ(clampQ(4 * mq(tk, Q - tk)), Q_0_75); };
   const loF = (t: number): number => powQ(clampQ(4 * mq(t, Q - t)), Q_1_2);
-  const uh = mq(mq(P.uh, P.gaze === 2 ? Q_0_7 : Q), P.expr === 2 ? Q_0_92 : Q);
-  const sinIris = clampI(dq(mq(P.irisFrac, uh + P.lh), 2 * eyeR), Q_0_05, Q_0_9);
+  const uh = mq(uh0, kE), lh = mq(P.lh, kE);
+  // a child's iris is larger for the opening
+  const sinIris = clampI(mq(dq(mq(P.irisFrac, uh + lh), 2 * eyeR), Q + mq(q(0.12), Q - P.ageT)), Q_0_05, Q_0_9);
   const irisA = asin16(sinIris), pupilA = idiv(irisA * P.pupilFrac, Q);
   const cosIris = cosF(irisA) * 4, cosPupil = cosF(pupilA) * 4, cosHi = cosF(idiv(irisA * 22, 100)) * 4;
   // gaze in head-local: toward the camera (rotated back by the yaw) with a per-person jitter, aside, or down
@@ -434,19 +453,57 @@ function makeModel(P: V13Plan) {
   G = norm3(G);
   const baseBumps = (u: number, v: number): number => {
     const au = absI(u);
-    let dz = mq(P.browRidge, g2(u, v - P.browV, Q_0_8, Q_0_08));
-    dz -= mq(P.socket, g2(au - eyeU, v - P.e, Q_0_27, Q_0_17));
+    let dz = mq(P.browRidge, g2(u, v - browVE, Q_0_8, Q_0_08));
+    dz -= mq(P.socket, g2(au - eyeU, v - P.e, mq(Q_0_27, kE), mq(Q_0_17, kE)));
     dz += mq(P.cheekBone, g2(au - P.cheekU, v - (P.e + P.cheekV), Q_0_22, Q_0_14));
     dz -= mq(P.hollow, g2(au - Q_0_6, v - (P.e + Q_0_5), Q_0_2, Q_0_15));
     dz += mq(P.chinBump, g2(u, v - (P.chin - Q_0_15), Q_0_3, Q_0_15));
     return dz;
   };
-  const zcEye = sliceZ(eyeU, rowE) + baseBumps(eyeU, P.e) - Q_0_135;
+  const zcEye = sliceZ(eyeU, rowE) + baseBumps(eyeU, P.e) - mq(Q_0_135, kE);
   // the reserved highlight: the gaze pulled a little toward the half vector of view and light
   const Lw = lightDir(P);
   const Vl: V3 = [-sinF(P.yaw) * 4, 0, cosF(P.yaw) * 4], Ll = rotY3(Lw, -P.yaw);
-  let Hv = norm3([Vl[0] + Ll[0], Vl[1] + Ll[1], Vl[2] + Ll[2]]);
-  Hv = norm3([mq(G[0], Q_0_8) + mq(Hv[0], Q_0_2), mq(G[1], Q_0_8) + mq(Hv[1], Q_0_2) - Q_0_06, mq(G[2], Q_0_8) + mq(Hv[2], Q_0_2)]);
+  const Hh = norm3([Vl[0] + Ll[0], Vl[1] + Ll[1], Vl[2] + Ll[2]]);
+  const hiOf = (g: V3, f = Q_0_2): V3 => norm3([mq(g[0], Q - f) + mq(Hh[0], f), mq(g[1], Q - f) + mq(Hh[1], f) - mq(Q_0_06, dq(f, Q_0_2)), mq(g[2], Q - f) + mq(Hh[2], f)]);
+  /** Version 13: inside the lid opening, in the eye's own frame (du = |u| - eyeU, dv = v - e). */
+  const inOpen = (du: number, dv: number): boolean => {
+    if (mq(du, du) + mq(dv, dv) >= eyeR2) return false;
+    const dur = mq(du, eyeC) + mq(dv, eyeS), dvr = mq(dv, eyeC) - mq(du, eyeS), t = (dq(dur, ew) + Q) >> 1;
+    if (t <= 0 || t >= Q) return false;
+    return dvr > -mq(uh, upF(t)) && dvr < mq(lh, loF(t));
+  };
+  /** The upper lid's shadow on the ball at (du, dv), Q16 (1 at the lid's edge). */
+  const lidShade = (du: number, dv: number): number => {
+    const dur = mq(du, eyeC) + mq(dv, eyeS), dvr = mq(dv, eyeC) - mq(du, eyeS), t = clampQ((dq(dur, ew) + Q) >> 1);
+    return gexp(dq(dvr + mq(uh, upF(t)), mq(Q_0_045, kE)));
+  };
+  /** Two unit vectors across a direction g (head space). */
+  const basisOf = (g: V3): [V3, V3] => { const e1 = norm3([-g[2], 0, g[0]]); return [e1, [mq(g[1], e1[2]), mq(g[2], e1[0]) - mq(g[0], e1[2]), -mq(g[1], e1[0])]]; };
+  /** The direction from the ball's centre at angle a (1/16 steps) from g, around it at phi (whole steps). */
+  const capDir = (g: V3, b: [V3, V3], a: number, phi: number): V3 => {
+    const ca = cosF(a) * 4, sa = sinF(a) * 4, cp = mq(COS(phi & 1023) * 4, sa), sp = mq(SIN[phi & 1023]! * 4, sa);
+    return [mq(g[0], ca) + mq(b[0][0], cp) + mq(b[1][0], sp), mq(g[1], ca) + mq(b[0][1], cp) + mq(b[1][1], sp), mq(g[2], ca) + mq(b[0][2], cp) + mq(b[1][2], sp)];
+  };
+  const openAt = (side: number, d: V3): boolean => inOpen(side * mq(eyeR, d[0]), mq(eyeR, d[1]));
+  // Version 13: never lose the eye. Where the gaze (down, aside) and the lids would leave under 60% of the iris in
+  // the opening, or cut the pupil, the gaze turns toward the opening's centre in eighths until neither happens.
+  /** The direction from the ball's centre to the opening's centre. */
+  const centreOf = (side: number): V3 => { const dvc = (lh - uh) >> 1, X = side * -mq(dvc, eyeS), Y = mq(dvc, eyeC); return norm3([X, Y, sqrtQ(Math.max(0, eyeR2 - mq(X, X) - mq(Y, Y)))]); };
+  const gazeOf = (side: number): V3 => {
+    const Gc = centreOf(side);
+    let g = G;
+    for (let k = 0; k <= 8; k++) {
+      g = k === 0 ? G : norm3([G[0] * (8 - k) + Gc[0] * k, G[1] * (8 - k) + Gc[1] * k, G[2] * (8 - k) + Gc[2] * k]);
+      const b = basisOf(g);
+      let vis = 0, all = 0, pupilIn = true;
+      for (let r = 1; r <= 4; r++) for (let j = 0; j < 12; j++) { all += r; if (openAt(side, capDir(g, b, idiv(irisA * r, 4), j * 85))) vis += r; }
+      for (let j = 0; j < 12 && pupilIn; j++) if (!openAt(side, capDir(g, b, idiv(pupilA * 23, 20), j * 85))) pupilIn = false;
+      if (pupilIn && vis * 100 >= all * 60) break;
+    }
+    return g;
+  };
+  const GL = gazeOf(-1), GR = gazeOf(1), HL = hiOf(GL), HR = hiOf(GR);
   const smileEff = mq(P.smile, Math.min(Q, dq(Q_0_27, P.lipW))); // wide mouths get less corner lift: never a grin
   const vm = (u: number): number => { const r = dq(u, P.lipW); return P.mouth + mq(smileEff, mq(QN_0_04, mq(r, r))); };
   const bridgeV = P.e - Q_0_03, tipV = P.noseBase - Q_0_07;
@@ -493,7 +550,7 @@ function makeModel(P: V13Plan) {
     // round each eye the skin carries no hatching and no terminator ramp (an ellipse 1.6 x the opening's width and 2.2 x
     // its height), so the eyes read on every draw, in heavy shadow too; only the lid, brow and iris lines sit there
     if (region === SKIN) {
-      const eu = dq(au - eyeU, mq(ew, Q_1_6)), ev = dq(v - P.e, mq(uh + P.lh, Q_1_1));
+      const eu = dq(au - eyeU, mq(ew, Q_1_6)), ev = dq(v - P.e, mq(uh + lh, Q_1_1));
       if (mq(eu, eu) + mq(ev, ev) < Q) extra = -Q;
     }
     // behind a lens the skin carries no hatching and no terminator ramp: the eye reads exactly as without
@@ -506,7 +563,7 @@ function makeModel(P: V13Plan) {
       const t = dq(au - (eyeU - ew - P.browIn), 2 * ew + P.browIn + P.browOut);
       if (t > 0 && t < Q) {
         const arch = mq(P.browArch, sinPi(powQ(t, Q_0_8)) * 4);
-        const bv = P.browV - arch + mq(Q_0_04, t - Q_0_5) * (P.cant > 0 ? -1 : 1);
+        const bv = browVE - arch + mq(Q_0_04, t - Q_0_5) * (P.cant > 0 ? -1 : 1);
         const th = mq(P.browT, Q_0_6 + mq(Q_0_6, Q - t));
         if (absI(v - bv) < th >> 1) { region = BROW; fDir = 1; fDu = side * Q; fDv = QN_0_55; }
       }
@@ -539,14 +596,15 @@ function makeModel(P: V13Plan) {
         const dur = mq(du, eyeC) + mq(dv, eyeS), dvr = mq(dv, eyeC) - mq(du, eyeS);
         const h = sqrtQ(eyeR2 - d2), zEye = zcEye + h;
         const t = (dq(dur, ew) + Q) >> 1;
-        const tc = clampQ(t), vUp = -mq(uh, upF(tc)), vLo = mq(P.lh, loF(tc));
+        const tc = clampQ(t), vUp = -mq(uh, upF(tc)), vLo = mq(lh, loF(tc));
         if (t > 0 && t < Q && dvr > vUp && dvr < vLo) {
           dz = zEye - sliceZ(u, row);
           const nx = dq(du * side, eyeR), ny = dq(dv, eyeR), nz = dq(h, eyeR);
-          const dG = mq(nx, G[0]) + mq(ny, G[1]) + mq(nz, G[2]), dH = mq(nx, Hv[0]) + mq(ny, Hv[1]) + mq(nz, Hv[2]);
+          const Ge = side < 0 ? GL : GR, He = side < 0 ? HL : HR;
+          const dG = mq(nx, Ge[0]) + mq(ny, Ge[1]) + mq(nz, Ge[2]), dH = mq(nx, He[0]) + mq(ny, He[1]) + mq(nz, He[2]);
           region = dG > cosPupil ? PUPIL : dG > cosIris ? IRIS : WHITE;
           if (dH > cosHi && region !== WHITE) region = HILITE;
-          extra = mq(Q_0_6, gexp(dq(dvr - vUp, Q_0_045))); // the lid's shadow on the ball
+          extra = mq(Q_0_6, gexp(dq(dvr - vUp, mq(Q_0_045, kE)))); // the lid's shadow on the ball
           extraRim = region === IRIS ? clampQ(sqrtQ(dq(Q - dG, Q - cosIris))) : 0;
           fDir = 1;
           if (region === IRIS) { fDu = -dv; fDv = du * side; } else { fDu = Q; fDv = 0; } // iris: concentric rings read as tone
@@ -646,7 +704,7 @@ function makeModel(P: V13Plan) {
     if ((P.hair === H_LONG || P.hair === H_LONG_LOOSE || P.hair === H_LONG_SWEPT) && v > P.e) h = mq(h, Q + mq(Q_0_3, smQ(v - P.e)));
     return Q_0_004 + mq(h, Q_0_06 + mq(Q_0_94, edge));
   };
-  return { vCap, capA, width, dFront, dBack, rowOf, sliceZ, features, basePoint: (th: number, row: Row) => basePoint(th, row), headPoint, frontZ, hairLine, scalpV, hairAt, hairThick, foldPhase, vm, G, Hv, Lw, eyeU, ew, uh, upF, loF, eyeC, eyeS, napeV, sideStart, get bX() { return bX; }, get bZ() { return bZ; }, get bC() { return bC; } };
+  return { vCap, capA, width, dFront, dBack, rowOf, sliceZ, features, basePoint: (th: number, row: Row) => basePoint(th, row), headPoint, frontZ, hairLine, scalpV, hairAt, hairThick, foldPhase, vm, Lw, browV: browVE, eyeU, ew, uh, lh, kE, eyeR, zcEye, irisA, pupilA, inOpen, lidShade, basisOf, capDir, openAt, gEye: (side: number, k = 0): V3 => { const g = side < 0 ? GL : GR, c = centreOf(side); return k === 0 ? g : norm3([g[0] * (8 - k) + c[0] * k, g[1] * (8 - k) + c[1] * k, g[2] * (8 - k) + c[2] * k]); }, hiOf, upF, loF, eyeC, eyeS, napeV, sideStart, get bX() { return bX; }, get bZ() { return bZ; }, get bC() { return bC; } };
 }
 type Model = ReturnType<typeof makeModel>;
 
@@ -700,8 +758,8 @@ function splat(F: Field, nA: number, nB: number, fn: (i: number, j: number) => b
     const ja = Math.min(nB - 1, j + 1), jb = Math.max(0, j - 1);
     const ka = j * nA + ia, kb = j * nA + ib, kc = ja * nA + i, kd = jb * nA + i;
     let sA = false, sC = false;
-    if (ka !== k && OK[ka] && R[ka] === R[k]) { const ddx = absI(X[ka]! - X[k]!), ddy = absI(Y[ka]! - Y[k]!), m = ddx > ddy ? ddx : ddy; sA = m > 64 && m <= 1024; }
-    if (kc !== k && OK[kc] && R[kc] === R[k]) { const ddx = absI(X[kc]! - X[k]!), ddy = absI(Y[kc]! - Y[k]!), m = ddx > ddy ? ddx : ddy; sC = m > 64 && m <= 1024; }
+    if (ka !== k && OK[ka]) { const ddx = absI(X[ka]! - X[k]!), ddy = absI(Y[ka]! - Y[k]!), m = ddx > ddy ? ddx : ddy; sA = m > 64 && m <= 1024; }
+    if (kc !== k && OK[kc]) { const ddx = absI(X[kc]! - X[k]!), ddy = absI(Y[kc]! - Y[k]!), m = ddx > ddy ? ddx : ddy; sC = m > 64 && m <= 1024; }
     if (hidden && !sA && !sC) continue;
     const xa = OK[ka] ? ka : k, xb = OK[kb] ? kb : k, xc = OK[kc] ? kc : k, xd = OK[kd] ? kd : k;
     const ax = (X[xa]! - X[xb]!) * 8, ay = (Y[xa]! - Y[xb]!) * 8, azp = mq(Z[xa]! - Z[xb]!, RU8);
@@ -1282,7 +1340,7 @@ function shadeField(P: V13Plan, F: Field, pose: Pose): void {
 /* ── Hatching: streamlines along the direction field, four layers at tone thresholds ───────────────── */
 
 interface Stroke { pts: number[]; hw: number[]; c: number }
-interface Prims { strokes: Stroke[]; discs: number[]; segs: number[]; fills: number[][]; rects: number[]; lines: number[][]; stats: V13Stats }
+interface Prims { strokes: Stroke[]; discs: number[]; segs: number[]; fills: number[][]; rects: number[]; lines: number[][]; pupils: number[]; stats: V13Stats }
 export interface V13Stats { strokes: number; stamps: number; curves: number }
 /** Q16 px of the 960-px reference frame to raster units (every length scales with the art height). */
 const kU = (pxQ16: number): number => idiv(pxQ16 * AHU, 960 * Q);
@@ -1478,7 +1536,6 @@ function contours(P: V13Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
     if (has(BG)) return has(HAIR) ? (bob ? Q_0_4 : Q_0_5) : has(WRAP) ? Q_0_8 : Q;
     if (has(HAIR)) return bob ? Q_0_5 : Q_0_35;
     if (has(MOUTH) || has(LIPU) || has(LIPL) || has(HILITE) || has(BROW)) return 0;
-    if (has(WHITE) && has(IRIS)) return Q_0_38;
     if (has(IRIS) && has(PUPIL)) return 0;
     if (has(NOSTRIL)) return 0; // version 13: the nostril is its shaped dark alone, no ring
     if (has(WHITE) && has(SKIN)) return 0; // the lids are drawn as curves
@@ -1491,17 +1548,9 @@ function contours(P: V13Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
     if (has(EAR)) return Q_0_45;
     return 0;
   };
-  // the pupil filled (one disc per field pixel); on the dark ground the reserved highlight is filled with the light ink
-  const rPupil = kU(Q_1_42), rHi = kU(Q_1_318); // 0.84 and 0.78 field px: the pupil discs overlap on the diagonal, so the pupil is solid at 2400
-  // stage two: a pupil is one round disc (its area's radius at its centroid) unless the catchlight sits within
-  // that disc, where the pixel-by-pixel discs keep the catchlight paper
-  const roundPupil = !inv && pupils(F, prims);
+  // version 13: the iris, the pupil and the catchlights are drawn from the eye's geometry (eyes()), not the field
   if (!inv) nostrils(F, prims);
-  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
-    const r = F.reg[y * FW + x];
-    if (!inv && r === PUPIL && !roundPupil) { prims.discs.push((2 * x + 1) * U, (2 * y + 1) * U, rPupil, INK); prims.stats.stamps++; }
-    if (inv && r === HILITE) { prims.discs.push((2 * x + 1) * U, (2 * y + 1) * U, rHi, INK); prims.stats.stamps++; }
-  }
+  eyes(P, F, M, pose, prims, inv);
   // Lost and found edges. Region edges and depth steps take their weight from the light on the near (inner)
   // side: found = base x (0.6 + 1.0 (1 - shade)), heavier where the surface turns away; lit = smoothstep of
   // (shade - 0.55) / 0.35; the half-width is hair + (found - hair)(1 - 0.92 lit), so where the surface faces
@@ -1579,20 +1628,86 @@ function contours(P: V13Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
   for (const side of [-1, 1]) {
     const ec = eyeU * side;
     const lidPt = (t: number, up: boolean, scale: number): void => {
-      const dur = mq(2 * t - Q, ew), dvr = up ? -mq(mq(M.uh, M.upF(clampQ(t))), scale) : mq(mq(P.lh, M.loF(clampQ(t))), scale);
+      const dur = mq(2 * t - Q, ew), dvr = up ? -mq(mq(M.uh, M.upF(clampQ(t))), scale) : mq(mq(M.lh, M.loF(clampQ(t))), scale);
       cU = ec + side * (mq(dur, M.eyeC) - mq(dvr, M.eyeS)); cV = e + mq(dur, M.eyeS) + mq(dvr, M.eyeC);
     };
-    // the upper lid; stage two: the lashes implied by weight on its outer third, the swell's peak pushed outward
+    // the upper lid (the lash line); stage two: heavier on its outer third, the swell's peak pushed outward
     skewC = q(0.3);
-    drawCurve((t) => { lidPt(QN_0_02 + mq(Q_1_1, t), true, Q); return true; }, 40, 0, 0, Q_0_03, Q_0_8, (t) => mq(P.lidW, q(0.8) + mq(q(0.85), smQ(dq(t - q(0.55), q(0.3))))));
+    drawCurve((t) => { lidPt(QN_0_02 + mq(Q_1_06, t), true, Q); return true; }, 40, 0, 0, Q_0_03, Q_0_8, (t) => mq(P.lidW, q(0.8) + mq(q(0.85), smQ(dq(t - q(0.55), q(0.3))))));
     skewC = 0;
-    if (!(side === -sgn(P.yaw) && absI(P.yaw) > degA(Q_28))) drawCurve((t) => { lidPt(Q_0_1 + mq(Q_0_8, t), true, Q); cV += Q_0_014; return true; }, 30, Q_0_4, Q_0_5); // the lid's shadow on the ball, not on the far eye
-    // stage two: the lower lid a light broken line (a lattice noise drops stretches of it)
-    drawCurve((t) => { lidPt(Q_0_25 + mq(q(0.72), t), false, Q); return nq(t >> 6, side * 64, 128, P.salt + 131) < q(0.25); }, 30, q(0.17), q(0.22));
+    const kE = M.kE, far = side === -sgn(P.yaw) && absI(P.yaw) > degA(Q_28), child = P.ageT < Q;
+    // version 13, the eye in detail (drawn 1.3 x the plan's size, see makeModel):
+    // the lid's margin, a second close line inside the lash line (the lid's thickness), not on a turned head's far eye
+    if (!far) drawCurve((t) => { lidPt(Q_0_08 + mq(q(0.84), t), true, Q); cV += mq(q(0.014), kE); return true; }, 30, q(0.3), q(0.4));
+    // the lower lid's margin, a light line from corner to corner with one small gap
+    const gapT = q(0.3) + ((hash2(side, 141, P.salt) & 1023) * q(0.4) >> 10);
+    drawCurve((t) => { const tt = Q_0_04 + mq(q(0.96), t); lidPt(tt, false, Q); return absI(tt - gapT) > q(0.035); }, 40, q(0.22), q(0.3), Q_0_05);
+    // the upper lashes: short curved strokes from the lash line over its outer two thirds, up and curling outward,
+    // never into the opening; their number from the geometry (fewer on a squarer jaw and a lighter lid, fewer on a child)
+    {
+      let nL = 14 + idiv(8 * (P.lidW - Q), Q) - idiv(9 * P.jawSquare, Q) - (P.beard !== B_NONE ? 3 : 0);
+      nL = clampI(child ? idiv(nL * 6, 10) : nL, 4, 18);
+      if (far) nL = nL >> 1; // foreshortened on a turned head's far eye
+      for (let k = 0; k < nL; k++) {
+        const h = hash2(k, side * 7 + 300, P.salt), t0 = q(0.33) + idiv(k * q(0.64), nL) + ((h & 255) * idiv(q(0.6), nL) >> 8);
+        lidPt(t0 + 64, true, Q); const ax = cU, ay = cV;
+        lidPt(t0, true, Q);
+        const bx = cU, by = cV, tx = ax - bx, ty = ay - by, L = isqrt(tx * tx + ty * ty) || 1, ux = idiv(tx * Q, L), uy = idiv(ty * Q, L);
+        const nx = side * uy, ny = -side * ux; // the lash line's normal, up (head space)
+        const len = mq(mq(q(0.02) + mq(q(0.017), sinPi(dq(t0 - q(0.3), q(0.72))) * 4), q(0.8) + (((h >>> 8) & 255) * q(0.4) >> 8)), mq(kE, child ? q(0.75) : Q));
+        const lean = q(0.25) + mq(q(0.5), t0), curl = q(0.55) + (((h >>> 16) & 255) * q(0.3) >> 8);
+        drawCurve((t) => {
+          cU = bx + mq(len, mq(nx, t) + mq(mq(ux, lean), t) + mq(mq(ux, curl), mq(t, t)));
+          cV = by + mq(len, mq(ny, t) + mq(mq(uy, lean), t) + mq(mq(uy, curl), mq(t, t)));
+          return t === 0 || !M.inOpen(absI(cU) - eyeU, cV - e);
+        }, 6, q(0.6), q(0.12), Q_0_03, Q);
+      }
+      // a few faint lower lashes, short, down and outward, on the outer half
+      const nLo = child ? 2 : 3 + ((P.salt >>> (side > 0 ? 21 : 23)) & 1);
+      for (let k = 0; k < nLo; k++) {
+        const h = hash2(k, side * 7 + 400, P.salt), t0 = q(0.55) + idiv(k * q(0.36), nLo) + ((h & 255) * q(0.08) >> 8);
+        lidPt(t0 + 64, false, Q); const ax = cU, ay = cV;
+        lidPt(t0, false, Q);
+        const bx = cU, by = cV, tx = ax - bx, ty = ay - by, L = isqrt(tx * tx + ty * ty) || 1, ux = idiv(tx * Q, L), uy = idiv(ty * Q, L);
+        const nx = -side * uy, ny = side * ux, len = mq(q(0.018), kE);
+        drawCurve((t) => { cU = bx + mq(len, mq(nx, t) + mq(mq(ux, q(0.5)), t)); cV = by + mq(len, mq(ny, t) + mq(mq(uy, q(0.5)), t)); return true; }, 4, q(0.2), q(0.06), Q_0_03);
+      }
+    }
+    // the inner corner: the caruncle, the eye-side arc of a small lens inside the opening at the inner corner
+    {
+      const tC = q(0.075), vu = -mq(M.uh, M.upF(tC)), vl = mq(M.lh, M.loF(tC)), cy = (vu + vl) >> 1, ry = mq(vl - vu, q(0.34)), rx = mq(ew, q(0.07)), cxr = mq(ew, q(-0.86));
+      drawCurve((t) => {
+        const a = -HALFPI16 + idiv(t * PI16, Q), dur = cxr + mq(rx, cosF(a) * 4), dvr = cy + mq(ry, sinF(a) * 4); // the half toward the eye
+        cU = ec + side * (mq(dur, M.eyeC) - mq(dvr, M.eyeS)); cV = e + mq(dur, M.eyeS) + mq(dvr, M.eyeC);
+        return true;
+      }, 12, q(0.14), q(0.18), Q_0_02);
+    }
+    // the sclera's roundness: a few fine arcs in each corner of the white, never across the middle or on the iris
+    {
+      const g = M.gEye(side), cosI = cosF(idiv(M.irisA * 21, 20)) * 4, R = M.eyeR;
+      for (const cs of [-1, 1]) for (let j = 0; j < 3; j++) {
+        const f = q(0.66) + j * q(0.09);
+        drawCurve((t) => {
+          const ft = f - mq(q(0.05), sinPi(t) * 4), tt = (Q + cs * ft) >> 1, vu = -mq(M.uh, M.upF(tt)), vl = mq(M.lh, M.loF(tt));
+          const dur = cs * mq(ew, ft), dvr = vu + mq(vl - vu, q(0.15) + mq(q(0.7), t));
+          const du = mq(dur, M.eyeC) - mq(dvr, M.eyeS), dv = mq(dur, M.eyeS) + mq(dvr, M.eyeC);
+          cU = ec + side * du; cV = e + dv;
+          if (!M.inOpen(du, dv)) return false;
+          const X = side * du, h2 = R * R - X * X - dv * dv;
+          if (h2 <= 0) return false;
+          const dz = isqrt(h2);
+          return idiv(X * g[0] + dv * g[1] + dz * g[2], R) < cosI; // off the iris
+        }, 10, q(0.12), q(0.18), Q_0_02);
+      }
+    }
     // stage two: an upper-lid crease above every eye past childhood, its weight by age and the lid's weight (the
-    // plan's crease bit keeps the deeper fold it drew in version 11)
-    if (P.ageT > q(0.35)) { const cw = mq(mq(q(0.16) + mq(q(0.14), P.oldT) + (P.crease ? q(0.06) : 0), P.lidW), P.ageT); drawCurve((t) => { lidPt(Q_0_05 + mq(Q_0_9, t), true, P.crease ? Q_1_55 : q(1.4)); cV -= Q_0_012; return true; }, 30, cw, mq(cw, q(1.15))); }
-    if (P.oldT > Q_0_5) drawCurve((t) => { lidPt(Q_0_2 + mq(Q_0_75, t), false, Q_2_4); cV += Q_0_02; return true; }, 30, Q_0_25, mq(Q_0_3, P.oldT) + Q_0_2);
+    // plan's crease bit keeps the deeper fold it drew in version 11); version 13: never over the brow
+    const creaseTop = M.browV + mq(P.browT, Q_0_6) + q(0.02);
+    const cS = Math.min(P.crease ? Q_1_55 : q(1.4), dq(e - Q_0_012 - creaseTop, M.uh)); // lowered as a whole under a low brow
+    if (P.ageT > q(0.35) && cS >= q(1.15)) { const cw = mq(mq(q(0.16) + mq(q(0.14), P.oldT) + (P.crease ? q(0.06) : 0), P.lidW), P.ageT); drawCurve((t) => { lidPt(Q_0_05 + mq(Q_0_9, t), true, cS); cV -= Q_0_012; return true; }, 30, cw, mq(cw, q(1.15))); }
+    // version 13: a soft shadow line under the lower lid on adults, broken; the bags past middle age kept light
+    if (P.ageT > q(0.6)) drawCurve((t) => { lidPt(q(0.25) + mq(q(0.6), t), false, q(1.8)); cV += mq(q(0.012), kE); return nq(t >> 6, side * 64 + 9, 96, P.salt + 137) < q(0.35); }, 24, q(0.1), q(0.14), Q_0_02);
+    if (P.oldT > Q_0_5) drawCurve((t) => { lidPt(Q_0_2 + mq(Q_0_75, t), false, Q_2_4); cV += Q_0_02; return true; }, 30, q(0.15), mq(q(0.18), P.oldT) + q(0.12));
     // nostril wing crease
     drawCurve((t) => { const a = -1229 + mq(7782, t); cU = side * (P.nostrilU + mq(Q_0_085, cosF(a) * 4)); cV = P.noseBase - Q_0_05 + mq(Q_0_075, sinF(a) * 4); return true; }, 24, q(0.22), q(0.32), Q_0_02); // lighter than version 11's
     // nasolabial fold
@@ -1638,7 +1753,7 @@ function contours(P: V13Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
   // forehead lines: one, two over 70
   if (P.oldT > Q_0_3) {
     const n = P.oldT > Q_0_7 ? 2 : 1;
-    for (let i = 0; i < n; i++) { const vv = P.browV - Q_0_15 - i * Q_0_1; drawCurve((t) => { cU = mq(2 * t - Q, Q_0_4 + i * Q_0_1); cV = vv + mq(Q_0_015, cosF(a16Of(5 * cU + i * Q)) * 4) - mq(Q_0_03, sq(cU)); return true; }, 36, Q_0_3, Q_0_45 + mq(Q_0_2, P.oldT), Q_0_02); }
+    for (let i = 0; i < n; i++) { const vv = M.browV - Q_0_15 - i * Q_0_1; drawCurve((t) => { cU = mq(2 * t - Q, Q_0_4 + i * Q_0_1); cV = vv + mq(Q_0_015, cosF(a16Of(5 * cU + i * Q)) * 4) - mq(Q_0_03, sq(cU)); return true; }, 36, Q_0_3, Q_0_45 + mq(Q_0_2, P.oldT), Q_0_02); }
   }
   // the parting line on the hair surface
   if (hasParting(P.hair)) {
@@ -1742,7 +1857,6 @@ function contours(P: V13Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
       }, 16, Q_0_22, Q_0_07);
     }
   }
-  if (!inv) irises(P, F, M, pose, drawPlaced);
   if (!inv) strays(P, F, pose, drawPlaced);
   if (!inv) folds(P, F, pose, drawPlaced);
 }
@@ -1839,66 +1953,113 @@ function nostrils(F: Field, prims: Prims): void {
   });
 }
 
-/** Stage two: each pupil (a connected run of pupil pixels per eye, found by flood) as one disc; false when a catchlight is within one. */
-function pupils(F: Field, prims: Prims): boolean {
-  const seen = new Uint8Array(FW * FH), stack: number[] = [], discs: number[] = [];
-  for (let q0 = 0; q0 < FW * FH; q0++) {
-    if (F.reg[q0] !== PUPIL || seen[q0]) continue;
-    let n = 0, sx = 0, sy = 0;
-    stack.push(q0); seen[q0] = 1;
-    while (stack.length) {
-      const c = stack.pop()!, x = c % FW, y = (c - x) / FW;
-      n++; sx += x * 64 + 32; sy += y * 64 + 32;
-      for (const d of [c - 1, c + 1, c - FW, c + FW]) if (d >= 0 && d < FW * FH && !seen[d] && F.reg[d] === PUPIL && absI((d % FW) - x) <= 1) { seen[d] = 1; stack.push(d); }
-    }
-    const cx = idiv(sx, n), cy = idiv(sy, n), r = isqrt(idiv(n * 4096 * 100, 314)) + 8;
-    const gx0 = (cx - r) >> 6, gx1 = (cx + r) >> 6, gy0 = (cy - r) >> 6, gy1 = (cy + r) >> 6;
-    for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
-      if (gx < 0 || gy < 0 || gx >= FW || gy >= FH || F.reg[gy * FW + gx] !== HILITE) continue;
-      const dx = gx * 64 + 32 - cx, dy = gy * 64 + 32 - cy;
-      if (dx * dx + dy * dy < (r + 24) * (r + 24)) return false;
-    }
-    discs.push(cx, cy, r, INK);
-  }
-  for (const v of discs) prims.discs.push(v);
-  prims.stats.stamps += discs.length >> 2;
-  return true;
-}
-
 /**
- * Stage two: each iris as fine radial lines plus a ring, darker at the rim. The iris is found in the field (its
- * pixels and the pupil's, given to the nearer projected eye centre): the centre is the pupil's centroid (the
- * lids clip the iris, rarely the pupil), the half-axes twice the iris's standard deviations (a disc's), the
- * vertical one never under the horizontal (the lids cut it). Thirty-two radial lines from the pupil to the rim
- * swell from a hairline toward the rim; a ring runs just inside the rim. Every point is drawn only on the
- * iris itself, so the lids, the pupil and the catchlight cut the lines.
+ * Version 13: the eye's inside, drawn from its geometry at the output's resolution (the field's iris and pupil
+ * regions were a few pixels on a small eye, and a lid could leave none). The ball (centre, radius) and each eye's
+ * gaze come from the model (gazeOf there turns a gaze the lids would hide toward the opening); a point of the ball
+ * in direction d shows when it lies in the lid opening and nothing in the field is in front of it.
+ *  - The pupil: one filled disc, the projected circle of the pupil's cap (an ellipse under turn). Something in front
+ *    of part of it (the nose, on a turned head's far eye) cuts it to what shows.
+ *  - The catchlights: a crisp paper disc toward the light, inside the iris, and on a quarter of the draws (salt
+ *    bits) a tiny second one across the pupil.
+ *  - The iris: 72 fine radial fibres from the pupil to the rim, each its own start, end and weight (hashes), heavier
+ *    under the upper lid's shadow, with 36 more there; a wavy collarette ring partway out; a dark limbal ring at the
+ *    rim and a soft one inside it; three to six small dark crypts.
+ * On the dark ground the pupil is the ground and the catchlight the light ink; the iris is the field's hatching.
  */
-function irises(P: V13Plan, F: Field, M: Model, pose: Pose, drawPlaced: Placer): void {
-  const cxs: number[] = [], cys: number[] = [];
-  for (const side of [-1, 1]) { const u = side * M.eyeU; pose.xf(u, P.e, M.frontZ(u, M.rowOf(P.e))); cxs.push(tX); cys.push(tY); }
-  const n = [0, 0], sx = [0, 0], sy = [0, 0], sxx = [0, 0], syy = [0, 0], pn = [0, 0], px = [0, 0], py = [0, 0];
-  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
-    const r = F.reg[y * FW + x];
-    if (r !== IRIS && r !== PUPIL && r !== HILITE) continue;
-    const X = x * 64 + 32, Y = y * 64 + 32;
-    const d0 = (X - cxs[0]!) * (X - cxs[0]!) + (Y - cys[0]!) * (Y - cys[0]!), d1 = (X - cxs[1]!) * (X - cxs[1]!) + (Y - cys[1]!) * (Y - cys[1]!), k = d0 <= d1 ? 0 : 1;
-    n[k]!++; sx[k]! += X; sy[k]! += Y; sxx[k]! += X * X; syy[k]! += Y * Y;
-    if (r === PUPIL) { pn[k]!++; px[k]! += X; py[k]! += Y; }
-  }
-  const onIris = (): boolean => { const gx = tX >> 6, gy = tY >> 6; return gx >= 0 && gy >= 0 && gx < FW && gy < FH && F.reg[gy * FW + gx] === IRIS; };
-  for (let k = 0; k < 2; k++) {
-    if (n[k]! < 6) continue;
-    const mx = idiv(sx[k]!, n[k]!), my = idiv(sy[k]!, n[k]!);
-    const rx = 2 * isqrt(Math.max(0, idiv(sxx[k]!, n[k]!) - mx * mx)), ry0 = 2 * isqrt(Math.max(0, idiv(syy[k]!, n[k]!) - my * my)), ry = ry0 > rx ? ry0 : rx;
-    const cx = pn[k] ? idiv(px[k]!, pn[k]!) : mx, cy = pn[k] ? idiv(py[k]!, pn[k]!) : my;
-    for (let j = 0; j < 32; j++) {
-      const h = hash2(j, k, P.salt + 1709), a = (j * 32 + (h & 15) - 8) & 1023, r0 = q(0.4) + ((((h >>> 5) & 255) * q(0.12)) >> 8);
-      drawPlaced((t) => { const r = r0 + mq(q(0.97) - r0, t); tX = cx + mq(mq(rx, r), COS(a) * 4); tY = cy + mq(mq(ry, r), SIN[a]! * 4); return onIris(); }, 6, q(0.22), q(0.62), q(0.95));
+function eyes(P: V13Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv: boolean): void {
+  const R = M.eyeR, zc = M.zcEye, PAPER = slot(0, 8), hairE = kU(q(0.08)), ws: number[] = [];
+  let pts: number[] = [];
+  const flush = (h: number, even: boolean): void => {
+    if (pts.length >= 4) { prims.strokes.push({ pts, hw: even ? ws.slice() : swell(ws, hairE, h), c: INK }); prims.stats.curves++; }
+    pts = []; ws.length = 0;
+  };
+  for (const side of [-1, 1]) {
+    const ec = side * M.eyeU, ra = dq(M.pupilA, M.irisA);
+    /** Project the ball's point in direction d (tX, tY, tZ); true when it shows: in the opening, and the field there the eye itself or nothing nearer. */
+    const at = (d: V3): boolean => {
+      pose.xf(ec + mq(R, d[0]), P.e + mq(R, d[1]), zc + mq(R, d[2]));
+      if (!M.openAt(side, d)) return false;
+      const gx = tX >> 6, gy = tY >> 6;
+      if (gx < 0 || gy < 0 || gx >= FW || gy >= FH) return false;
+      const q0 = gy * FW + gx, r = F.reg[q0];
+      return r === WHITE || r === IRIS || r === PUPIL || r === HILITE || F.z[q0]! <= tZ + Q_0_03;
+    };
+    // where something in front (the nose, on a turned head's far eye) hides part of the pupil, the gaze turns toward
+    // the opening's centre in eighths until the whole pupil shows; an eye whose pupil never shows is hidden
+    let g = M.gEye(side), b = M.basisOf(g), seen = false;
+    for (let k = 0; k <= 8 && !seen; k++) {
+      g = M.gEye(side, k); b = M.basisOf(g); seen = at(g);
+      for (let j = 0; j < 12 && seen; j++) if (!at(M.capDir(g, b, M.pupilA, j * 85))) seen = false;
     }
-    for (const [rr, w] of [[q(0.9), q(0.5)], [q(0.66), q(0.24)]] as const) drawPlaced((t) => { const a = idiv(1024 * t, Q) & 1023; tX = cx + mq(mq(rx, rr), COS(a) * 4); tY = cy + mq(mq(ry, rr), SIN[a]! * 4); return onIris(); }, 40, w, w, q(0.95));
+    if (!seen) { g = M.gEye(side); b = M.basisOf(g); }
+    const shadeAt = (d: V3): number => M.lidShade(side * mq(R, d[0]), mq(R, d[1]));
+    const iris = (rho: number, phi: number): V3 => M.capDir(g, b, mq(M.irisA, rho), phi);
+    if (!at(g)) continue; // this eye's iris centre does not show (the far eye behind the nose)
+    const pcx = tX, pcy = tY;
+    // the iris (on paper grounds)
+    if (!inv) {
+      const run = (n: number, fn: (t: number) => V3, w: (t: number, d: V3) => number, h: number, even = false): void => {
+        for (let i = 0; i <= n; i++) {
+          const t = idiv(i * Q, n), d = fn(t);
+          const wt = at(d) ? w(t, d) : -1;
+          if (wt < 0) { flush(h, even); continue; }
+          pts.push(tX, tY); ws.push(kU(wt));
+        }
+        flush(h, even);
+      };
+      const NF = 72;
+      for (let j = 0; j < NF + 36; j++) {
+        const h = hash2(j, side + 5, P.salt + 1709), extra = j >= NF;
+        const phi = idiv(extra ? (j - NF) * 2048 + 512 : j * 1024, NF) + (h & 15) - 8;
+        const r0 = mq(ra, q(0.98)) + (((h >>> 4) & 255) * q(0.06) >> 8), r1 = q(0.84) + (((h >>> 12) & 255) * q(0.14) >> 8);
+        const wf = q(0.1) + (((h >>> 20) & 255) * q(0.14) >> 8);
+        run(6, (t) => iris(r0 + mq(r1 - r0, t), phi), (_t, d) => { const sh = shadeAt(d); return extra && sh < q(0.45) ? -1 : mq(wf, Q + mq(q(0.6), sh)); }, h);
+      }
+      // the collarette: a wavy ring a third of the way out from the pupil
+      const rc = ra + mq(Q - ra, q(0.36)), ph = (P.salt >>> 5) & 1023;
+      run(48, (t) => { const phi = idiv(t * 1024, Q); return iris(rc + mq(q(0.045), SIN[(7 * phi + ph) & 1023]! * 4), phi); }, (_t, d) => mq(q(0.36), Q + mq(q(0.6), shadeAt(d))), hash2(side, 77, P.salt), true);
+      // the limbal ring at the rim, dark, and a soft ring inside it
+      run(56, (t) => iris(q(0.985), idiv(t * 1024, Q)), (_t, d) => mq(q(0.5), Q + mq(q(0.4), shadeAt(d))), 0, true);
+      run(48, (t) => iris(q(0.92), idiv(t * 1024, Q)), () => q(0.2), 0, true);
+      // crypts: three to six small dark lenses between the collarette and the rim
+      const nC = 3 + (((P.salt >>> 17) + (side > 0 ? 1 : 0)) & 3);
+      for (let k = 0; k < nC; k++) {
+        const h = hash2(k, side + 9, P.salt + 1801), phi = h & 1023, rr = rc + q(0.08) + ((((h >>> 10) & 255) * (q(0.78) - rc)) >> 8);
+        run(5, (t) => iris(rr, phi + idiv((t - Q_0_5) * 22, Q)), () => q(0.62), h);
+      }
+    }
+    // the pupil: one disc
+    const NP = 28, rim: number[] = [];
+    let full = true, rp = 0;
+    for (let j = 0; j < NP; j++) {
+      if (!at(M.capDir(g, b, M.pupilA, idiv(j * 1024, NP)))) full = false;
+      rim.push(tX, tY); rp += isqrt((tX - pcx) * (tX - pcx) + (tY - pcy) * (tY - pcy));
+    }
+    rp = idiv(rp, NP);
+    if (!full) { // cut to what shows: along each spoke, the farthest point that shows (eighths, by halving)
+      rim.length = 0;
+      for (let j = 0; j < NP; j++) {
+        let lo = 0, hi = Q;
+        for (let s = 0; s < 6; s++) { const mid = (lo + hi) >> 1; if (at(M.capDir(g, b, mq(M.pupilA, mid), idiv(j * 1024, NP)))) lo = mid; else hi = mid; }
+        at(M.capDir(g, b, mq(M.pupilA, lo), idiv(j * 1024, NP)));
+        rim.push(tX, tY);
+      }
+    }
+    if (!inv) prims.fills.push(rim);
+    prims.pupils.push(full ? 1 : 2);
+    prims.stats.stamps++;
+    // the catchlights, on top
+    // toward the light by a seventh of the way to the half vector, nearer the pupil where the lid would hide it
+    let hiOk = false;
+    for (let f = q(0.14); f > 0 && !hiOk; f -= q(0.035)) hiOk = at(M.hiOf(g, f));
+    if (hiOk) {
+      const hx = tX, hy = tY, rc = Math.max(kU(q(0.9)), idiv(rp * 58, 100));
+      prims.discs.push(hx, hy, rc, inv ? INK : PAPER); prims.stats.stamps++;
+      if (full && ((P.salt >>> 13) & 3) === 0) { prims.discs.push(pcx + idiv((pcx - hx) * 55, 100), pcy + idiv((pcy - hy) * 55, 100), Math.max(kU(q(0.4)), idiv(rc * 38, 100)), inv ? INK : PAPER); prims.stats.stamps++; }
+    }
   }
 }
-
 
 /**
  * Outlines: the marked field edges (EH between a pixel and its right neighbour, EV with the one below) as
@@ -2008,7 +2169,7 @@ function compose(P: V13Plan): Prims {
   const M = makeModel(P), pose = makePose(P), inv = PALS[P.palette]!.inv === 1;
   const F = buildField(P, M, pose);
   shadeField(P, F, pose);
-  const prims: Prims = { strokes: [], discs: [], segs: [], fills: [], rects: [], lines: [], stats: { strokes: 0, stamps: 0, curves: 0 } };
+  const prims: Prims = { strokes: [], discs: [], segs: [], fills: [], rects: [], lines: [], pupils: [], stats: { strokes: 0, stamps: 0, curves: 0 } };
   hatch(P, F, prims, inv);
   contours(P, F, M, pose, prims, inv);
   // the plate mark: a half-pixel line inset 16 (reference) px
@@ -2020,6 +2181,13 @@ function compose(P: V13Plan): Prims {
 export function statsV13(plan: V13Plan): V13Stats { return compose(plan).stats; }
 /** Every traced outline as a polyline in raster units at the recorded size (1/64 of a recorded pixel; a field pixel is 64), for the staircase test. */
 export function outlinesV13(plan: V13Plan): number[][] { return compose(plan).lines; }
+/** The pupils drawn for a plan, one entry for each eye that shows: 1 a whole disc, 2 a disc cut by something in front of it (for the eye test). */
+export function pupilsV13(plan: V13Plan): number[] {
+  const M = makeModel(plan), pose = makePose(plan), F = buildField(plan, M, pose);
+  const prims: Prims = { strokes: [], discs: [], segs: [], fills: [], rects: [], lines: [], pupils: [], stats: { strokes: 0, stamps: 0, curves: 0 } };
+  eyes(plan, F, M, pose, prims, PALS[plan.palette]!.inv === 1); // the field's depth is all the eyes read (the same pupils compose() draws)
+  return prims.pupils;
+}
 
 /* ── Drawing: the slot map at 2 x 2 samples a pixel, then the colours ──────────────────────────────
  * Raster units are 1/32 of a pixel; sample (X, Y) is the point (16X + 8, 16Y + 8). A span [xa, xb) covers
