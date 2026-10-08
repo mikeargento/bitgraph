@@ -3291,3 +3291,7 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
    desktop break was off (it starts at 900) and the lede fit one 94-character line. The home lede keeps its break at
    every width above the phone cap (the 20em cap at 600 wraps it on its own below that). */
 @media (min-width: 601px) { .home.home-typing .lede .br-desk { display: inline; } }
+
+/* 2026-10-08 (Mike: "remove stroke from header and footer on site"): no hairline under the bar or above the footer. */
+#site-nav { border-bottom: 0 !important; }
+footer { border-top: 0 !important; }
