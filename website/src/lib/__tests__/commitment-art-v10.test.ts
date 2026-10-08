@@ -1,5 +1,5 @@
 // bitgraph-art/10 (2026-10-08): a flow field with collision avoidance, the code in 256 reading pixels as
-// versions 8 and 9 carry it. Pinned, read back from the art alone, printable, fast, and the default.
+// versions 8 and 9 carry it. Pinned, read back from the art alone, printable, fast; the default until version 11 (2026-10-08).
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
@@ -43,11 +43,10 @@ test("version 10 is pinned: this commitment's pixels and file never change, and 
   assert.equal(wrong.strip.result, "FALSE");
 });
 
-test("version 10 is registered and is the default: a new image is drawn with it (2026-10-08)", () => {
+test("version 10 stays registered and redraws old records, and is no longer the default (version 11, 2026-10-08)", () => {
   assert.ok(ART_ALGORITHMS.includes(ART_ALGORITHM_V10));
-  assert.equal(ART_ALGORITHM, "bitgraph-art/10");
+  assert.notEqual(ART_ALGORITHM, "bitgraph-art/10");
   assert.equal(artRecipe(C1, ART_ALGORITHM_V10).v10?.style, planV10(C1).style);
-  assert.equal(artRecipe(C1).algorithm, "bitgraph-art/10");
 });
 
 test("version 10: the art alone spells the code for 40 codes; every style and every density mode occurs", () => {
