@@ -1,6 +1,6 @@
 // bitgraph-art/9 (Mike, 2026-10-07): five families layered in one picture, one of them leading, the code in
 // 256 reading pixels as version 8 carries it. Pinned, read back from the art alone, printable, fast, and
-// registered without becoming the default.
+// registered; the default until version 10 (2026-10-08).
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
@@ -54,9 +54,9 @@ test("version 9 is pinned: this commitment's pixels and file never change, and b
   assert.equal(wrong.strip.result, "FALSE");
 });
 
-test("version 9 is registered and is the default: a new image is drawn with it (Mike, 2026-10-07)", () => {
+test("version 9 stays registered and redraws old records, and is no longer the default (version 10, 2026-10-08)", () => {
   assert.ok(ART_ALGORITHMS.includes(ART_ALGORITHM_V9));
-  assert.equal(ART_ALGORITHM, "bitgraph-art/9");
+  assert.notEqual(ART_ALGORITHM, "bitgraph-art/9");
   assert.equal(artRecipe(C1, ART_ALGORITHM_V9).v9?.dominant, planV9(C1).dominant);
 });
 
