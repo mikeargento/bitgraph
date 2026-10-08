@@ -54,7 +54,7 @@ test("version 11 is registered and is the default: a new image is drawn with it 
   assert.equal(artRecipe(C1).algorithm, "bitgraph-art/11");
 });
 
-test("version 11: the art alone spells the code for 40 codes; every palette, every expression and at least six hair silhouettes occur", () => {
+test("version 11: the art alone spells the code for 40 codes; every drawn palette (never the dark ground), every expression and at least six hair silhouettes occur", () => {
   const cs = [new Uint8Array(32), new Uint8Array(32).fill(255), C1];
   for (let k = 0; cs.length < 40; k++) cs.push(code(`bitgraph-art/11 readback ${k}`));
   const palettes = new Set<number>(), exprs = new Set<number>(), hairs = new Set<number>();
@@ -67,7 +67,7 @@ test("version 11: the art alone spells the code for 40 codes; every palette, eve
     assert.equal(px.length, V11_WIDTH * V11_HEIGHT * 4);
     assert.deepEqual(decodeV11(px, V11_WIDTH, V11_HEIGHT), c, `code ${i} (${PALETTE_NAMES_V11[plan.palette]}, ${HAIR_NAMES_V11[plan.hair]}, ${EXPRESSION_NAMES_V11[plan.expr]}) reads back`);
   });
-  assert.deepEqual([...palettes].sort(), [0, 1, 2, 3], "every palette occurs in 40");
+  assert.deepEqual([...palettes].sort(), [0, 1, 2], "ink, sepia and sanguine occur in 40, the dark ground never (Mike, 2026-10-08)");
   assert.deepEqual([...exprs].sort(), [0, 1, 2], "every expression occurs in 40");
   assert.ok(hairs.size >= 6, `at least six hair silhouettes in 40, not ${hairs.size}`);
 });
@@ -108,7 +108,7 @@ test("version 11's print drawing (3x, 3600 x 3600) is the same picture as the re
 test("version 11 draws fast: under 1.5 s at the recorded size, whichever palette", () => {
   // one code per palette, the first found scanning fixed seeds
   const seeds = new Map<number, Uint8Array>();
-  for (let k = 0; seeds.size < 4; k++) { const c = code(`bitgraph-art/11 speed ${k}`); const p = planV11(c).palette; if (!seeds.has(p)) seeds.set(p, c); }
+  for (let k = 0; seeds.size < 3; k++) { const c = code(`bitgraph-art/11 speed ${k}`); const p = planV11(c).palette; if (!seeds.has(p)) seeds.set(p, c); }
   for (const [p, c] of seeds) {
     const t0 = performance.now();
     renderV11(planV11(c), c);

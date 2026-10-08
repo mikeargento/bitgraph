@@ -366,7 +366,7 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const bgm = s.pick(100), bg = bgm < 45 ? 0 : bgm < 80 ? 1 : 2, bgTone = s.range(0.14, 0.3), bgAngle = degA(s.range(30, 60)) * s.sign();
   const garment = s.weighted([12, 10, 9, 8, 9, 10, 9, 9, 8, 8, 8]), wrapSide = s.sign();
   const gTone = s.range(0.12, 0.75), gTone2 = s.range(0.1, 0.5);
-  const pr = s.pick(100), palette = pr < 45 ? 0 : pr < 70 ? 1 : pr < 90 ? 2 : 3; // ink 45, sepia 25, sanguine 20, nightline 10
+  const pr = s.pick(100), palette = pr < 45 ? 0 : pr < 70 ? 1 : pr < 90 ? 2 : (salt >>> 12) % 3; // ink, sepia, sanguine; the dark ground is never drawn (Mike, 2026-10-08: "nix the black background"): its tenth goes to the three by salt bits, so no stream draw moves and no other portrait changes
   if (palette === 3 && yaw !== 0) lightSide = -sgn(yaw); // on the dark ground the key light stays on the camera side at any turn
   const hatchAngle = degA(s.range(30, 60)) * s.sign();
   // rare details, one or two a draw, never on children
