@@ -72,7 +72,7 @@ export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
 /** What a new image is drawn with: version 3 from 2026-10-06 (Mike: "lose barcode use version 3"),
  *  version 4 (the Truchet maze) the same night (Mike: "build the truchet maze as version 4"). */
-export const ART_ALGORITHM = "bitgraph-art/13"; // version 13 from 2026-10-08: hedcut portraits (stippled skin, engraved hair and cloth, smooth outlines), 2400 square, the same people as versions 11 and 12; version 12 (engraved portraits) before it
+export const ART_ALGORITHM = "bitgraph-art/13"; // version 13 from 2026-10-08: engraved portraits with smooth outlines and a shadow edge faded in lines, 2400 square, the same people as versions 11 and 12; version 12 (engraved portraits) before it
 /** Built 2026-10-06 for a side-by-side look (Mike: "build it and show me side by side"): the art spells the commitment. */
 export const ART_ALGORITHM_V3 = "bitgraph-art/3";
 /** Built 2026-10-06 (Mike: "build the truchet maze as version 4"): every tile is one bit. */
@@ -93,7 +93,7 @@ export const ART_ALGORITHM_V10 = "bitgraph-art/10";
 export const ART_ALGORITHM_V11 = "bitgraph-art/11";
 /** Square, 2400 x 2400: version 11's person for the same code, drawn as an engraving (denser hatching, swelling lines, lost and found edges); the code as version 8 (commitment-art-v12.ts). */
 export const ART_ALGORITHM_V12 = "bitgraph-art/12";
-/** Square, 2400 x 2400: the same person again, the skin toned by hedcut dots in rows along the form, hair, cloth and ground engraved, every outline traced sub-pixel and smoothed, the neck filleted into the shoulders (commitment-art-v13.ts). */
+/** Square, 2400 x 2400: the same person again, engraved, the shadow edge faded in lines, every outline traced sub-pixel and smoothed, the neck filleted into the shoulders (commitment-art-v13.ts). */
 export const ART_ALGORITHM_V13 = "bitgraph-art/13";
 export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13];
 /** Each version's canvas: 1 and 2 carry a strip under the art; 3 is the art square and its frame. */

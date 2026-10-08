@@ -1,13 +1,12 @@
 /**
- * bitgraph-art/13 (2026-10-08): hedcut portraits. The same person as bitgraph-art/11 and /12 for the same code
- * (planV13 is planV11: the same stream, the same draws, the same integers), square, 2400 x 2400 recorded, the code
- * carried as versions 8 to 12 carry it. Version 12's engraving is the base; version 13 changes:
- *  - Skin, ears and lips are toned by dots, hedcut style: rows of dots along the hatch streamlines (the form
- *    direction), one every 0.85 of the row spacing, each sized from the tone under it so its share of the lattice
- *    covers the tone (r = sp sqrt(t / pi) x 0.65); no relaxation, no randomness beyond the streamlines' own hashes.
- *    Hair, brows, beard, clothing and the ground stay engraved. (Chosen over a pure stipple, which lost the lit
- *    silhouettes and read worse at a thumbnail, and over the engraving, whose hatch front at the terminator made the
- *    face a mask; the sketches are in the review notes of 2026-10-08.)
+ * bitgraph-art/13 (2026-10-08): engraved portraits, smoothed. The same person as bitgraph-art/11 and /12 for the
+ * same code (planV13 is planV11: the same stream, the same draws, the same integers), square, 2400 x 2400 recorded,
+ * the code carried as versions 8 to 12 carry it. Version 12's engraving is the base; version 13 changes:
+ *  - The shadow edge on skin fades in with lines, the engraver's way: each stroke of the first two layers starts at
+ *    its own threshold, and over a ramp of tone past it the spacing closes from 2.2 times to 1 and the width grows
+ *    from a hairline, so the terminator is a gradual fade, not a band. (A hedcut stipple of the skin was sketched
+ *    and built first the same day; the operator preferred the line: dots beside engraved hair read as two
+ *    techniques, and stippled faces washed out at phone size.)
  *  - Outlines: every silhouette, region boundary and depth step is traced as chains (see outlines()): each node
  *    sits at the sub-pixel crossing of a smoothed side indicator between its two field pixels, the chains are
  *    smoothed along their length (ten passes of [1 2 1] / 4) and cut once by Chaikin, then drawn as burin lines.
@@ -21,7 +20,8 @@
  *    the skull's widest slice blended in over a band (it stepped out at the ear); short hair follows the head at the
  *    nape. The splat fills along a stretched surface between grid neighbours, so no crack opens down a turned head.
  *  - Stray marks: no dark disc at the mouth's corners (with the line's end it read as a teardrop); nostrils smaller,
- *    bean-shaped and without a ring; specks and slivers of outline under a few field pixels are dropped.
+ *    bean-shaped and without a ring; specks and slivers of outline under a few field pixels are dropped; a shirt
+ *    collar's top edge is a light broken line with no dark band under it (it read as a choker).
  * The face-tone rule is version 11's: the lit face is paper; the mouth zone and the lenses never toned.
  *
  * From version 12 (the engraving this is drawn over):
@@ -1210,7 +1210,7 @@ function shadeField(P: V13Plan, F: Field, pose: Pose): void {
       let run = -1;
       for (let y = 1; y < FH; y++) {
         const q0 = y * FW + x, r = F.reg[q0], ra = F.reg[q0 - FW];
-        if ((r === GARM || r === GARM2) && (ra === SKIN || ra === SHIRT)) run = 0;
+        if ((r === GARM || r === GARM2) && (ra === SKIN || ra === SHIRT) && !(P.garment === G_COLLAR && r === GARM2)) run = 0; // version 13: not under a shirt collar's top (a dark ring read as a choker)
         else if (run >= 0 && (r === GARM || r === GARM2)) run++;
         else run = -1;
         if (run >= 0 && run < 16) F.tone[q0] = Math.min(4095, F.tone[q0]! + idiv((16 - run) * 1500, 16));
@@ -1344,8 +1344,6 @@ function swell(mid: number[], hair: number, h: number, skew = 0): number[] {
   }
   return out;
 }
-/** Skin dots: the tone where they begin (Q12), the size factor (percent: 65 keeps the skin a little lighter than the engraving's mean), the smallest radius drawn (raster units). */
-const DOT_T = 100, DOT_K = 65, DOT_MIN = 16;
 /** Outline smoothing: passes of [1 2 1] / 4 along each chain (variance 5 nodes squared), before one Chaikin cut. */
 const OUTLINE_PASSES = 10;
 /** Version 12's density over version 11's: the hatch spacing divided by 1.75 (7 / 4). */
@@ -1373,17 +1371,20 @@ function hatch(P: V13Plan, F: Field, prims: Prims, inv: boolean): void {
       if (x0 >= AWU || y0 >= AHU) continue;
       const reg = regAt(F, x0, y0), st = STYLE[reg];
       if (!st || reg === HILITE || reg === WHITE) continue; // the white of the eye is never hatched, in any light
-      const dotted = reg === SKIN || reg === EAR || reg === LIPU || reg === LIPL;
-      if (dotted && layer > 0) continue;
       if ((reg === PUPIL || reg === NOSTRIL || reg === IRIS) && !inv) continue; // stage two: the iris is drawn in irises()
       const t0 = toneAt(F, x0, y0);
       const skinish = reg === SKIN || reg === EAR, b16 = (hsh >>> 16) & 255;
-      // the background wash and the first skin layer take a per-stroke threshold jitter so they fade in
-      const Teff = dotted ? DOT_T : reg === BG ? idiv(T * (7650 + 140 * b16), 25500) : skinish && layer === 0 ? idiv(T * (15300 + 90 * b16), 25500) : T;
+      // version 13, the engraver's soft shadow edge: on skin the first layer (the terminator) and the second (the core
+      // shadow's edge) fade in with lines, not a band. Each stroke starts at its own threshold (0.45 to 1.65 of the
+      // layer's for the first, 0.85 to 1.2 for the second); over a ramp of tone past it (0.25 and 0.15) the spacing
+      // closes from 2.2 times to 1 and the width grows from a hairline to the tone's own (a child never takes a second
+      // layer). The ground's wash as before.
+      const soft = skinish && (layer === 0 || (layer === 1 && P.ageT >= Q)), rampW = layer === 0 ? 1024 : 614;
+      const Teff = soft ? (layer === 0 ? idiv(T * (11475 + 120 * b16), 25500) : idiv(T * (21675 + 35 * b16), 25500)) : reg === BG ? idiv(T * (7650 + 140 * b16), 25500) : T;
       if (t0 < Teff) continue;
-      const nearT = dotted ? Q : reg === BG ? clampQ(idiv((t0 - T) * Q, 1024)) : skinish && layer === 0 ? clampQ(idiv((t0 - T) * Q, 573)) : Q;
+      const nearT = soft ? clampQ(idiv((t0 - Teff) * Q, rampW)) : reg === BG ? clampQ(idiv((t0 - T) * Q, 1024)) : Q;
       const rel = clampQ(idiv((t0 - T) * Q, 4096 - T));
-      const spF = dotted ? Q : reg === BG ? Q_2_2 - mq(Q_1_2, nearT) : skinish && layer === 0 ? Q_1_9 - mq(Q_0_9, nearT) - mq(Q_0_25, rel) : Q - mq(Q_0_25, rel);
+      const spF = soft || reg === BG ? Q_2_2 - mq(Q_1_2, nearT) : Q - mq(Q_0_25, rel);
       // the iris keeps version 11's ring spacing and widths: its tone, not a finer texture
       const iris = reg === IRIS, sp = mq(idiv((iris ? S11 : S0) * st.sp, 100), spF), rad = idiv(sp * 42, 100), r6 = idiv(rad * 6, 10);
       if (isOcc(x0, y0)) continue;
@@ -1421,28 +1422,11 @@ function hatch(P: V13Plan, F: Field, prims: Prims, inv: boolean): void {
       const n = pts.length >> 1, w0 = iris ? kU(Q_0_5) : wmin, w1 = iris ? kU(Q_1_05) : wmax;
       mids.length = 0;
       for (let i = 0; i < n; i++) {
-        const tt = clampQ(idiv((toneAt(F, pts[2 * i]!, pts[2 * i + 1]!) - T) * Q, 4096 - T));
-        mids.push(w0 + mq(w1 - w0, tt));
+        const tn = toneAt(F, pts[2 * i]!, pts[2 * i + 1]!), tt = clampQ(idiv((tn - T) * Q, 4096 - T)), w = w0 + mq(w1 - w0, tt);
+        mids.push(soft ? hairH + mq(w - hairH, smQ(idiv((tn - Teff) * Q, rampW))) : w); // on the ramp, from a hairline
       }
       const mr = idiv(sp * 4, 10);
       for (let i = 0; i < n; i++) mark(pts[2 * i]!, pts[2 * i + 1]!, mr);
-      if (dotted) {
-        // a row of dots along the streamline, one every 0.85 of the row spacing, each sized so its share of the
-        // lattice cell covers the tone: r = sp sqrt(t / pi)
-        const da = idiv(sp * 85, 100);
-        let acc = da - idiv(((hsh >>> 4) & 255) * da, 256);
-        for (let i = 1; i < n; i++) {
-          const ax = pts[2 * i - 2]!, ay = pts[2 * i - 1]!, bx = pts[2 * i]!, by = pts[2 * i + 1]!, L = isqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
-          acc += L;
-          while (acc >= da) {
-            acc -= da;
-            const f = L ? idiv((L - acc) * 1024, L) : 0, dx = ax + (((bx - ax) * f) >> 10), dy = ay + (((by - ay) * f) >> 10);
-            const tt = toneAt(F, dx, dy), r = idiv(sp * isqrt(tt * 100) * DOT_K, 113400);
-            if (r >= DOT_MIN) { prims.discs.push(dx, dy, r, INK); prims.stats.stamps++; }
-          }
-        }
-        continue;
-      }
       prims.strokes.push({ pts, hw: swell(mids, hairH, hash2(gx, gy, P.salt + layer * 977 + 1)), c: INK + ((hsh >>> 28) & 3) - 1 + ((hsh >>> 26) & 1 ? 0 : -1) });
       prims.stats.strokes++;
     }
@@ -1488,6 +1472,7 @@ function bunCentre(P: V13Plan, M: Model): V3 {
 let cU = 0, cV = 0, cZ = 0;
 function contours(P: V13Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv: boolean): void {
   const wm = inv ? Q_0_7 : Q, bob = P.hair === H_BOB;
+  const shirtCollar = P.garment === G_COLLAR;
   const edgeW = (a: number, b: number): number => {
     const has = (x: number): boolean => a === x || b === x;
     if (has(BG)) return has(HAIR) ? (bob ? Q_0_4 : Q_0_5) : has(WRAP) ? Q_0_8 : Q;
@@ -1499,6 +1484,7 @@ function contours(P: V13Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
     if (has(WHITE) && has(SKIN)) return 0; // the lids are drawn as curves
     if (has(BEARD) && has(SKIN)) return 0;
     if (has(WRAP)) return has(SKIN) || has(EAR) ? Q_0_55 : Q_0_5;
+    if (shirtCollar && has(GARM2) && has(SKIN)) return Q_0_3; // version 13: a shirt collar's top edge is a light line, broken below
     if ((has(GARM) || has(GARM2) || has(SHIRT)) && has(SKIN)) return Q_0_6;
     if (has(GARM2)) return Q_0_5;
     if (has(SHIRT)) return Q_0_45;
@@ -1539,6 +1525,7 @@ function contours(P: V13Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
       const near = F.z[q0]! > F.z[r]! ? q0 : r, sh = F.reg[near] === BG ? Q_0_5 : F.shade[near]!;
       const found = mq(kU(mq(w, wm)), Q_0_6 + (Q - sh)), lit = smQ(dq(sh - Q_0_55, Q_0_35));
       if (lit > Q_0_7 && (ra === BG || rb === BG) && nq(x, y, 14, P.salt + 61) > Q_0_2) continue;
+      if (shirtCollar && ((ra === GARM2 && rb === SKIN) || (ra === SKIN && rb === GARM2)) && nq(x, y, 10, P.salt + 67) > QN_0_1) continue; // broken: lost in places, as a fold is
       const hw = found > hairC ? hairC + mq(found - hairC, Q - mq(Q_0_92, lit)) : found;
       if (o === 1) EH[q0] = hw; else EV[q0] = hw;
     }

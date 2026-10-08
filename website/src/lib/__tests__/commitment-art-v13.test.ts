@@ -1,6 +1,6 @@
-// bitgraph-art/13 (2026-10-08): hedcut portraits, square, 2400 x 2400: version 11's person for the same code
-// (the same plan), the skin toned by dots in rows along the form, hair, cloth and ground engraved, every outline
-// traced sub-pixel and smoothed, the neck filleted into the shoulders; the code in 256 reading pixels as versions
+// bitgraph-art/13 (2026-10-08): engraved portraits, square, 2400 x 2400: version 11's person for the same code
+// (the same plan), engraved as version 12 with the shadow edge faded in lines, every outline traced sub-pixel and
+// smoothed, the neck filleted into the shoulders; the code in 256 reading pixels as versions
 // 8 to 12 carry it (with the centre snap). Pinned, read back from the art alone, printable, fast, no staircases,
 // and the default.
 import { test } from "node:test";
@@ -183,5 +183,5 @@ test("version 13: no staircased outlines (zigzags per 100 field pixels of outlin
   assert.ok((100 * z) / c < 1, `${((100 * z) / c).toFixed(2)} zigzags per 100 field pixels over ten people`);
 });
 
-const PINNED_PIXELS_V13 = "34c89f7dca56b04d31afc5b7263517c3a35f1dc62d99d8593566956e63080b97";
-const PINNED_PNG_V13 = "3d4db5c695a1cb6b2b88cf048b793a10d03b26eb141b64191fa670d624221712";
+const PINNED_PIXELS_V13 = "4bc2147302928afb39edf26f52db11f35176a9c852ddd330865638a1ae035ba3";
+const PINNED_PNG_V13 = "5fe33aef4feb56aad09a29abfa01ff87f7ac818a7a8b80a781ae6a28801756cd";
