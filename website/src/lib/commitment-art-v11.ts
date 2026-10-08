@@ -343,8 +343,10 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const crownV = q(-0.35) + s.range(-0.1, 0.15);
   let hairDark = s.range(0.3, 1);
   const greyR = s.range(0.25, 0.45); if (oldT > q(0.5) && s.pick(Q) < oldT) hairDark = greyR;
-  const bunV = hair === H_BUN_HIGH ? -craniumH + q(0.15) + s.range(-0.1, 0.1) : hair === H_BUN_LOW ? e + q(0.5) + s.range(0, 0.1) : s.range(-0.8, 0.2);
-  const bunR = hair === H_PULLED_BACK || hair === H_BUN_LOW ? s.range(0.18, 0.3) : s.range(0.25, 0.4);
+  const bunV = hair === H_BUN_HIGH ? -craniumH + q(0.35) + s.range(-0.1, 0.1) : hair === H_BUN_LOW ? e + q(0.5) + s.range(0, 0.1) : s.range(-0.8, 0.2);
+  const bunR0 = hair === H_PULLED_BACK || hair === H_BUN_LOW ? s.range(0.18, 0.3) : s.range(0.25, 0.4);
+  // a high bun is a loose topknot, a real mass (Mike, 2026-10-08: "bigger and messier"): 1.9 to 2.35 x, the factor from salt bits so no stream draw moves
+  const bunR = hair === H_BUN_HIGH ? mq(bunR0, q(1.9) + idiv(((salt >>> 2) & 15) * q(0.45), 15)) : bunR0;
   const sweptSide = s.sign(), braidBack = s.pick(100) < 35 ? 1 : 0;
   const ponyW = s.range(0.16, 0.27), ponyLen = s.range(0.7, 1.5);
   const sideburn = adult ? s.range(0.02, 0.12) : q(0.05), wrapTone = s.range(0.2, 0.6);
@@ -357,7 +359,9 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const gz = s.pick(100), gaze = gz < 50 ? 0 : gz < 80 ? 1 : 2, gazeSide = s.sign();
   // light, background, garment, palette
   let lightSide = s.sign();
-  if (absI(yaw) > degA(q(55))) lightSide = -sgn(yaw);
+  // the key light comes from the camera side past 25 degrees of turn (a far-side light left the whole visible
+  // face in shadow, a mask), three times in four between 10 and 25 (decided by salt bits, so no stream draw moves), free under 10
+  if (absI(yaw) > degA(q(25)) || (absI(yaw) > degA(q(10)) && (salt & 3) !== 0)) lightSide = -sgn(yaw);
   const az = degA(s.range(25, 80)), el = degA(s.range(15, 55)), ambient = s.range(0.18, 0.32);
   const bgm = s.pick(100), bg = bgm < 45 ? 0 : bgm < 80 ? 1 : 2, bgTone = s.range(0.14, 0.3), bgAngle = degA(s.range(30, 60)) * s.sign();
   const garment = s.weighted([12, 10, 9, 8, 9, 10, 9, 9, 8, 8, 8]), wrapSide = s.sign();
@@ -525,6 +529,12 @@ function makeModel(P: V11Plan) {
       dz -= mq(mq(mq(q(0.012), gexp(dq(u, q(0.05)))), smQ(dq(v - P.noseBase, q(0.04)))), smQ(dq(m - v, q(0.04))));
       if (region === SKIN && au < P.lipW + q(0.09) && v > P.noseBase + q(0.02) && v < m + P.lipL + q(0.09)) extra = -Q; // the mouth zone: never hatched
     }
+    // round each eye the skin carries no hatching and no terminator ramp (an ellipse 1.6 x the opening's width and 2.2 x
+    // its height), so the eyes read on every draw, in heavy shadow too; only the lid, brow and iris lines sit there
+    if (region === SKIN) {
+      const eu = dq(au - eyeU, mq(ew, q(1.6))), ev = dq(v - P.e, mq(uh + P.lh, q(1.1)));
+      if (mq(eu, eu) + mq(ev, ev) < Q) extra = -Q;
+    }
     // behind a lens the skin carries no hatching and no terminator ramp: the eye reads exactly as without
     if (P.glasses && region === SKIN) {
       const rr = ew + q(0.07), lu = dq(au - eyeU, mq(rr, q(1.15))), lv = dq(v - P.e - q(0.01), mq(rr, q(0.85)));
@@ -620,7 +630,9 @@ function makeModel(P: V11Plan) {
   const sideKnotsX = [A105, 3390, 3703, 4563, 5085, 6258, 8218];
   const sideKnotsY = P.hair === H_WRAP
     ? [wrapLine(A105), P.e + q(0.35), P.e + q(0.4), P.e + q(0.45), P.e + q(0.55), napeV + q(0.05), napeV + q(0.05)]
-    : [hairLine(A105), P.e + sideburn, P.e - q(0.12), P.e - q(0.1), P.e + q(0.28), napeV, napeV];
+    : isCap(P.hair) // pulled back: the hair lies above and behind the ear, no fall over the cheek (Mike, 2026-10-08)
+      ? [hairLine(A105), P.e - q(0.16), P.e - q(0.24), P.e - q(0.22), P.e + q(0.12), napeV - q(0.04), napeV - q(0.04)]
+      : [hairLine(A105), P.e + sideburn, P.e - q(0.12), P.e - q(0.1), P.e + q(0.28), napeV, napeV];
   /** Where the fall of a long style begins, in 1/16 steps from the front. */
   const sideStart = P.hair === H_LONG_LOOSE ? a16Of(q(0.95)) : P.hair === H_LONG_SWEPT ? a16Of(q(0.85)) : P.hair === H_CURLS_OUT ? a16Of(q(0.9)) : A105;
   const fall = isFall(P.hair);
@@ -739,7 +751,7 @@ interface Pose { cx: number; cy: number; xf: (x: number, y: number, z: number) =
 let tX = 0, tY = 0, tZ = 0;
 function makePose(P: V11Plan): Pose {
   const faceDir = sgn(P.yaw) || 1, turned = absI(P.yaw) > degA(q(12));
-  const cx = idiv(AWU * (50 - (turned ? faceDir * 5 : faceDir * 2)), 100), cy = idiv(AHU * 42, 100);
+  const cx = idiv(AWU * (50 - (turned ? faceDir * 5 : faceDir * 2)), 100), cy = idiv(AHU * (P.hair === H_BUN_HIGH ? 49 : 42), 100); // a high bun needs headroom
   const cyw = cosF(P.yaw), syw = sinF(P.yaw), cp = cosF(P.pitch), sp = sinF(P.pitch), cr = cosF(P.roll), sr = sinF(P.roll);
   const xf = (x0: number, y0: number, z0: number): void => {
     const x = Math.floor((x0 * cyw + z0 * syw) / 16384), z = Math.floor((-x0 * syw + z0 * cyw) / 16384);
@@ -865,12 +877,15 @@ function buildField(P: V11Plan, M: Model, pose: Pose): Field {
     }, true);
     if (hasBun(hair)) {
       const rb = P.bunR, bunV = P.bunV;
-      const bc: V3 = hair === H_BUN_HIGH ? [0, bunV - mq(rb, q(0.5)), q(-0.35)] : [0, bunV, -(M.dBack(bunV) + mq(rb, hair === H_BUN_LOW ? q(0.5) : q(0.55)))];
-      const n = cdiv(mq(mq(q(9.1106), rb), RU), 64) + 8, nb = n >> 1;
+      const bc: V3 = hair === H_BUN_HIGH ? [0, -P.craniumH - mq(rb, q(0.55)) + q(0.1), q(-0.3)] : [0, bunV, -(M.dBack(bunV) + mq(rb, hair === H_BUN_LOW ? q(0.5) : q(0.55)))];
+      // buns are loose masses of loops: the radius lumps with three lobed waves and the hatching swirls round it
+      const loose = bunLoose(hair), sy = hair === H_BUN_HIGH ? q(0.82) : Q, ph = P.salt & (A16 - 1);
+      const n = cdiv(mq(mq(q(9.1106), loose ? mq(rb, q(1.3)) : rb), RU), 64) + 8, nb = n >> 1;
       splat(F, n, nb, (i, j) => {
-        const a = idiv(A16 * i, n), b = idiv(PI16 * j, nb - 1), sb = sinF(b) * 4;
-        xf(bc[0] + mq(mq(rb, sb), cosF(a) * 4), bc[1] + mq(rb, cosF(b) * 4), bc[2] + mq(mq(rb, sb), sinF(a) * 4));
-        sX = tX; sY = tY; sZ = tZ; sReg = HAIR; sEx = 0; setDir(Q, 0);
+        const a = idiv(A16 * i, n), b = idiv(PI16 * j, nb - 1), sb = sinF(b) * 4, r = loose ? bunRad(P, a, b, loose) : rb;
+        xf(bc[0] + mq(mq(r, sb), cosF(a) * 4), bc[1] + mq(mq(r, cosF(b) * 4), sy), bc[2] + mq(mq(r, sb), sinF(a) * 4));
+        sX = tX; sY = tY; sZ = tZ; sReg = HAIR; sEx = 0;
+        if (loose) setDir(Q, mq(q(0.9), sinF(2 * a + 3 * b + ph) * 4)); else setDir(Q, 0);
         return true;
       }, true);
     }
@@ -889,7 +904,12 @@ function buildField(P: V11Plan, M: Model, pose: Pose): Field {
     // differ by where they are tied (the crown, the nape, the side of the nape)
     if (isPony(hair)) {
       const t = tieOf(P, M), side = absI(P.yaw) > degA(q(15)) ? sgn(P.yaw) : P.sweptSide, endV = shV0 + q(0.3) + mq(P.ponyLen, q(0.5));
-      ponies.push([t, [side * q(0.85), (t[1] + endV) >> 1, q(0.25)], [side * q(0.55), endV, q(0.8)]]);
+      // high and low tails hang from the tie down the back, behind the neck, so a turned head shows them beside it
+      // (Mike, 2026-10-08, from a photograph); the third style still comes forward over one shoulder
+      const dN = P.backDepth; // clear the back of the skull at its deepest, not the nape (the occiput hid the tail)
+      if (hair === H_PONY_HIGH) ponies.push([t, [0, M.napeV - q(0.1), -(dN + q(0.3) + (P.ponyW >> 1))], [side * q(0.12), M.napeV + q(0.35) + mq(P.ponyLen, q(0.6)), -(dN + q(0.2))]]);
+      else if (hair === H_PONY_LOW) ponies.push([t, [0, t[1] + q(0.35), -(dN + q(0.15) + (P.ponyW >> 1))], [side * q(0.08), t[1] + q(0.3) + mq(P.ponyLen, q(0.6)), -(dN + q(0.08))]]);
+      else ponies.push([t, [side * q(0.85), (t[1] + endV) >> 1, q(0.25)], [side * q(0.55), endV, q(0.8)]]);
     }
     for (const [p0, p1, p2] of [...braids, ...ponies]) {
       const pony = ponies.length > 0, r = pony ? P.ponyW : hair === H_BRAIDS ? q(0.085) : q(0.1);
@@ -1315,9 +1335,17 @@ function torsoZ(P: V11Plan, shV: number, u: number, v: number): number {
   const f = powQ(smQ(dq(v - torsoTop(P, shV, u), band)), q(0.7));
   return q(-0.5) + mq(mq(q(1.1), r), q(0.15) + mq(q(0.85), f));
 }
+/** How loose a bun is drawn: the high bun fully, the bun and the low bun a little, others not at all. */
+function bunLoose(h: number): number { return h === H_BUN_HIGH ? Q : h === H_BUN_LOW || h === H_TIED ? q(0.45) : 0; }
+/** A loose bun's radius at (a, b): three lobed waves, phases from salt bits. */
+function bunRad(P: V11Plan, a: number, b: number, loose: number): number {
+  const ph1 = (P.salt >>> 3) & (A16 - 1), ph2 = (P.salt >>> 9) & (A16 - 1), sb = sinF(b) * 4;
+  const lump = mq(q(0.16), mq(sinF(3 * a + ph1) * 4, sb)) + mq(q(0.1), sinF(5 * a + 2 * b + ph2) * 4) + mq(q(0.06), sinF(9 * a - 3 * b + ph1) * 4);
+  return P.bunR + mq(P.bunR, mq(lump, loose));
+}
 function bunCentre(P: V11Plan, M: Model): V3 {
   const rb = P.bunR, bunV = P.bunV;
-  return P.hair === H_BUN_HIGH ? [0, bunV - mq(rb, q(0.5)), q(-0.35)] : [0, bunV, -(M.dBack(bunV) + mq(rb, P.hair === H_BUN_LOW ? q(0.5) : q(0.55)))];
+  return P.hair === H_BUN_HIGH ? [0, -P.craniumH - mq(rb, q(0.55)) + q(0.1), q(-0.3)] : [0, bunV, -(M.dBack(bunV) + mq(rb, P.hair === H_BUN_LOW ? q(0.5) : q(0.55)))];
 }
 
 let cU = 0, cV = 0, cZ = 0;
@@ -1520,6 +1548,39 @@ function contours(P: V11Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
       const q0 = gy * FW + gx;
       return F.reg[q0] === HAIR && F.z[q0]! <= tZ + q(0.05);
     }, 40, q(0.45), q(0.45));
+  }
+  // a loose bun sheds strands: short curls leaving its outline, and wisps at the temples (and the nape for a high
+  // bun), all from salt bits so no stream draw moves (Mike, 2026-10-08, from a photograph of a messy topknot)
+  const loose = bunLoose(P.hair);
+  if (loose) {
+    const high = P.hair === H_BUN_HIGH, bc = bunCentre(P, M), sy = high ? q(0.82) : Q;
+    const nS = high ? 16 + ((P.salt >>> 4) & 7) : 5 + ((P.salt >>> 4) & 3);
+    for (let k = 0; k < nS; k++) {
+      const h = hash2(k, 911, P.salt), h2 = hash2(k, 913, P.salt);
+      const a0 = h & (A16 - 1), b0 = high ? idiv(PI16 * 35, 100) + ((h >>> 14) % idiv(PI16 * 65, 100)) : idiv(PI16 * 15, 100) + ((h >>> 14) % idiv(PI16 * 80, 100));
+      const r0 = mq(bunRad(P, a0, b0, loose), q(0.97)), len = mq(P.bunR, q(0.3) + (((h2 & 1023) * q(0.4)) >> 10));
+      const ca = idiv((((h2 >>> 10) & 2047) - 1024) * 2000, 1024), cb = idiv((((h2 >>> 21) & 1023) - 512) * 1200, 512);
+      drawPlaced((t) => {
+        const r = r0 + mq(len, t), a = a0 + mq(ca, mq(t, t)), b = b0 + mq(cb, t), sb = sinF(b) * 4;
+        pose.xf(bc[0] + mq(mq(r, sb), cosF(a) * 4), bc[1] + mq(mq(r, cosF(b) * 4), sy), bc[2] + mq(mq(r, sb), sinF(a) * 4));
+        return visibleAt((rg) => rg === BG, q(0.04));
+      }, 16, q(0.32), q(0.1));
+    }
+    // wisps: hanging from just in front of the ear (temple) and, for a high bun, behind it (nape)
+    const nT = high ? 2 + ((P.salt >>> 7) & 1) : 1, nN = high ? 2 : 0;
+    for (let k = 0; k < nT + nN; k++) {
+      const h = hash2(k, 917, P.salt), side = (k & 1) === 0 ? 1 : -1, nape = k >= nT;
+      const th0 = side * (nape ? idiv(HALFPI16 * (118 + ((h >>> 3) & 15)), 100) : idiv(HALFPI16 * (66 + ((h >>> 3) & 15)), 100));
+      const v0 = nape ? M.napeV - q(0.14) : P.e - q(0.26) + (((h >>> 8) & 255) * q(0.12) >> 8), len = q(0.22) + (((h >>> 16) & 255) * q(0.28) >> 8);
+      const wav = idiv(HALFPI16 * (6 + ((h >>> 24) & 7)), 100);
+      drawPlaced((t) => {
+        const v = v0 + mq(len, t), th = th0 + side * mq(HALFPI16 >> 3, t) + mq(wav, sinF(idiv(t * A16 * 3, 2 * Q)) * 4);
+        M.basePoint(th, M.rowOf(v));
+        const bx = M.bX, bz = M.bZ, L = hypotQ(bx, bz) || 1, off = q(0.025);
+        pose.xf(bx + idiv(off * bx, L), v, bz + idiv(off * bz, L));
+        return visibleAt((rg) => rg === BG, q(0.04));
+      }, 16, q(0.22), q(0.07));
+    }
   }
 }
 
