@@ -2,6 +2,7 @@ import { DocsPageNav } from "@/components/docs-page-nav";
 import { BASESCAN, CEILING_WRITER, floorBlockUrl, floorChainWord, floorFor, writesForDay, type CeilingFloor, type CeilingWrite } from "@/lib/ceilings";
 import { runPool } from "@/lib/s3";
 import { StatusChip } from "@/components/ceiling-status";
+import { CeilingsLive } from "@/components/ceilings-live";
 
 /* ── Base: one row per Base transaction the ceiling writer sent, its floor
    beside its ceiling. Each is a Merkle root over the records made since the
@@ -102,6 +103,7 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
           .cl-blocks .cl-by { margin-left: 0; }
         }
       `}</style>
+      {!day && !failed && <CeilingsLive day={todayUTC} count={writes.length} />}
       <div className="xp-head">
         <div className="xp-head-text">
           <h1 className="bg-page-title" style={{ margin: 0 }}>Base</h1>
