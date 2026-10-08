@@ -21,7 +21,7 @@ export default function ImagePage() {
         {/* Mike, 10-06: "create an image h1 small h2", the same shape as /jev's "Ask Jev". */}
         <h1 className="jev-title">Create an image</h1>
         <p className="lede jev-lede">One click creates an image that never existed before, and BitGraph proves&nbsp;it.</p>
-                <p className="lede jev-lede art-why">BitGraph begins the proof before the bits exist. Here you watch it happen: the click opens a position, and the position&rsquo;s commitment becomes part of the computation: it is the only input the picture is drawn from. The picture is then recorded in that same position, so it could not have existed before its BitGraph began. Every record gets the same guarantee; a picture just makes it&nbsp;visible.</p>
+                <p className="lede jev-lede art-why">BitGraph begins the proof before the bits exist. Here you watch it happen: the click opens a position, and the position&rsquo;s commitment becomes part of the computation: it is the only input the picture is drawn from. The picture is then recorded in that same position, so it could not have existed before its BitGraph began. The picture can be drawn again from the commitment, and the proof checks without contacting anyone. Every record gets the same guarantee; a picture just makes it&nbsp;visible.</p>
       </ArtMaker>
     </div>
   );
