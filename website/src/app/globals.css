@@ -3286,3 +3286,8 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-page .lede.art-why { font-size: 17px !important; line-height: 1.65 !important; font-weight: 400 !important; } /* 2026-10-07 (Mike): the explanation is ordinary site text, the size every docs paragraph reads at */
 /* 2026-10-07 (Mike: "is H1 big enough now that we are left aligned?" then "better push"): 72 px cap on desktop for the home and the two demos; was 60. */
 @media (min-width: 901px) { .home.home-typing h1, .art-page h1 { font-size: min(7.2vw, 72px) !important; } }
+
+/* 2026-10-07 (Mike: "at this width the text doesnt wrap... it should never happen"): between ~820 and 899 wide the
+   desktop break was off (it starts at 900) and the lede fit one 94-character line. The home lede keeps its break at
+   every width above the phone cap (the 20em cap at 600 wraps it on its own below that). */
+@media (min-width: 601px) { .home.home-typing .lede .br-desk { display: inline; } }
