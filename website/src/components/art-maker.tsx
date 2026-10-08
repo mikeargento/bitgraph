@@ -180,7 +180,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
   const [copied, setCopied] = useState(false);
   const copyProofLink = useCallback(async () => {
     if (!made) return;
-    const url = `${window.location.origin}/proof/${urlSafe(made.digestB64)}`;
+    const url = `${window.location.origin}/p/${urlSafe(made.digestB64).slice(0, 8)}`; // the short link: the digest's first eight characters (/p/[code])
     try { await navigator.clipboard.writeText(url); } catch { window.prompt("Copy the proof link", url); }
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   }, [made]);

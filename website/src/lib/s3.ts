@@ -241,6 +241,20 @@ export async function listKeysUnderPrefix(prefix: string, maxKeys = 100_000): Pr
   return keys.sort(); // counter-padded keys sort lexicographically = causal order
 }
 
+/**
+ * Every recorded digest (URL-safe base64) that starts with `prefix`, up to `limit`, from the by-digest index:
+ * one LIST with a delimiter, so a digest's per-position entries count once. The short-link resolver's only
+ * read (/p/<prefix>, 2026-10-08): nothing is registered to make a short link, it is arithmetic over the digest.
+ */
+export async function digestsWithPrefix(prefix: string, limit = 5): Promise<string[]> {
+  const s3 = getClient();
+  const result = await s3.send(new ListObjectsV2Command({ Bucket: getBucket(), Prefix: `by-digest/${prefix}`, Delimiter: "/", MaxKeys: 50 }));
+  const out = new Set<string>();
+  for (const cp of result.CommonPrefixes || []) { const m = cp.Prefix?.match(/^by-digest\/([A-Za-z0-9_-]{43})\/$/); if (m) out.add(m[1]!); }
+  for (const obj of result.Contents || []) { const m = obj.Key?.match(/^by-digest\/([A-Za-z0-9_-]{43})\.json$/); if (m) out.add(m[1]!); }
+  return [...out].sort().slice(0, limit);
+}
+
 /** Fetch one object's raw UTF-8 text, or null when missing (read-only). */
 export async function getObjectText(key: string): Promise<string | null> {
   try {
