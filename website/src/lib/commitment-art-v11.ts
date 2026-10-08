@@ -353,7 +353,7 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const beard = adult && fb < 20 ? (fb < 7 ? B_FULL : fb < 11 ? B_GOATEE : fb < 15 ? B_MOUSTACHE : B_STUBBLE) : B_NONE;
   const beardTR = s.range(0.02, 0.07), beardDarkA = s.range(0.25, 0.45), beardDarkB = s.range(0.4, 0.75), beardLenA = s.range(0.08, 0.3), beardLenB = s.range(0.05, 0.15);
   const beardT = beard === B_STUBBLE || beard === B_NONE ? 0 : beardTR, beardDark = beard === B_STUBBLE ? beardDarkA : beardDarkB, beardLen = beard === B_FULL ? beardLenA : beard === B_GOATEE ? beardLenB : 0;
-  const glasses = s.pick(100) < 8 ? 1 : 0;
+  const glassesR = s.pick(100), glasses = age >= 14 && glassesR < 8 ? 1 : 0; // never under 14
   const gz = s.pick(100), gaze = gz < 50 ? 0 : gz < 80 ? 1 : 2, gazeSide = s.sign();
   // light, background, garment, palette
   let lightSide = s.sign();
@@ -362,7 +362,8 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const bgm = s.pick(100), bg = bgm < 45 ? 0 : bgm < 80 ? 1 : 2, bgTone = s.range(0.14, 0.3), bgAngle = degA(s.range(30, 60)) * s.sign();
   const garment = s.weighted([12, 10, 9, 8, 9, 10, 9, 9, 8, 8, 8]), wrapSide = s.sign();
   const gTone = s.range(0.12, 0.75), gTone2 = s.range(0.1, 0.5);
-  const pr = s.pick(100), palette = pr < 40 ? 0 : pr < 65 ? 1 : pr < 85 ? 2 : 3;
+  const pr = s.pick(100), palette = pr < 45 ? 0 : pr < 70 ? 1 : pr < 90 ? 2 : 3; // ink 45, sepia 25, sanguine 20, nightline 10
+  if (palette === 3 && yaw !== 0) lightSide = -sgn(yaw); // on the dark ground the key light stays on the camera side at any turn
   const hatchAngle = degA(s.range(30, 60)) * s.sign();
   // rare details, one or two a draw, never on children
   const er = s.pick(100), nr = s.pick(100), rr = s.pick(100), lr = s.pick(100);
@@ -523,6 +524,11 @@ function makeModel(P: V11Plan) {
       }
       dz -= mq(mq(mq(q(0.012), gexp(dq(u, q(0.05)))), smQ(dq(v - P.noseBase, q(0.04)))), smQ(dq(m - v, q(0.04))));
       if (region === SKIN && au < P.lipW + q(0.09) && v > P.noseBase + q(0.02) && v < m + P.lipL + q(0.09)) extra = -Q; // the mouth zone: never hatched
+    }
+    // behind a lens the skin carries no hatching and no terminator ramp: the eye reads exactly as without
+    if (P.glasses && region === SKIN) {
+      const rr = ew + q(0.07), lu = dq(au - eyeU, mq(rr, q(1.15))), lv = dq(v - P.e - q(0.01), mq(rr, q(0.85)));
+      if (mq(lu, lu) + mq(lv, lv) < Q) extra = -Q;
     }
     // brow: a band along an arch
     {
@@ -1073,12 +1079,10 @@ function shadeField(P: V11Plan, F: Field, pose: Pose): void {
     if (child) return q(0.38);
     return q(0.4) + mq(q(0.22), clampQ(dq(coreT - sh, coreT)));
   };
-  const baldFloor = P.hair === H_BALD || P.recede > q(0.85);
-  const faceToneInv = (sh: number, ex: number, wob: number): number => { // dark ground: the lit face is lines, the shadow side is ground
+  const faceToneInv = (sh: number, ex: number, wob: number): number => { // dark ground: the lit face is ONE layer of lines at the lowest density, the shadow side and the core are ground
     if (ex < 0) return 0;
     const shadowT = (child ? q(0.5) : q(0.42)) + wob;
-    if (sh <= shadowT) return baldFloor ? mq(q(0.12), clampQ(dq(sh, shadowT))) : 0;
-    return q(0.14) + mq(child ? q(0.5) : q(0.76), powQ(clampQ(dq(sh - shadowT, Q - shadowT)), q(0.8)));
+    return sh <= shadowT ? 0 : q(0.18);
   };
   const lipLTone = P.lipDark ? q(0.3) : 0;
   for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
@@ -1464,7 +1468,7 @@ function contours(P: V11Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
   { const sideS = absI(P.yaw) > degA(q(50)) ? 0 : -P.lightSide; if (sideS) drawCurve((t) => { const v = lerpQ(e + q(0.02), P.noseBase - q(0.08), t), tt = clampQ(dq(v - (e - q(0.03)), P.noseBase - q(0.07) - (e - q(0.03)))); cU = sideS * lerpQ(q(0.07), mq(P.tipW, q(0.95)), tt); cV = v; return true; }, 30, q(0.2), q(0.45), q(0.02)); }
   // glasses: a double contour around each eye, a bridge, the near temple arm
   if (P.glasses) {
-    const rr = ew + q(0.07), hwG = kU(mq(q(0.32), wm)), rowE = M.rowOf(e);
+    const rr = ew + q(0.07), hwG = kU(mq(q(0.22), wm)), rowE = M.rowOf(e); // thin frames
     for (const side of [-1, 1]) for (const sc of [Q, q(1.07)]) {
       const pts: number[] = [], ws: number[] = [];
       for (let i = 0; i <= 48; i++) {
