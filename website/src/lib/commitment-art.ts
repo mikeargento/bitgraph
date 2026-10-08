@@ -656,9 +656,8 @@ function fixedDeflate(raw: Uint8Array, rowLen: number): Uint8Array {
     while (nbits >= 8) { out[n++] = acc & 0xff; acc >>>= 8; nbits -= 8; }
   };
   const sym = (s: number) => bits(FIXED_CODE[s]!, FIXED_LEN[s]!);
-  /** The match length at distance d, 0 when under 3 (a match shorter than 3 is never used, so 0 and 1 and 2 read alike). */
-  const lengthOf = (i: number, d: number): number => {
-    if (i < d || i + 2 >= N || raw[i] !== raw[i - d] || raw[i + 1] !== raw[i + 1 - d] || raw[i + 2] !== raw[i + 2 - d]) return 0;
+  /** The match length at distance d where its first three bytes already match (a match shorter than 3 is never used). */
+  const extend = (i: number, d: number): number => {
     let L = 3;
     const end = Math.min(258, N - i);
     while (L < end && raw[i + L] === raw[i + L - d]) L++;
@@ -666,7 +665,10 @@ function fixedDeflate(raw: Uint8Array, rowLen: number): Uint8Array {
   };
   bits(1, 1); bits(1, 2); // BFINAL = 1, BTYPE = 01 (fixed Huffman)
   for (let i = 0; i < N;) {
-    const a = lengthOf(i, 3), b = lengthOf(i, rowLen);
+    const v0 = raw[i]!, ok = i + 2 < N;
+    const m3 = ok && i >= 3 && v0 === raw[i - 3] && raw[i + 1] === raw[i - 2] && raw[i + 2] === raw[i - 1];
+    const mr = ok && i >= rowLen && v0 === raw[i - rowLen] && raw[i + 1] === raw[i + 1 - rowLen] && raw[i + 2] === raw[i + 2 - rowLen];
+    const a = m3 ? extend(i, 3) : 0, b = mr ? extend(i, rowLen) : 0;
     if (a === 0 && b === 0) { // a literal, written inline
       const v = raw[i]!;
       acc |= FIXED_CODE[v]! << nbits; nbits += FIXED_LEN[v]!;

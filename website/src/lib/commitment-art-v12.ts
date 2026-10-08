@@ -18,6 +18,24 @@
  *  - The eye: the sclera (the white inside the lid opening) is never hatched in any light; the iris
  *    keeps its tone and version 11's ring spacing, the pupil is the only filled shape, the catchlight is
  *    paper.
+ * The detail pass (stage two, the same day):
+ *  - Eyes: a crease above every eye past childhood (weight by age and the lid's weight); the iris as 32
+ *    radial lines and two rings, swelling toward the rim, cut by the lids, the pupil and the catchlight;
+ *    the pupil one round disc; the lower lid a light broken line; the upper lid heavier on its outer third.
+ *  - Nose: the nostrils as small shaped darks (ellipses on their pixels' principal axes), a lighter wing
+ *    line, the side planes hatched along the bridge, the tip's highlight paper.
+ *  - Mouth: the upper lip in one layer of shadow tone, the lower lip paper with a short shadow under it, the
+ *    corners as small darks; no hatching crosses the lip line.
+ *  - Ears: the bowl in shadow, hatched along the form (not in rings).
+ *  - Hair: a lighter band across the locks along an iso-light band of the shade, broken by a lattice noise;
+ *    darker between locks; a few loose single hairs leave the silhouette.
+ *  - Clothing: two to four fold lines at the shoulders and from the neckline; a darker band under the collar.
+ *  - Plane switching: the core shadow's second layer runs at a fixed angle to its plane (the normal snapped to
+ *    eighths of a turn), so the crossing switches where the plane does.
+ *  - Stipple: sparse fine dots on the shadow side of the terminator, before the first layer begins; none on
+ *    a child.
+ *  - Ground: a soft hatched vignette toward the plate's edges, darker on the shadow side, where the ground is
+ *    bare; on a quarter of the draws (salt bits) a faint cast shadow of the figure away from the light.
  * The face rules are version 11's exactly: the lit face is paper; one layer on the shadow side, starting
  * at a wandering terminator; two in the core shadow; the mouth zone and the lenses never hatched;
  * children lighter.
@@ -439,6 +457,10 @@ function makeModel(P: V12Plan) {
       dz += mq(A, gexp(dq(u, su)));
       dz += mq(mq(P.tipH, Q_0_55), g2(au - P.nostrilU, v - (P.noseBase - Q_0_05), Q_0_07, Q_0_055));
       if (g2(au - mq(P.nostrilU, Q_0_62), v - (P.noseBase - Q_0_005), Q_0_034, Q_0_014) > Q_0_45) region = NOSTRIL;
+      // stage two: the nose's side planes are hatched along the bridge (a head-local tangent straight down)
+      if (region === SKIN && v > bridgeV && v < tipV && au > mq(su, q(0.35)) && au < mq(su, q(1.9))) { fDir = 1; fDu = 0; fDv = Q; }
+      // the tip's highlight is paper: a small ellipse on the tip, pulled toward the light
+      if (region === SKIN) { const hu = dq(u - mq(mq(P.tipW, q(0.45)), Ll[0]), mq(P.tipW, q(0.55))), hv = dq(v - tipV - q(0.012), q(0.04)); if (mq(hu, hu) + mq(hv, hv) < Q) extra = -Q; }
     }
     // lips: an upper roll with a cupid's bow, a lower roll, the mouth line between them
     {
@@ -631,6 +653,8 @@ class Field {
   readonly shade = new Int32Array(FW * FH);
   readonly tone = new Int32Array(FW * FH);
   readonly hd2 = new Uint16Array(FW * FH);
+  /** Stage two: the plane's crossing direction (whole steps, undirected 0..511) for the core shadow's second layer. */
+  readonly pd = new Uint16Array(FW * FH);
 }
 /** The composition: the cranium half-width R in raster units, the head's centre. */
 const RU = idiv(AHU, 5);
@@ -656,6 +680,11 @@ function splat(F: Field, nA: number, nB: number, fn: (i: number, j: number) => b
   for (let j = 0; j < nB; j++) for (let i = 0; i < nA; i++) {
     const k = j * nA + i;
     if (!OK[k]) continue;
+    // the depth test first: a hidden point needs no normal (the same field, less work)
+    const px = idiv(X[k]! + 32, 64), py = idiv(Y[k]! + 32, 64);
+    if (px < 0 || py < 0 || px >= FW || py >= FH) continue;
+    const q0 = py * FW + px;
+    if (Z[k]! <= F.z[q0]!) continue;
     const ia = wrapA ? (i + 1) % nA : Math.min(nA - 1, i + 1), ib = wrapA ? (i + nA - 1) % nA : Math.max(0, i - 1);
     const ja = Math.min(nB - 1, j + 1), jb = Math.max(0, j - 1);
     const ka = j * nA + ia, kb = j * nA + ib, kc = ja * nA + i, kd = jb * nA + i;
@@ -666,10 +695,6 @@ function splat(F: Field, nA: number, nB: number, fn: (i: number, j: number) => b
     const L = isqrt(nx * nx + ny * ny + nz * nz) || 1;
     nx = idiv(nx * 16384, L); ny = idiv(ny * 16384, L); nz = idiv(nz * 16384, L);
     if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
-    const px = idiv(X[k]! + 32, 64), py = idiv(Y[k]! + 32, 64);
-    if (px < 0 || py < 0 || px >= FW || py >= FH) continue;
-    const q0 = py * FW + px;
-    if (Z[k]! <= F.z[q0]!) continue;
     F.z[q0] = Z[k]!; F.reg[q0] = R[k]!; F.nx[q0] = nx; F.ny[q0] = ny; F.nz[q0] = nz; F.extra[q0] = EX[k]!;
     if (HD[k]) { const dx = ax * D0[k]! + bx * D1[k]!, dy = ay * D0[k]! + by * D1[k]!; F.dir[q0] = atan2i(dy, dx); } else F.dir[q0] = NODIR;
   }
@@ -882,7 +907,7 @@ function buildField(P: V12Plan, M: Model, pose: Pose): Field {
       const v = ve + mq(mq(rho, P.earLen >> 1), sa), z = ze + mq(mq(rho, P.earD), ca);
       const u = side * (M.width(v) + Q_0_01 + mq(rho, Q_0_02 + mq(mq(P.earFlare, Q_0_13), Q_0_5 - mq(Q_0_5, ca))));
       xf(u, v, z);
-      sX = tX; sY = tY; sZ = tZ; sReg = EAR; sEx = 0; setDir(Q, 0);
+      sX = tX; sY = tY; sZ = tZ; sReg = EAR; sEx = mq(q(0.26), gexp(dq(rho - q(0.42), q(0.2)))); sDir = 0; // the bowl in shadow; hatched along the form, not in rings
       return true;
     }, true);
   }
@@ -1067,18 +1092,28 @@ function shadeField(P: V12Plan, F: Field, pose: Pose): void {
     }
     if (!inv) {
       switch (r) {
-        case SKIN: case EAR: t = faceTone(sh, ex, r === EAR, mq(Q_0_05, nq(x * FS, y * FS, 26, P.salt + 23))); break;
-        case HAIR: t = mq(Math.min(Q_0_7, mq(P.hairDark, Q_0_5 + mq(Q_0_5, dk)) + Q_0_05), Q - mq(Q_0_55, ex)); break;
+        case SKIN: t = faceTone(sh, ex, false, mq(Q_0_05, nq(x * FS, y * FS, 26, P.salt + 23))); break;
+        case EAR: { const ft = faceTone(sh, ex, true, mq(Q_0_05, nq(x * FS, y * FS, 26, P.salt + 23))); t = ft > ex ? ft : ex; break; }
+        case HAIR: {
+          // stage two: locks with a lighter band across each. The band follows the head's curvature (an iso-light
+          // band of the shade), broken into locks by a lattice noise stretched along nothing but its own cells;
+          // darker beneath (the shade) and between locks
+          const base = mq(Math.min(Q_0_7, mq(P.hairDark, Q_0_5 + mq(Q_0_5, dk)) + Q_0_05), Q - mq(Q_0_55, ex));
+          const lock = nq(x * FS, y * FS, 18, P.salt + 71), band = gexp(dq(sh - q(0.78), q(0.1)));
+          const sheen = mq(band, q(0.55) + mq(q(0.45), clampQ(Q_0_5 + lock)));
+          t = mq(base, Q - mq(q(0.5), sheen) + mq(q(0.12), clampQ(-lock)));
+          break;
+        }
         case WRAP: t = mq(P.wrapTone, Q_0_6 + mq(Q_0_4, dk)) + mq(Q_0_08, dk) + ex; break;
         case WHITE: t = mq(Q_0_08, dk) + mq(ex, Q_0_8); break;
         case IRIS: { const rim = Math.min(Q, Math.max(0, ex - Q_0_6) >> 1), lid = Math.min(Q_0_6, ex - 2 * rim); t = mq(mq(Math.max(Q_0_42, P.irisDark), Q_0_62 + mq(Q_0_38, sq(rim))), Q_0_9 + mq(Q_0_1, dk)) + mq(lid, Q_0_8); break; }
         case PUPIL: t = Q; break;
         case HILITE: t = 0; break;
         case BROW: t = Math.min(Q_0_62, mq(browDark, Q_0_6 + mq(Q_0_4, dk))); break;
-        case LIPU: t = 0; break;
+        case LIPU: t = q(0.3) + mq(q(0.08), dk); break; // stage two: the upper lip faces down, one layer along the lip
         case LIPL: t = lipLTone; break; // a darker lower lip on some adults: one layer along the lip, never across
         case MOUTH: t = Q; break;
-        case NOSTRIL: t = Q_0_75; break;
+        case NOSTRIL: t = 0; break; // stage two: the nostrils are filled darks (contours), not hatched
         case GARM: t = mq(P.gTone, Q_0_6 + mq(Q_0_4, dk)) + mq(Q_0_08, dk); break;
         case GARM2: t = mq(P.gTone2, Q_0_6 + mq(Q_0_4, dk)) + mq(Q_0_08, dk); break;
         case SHIRT: t = mq(Q_0_12, dk); break;
@@ -1104,6 +1139,43 @@ function shadeField(P: V12Plan, F: Field, pose: Pose): void {
       }
     }
     F.tone[q0] = clampQ(t) >> 4;
+  }
+  // stage two: a darker band under the collar (the first field pixels of a garment below skin or a shirt), a soft
+  // vignette on the shadow side where the ground is bare, and on a quarter of the draws (salt bits) a faint
+  // cast shadow of the figure on the ground, away from the light
+  if (!inv) {
+    for (let x = 0; x < FW; x++) {
+      let run = -1;
+      for (let y = 1; y < FH; y++) {
+        const q0 = y * FW + x, r = F.reg[q0], ra = F.reg[q0 - FW];
+        if ((r === GARM || r === GARM2) && (ra === SKIN || ra === SHIRT)) run = 0;
+        else if (run >= 0 && (r === GARM || r === GARM2)) run++;
+        else run = -1;
+        if (run >= 0 && run < 16) F.tone[q0] = Math.min(4095, F.tone[q0]! + idiv((16 - run) * 1500, 16));
+      }
+    }
+    const cast = ((P.salt >>> 20) & 3) === 0, L = lightDir(P), Lh = hypotQ(L[0], L[1]) || 1;
+    const cdx = idiv(-L[0] * 30, Lh), cdy = idiv(-L[1] * 30, Lh) + 6;
+    for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+      const q0 = y * FW + x;
+      if (F.reg[q0] !== BG) continue;
+      let t = F.tone[q0]!;
+      if (P.bg === 0) {
+        // toward the plate's edges (a superellipse, |dx|^4 + |dy|^4, so it hugs the frame and never rings the head),
+        // from a centre pulled toward the light, darker on the shadow side
+        const sx = P.lightSide > 0 ? idiv(x * Q, FW) : Q - idiv(x * Q, FW), ddx = idiv((x - (FW >> 1) + P.lightSide * idiv(FW, 10)) * Q, FW >> 1), ddy = idiv((y - idiv(FH * 45, 100)) * Q, FH >> 1);
+        const dx2 = mq(ddx, ddx), dy2 = mq(ddy, ddy), d4 = sqrtQ(sqrtQ(mq(dx2, dx2) + mq(dy2, dy2)));
+        const v = mq(mq(q(0.13), smQ(dq(d4 - q(0.72), q(0.45)))), q(0.35) + mq(q(0.65), sx));
+        const vt = v >> 4;
+        if (vt > t) t = vt;
+      }
+      if (cast) {
+        let hit = 0;
+        for (const f of [80, 100, 120]) { const xx = x - idiv(cdx * f, 100), yy = y - idiv(cdy * f, 100); if (xx >= 0 && yy >= 0 && xx < FW && yy < FH && F.reg[yy * FW + xx] !== BG) hit++; }
+        if (hit) t += idiv(hit * 440, 3);
+      }
+      F.tone[q0] = Math.min(4095, t);
+    }
   }
   // hatch direction per pixel (an undirected angle, stored doubled). Form rule: perpendicular to the projected
   // normal, blended with the diagonal by how much the normal tilts; the normals box-blurred 7 x 7 so the lines
@@ -1132,8 +1204,12 @@ function shadeField(P: V12Plan, F: Field, pose: Pose): void {
     const r = F.reg[q0];
     if (r === BG) { F.hd2[q0] = bg2; continue; }
     const d = F.dir[q0]!;
-    if (d !== NODIR && (r === HAIR || r === BROW || r === IRIS || r === WHITE || r === LIPU || r === LIPL || r === BEARD || r === EAR || r === WRAP)) { F.hd2[q0] = (2 * d) & 1023; continue; }
+    if (d !== NODIR && (r === HAIR || r === BROW || r === IRIS || r === WHITE || r === LIPU || r === LIPL || r === BEARD || r === EAR || r === WRAP || r === SKIN)) { F.hd2[q0] = (2 * d) & 1023; F.pd[q0] = (d + 160) & 511; continue; }
     const nx = sxA[q0]!, ny = syA[q0]!, t = isqrt(nx * nx + ny * ny) * 4; // Q16 tilt
+    // stage two, plane switching: the core shadow's second layer runs at a fixed angle to its plane, the normal's
+    // direction snapped to eighths of a turn, so a cheekbone, a brow, a jaw each keep one crossing direction and
+    // the direction switches where the plane does
+    { const an = atan2i(ny, nx), aq = ((an + 64) >> 7) << 7; F.pd[q0] = t < q(0.12) ? ((P.hatchAngle >> 4) + 176) & 511 : (aq + 256 + 160) & 511; }
     const form2 = (2 * (atan2i(ny, nx) + 256)) & 1023;
     const wgt = mq(Q_0_6, powQ(clampQ(mq(t, Q_1_3)), Q_0_9));
     const c = mq(wgt, COS(form2) * 4) + mq(Q - wgt, COS(diag2) * 4), s = mq(wgt, SIN[form2]! * 4) + mq(Q - wgt, SIN[diag2]! * 4);
@@ -1154,7 +1230,7 @@ const STYLE: ReadonlyArray<Style | null> = [
   /* SKIN */ { sp: 100, off: [0, 176, -165, 256], len0: 40, len1: 150 },
   /* HAIR */ { sp: 70, off: [0, 26, -26, 11], len0: 40, len1: 220 },
   /* WHITE */ { sp: 80, off: [0, 171, -171, 256], len0: 8, len1: 30 },
-  /* IRIS */ { sp: 34, off: [0, 0, 0, 0], len0: 4, len1: 40 },
+  /* IRIS */ { sp: 34, off: [0, 256, 0, 256], len0: 4, len1: 40 },
   /* PUPIL */ { sp: 50, off: [0, 256, 128, -128], len0: 6, len1: 30 },
   /* HILITE */ null,
   /* BROW */ { sp: 55, off: [0, 34, -34, 17], len0: 8, len1: 22 },
@@ -1197,8 +1273,8 @@ function dirAt(F: Field, x: number, y: number): number {
  * s = t + k t (1 - t), with a in [0.9, 1.1] and k in [-0.25, 0.25] from the stroke's hash h (so no two
  * strokes swell alike and the fattest point drifts a little off the middle). Integer throughout.
  */
-function swell(mid: number[], hair: number, h: number): number[] {
-  const n = mid.length, a = Q_0_9 + idiv((h & 255) * Q_0_2, 255), k = idiv((((h >>> 8) & 255) - 128) * Q_0_25, 128), out: number[] = [];
+function swell(mid: number[], hair: number, h: number, skew = 0): number[] {
+  const n = mid.length, a = Q_0_9 + idiv((h & 255) * Q_0_2, 255), k = skew || idiv((((h >>> 8) & 255) - 128) * Q_0_25, 128), out: number[] = [];
   for (let i = 0; i < n; i++) {
     const t = n > 1 ? idiv(i * Q, n - 1) : Q_0_5, s = clampQ(t + mq(k, mq(t, Q - t)));
     const p = mq(powQ(sinPi(s) * 4, Q_0_6), a), w = mid[i]!;
@@ -1231,7 +1307,7 @@ function hatch(P: V12Plan, F: Field, prims: Prims, inv: boolean): void {
       if (x0 >= AWU || y0 >= AHU) continue;
       const reg = regAt(F, x0, y0), st = STYLE[reg];
       if (!st || reg === HILITE || reg === WHITE) continue; // the white of the eye is never hatched, in any light
-      if (reg === PUPIL && !inv) continue;
+      if ((reg === PUPIL || reg === NOSTRIL || reg === IRIS) && !inv) continue; // stage two: the iris is drawn in irises()
       const t0 = toneAt(F, x0, y0);
       const skinish = reg === SKIN || reg === EAR, b16 = (hsh >>> 16) & 255;
       // the background wash and the first skin layer take a per-stroke threshold jitter so they fade in
@@ -1246,13 +1322,14 @@ function hatch(P: V12Plan, F: Field, prims: Prims, inv: boolean): void {
       const offA = st.off[layer]! + idiv((((hsh >>> 20) & 255) - 128) * 9, 256);
       const l0 = kU(q(st.len0)), l1 = kU(q(st.len1));
       const maxLen = mq(l0 + idiv(((hsh >>> 12) & 255) * (l1 - l0), 255), Q_0_3 + mq(Q_0_7, nearT)), half = maxLen >> 1;
+      const plane = layer === 1 && reg === SKIN;
       let total = 0;
       for (const sg of [1, -1]) {
         const arr = sg > 0 ? fwd : back;
         arr.length = 0;
         let x8 = x0 * 8, y8 = y0 * 8, prevA = 0, hasPrev = false, L = 0;
         while (L < half) {
-          let a = dirAt(F, x8 >> 3, y8 >> 3) + offA;
+          let a = plane ? F.pd[clampI(y8 >> 9, 0, FH - 1) * FW + clampI(x8 >> 9, 0, FW - 1)]! + ((offA - st.off[1]!) >> 1) : dirAt(F, x8 >> 3, y8 >> 3) + offA;
           if (hasPrev) { const d = ((a - prevA + 256) & 511) - 256; a = prevA + d; }
           prevA = a; hasPrev = true;
           const ca = COS(a & 1023) * sg, sa = SIN[a & 1023]! * sg;
@@ -1283,6 +1360,21 @@ function hatch(P: V12Plan, F: Field, prims: Prims, inv: boolean): void {
       for (let i = 0; i < n; i++) mark(pts[2 * i]!, pts[2 * i + 1]!, mr);
       prims.strokes.push({ pts, hw: swell(mids, hairH, hash2(gx, gy, P.salt + layer * 977 + 1)), c: INK + ((hsh >>> 28) & 3) - 1 + ((hsh >>> 26) & 1 ? 0 : -1) });
       prims.stats.strokes++;
+    }
+  }
+  // stage two, stipple: fine dots on the shadow side of the terminator only, where the first layer has not begun
+  // (skin toned above zero and under its threshold), sparse, more as the tone nears the lines; never on a child
+  if (!inv && P.age >= 13) {
+    const sp = idiv(S11 * 6, 10), nx = cdiv(AWU, sp), ny = cdiv(AHU, sp), T0 = THRESH12[0]!, r0 = kU(q(0.3));
+    for (let gy = 0; gy < ny; gy++) for (let gx = 0; gx < nx; gx++) {
+      const hsh = hash2(gx, gy, P.salt + 4099);
+      const x0 = gx * sp + (((hsh & 1023) * sp) >> 10), y0 = gy * sp + ((((hsh >>> 10) & 1023) * sp) >> 10);
+      if (x0 >= AWU || y0 >= AHU || regAt(F, x0, y0) !== SKIN) continue;
+      const t0 = toneAt(F, x0, y0);
+      if (t0 <= 40 || t0 >= T0 + 160) continue;
+      if (((hsh >>> 20) & 1023) >= idiv(t0 * 420, T0 + 160)) continue;
+      prims.discs.push(x0, y0, r0 + (((hsh >>> 30) * r0) >> 2), INK);
+      prims.stats.stamps++;
     }
   }
 }
@@ -1334,9 +1426,13 @@ function contours(P: V12Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
   };
   // the pupil filled (one disc per field pixel); on the dark ground the reserved highlight is filled with the light ink
   const rPupil = kU(Q_1_42), rHi = kU(Q_1_318); // 0.84 and 0.78 field px: the pupil discs overlap on the diagonal, so the pupil is solid at 2400
+  // stage two: a pupil is one round disc (its area's radius at its centroid) unless the catchlight sits within
+  // that disc, where the pixel-by-pixel discs keep the catchlight paper
+  const roundPupil = !inv && pupils(F, prims);
+  if (!inv) nostrils(F, prims);
   for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
     const r = F.reg[y * FW + x];
-    if (!inv && r === PUPIL) { prims.discs.push((2 * x + 1) * U, (2 * y + 1) * U, rPupil, INK); prims.stats.stamps++; }
+    if (!inv && r === PUPIL && !roundPupil) { prims.discs.push((2 * x + 1) * U, (2 * y + 1) * U, rPupil, INK); prims.stats.stamps++; }
     if (inv && r === HILITE) { prims.discs.push((2 * x + 1) * U, (2 * y + 1) * U, rHi, INK); prims.stats.stamps++; }
   }
   // Lost and found edges. Region edges and depth steps take their weight from the light on the near (inner)
@@ -1430,13 +1526,14 @@ function contours(P: V12Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
    */
   let run: number[] = [], runW: number[] = [];
   const hairF = kU(Q_0_12);
-  const flush = (): void => { if (run.length >= 6) { prims.strokes.push({ pts: run, hw: swell(runW, hairF, hash2(run[0]!, run[1]!, P.salt + 977)), c: INK }); prims.stats.curves++; } run = []; runW = []; };
+  let skewC = 0;
+  const flush = (): void => { if (run.length >= 6) { prims.strokes.push({ pts: run, hw: swell(runW, hairF, hash2(run[0]!, run[1]!, P.salt + 977), skewC), c: INK }); prims.stats.curves++; } run = []; runW = []; };
   const lightW = (w: number, floor: number): number => {
     const gx = clampI(tX >> 6, 0, FW - 1), gy = clampI(tY >> 6, 0, FH - 1), q0 = gy * FW + gx, sh = F.reg[q0] === BG ? Q_0_5 : F.shade[q0]!;
     const f = mq(Q_0_65 + mq(Q_0_7, Q - sh), Q - mq(Q_0_55, smQ(dq(sh - Q_0_55, Q_0_35))));
     return mq(w, f > floor ? f : floor);
   };
-  const drawCurve = (fn: (t: number) => boolean, n: number, hw0: number, hw1: number, lift = Q_0_03, floor = 0): void => {
+  const drawCurve = (fn: (t: number) => boolean, n: number, hw0: number, hw1: number, lift = Q_0_03, floor = 0, wfn: ((t: number) => number) | null = null): void => {
     for (let i = 0; i <= n; i++) {
       const t = idiv(i * Q, n);
       if (!fn(t)) { flush(); continue; }
@@ -1446,16 +1543,16 @@ function contours(P: V12Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
       if (gx < 0 || gy < 0 || gx >= FW || gy >= FH) { flush(); continue; }
       const q0 = gy * FW + gx;
       if (F.reg[q0] === BG || F.z[q0]! > tZ + Q_0_05) { flush(); continue; }
-      run.push(tX, tY); runW.push(lightW(kU(mq(wm, lerpQ(hw0, hw1, t))), floor));
+      run.push(tX, tY); runW.push(lightW(kU(mq(wm, wfn ? wfn(t) : lerpQ(hw0, hw1, t))), floor));
     }
     flush();
   };
   /** A run of points already placed by fn (which sets tX, tY, tZ and says whether the point is visible). */
-  const drawPlaced = (fn: (t: number) => boolean, n: number, hw0: number, hw1: number): void => {
+  const drawPlaced = (fn: (t: number) => boolean, n: number, hw0: number, hw1: number, floor = 0): void => {
     for (let i = 0; i <= n; i++) {
       const t = idiv(i * Q, n);
       if (!fn(t)) { flush(); continue; }
-      run.push(tX, tY); runW.push(lightW(kU(mq(wm, lerpQ(hw0, hw1, t))), 0));
+      run.push(tX, tY); runW.push(lightW(kU(mq(wm, lerpQ(hw0, hw1, t))), floor));
     }
     flush();
   };
@@ -1472,13 +1569,19 @@ function contours(P: V12Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
       const dur = mq(2 * t - Q, ew), dvr = up ? -mq(mq(M.uh, M.upF(clampQ(t))), scale) : mq(mq(P.lh, M.loF(clampQ(t))), scale);
       cU = ec + side * (mq(dur, M.eyeC) - mq(dvr, M.eyeS)); cV = e + mq(dur, M.eyeS) + mq(dvr, M.eyeC);
     };
-    drawCurve((t) => { lidPt(QN_0_02 + mq(Q_1_1, t), true, Q); return true; }, 40, mq(Q_0_95, P.lidW), mq(Q_1_35, P.lidW), Q_0_03, Q_0_8); // the upper lid, heavy past the outer corner (lashes by weight)
+    // the upper lid; stage two: the lashes implied by weight on its outer third, the swell's peak pushed outward
+    skewC = q(0.3);
+    drawCurve((t) => { lidPt(QN_0_02 + mq(Q_1_1, t), true, Q); return true; }, 40, 0, 0, Q_0_03, Q_0_8, (t) => mq(P.lidW, q(0.8) + mq(q(0.85), smQ(dq(t - q(0.55), q(0.3))))));
+    skewC = 0;
     if (!(side === -sgn(P.yaw) && absI(P.yaw) > degA(Q_28))) drawCurve((t) => { lidPt(Q_0_1 + mq(Q_0_8, t), true, Q); cV += Q_0_014; return true; }, 30, Q_0_4, Q_0_5); // the lid's shadow on the ball, not on the far eye
-    drawCurve((t) => { lidPt(Q_0_3 + mq(Q_0_7, t), false, Q); return true; }, 30, Q_0_2, Q_0_25);
-    if (P.crease && P.ageT > Q_0_6) drawCurve((t) => { lidPt(Q_0_05 + mq(Q_0_9, t), true, Q_1_55); cV -= Q_0_012; return true; }, 30, Q_0_3, Q_0_3);
+    // stage two: the lower lid a light broken line (a lattice noise drops stretches of it)
+    drawCurve((t) => { lidPt(Q_0_25 + mq(q(0.72), t), false, Q); return nq(t >> 6, side * 64, 128, P.salt + 131) < q(0.25); }, 30, q(0.17), q(0.22));
+    // stage two: an upper-lid crease above every eye past childhood, its weight by age and the lid's weight (the
+    // plan's crease bit keeps the deeper fold it drew in version 11)
+    if (P.ageT > q(0.35)) { const cw = mq(mq(q(0.16) + mq(q(0.14), P.oldT) + (P.crease ? q(0.06) : 0), P.lidW), P.ageT); drawCurve((t) => { lidPt(Q_0_05 + mq(Q_0_9, t), true, P.crease ? Q_1_55 : q(1.4)); cV -= Q_0_012; return true; }, 30, cw, mq(cw, q(1.15))); }
     if (P.oldT > Q_0_5) drawCurve((t) => { lidPt(Q_0_2 + mq(Q_0_75, t), false, Q_2_4); cV += Q_0_02; return true; }, 30, Q_0_25, mq(Q_0_3, P.oldT) + Q_0_2);
     // nostril wing crease
-    drawCurve((t) => { const a = -1229 + mq(7782, t); cU = side * (P.nostrilU + mq(Q_0_085, cosF(a) * 4)); cV = P.noseBase - Q_0_05 + mq(Q_0_075, sinF(a) * 4); return true; }, 24, Q_0_35, Q_0_5, Q_0_02);
+    drawCurve((t) => { const a = -1229 + mq(7782, t); cU = side * (P.nostrilU + mq(Q_0_085, cosF(a) * 4)); cV = P.noseBase - Q_0_05 + mq(Q_0_075, sinF(a) * 4); return true; }, 24, q(0.22), q(0.32), Q_0_02); // lighter than version 11's
     // nasolabial fold
     if (P.oldT > Q_0_05 || P.smile > Q_0_4) {
       const d = clampQ(mq(P.oldT, Q_1_2) + Math.max(0, P.smile - Q_0_4));
@@ -1515,6 +1618,13 @@ function contours(P: V12Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
   drawCurve((t) => { cU = mq(2 * t - Q, mq(P.lipW, Q_1_02)); cV = M.vm(cU); return true; }, 40, Q_0_55, Q_0_55, Q_0_02);
   drawCurve((t) => { cU = mq(2 * t - Q, mq(P.lipW, Q_0_95)); const r95 = dq(dq(cU, P.lipW), Q_0_95); cV = M.vm(cU) + mq(P.lipL, powQ(clampQ(Q - sq(r95)), Q_0_8)) + Q_0_004; return true; }, 40, Q_0_25, Q_0_4, Q_0_02);
   { const cy = cosF(P.yaw) * 4; if (mq(mq(2 * P.lipW, RU), cy < Q_0_3 ? Q_0_3 : cy) >= kU(Q_60)) drawCurve((t) => { cU = mq(2 * t - Q, P.lipW); const ru = dq(cU, P.lipW); cV = M.vm(cU) - mq(mq(P.lipU, powQ(clampQ(Q - sq(ru)), Q_0_7)), Q - mq(Q_0_2, gexp(dq(cU, Q_0_045)))) - Q_0_003; return true; }, 40, Q_0_3, Q_0_3, Q_0_02); }
+  // stage two: the lower lip left paper with a short shadow under it, and the corners as small darks
+  drawCurve((t) => { cU = mq(2 * t - Q, mq(P.lipW, q(0.55))); const r = dq(cU, mq(P.lipW, q(0.55))); cV = M.vm(cU) + P.lipL + q(0.028) + mq(q(0.012), mq(r, r)); return true; }, 20, q(0.55), q(0.55), Q_0_02);
+  for (const side of [-1, 1]) {
+    cU = side * mq(P.lipW, q(1.02)); cV = M.vm(cU);
+    pose.xf(cU, cV, M.frontZ(cU, M.rowOf(cV)) + Q_0_02);
+    if (visibleAt((r) => r === SKIN || r === MOUTH || r === LIPU || r === LIPL, q(0.05))) { prims.discs.push(tX, tY, kU(mq(q(0.85), wm)), INK); prims.stats.stamps++; }
+  }
   if (P.oldT > Q_0_6) drawCurve((t) => { cU = mq(2 * t - Q, mq(P.lipW, Q_0_8)); cV = P.mouth + P.lipL + Q_0_07 + mq(Q_0_03, sq(dq(cU, P.lipW))); return true; }, 30, Q_0_2, Q_0_3 + mq(Q_0_2, P.oldT), Q_0_02);
   // forehead lines: one, two over 70
   if (P.oldT > Q_0_3) {
@@ -1623,6 +1733,160 @@ function contours(P: V12Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
       }, 16, Q_0_22, Q_0_07);
     }
   }
+  if (!inv) irises(P, F, M, pose, drawPlaced);
+  if (!inv) strays(P, F, pose, drawPlaced);
+  if (!inv) folds(P, F, pose, drawPlaced);
+}
+
+/**
+ * Stage two: a few loose single hairs leaving the silhouette. Points on the hair's edge against the ground are
+ * picked by hash (about one in 260 edge pixels, at most nine), and from each a short curl runs outward, away
+ * from the head's centre, turning a little by the hash.
+ */
+type Placer = (fn: (t: number) => boolean, n: number, hw0: number, hw1: number, floor?: number) => void;
+function strays(P: V12Plan, F: Field, pose: Pose, drawPlaced: Placer): void {
+  if (P.hair === H_WRAP || P.hair === H_BALD) return;
+  let n = 0;
+  for (let y = 1; y < FH - 1 && n < 9; y++) for (let x = 1; x < FW - 1 && n < 9; x++) {
+    const q0 = y * FW + x;
+    if (F.reg[q0] !== HAIR || (F.reg[q0 - 1] !== BG && F.reg[q0 + 1] !== BG && F.reg[q0 - FW] !== BG)) continue;
+    const h = hash2(x, y, P.salt + 307);
+    if (h % 260 !== 0) continue;
+    n++;
+    const X0 = x * 64 + 32, Y0 = y * 64 + 32, dx = X0 - pose.cx, dy = Y0 - pose.cy;
+    const len = kU(q(22) + (((h >>> 9) & 255) * q(30) >> 8)), turn = idiv((((h >>> 17) & 255) - 128) * 3, 2);
+    const a0 = atan2i(dy, dx);
+    drawPlaced((t) => {
+      const a = (a0 + mq(turn, mq(t, t))) & 1023, r = mq(len, t);
+      tX = X0 + ((COS(a) * r) >> 14); tY = Y0 + ((SIN[a]! * r) >> 14); tZ = 0;
+      return true;
+    }, 12, q(0.42), q(0.12), q(0.8));
+  }
+}
+
+/**
+ * Stage two: two to four fold lines where the garment bends, at the shoulders and from the neckline, in body
+ * space, and only where the garment shows; their number and lengths from salt bits (no stream draw moves).
+ */
+function folds(P: V12Plan, F: Field, pose: Pose, drawPlaced: Placer): void {
+  const shV = P.chin + P.neckLen, nF = 2 + ((P.salt >>> 5) % 3);
+  for (let k = 0; k < nF; k++) {
+    const h = hash2(k, 509, P.salt), side = (k & 1) === 0 ? 1 : -1, shoulder = k < 2;
+    const u0 = side * (shoulder ? mq(P.shW, q(0.62) + (((h & 255) * q(0.16)) >> 8)) : q(0.3) + (((h & 255) * q(0.25)) >> 8));
+    const v0 = shoulder ? torsoTop(P, shV, u0) + q(0.12) : shV + q(0.32) + (((h >>> 8) & 255) * q(0.2) >> 8);
+    const du = side * (shoulder ? QN_0_1 - (((h >>> 16) & 255) * q(0.15) >> 8) : q(0.18) + (((h >>> 16) & 255) * q(0.12) >> 8)), dv = q(0.5) + (((h >>> 24) & 255) * q(0.3) >> 8);
+    drawPlaced((t) => {
+      const u = u0 + mq(du, t), v = v0 + mq(dv, t) + mq(q(0.05), sinPi(t) * 4);
+      pose.xfBody(u, v, torsoZ(P, shV, u, v) + q(0.03));
+      const gx = tX >> 6, gy = tY >> 6;
+      if (gx < 0 || gy < 0 || gx >= FW || gy >= FH) return false;
+      const q0 = gy * FW + gx, r = F.reg[q0];
+      return (r === GARM || r === GARM2) && F.z[q0]! <= tZ + q(0.08);
+    }, 24, q(1.0), q(0.7), Q);
+  }
+}
+
+/** The connected runs of one region (4-neighbour flood): for each, the pixel count, the centroid and the second moments, raster units. */
+function blobs(F: Field, region: number, each: (n: number, cx: number, cy: number, vxx: number, vyy: number, vxy: number) => void): void {
+  const seen = new Uint8Array(FW * FH), stack: number[] = [];
+  for (let q0 = 0; q0 < FW * FH; q0++) {
+    if (F.reg[q0] !== region || seen[q0]) continue;
+    let n = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+    stack.push(q0); seen[q0] = 1;
+    while (stack.length) {
+      const c = stack.pop()!, x = c % FW, y = (c - x) / FW, X = x * 64 + 32, Y = y * 64 + 32;
+      n++; sx += X; sy += Y; sxx += X * X; syy += Y * Y; sxy += X * Y;
+      if (x > 0 && !seen[c - 1] && F.reg[c - 1] === region) { seen[c - 1] = 1; stack.push(c - 1); }
+      if (x < FW - 1 && !seen[c + 1] && F.reg[c + 1] === region) { seen[c + 1] = 1; stack.push(c + 1); }
+      if (c >= FW && !seen[c - FW] && F.reg[c - FW] === region) { seen[c - FW] = 1; stack.push(c - FW); }
+      if (c < FW * (FH - 1) && !seen[c + FW] && F.reg[c + FW] === region) { seen[c + FW] = 1; stack.push(c + FW); }
+    }
+    const cx = idiv(sx, n), cy = idiv(sy, n);
+    each(n, cx, cy, idiv(sxx, n) - cx * cx, idiv(syy, n) - cy * cy, idiv(sxy, n) - cx * cy);
+  }
+}
+
+/**
+ * Stage two: each nostril as one small shaped dark: an ellipse on its pixels' principal axes (half-axes 1.6 x
+ * the standard deviations, a little under a filled ellipse's, the long axis within 30 degrees of level),
+ * sixteen-sided.
+ */
+function nostrils(F: Field, prims: Prims): void {
+  blobs(F, NOSTRIL, (n, cx, cy, a, c, b) => {
+    if (n < 2) return;
+    const h = idiv(a - c, 2), r = isqrt(h * h + b * b), l1 = idiv(a + c, 2) + r, l2 = Math.max(0, idiv(a + c, 2) - r);
+    const r1 = Math.max(34, idiv(isqrt(l1) * 16, 10) + 4), r2 = Math.max(18, idiv(isqrt(l2) * 16, 10) + 4);
+    let ang = b === 0 && h >= 0 ? 0 : atan2i(2 * b, a - c) >> 1; // the long axis, kept within 30 degrees of level
+    if (ang > 256) ang -= 512;
+    ang = clampI(ang, -85, 85) & 1023;
+    const ca = COS(ang), sa = SIN[ang]!, poly: number[] = [];
+    for (let k = 0; k < 16; k++) {
+      const e1 = (r1 * COS(k * 64)) >> 14, e2 = (r2 * SIN[k * 64]!) >> 14;
+      poly.push(cx + ((e1 * ca - e2 * sa) >> 14), cy + ((e1 * sa + e2 * ca) >> 14));
+    }
+    prims.fills.push(poly);
+    prims.stats.stamps++;
+  });
+}
+
+/** Stage two: each pupil (a connected run of pupil pixels per eye, found by flood) as one disc; false when a catchlight is within one. */
+function pupils(F: Field, prims: Prims): boolean {
+  const seen = new Uint8Array(FW * FH), stack: number[] = [], discs: number[] = [];
+  for (let q0 = 0; q0 < FW * FH; q0++) {
+    if (F.reg[q0] !== PUPIL || seen[q0]) continue;
+    let n = 0, sx = 0, sy = 0;
+    stack.push(q0); seen[q0] = 1;
+    while (stack.length) {
+      const c = stack.pop()!, x = c % FW, y = (c - x) / FW;
+      n++; sx += x * 64 + 32; sy += y * 64 + 32;
+      for (const d of [c - 1, c + 1, c - FW, c + FW]) if (d >= 0 && d < FW * FH && !seen[d] && F.reg[d] === PUPIL && absI((d % FW) - x) <= 1) { seen[d] = 1; stack.push(d); }
+    }
+    const cx = idiv(sx, n), cy = idiv(sy, n), r = isqrt(idiv(n * 4096 * 100, 314)) + 8;
+    const gx0 = (cx - r) >> 6, gx1 = (cx + r) >> 6, gy0 = (cy - r) >> 6, gy1 = (cy + r) >> 6;
+    for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+      if (gx < 0 || gy < 0 || gx >= FW || gy >= FH || F.reg[gy * FW + gx] !== HILITE) continue;
+      const dx = gx * 64 + 32 - cx, dy = gy * 64 + 32 - cy;
+      if (dx * dx + dy * dy < (r + 24) * (r + 24)) return false;
+    }
+    discs.push(cx, cy, r, INK);
+  }
+  for (const v of discs) prims.discs.push(v);
+  prims.stats.stamps += discs.length >> 2;
+  return true;
+}
+
+/**
+ * Stage two: each iris as fine radial lines plus a ring, darker at the rim. The iris is found in the field (its
+ * pixels and the pupil's, given to the nearer projected eye centre): the centre is the pupil's centroid (the
+ * lids clip the iris, rarely the pupil), the half-axes twice the iris's standard deviations (a disc's), the
+ * vertical one never under the horizontal (the lids cut it). Thirty-two radial lines from the pupil to the rim
+ * swell from a hairline toward the rim; a ring runs just inside the rim. Every point is drawn only on the
+ * iris itself, so the lids, the pupil and the catchlight cut the lines.
+ */
+function irises(P: V12Plan, F: Field, M: Model, pose: Pose, drawPlaced: Placer): void {
+  const cxs: number[] = [], cys: number[] = [];
+  for (const side of [-1, 1]) { const u = side * M.eyeU; pose.xf(u, P.e, M.frontZ(u, M.rowOf(P.e))); cxs.push(tX); cys.push(tY); }
+  const n = [0, 0], sx = [0, 0], sy = [0, 0], sxx = [0, 0], syy = [0, 0], pn = [0, 0], px = [0, 0], py = [0, 0];
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    const r = F.reg[y * FW + x];
+    if (r !== IRIS && r !== PUPIL && r !== HILITE) continue;
+    const X = x * 64 + 32, Y = y * 64 + 32;
+    const d0 = (X - cxs[0]!) * (X - cxs[0]!) + (Y - cys[0]!) * (Y - cys[0]!), d1 = (X - cxs[1]!) * (X - cxs[1]!) + (Y - cys[1]!) * (Y - cys[1]!), k = d0 <= d1 ? 0 : 1;
+    n[k]!++; sx[k]! += X; sy[k]! += Y; sxx[k]! += X * X; syy[k]! += Y * Y;
+    if (r === PUPIL) { pn[k]!++; px[k]! += X; py[k]! += Y; }
+  }
+  const onIris = (): boolean => { const gx = tX >> 6, gy = tY >> 6; return gx >= 0 && gy >= 0 && gx < FW && gy < FH && F.reg[gy * FW + gx] === IRIS; };
+  for (let k = 0; k < 2; k++) {
+    if (n[k]! < 6) continue;
+    const mx = idiv(sx[k]!, n[k]!), my = idiv(sy[k]!, n[k]!);
+    const rx = 2 * isqrt(Math.max(0, idiv(sxx[k]!, n[k]!) - mx * mx)), ry0 = 2 * isqrt(Math.max(0, idiv(syy[k]!, n[k]!) - my * my)), ry = ry0 > rx ? ry0 : rx;
+    const cx = pn[k] ? idiv(px[k]!, pn[k]!) : mx, cy = pn[k] ? idiv(py[k]!, pn[k]!) : my;
+    for (let j = 0; j < 32; j++) {
+      const h = hash2(j, k, P.salt + 1709), a = (j * 32 + (h & 15) - 8) & 1023, r0 = q(0.4) + ((((h >>> 5) & 255) * q(0.12)) >> 8);
+      drawPlaced((t) => { const r = r0 + mq(q(0.97) - r0, t); tX = cx + mq(mq(rx, r), COS(a) * 4); tY = cy + mq(mq(ry, r), SIN[a]! * 4); return onIris(); }, 6, q(0.22), q(0.62), q(0.95));
+    }
+    for (const [rr, w] of [[q(0.9), q(0.5)], [q(0.66), q(0.24)]] as const) drawPlaced((t) => { const a = idiv(1024 * t, Q) & 1023; tX = cx + mq(mq(rx, rr), COS(a) * 4); tY = cy + mq(mq(ry, rr), SIN[a]! * 4); return onIris(); }, 40, w, w, q(0.95));
+  }
 }
 
 /** Everything that is drawn, in raster units at the recorded size, from the plan alone. */
@@ -1650,6 +1914,8 @@ class Slots {
   readonly w: number;
   readonly h: number;
   readonly idx: Uint8Array;
+  private readonly exa: number[] = []; private readonly eya: number[] = []; private readonly exb: number[] = []; private readonly eyb: number[] = [];
+  private readonly edir: number[] = []; private readonly ey0: number[] = []; private readonly ey1: number[] = []; private readonly cx: number[] = []; private readonly cd: number[] = [];
   constructor(S: number) { this.w = 2 * AW * S; this.h = 2 * AH * S; this.idx = new Uint8Array(this.w * this.h); }
   span(Y: number, X0: number, X1: number, c: number): void {
     if (Y < 0 || Y >= this.h) return;
@@ -1660,7 +1926,8 @@ class Slots {
   /** Scanline fill, nonzero winding; pts flat [x, y, ...] in raster units. */
   poly(pts: number[], c: number): void {
     const n = pts.length >> 1;
-    const exa: number[] = [], eya: number[] = [], exb: number[] = [], eyb: number[] = [], edir: number[] = [], ey0: number[] = [], ey1: number[] = [];
+    const { exa, eya, exb, eyb, edir, ey0, ey1, cx, cd } = this; // reused between calls (the same fill, no garbage)
+    exa.length = 0; eya.length = 0; exb.length = 0; eyb.length = 0; edir.length = 0; ey0.length = 0; ey1.length = 0;
     let ymin = this.h, ymax = 0;
     for (let i = 0, j = n - 1; i < n; j = i++) {
       let xa = pts[2 * j]!, ya = pts[2 * j + 1]!, xb = pts[2 * i]!, yb = pts[2 * i + 1]!, dir = 1;
@@ -1674,7 +1941,6 @@ class Slots {
     }
     const m = exa.length;
     if (m < 2) return;
-    const cx: number[] = [], cd: number[] = [];
     for (let Y = ymin; Y < ymax; Y++) {
       const y = 16 * Y + 8;
       cx.length = 0; cd.length = 0;
@@ -1803,7 +2069,11 @@ function draw(plan: V12Plan, commitment: Uint8Array, S: number): Uint8Array {
         px[i] = col[0]; px[i + 1] = col[1]; px[i + 2] = col[2];
         continue;
       }
-      const g = grain[gy + idiv(x, S)]!;
+      const g = grain[gy + ((x / S) | 0)]!; // x >= 0: the same as idiv(x, S)
+      if (k0 === k1 && k0 === k2 && k0 === k3) { // the four samples agree: the mean is the slot's colour itself
+        px[i] = clamp((pr[k0]! * 256 + g + 128) >> 8); px[i + 1] = clamp((pg[k0]! * 256 + g + 128) >> 8); px[i + 2] = clamp((pb[k0]! * 256 + g + 128) >> 8);
+        continue;
+      }
       px[i] = clamp((((pr[k0]! + pr[k1]! + pr[k2]! + pr[k3]! + 2) >> 2) * 256 + g + 128) >> 8);
       px[i + 1] = clamp((((pg[k0]! + pg[k1]! + pg[k2]! + pg[k3]! + 2) >> 2) * 256 + g + 128) >> 8);
       px[i + 2] = clamp((((pb[k0]! + pb[k1]! + pb[k2]! + pb[k3]! + 2) >> 2) * 256 + g + 128) >> 8);

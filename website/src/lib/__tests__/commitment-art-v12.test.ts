@@ -23,7 +23,8 @@ function nonIntegers(v: unknown): number {
 test("version 12 is pinned: this commitment's pixels and file never change, and both image checks pass", async () => {
   const a = await makeArt(C1, ART_ALGORITHM_V12), b = await makeArt(C1, ART_ALGORITHM_V12);
   assert.equal(toHex(sha256(a.png)), toHex(sha256(b.png)));
-  // Pinned on first run (2026-10-08). A failure here means bitgraph-art/12 changed: make /13 instead.
+  // Pinned on first run (2026-10-08), re-pinned once for the detail pass before any record was drawn with it.
+  // A failure here means bitgraph-art/12 changed: make /13 instead.
   assert.equal(toHex(sha256(a.pixels)), PINNED_PIXELS_V12);
   assert.equal(toHex(sha256(a.png)), PINNED_PNG_V12);
   assert.equal(recipeJson(a.recipe), recipeJson(artRecipe(C1, ART_ALGORITHM_V12)));
@@ -113,5 +114,5 @@ test("version 12 draws fast: plan, drawing and the recorded file under 2 s at 24
   }
 });
 
-const PINNED_PIXELS_V12 = "f6dcb58c833218d50576cebca29cc32ea54e33f7220918c029b60e89b8ffbc69";
-const PINNED_PNG_V12 = "5c4534a2d86c9e87c2b59de714e4535d2e20701b6ae3e6cb5efa06056356d51b";
+const PINNED_PIXELS_V12 = "3da43996b614d9cd5629eab0d69ee5cae10c4a93a4a7c25c2f6e2cc14863a6be";
+const PINNED_PNG_V12 = "392c2e12f2033e4c8084f6f93d11abd1815e02a99317d791518c044eabf41357";
