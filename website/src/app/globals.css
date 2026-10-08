@@ -3309,3 +3309,6 @@ footer { border-top: 0 !important; }
 .spec-doc table, .spec-doc pre { margin-left: 0 !important; margin-right: auto !important; }
 .spec-doc table { max-width: var(--frame) !important; }
 @media (min-width: 901px) { .spec-doc td:first-child code { white-space: nowrap !important; } }
+
+/* 2026-10-08 (Mike: "why does this wrap so soon?"): the caption under a result fills its line; balance split one sentence into two half lines. */
+.art-result .art-explain-one.art-caption { text-wrap: pretty !important; }

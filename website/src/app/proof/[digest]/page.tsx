@@ -26,6 +26,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { redrawRecordedArt } from "@/lib/art-position";
+import { ArtReprint } from "@/components/art-reprint";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpackSetMember, checkInline, isInlineProof, makeTreeHere, treeInputOf } from "@/lib/fuse-client";
 import { rebuildTreeFromFiles, rebuildMatches } from "@/lib/fuse-tree-make";
 import { recoverRows, treePositionKey } from "@/lib/recovery-fold";
@@ -230,6 +231,7 @@ export default function ProofPage() {
   // proof authenticates and holds it as the file in hand only when it hashes to the recorded
   // digest (Mike, 2026-10-06: "cant the proof page open up and display image?"). Nothing is stored.
   const [redrawn, setRedrawn] = useState(false);
+  const [redrawnAlgo, setRedrawnAlgo] = useState<string | null>(null);
   useEffect(() => {
     if (!proof || cachedFile || !isInlineProof(proof)) return;
     // A record whose file this site hosts (EXAMPLE_FILES: home's example) is not an /image picture to
@@ -239,8 +241,8 @@ export default function ProofPage() {
     let live = true;
     void redrawRecordedArt(proof as never).then((r) => {
       if (!live || !r) return;
-      setCachedFile({ name: `bitgraph-image-${proof.commit?.counter ?? ""}.png`, data: r.png.slice().buffer as ArrayBuffer });
-      setRedrawn(true);
+      setCachedFile({ name: `bitgraph-${/^bitgraph-art\/1[12]$/.test(r.algorithm) ? "portrait" : "image"}-${proof.commit?.counter ?? ""}.png`, data: r.png.slice().buffer as ArrayBuffer });
+      setRedrawn(true); setRedrawnAlgo(r.algorithm);
     }).catch(() => { /* not an image this page can redraw: the drop box stays */ });
     return () => { live = false; };
   }, [proof, cachedFile]);
@@ -1891,7 +1893,8 @@ export default function ProofPage() {
               </div>
             </div>
           ) : isInterval ? null : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
-            <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "redrawn from its commitment" : heldLabel} />
+            <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "drawn from the proof" : heldLabel}
+              actions={redrawn && redrawnAlgo ? <ArtReprint proof={proof as never} algorithm={redrawnAlgo} /> : null} />
           ) : cachedFile ? (
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
           ) : (
@@ -2680,8 +2683,11 @@ function PhotoCard({
   bare,
   previewKey,
   label,
+  actions,
 }: {
   cachedFile: { name: string; data: ArrayBuffer } | null;
+  /** Extra pills beside Open (a redrawn picture's Reprint, 2026-10-08). */
+  actions?: React.ReactNode;
   /** "original" or "new file", when the BitGraph has both. */
   label?: string | null;
   c2pa?: C2PAReadResult | null;
@@ -2845,11 +2851,14 @@ function PhotoCard({
             {" · "}{fmtBytes(cachedFile.data.byteLength)}
             {label ? <>{" · "}{label}</> : null}
           </span>
-          {openUrl && (
-            <a href={openUrl} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}>
-              <span>Open</span><span className="arrow" aria-hidden>&#8599;</span>
-            </a>
-          )}
+          <span style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            {actions}
+            {openUrl && (
+              <a href={openUrl} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}>
+                <span>Open</span><span className="arrow" aria-hidden>&#8599;</span>
+              </a>
+            )}
+          </span>
         </div>
       )}
       <div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>

@@ -177,6 +177,13 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }, [made, buildDownload]);
 
+  const [copied, setCopied] = useState(false);
+  const copyProofLink = useCallback(async () => {
+    if (!made) return;
+    const url = `${window.location.origin}/proof/${urlSafe(made.digestB64)}`;
+    try { await navigator.clipboard.writeText(url); } catch { window.prompt("Copy the proof link", url); }
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  }, [made]);
   /** The same image redrawn at 4096 x 4096 for print (lib/art-print.ts): a redrawing, not the recorded file. */
   const downloadPrint = useCallback(async () => {
     if (!made || printing) return;
@@ -241,18 +248,18 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           </div>
           {/* The caption under the image (Mike, 10-06: "it should caption under image"). */}
           <p className="art-explain art-explain-one art-caption">{/* Mike, 10-06: "The proof for this image began before the image existed."; "the bits" from 10-07. Accurate: the position (the
-                      proof's start) is opened and signed before the image is drawn; the signed record comes after. */}The proof for this image began before the bits&nbsp;existed.</p>
+                      proof's start) is opened and signed before the image is drawn; the signed record comes after. */}The proof for this portrait began before the bits&nbsp;existed.</p>
           {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
               was drawn from a code; the code itself is under Technical details (Commitment). */}
           <div className="actions art-actions">
-            <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download image, proof inside"}</button>
+            <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download portrait, proof inside"}</button>
             {/* For print (Mike, 10-06: "4 stacked buttons now 2 and 2 with one new one being the high res
                 download for printing"): the same image redrawn at 4096 x 4096 from its code. */}
-            {PRINTABLE.includes(made.manifest.algorithm) && (
-              <button type="button" className="bg-action-link" onClick={downloadPrint} disabled={printing}>{printing ? "Drawing for print\u2026" : "Download for print"}</button>
-            )}
+            {/* Copy proof link in place of Download for print (Mike, 2026-10-08: "proof pages are what ill share"): the
+                reprint moved to the proof page, where anyone holding the link can make it. */}
+            <button type="button" className="bg-action-link" onClick={copyProofLink}>{copied ? "Proof link copied" : "Copy proof link"}</button>
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>
-            <button type="button" className="bg-action-link" onClick={create}>Create another image</button>
+            <button type="button" className="bg-action-link" onClick={create}>Draw another person</button>
           </div>
 
           <details className="art-details">
