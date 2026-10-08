@@ -3299,3 +3299,6 @@ footer { border-top: 0 !important; }
 /* 2026-10-08 (Mike: "should the whole background be all white?" then "push white background"): one white surface, bar and page alike;
    cards keep their edge by shadow alone, raised a notch so they hold on white. */
 :root { --bg: #ffffff; --panel-2: #f1f3f4; --shadow-card: 0 1px 3px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15); }
+
+/* 2026-10-08 (Mike: inline code pills "hard to distinguish" on the white ground): a light grey fill instead of an outlined white pill. */
+:not(pre) > code { background: #e8eaed !important; border: 0 !important; padding: 0.1em 0.4em !important; }
