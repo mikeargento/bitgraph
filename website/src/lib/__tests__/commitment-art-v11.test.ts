@@ -1,6 +1,6 @@
 // bitgraph-art/11 (2026-10-08): ink portraits, square, the code in 256 reading pixels as versions 8 to 10
 // carry it (with the centre snap, so a reading pixel is never a visible dot). Pinned, read back from the
-// art alone, printable, fast, and the default.
+// art alone, printable, fast; the default until version 12 (2026-10-08).
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
@@ -47,11 +47,10 @@ test("version 11 is pinned: this commitment's pixels and file never change, and 
   assert.equal(wrong.strip.result, "FALSE");
 });
 
-test("version 11 is registered and is the default: a new image is drawn with it (2026-10-08)", () => {
+test("version 11 stays registered and redraws old records, and is no longer the default (version 12, 2026-10-08)", () => {
   assert.ok(ART_ALGORITHMS.includes(ART_ALGORITHM_V11));
-  assert.equal(ART_ALGORITHM, "bitgraph-art/11");
+  assert.notEqual(ART_ALGORITHM, "bitgraph-art/11");
   assert.equal(artRecipe(C1, ART_ALGORITHM_V11).v11?.hair, planV11(C1).hair);
-  assert.equal(artRecipe(C1).algorithm, "bitgraph-art/11");
 });
 
 test("version 11: the art alone spells the code for 40 codes; every drawn palette (never the dark ground), every expression and at least six hair silhouettes occur", () => {

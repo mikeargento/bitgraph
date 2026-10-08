@@ -65,12 +65,13 @@ import { planV8, renderV8, decodeV8, V8_WIDTH, V8_HEIGHT, type V8Plan } from "./
 import { planV9, renderV9, decodeV9, V9_WIDTH, V9_HEIGHT, type V9Plan } from "./commitment-art-v9.ts";
 import { planV10, renderV10, decodeV10, V10_WIDTH, V10_HEIGHT, type V10Plan } from "./commitment-art-v10.ts";
 import { planV11, renderV11, decodeV11, V11_WIDTH, V11_HEIGHT, type V11Plan } from "./commitment-art-v11.ts";
+import { planV12, renderV12, decodeV12, V12_WIDTH, V12_HEIGHT, type V12Plan } from "./commitment-art-v12.ts";
 
 export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
 /** What a new image is drawn with: version 3 from 2026-10-06 (Mike: "lose barcode use version 3"),
  *  version 4 (the Truchet maze) the same night (Mike: "build the truchet maze as version 4"). */
-export const ART_ALGORITHM = "bitgraph-art/11"; // version 11 from 2026-10-08: ink portraits, square; version 10 (a flow field) before it
+export const ART_ALGORITHM = "bitgraph-art/12"; // version 12 from 2026-10-08: engraved portraits, 2400 square, the same people as version 11; version 11 (ink portraits, 1200 square) before it
 /** Built 2026-10-06 for a side-by-side look (Mike: "build it and show me side by side"): the art spells the commitment. */
 export const ART_ALGORITHM_V3 = "bitgraph-art/3";
 /** Built 2026-10-06 (Mike: "build the truchet maze as version 4"): every tile is one bit. */
@@ -89,13 +90,16 @@ export const ART_ALGORITHM_V9 = "bitgraph-art/9";
 export const ART_ALGORITHM_V10 = "bitgraph-art/10";
 /** Square, 1200 x 1200: an ink portrait, a parametric head posed under one light and drawn as etching hatching, integer-only; the code as version 8 (commitment-art-v11.ts). */
 export const ART_ALGORITHM_V11 = "bitgraph-art/11";
-export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11];
+/** Square, 2400 x 2400: version 11's person for the same code, drawn as an engraving (denser hatching, swelling lines, lost and found edges); the code as version 8 (commitment-art-v12.ts). */
+export const ART_ALGORITHM_V12 = "bitgraph-art/12";
+export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12];
 /** Each version's canvas: 1 and 2 carry a strip under the art; 3 is the art square and its frame. */
 export function artSize(algorithm: string): { width: number; height: number } {
   if (algorithm === ART_ALGORITHM_V8) return { width: V8_WIDTH, height: V8_HEIGHT };
   if (algorithm === ART_ALGORITHM_V9) return { width: V9_WIDTH, height: V9_HEIGHT };
   if (algorithm === ART_ALGORITHM_V10) return { width: V10_WIDTH, height: V10_HEIGHT };
   if (algorithm === ART_ALGORITHM_V11) return { width: V11_WIDTH, height: V11_HEIGHT };
+  if (algorithm === ART_ALGORITHM_V12) return { width: V12_WIDTH, height: V12_HEIGHT };
   return algorithm === ART_ALGORITHM_V3 || algorithm === ART_ALGORITHM_V4 || algorithm === ART_ALGORITHM_V5 || algorithm === ART_ALGORITHM_V6 || algorithm === ART_ALGORITHM_V7 ? { width: 1024, height: 1024 } : { width: 1024, height: 1056 };
 }
 export const ART_WIDTH = 1024;
@@ -154,6 +158,8 @@ export interface ArtRecipe {
   v10?: V10Plan;
   /** Version 11 only: the portrait plan (commitment-art-v11.ts). */
   v11?: V11Plan;
+  /** Version 12 only: the portrait plan (version 11's plan for the same code; commitment-art-v12.ts). */
+  v12?: V12Plan;
   cells: ArtCell[];
 }
 
@@ -226,6 +232,10 @@ export function artRecipe(commitment: Uint8Array, algorithm: string = ART_ALGORI
   if (!ART_ALGORITHMS.includes(algorithm)) throw new TypeError(`unknown art algorithm ${algorithm}`);
   if (algorithm === ART_ALGORITHM_V3) return recipeV3(commitment);
   if (algorithm === ART_ALGORITHM_V4) return recipeV4(commitment);
+  if (algorithm === ART_ALGORITHM_V12) {
+    const v12 = planV12(commitment);
+    return { algorithm, width: V12_WIDTH, height: V12_HEIGHT, commitment: toBase64Url(commitment), palette: v12.palette, grid: 16, cells: [], v12 };
+  }
   if (algorithm === ART_ALGORITHM_V11) {
     const v11 = planV11(commitment);
     return { algorithm, width: V11_WIDTH, height: V11_HEIGHT, commitment: toBase64Url(commitment), palette: v11.palette, grid: 16, cells: [], v11 };
@@ -382,6 +392,7 @@ export function decodeArtV4(px: Uint8Array, width: number, height: number): Uint
 /** The recipe's JSON, keys in this fixed order: the bytes the recipe digest is taken over. */
 export function recipeJson(r: ArtRecipe): string {
   const cells = r.cells.map((c) => `[${c.shape},${c.turn},${c.fg},${c.bg}]`).join(",");
+  if (r.v12) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v12)}}`;
   if (r.v11) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v11)}}`;
   if (r.v10) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v10)}}`;
   if (r.v9) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v9)}}`;
@@ -454,6 +465,7 @@ export function renderArt(r: ArtRecipe): Uint8Array {
   const commitment = fromBase64Url(r.commitment);
   if (commitment === null) throw new TypeError("the recipe's commitment is not base64url");
   requireCommitment(commitment);
+  if (r.v12) return renderV12(r.v12, commitment);
   if (r.v11) return renderV11(r.v11, commitment);
   if (r.v10) return renderV10(r.v10, commitment);
   if (r.v9) return renderV9(r.v9, commitment);
@@ -616,45 +628,70 @@ const LEN_EXTRA = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4
 const DIST_BASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
 const DIST_EXTRA = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
 
+/** Reverse the low n bits of v (Huffman codes go out most significant bit first, the bit writer least first). */
+const rev = (v: number, n: number): number => { let r = 0; for (let i = 0; i < n; i++) r = (r << 1) | ((v >> i) & 1); return r; };
+/** The fixed literal/length codes (RFC 1951 3.2.6), already reversed, and their lengths. */
+const FIXED_CODE = new Int32Array(288), FIXED_LEN = new Uint8Array(288);
+for (let s = 0; s < 288; s++) {
+  const [code, len] = s <= 143 ? [0x30 + s, 8] : s <= 255 ? [0x190 + (s - 144), 9] : s <= 279 ? [s - 256, 7] : [0xc0 + (s - 280), 8];
+  FIXED_CODE[s] = rev(code, len); FIXED_LEN[s] = len;
+}
+/** The distance codes (five bits, fixed), reversed. */
+const REV5 = Array.from({ length: 30 }, (_, i) => rev(i, 5));
+
+/**
+ * The fixed deflate described above. Written with a word-wide bit writer into a growing byte buffer (2026-10-08,
+ * for version 12's 2400 x 2400 files): the bytes are exactly those of the bit-at-a-time writer it replaced, so
+ * every pinned file of every version is unchanged.
+ */
 function fixedDeflate(raw: Uint8Array, rowLen: number): Uint8Array {
-  const out: number[] = [0x78, 0x01];
+  const N = raw.length;
+  // at most 9 bits a byte (a literal over 143), so this never overflows
+  const out = new Uint8Array(N + (N >> 3) + 64);
+  let n = 0;
+  out[n++] = 0x78; out[n++] = 0x01;
   let acc = 0, nbits = 0;
-  const bits = (value: number, count: number) => { // least significant bit first
-    for (let i = 0; i < count; i++) { acc |= ((value >> i) & 1) << nbits; nbits++; if (nbits === 8) { out.push(acc); acc = 0; nbits = 0; } }
+  const bits = (value: number, count: number) => { // least significant bit first, count <= 16
+    acc |= value << nbits; nbits += count;
+    while (nbits >= 8) { out[n++] = acc & 0xff; acc >>>= 8; nbits -= 8; }
   };
-  const huff = (code: number, len: number) => { for (let i = len - 1; i >= 0; i--) bits((code >> i) & 1, 1); }; // most significant bit first
-  const sym = (s: number) => {
-    if (s <= 143) huff(0x30 + s, 8);
-    else if (s <= 255) huff(0x190 + (s - 144), 9);
-    else if (s <= 279) huff(s - 256, 7);
-    else huff(0xc0 + (s - 280), 8);
-  };
+  const sym = (s: number) => bits(FIXED_CODE[s]!, FIXED_LEN[s]!);
+  /** The match length at distance d, 0 when under 3 (a match shorter than 3 is never used, so 0 and 1 and 2 read alike). */
   const lengthOf = (i: number, d: number): number => {
-    if (i < d) return 0;
-    let L = 0;
-    while (L < 258 && i + L < raw.length && raw[i + L] === raw[i + L - d]) L++;
+    if (i < d || i + 2 >= N || raw[i] !== raw[i - d] || raw[i + 1] !== raw[i + 1 - d] || raw[i + 2] !== raw[i + 2 - d]) return 0;
+    let L = 3;
+    const end = Math.min(258, N - i);
+    while (L < end && raw[i + L] === raw[i + L - d]) L++;
     return L;
   };
   bits(1, 1); bits(1, 2); // BFINAL = 1, BTYPE = 01 (fixed Huffman)
-  for (let i = 0; i < raw.length;) {
+  for (let i = 0; i < N;) {
     const a = lengthOf(i, 3), b = lengthOf(i, rowLen);
+    if (a === 0 && b === 0) { // a literal, written inline
+      const v = raw[i]!;
+      acc |= FIXED_CODE[v]! << nbits; nbits += FIXED_LEN[v]!;
+      while (nbits >= 8) { out[n++] = acc & 0xff; acc >>>= 8; nbits -= 8; }
+      i++;
+      continue;
+    }
     const L = Math.max(a, b), d = a >= b ? 3 : rowLen;
-    if (L < 3) { sym(raw[i]!); i++; continue; }
     let lc = LEN_BASE.length - 1;
     while (LEN_BASE[lc]! > L) lc--;
     sym(257 + lc); bits(L - LEN_BASE[lc]!, LEN_EXTRA[lc]!);
     let dc = DIST_BASE.length - 1;
     while (DIST_BASE[dc]! > d) dc--;
-    huff(dc, 5); bits(d - DIST_BASE[dc]!, DIST_EXTRA[dc]!);
+    bits(REV5[dc]!, 5); bits(d - DIST_BASE[dc]!, DIST_EXTRA[dc]!);
     i += L;
   }
   sym(256);
-  if (nbits > 0) out.push(acc);
+  if (nbits > 0) bits(0, 8 - nbits);
   let s1 = 1, s2 = 0;
-  for (let i = 0; i < raw.length; i++) { s1 = (s1 + raw[i]!) % 65521; s2 = (s2 + s1) % 65521; }
+  for (let i = 0; i < raw.length; i++) { s1 += raw[i]!; if (s1 >= 65521) s1 -= 65521; s2 += s1; if (s2 >= 65521) s2 -= 65521; }
   const adler = ((s2 << 16) | s1) >>> 0;
-  out.push((adler >>> 24) & 0xff, (adler >>> 16) & 0xff, (adler >>> 8) & 0xff, adler & 0xff);
-  return Uint8Array.from(out);
+  const res = new Uint8Array(n + 4);
+  res.set(out.subarray(0, n));
+  res[n] = (adler >>> 24) & 0xff; res[n + 1] = (adler >>> 16) & 0xff; res[n + 2] = (adler >>> 8) & 0xff; res[n + 3] = adler & 0xff;
+  return res;
 }
 
 /**
@@ -824,12 +861,12 @@ export async function checkArt(pngBytes: Uint8Array, authenticatedCommitment: Ui
       : { result: "FALSE", detail: `the first differing pixel is at (${(firstDiff >> 2) % W}, ${Math.floor((firstDiff >> 2) / W)})` };
 
   // Read the commitment back from the pixels: the strip for versions 1 and 2, the art itself for 3.
-  const v6 = algorithm === ART_ALGORITHM_V6, v7 = algorithm === ART_ALGORITHM_V7, v8 = algorithm === ART_ALGORITHM_V8, v9 = algorithm === ART_ALGORITHM_V9, v10 = algorithm === ART_ALGORITHM_V10, v11 = algorithm === ART_ALGORITHM_V11;
+  const v6 = algorithm === ART_ALGORITHM_V6, v7 = algorithm === ART_ALGORITHM_V7, v8 = algorithm === ART_ALGORITHM_V8, v9 = algorithm === ART_ALGORITHM_V9, v10 = algorithm === ART_ALGORITHM_V10, v11 = algorithm === ART_ALGORITHM_V11, v12 = algorithm === ART_ALGORITHM_V12;
   const v5 = algorithm === ART_ALGORITHM_V5;
   const v4 = algorithm === ART_ALGORITHM_V4;
   const v3 = algorithm === ART_ALGORITHM_V3 || v4;
-  const read = v11 ? decodeV11(decoded.rgba, decoded.width, decoded.height) : v10 ? decodeV10(decoded.rgba, decoded.width, decoded.height) : v9 ? decodeV9(decoded.rgba, decoded.width, decoded.height) : v8 ? decodeV8(decoded.rgba, decoded.width, decoded.height) : v7 ? decodeV7(decoded.rgba, decoded.width, decoded.height) : v6 ? decodeV6(decoded.rgba, decoded.width, decoded.height) : v5 ? decodeV5(decoded.rgba, decoded.width, decoded.height) : v4 ? decodeArtV4(decoded.rgba, decoded.width, decoded.height) : v3 ? decodeArtV3(decoded.rgba, decoded.width, decoded.height) : decodeStrip(decoded.rgba, decoded.width, decoded.height);
-  const what = v5 ? "the plate mark" : v3 || v6 || v7 || v8 || v9 || v10 || v11 ? "the art" : "the 256-cell strip";
+  const read = v12 ? decodeV12(decoded.rgba, decoded.width, decoded.height) : v11 ? decodeV11(decoded.rgba, decoded.width, decoded.height) : v10 ? decodeV10(decoded.rgba, decoded.width, decoded.height) : v9 ? decodeV9(decoded.rgba, decoded.width, decoded.height) : v8 ? decodeV8(decoded.rgba, decoded.width, decoded.height) : v7 ? decodeV7(decoded.rgba, decoded.width, decoded.height) : v6 ? decodeV6(decoded.rgba, decoded.width, decoded.height) : v5 ? decodeV5(decoded.rgba, decoded.width, decoded.height) : v4 ? decodeArtV4(decoded.rgba, decoded.width, decoded.height) : v3 ? decodeArtV3(decoded.rgba, decoded.width, decoded.height) : decodeStrip(decoded.rgba, decoded.width, decoded.height);
+  const what = v5 ? "the plate mark" : v3 || v6 || v7 || v8 || v9 || v10 || v11 || v12 ? "the art" : "the 256-cell strip";
   const strip: ArtChecks["strip"] = read === null
     ? { result: "FALSE", detail: v3 ? `the picture does not read as a ${algorithm} spelling of any commitment` : "the image is not this algorithm's size, so it has no strip to read" }
     : read.every((b, i) => b === authenticatedCommitment[i])
