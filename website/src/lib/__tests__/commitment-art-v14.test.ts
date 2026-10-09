@@ -2,7 +2,7 @@
 // person for the same code (the same plan), square, 2400 x 2400, the code in 256 reading pixels as versions 8 to 13
 // carry it (with the centre snap). Pinned, read back from the art alone, printable, fast, no staircases, every pupil,
 // ears that are not ovals and carry their structure, no ponytail in front of the neck or jaw, no pillar of a neck;
-// and the default.
+// the default until version 15 (2026-10-09).
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
@@ -39,11 +39,10 @@ test("version 14 is pinned: this commitment's pixels and file never change, and 
   assert.equal(wrong.strip.result, "FALSE");
 });
 
-test("version 14 is registered and is the default: a new image is drawn with it (2026-10-08)", () => {
+test("version 14 is registered, and was the default until version 15 (2026-10-09)", () => {
   assert.ok(ART_ALGORITHMS.includes(ART_ALGORITHM_V14));
-  assert.equal(ART_ALGORITHM, "bitgraph-art/14");
+  assert.notEqual(ART_ALGORITHM, "bitgraph-art/14");
   assert.equal(artRecipe(C1, ART_ALGORITHM_V14).v14?.hair, planV14(C1).hair);
-  assert.equal(artRecipe(C1).algorithm, "bitgraph-art/14");
 });
 
 test("version 14 draws version 11's person: the plan is integer-only and equal to version 11's for the same code", () => {

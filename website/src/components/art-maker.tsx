@@ -20,9 +20,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createArtImage, restoreArtImage, ArtError, type ArtStage, type MadeArtImage } from "@/lib/art-position";
 import { buildCarrierForProof } from "@/lib/carrier-site";
-import { makePrint, PRINTABLE, printSizeOf } from "@/lib/art-print";
+import { PRINTABLE, printSizeOf } from "@/lib/art-print";
+import { drawPrintOffThread } from "@/lib/art-offthread";
 import { DENSITY_NAMES_V10, PALETTE_NAMES_V10, STYLE_NAMES_V10 } from "@/lib/commitment-art-v10";
 import { AGE_BAND_NAMES_V11, EXPRESSION_NAMES_V11, HAIR_NAMES_V11, PALETTE_NAMES_V11, ageBandV11 } from "@/lib/commitment-art-v11";
+import { compositionNameV15, paletteNameV15 } from "@/lib/commitment-art-v15";
+import { ART_ALGORITHM, ART_ALGORITHM_V15 } from "@/lib/commitment-art";
 import { rememberMade, madeHere } from "@/lib/made-here";
 import { recordedMsOf } from "@/lib/recorded-time";
 
@@ -69,6 +72,8 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
   const [shown, setShown] = useState(false);
   const [restored, setRestored] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  /** While a painting (version 15) is being drawn in its worker: the wait says Painting. */
+  const [painting, setPainting] = useState(false);
   const [error, setError] = useState<{ message: string; recorded: boolean } | null>(null);
   const [built, setBuilt] = useState<Built | null>(null);
   const [building, setBuilding] = useState(false);
@@ -120,14 +125,14 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
         const d = r.ok ? await r.json() : null;
         const list: Array<{ proof?: unknown }> = Array.isArray(d?.proofs) ? d.proofs : [];
         for (const item of list) {
-          const m = item.proof ? await restoreArtImage(item.proof as never) : null;
+          const m = item.proof ? await restoreArtImage(item.proof as never, { recordedMs: recordedMsOf(item.proof), onTry: (a) => { if (!cancelled) setPainting(a === ART_ALGORITHM_V15); } }) : null;
           if (m && !cancelled) { setMade(m); setRestored(!madeHere(urlSafe(m.digestB64))); setShown(true); void buildDownload(m); return; }
         }
         if (!cancelled) { setError({ message: "That portrait could not be found. Draw a new one below.", recorded: false }); window.history.replaceState(null, "", "/portrait"); }
       } catch {
         if (!cancelled) setError({ message: "That image could not be opened right now. Try reloading the page.", recorded: false });
       } finally {
-        if (!cancelled) setRestoring(false);
+        if (!cancelled) { setRestoring(false); setPainting(false); }
       }
     })();
     return () => { cancelled = true; };
@@ -190,7 +195,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     setPrinting(true);
     try {
       const counter = Number(made.proof.commit.counter ?? 0);
-      const bytes = await makePrint({ commitment: made.position.commitment, counter, digestB64: made.digestB64, algorithm: made.manifest.algorithm });
+      const bytes = await drawPrintOffThread({ commitment: made.position.commitment, counter, digestB64: made.digestB64, algorithm: made.manifest.algorithm });
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/png" }));
       const a = document.createElement("a");
       const ps = printSizeOf(made.manifest.algorithm);
@@ -226,12 +231,13 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       {/* While it runs, the site's own spinner (Mike, 10-06: "the green checks are dumb and make it seem like
           its taking longer ... use normal spinner we have on site"): the proof page's fresh-recording wait. */}
       {running && (
-        <div className="art-wait" role="status" aria-label="BitGraphing">
+        <div className="art-wait" role="status" aria-label={stage === "generating" && ART_ALGORITHM === ART_ALGORITHM_V15 ? "Painting" : "BitGraphing"}>
           <div className="bg-spinner art-spinner" />
-          <div className="art-wait-label">BitGraphing&hellip;</div>
+          {/* A painting takes a few seconds to draw (version 15, in a worker): the wait says so while it paints. */}
+          <div className="art-wait-label">{stage === "generating" && ART_ALGORITHM === ART_ALGORITHM_V15 ? <>Painting&hellip;</> : <>BitGraphing&hellip;</>}</div>
         </div>
       )}
-      {restoring && <p className="art-restoring" role="status">Opening the image&hellip;</p>}
+      {restoring && <p className="art-restoring" role="status">{painting ? <>Painting&hellip;</> : <>Opening the image&hellip;</>}</p>}
 
       {error && (
         <div className="art-error" role="alert">
@@ -269,7 +275,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
             <ol className="art-timeline">
               <li><span>{made.position.floorChain === "base" ? "Base" : "Ethereum"} block {made.position.floorBlock ? n(made.position.floorBlock) : ""}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
               <li><span>Position {n(made.position.slotCounter)} opened, commitment issued</span><span>after the floor</span></li>
-              <li><span>Image drawn from the commitment</span><span>{made.recipe.v14 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v14.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v14.age)]}, ${HAIR_NAMES_V11[made.recipe.v14.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v14.expr]}, 256 bits in its pixels` : made.recipe.v13 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v13.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v13.age)]}, ${HAIR_NAMES_V11[made.recipe.v13.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v13.expr]}, 256 bits in its pixels` : made.recipe.v12 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v12.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v12.age)]}, ${HAIR_NAMES_V11[made.recipe.v12.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v12.expr]}, 256 bits in its pixels` : made.recipe.v11 ? `ink portrait, ${PALETTE_NAMES_V11[made.recipe.v11.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v11.age)]}, ${HAIR_NAMES_V11[made.recipe.v11.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v11.expr]}, 256 bits in its pixels` : made.recipe.v10 ? `flow field, ${STYLE_NAMES_V10[made.recipe.v10.style]}, ${DENSITY_NAMES_V10[made.recipe.v10.density]}, ${PALETTE_NAMES_V10[made.recipe.v10.palette]}, ${made.recipe.v10.segments.length.toLocaleString("en-US")} segments, 256 bits in its pixels` : made.recipe.v9 ? `five families, ${["strata", "interference", "cut paper", "blocks", "ribbons"][made.recipe.v9.dominant]} leading, ${made.recipe.v9.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v8 ? `${made.recipe.v8.layers.length} shapes, ${made.recipe.v8.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v7 ? `${made.recipe.v7.layers.length} layers, ${made.recipe.v7.loud ? "loud" : "calm"}, 256 bits in its colours` : made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
+              <li><span>Image drawn from the commitment</span><span>{made.recipe.v15 ? `painting, ${compositionNameV15(made.recipe.v15)}, ${paletteNameV15(made.recipe.v15)}, 256 bits in its pixels` : made.recipe.v14 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v14.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v14.age)]}, ${HAIR_NAMES_V11[made.recipe.v14.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v14.expr]}, 256 bits in its pixels` : made.recipe.v13 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v13.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v13.age)]}, ${HAIR_NAMES_V11[made.recipe.v13.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v13.expr]}, 256 bits in its pixels` : made.recipe.v12 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v12.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v12.age)]}, ${HAIR_NAMES_V11[made.recipe.v12.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v12.expr]}, 256 bits in its pixels` : made.recipe.v11 ? `ink portrait, ${PALETTE_NAMES_V11[made.recipe.v11.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v11.age)]}, ${HAIR_NAMES_V11[made.recipe.v11.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v11.expr]}, 256 bits in its pixels` : made.recipe.v10 ? `flow field, ${STYLE_NAMES_V10[made.recipe.v10.style]}, ${DENSITY_NAMES_V10[made.recipe.v10.density]}, ${PALETTE_NAMES_V10[made.recipe.v10.palette]}, ${made.recipe.v10.segments.length.toLocaleString("en-US")} segments, 256 bits in its pixels` : made.recipe.v9 ? `five families, ${["strata", "interference", "cut paper", "blocks", "ribbons"][made.recipe.v9.dominant]} leading, ${made.recipe.v9.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v8 ? `${made.recipe.v8.layers.length} shapes, ${made.recipe.v8.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v7 ? `${made.recipe.v7.layers.length} layers, ${made.recipe.v7.loud ? "loud" : "calm"}, 256 bits in its colours` : made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
               <li><span>Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{counter}</a></span><span>{recordedMs ? utc(recordedMs) : ""}</span></li>
               <li className={built?.existedBy ? "" : "is-pending"}><span>{built?.existedBy ? `Existed by Base block ${n(built.existedBy.blockNumber)}` : "Base block"}</span><span>{built?.existedBy ? utc(built.existedBy.timestamp * 1000) : building ? "waiting for it" : "not in yet"}</span></li>
             </ol>
@@ -278,7 +284,9 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
               <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier. That makes it original: it did not exist anywhere before that moment, and no later click will ever draw it again.</p>
               <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
               <h3>How it was drawn</h3>
-              <p>{made.manifest.algorithm === "bitgraph-art/14" || made.manifest.algorithm === "bitgraph-art/13"
+              <p>{made.manifest.algorithm === "bitgraph-art/15"
+                ? <>Every picture is a painting no one painted: an abstract oil painting whose every decision comes from the code ({made.manifest.algorithm}), the painter&rsquo;s choices for the day, the composition, each brush, its load of paint, how it twists, splays and runs dry, and the wet paint it picks up and drags, laid on linen and lit from the top left. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is its painted colour or that colour one level away in blue, so that its red, green and blue add up to an odd number exactly when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/14" || made.manifest.algorithm === "bitgraph-art/13"
                 ? <>Every picture is a portrait of a person who does not exist: a head built from the code, its bones, features, age, hair, expression, gaze and the light on it all drawn from the code ({made.manifest.algorithm}), and rendered as an engraving, fine lines that follow the form and swell and thin like a burin cut, fading out where the light turns, every outline a smooth curve. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its colour when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
                 : made.manifest.algorithm === "bitgraph-art/12"
                 ? <>Every picture is a portrait of a person who does not exist: a head built from the code, its bones, features, age, hair, expression, gaze and the light on it all drawn from the code ({made.manifest.algorithm}), and rendered as an engraving, fine lines that follow the form and swell and thin like a burin cut. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its colour when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>

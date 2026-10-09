@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
 import { commitmentForProof, type BitGraphProof } from "@mikeargento/bitgraph-verify";
-import { ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, artSize, toBase64Url } from "@/lib/commitment-art";
-import { makePrint, PRINTABLE, printSizeOf } from "@/lib/art-print";
+import { ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15, artSize, toBase64Url } from "@/lib/commitment-art";
+import { PRINTABLE, printSizeOf } from "@/lib/art-print";
+import { drawPrintOffThread } from "@/lib/art-offthread";
 
 /**
  * A Reprint pill in the header of a picture the proof page redrew from its proof (Mike, 2026-10-08: "proof pages
@@ -14,7 +15,8 @@ export function ArtReprint({ proof, algorithm }: { proof: BitGraphProof; algorit
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const portrait = algorithm === ART_ALGORITHM_V11 || algorithm === ART_ALGORITHM_V12 || algorithm === ART_ALGORITHM_V13 || algorithm === ART_ALGORITHM_V14;
-  const noun = portrait ? "portrait" : "picture";
+  const paintingV15 = algorithm === ART_ALGORITHM_V15; // drawn in a worker; the pill says Painting while it paints
+  const noun = portrait ? "portrait" : paintingV15 ? "painting" : "picture";
   const rec = artSize(algorithm), ps = printSizeOf(algorithm);
   const printable = PRINTABLE.includes(algorithm);
   const reprint = async () => {
@@ -23,7 +25,7 @@ export function ArtReprint({ proof, algorithm }: { proof: BitGraphProof; algorit
     try {
       const commitment = toBase64Url(commitmentForProof(proof, proof.slotAllocation as never));
       const counter = Number(proof.commit?.counter ?? 0);
-      const bytes = await makePrint({ commitment, counter, digestB64: proof.artifact.digestB64, algorithm });
+      const bytes = await drawPrintOffThread({ commitment, counter, digestB64: proof.artifact.digestB64, algorithm });
       const url = URL.createObjectURL(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "image/png" }));
       const a = document.createElement("a");
       a.href = url; a.download = `bitgraph-${noun}-${counter}-reprint-${ps.width}x${ps.height}.png`;
@@ -37,7 +39,7 @@ export function ArtReprint({ proof, algorithm }: { proof: BitGraphProof; algorit
   return (
     <button type="button" className="bg-action-link pv-pill" onClick={reprint} disabled={busy} style={{ flexShrink: 0 }}
       title={err || `Drawn again from the proof at ${ps.width.toLocaleString("en-US")} \u00d7 ${ps.height.toLocaleString("en-US")} for printing. The proof covers the recorded ${rec.width.toLocaleString("en-US")} \u00d7 ${rec.height.toLocaleString("en-US")} file, not the reprint.`}>
-      {busy ? "Drawing\u2026" : err ? "Try again" : "Save for print"}
+      {busy ? (paintingV15 ? "Painting\u2026" : "Drawing\u2026") : err ? "Try again" : "Save for print"}
     </button>
   );
 }

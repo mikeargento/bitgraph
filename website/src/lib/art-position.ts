@@ -20,7 +20,8 @@ import {
 import { FuseError } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
 import { commitInPosition, fuseVersionOfFloor, openPosition, type TreeTransport } from "./fuse-tree-make.ts";
-import { ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
+import { ART_ALGORITHM, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
+import { makeArtOffThread, paintsOffThread, type DrawnArt } from "./art-offthread.ts";
 
 /** A position is good for 120 s; the image is recorded well inside that or not at all. */
 export const POSITION_TTL_MS = 120_000;
@@ -113,7 +114,8 @@ export async function createArtImage(opts: ArtOptions = {}): Promise<MadeArtImag
   };
 
   stage("generating", opened);
-  const art = await makeArt(commitment);
+  // A painting (version 15) is drawn in a worker, so the page stays responsive; the same modules, the same bytes.
+  const art = await makeArtOffThread(commitment, ART_ALGORITHM);
   opts.onDrawn?.(art.pixels);
   const digestB64 = bytesToBase64(sha256(art.png));
   if (now() - openedAt > COMMIT_DEADLINE_MS) {
@@ -142,7 +144,9 @@ export async function createArtImage(opts: ArtOptions = {}): Promise<MadeArtImag
   if (fuse.category !== "CARRIED_INLINE") throw new ArtError("verification-failed", `The verifier does not find this position's commitment in the image (${fuse.category}).`, true);
   const authenticated = commitmentForProof(proof, proof.slotAllocation!);
   if (!bytesEqual(authenticated, commitment)) throw new ArtError("verification-failed", "The proof authenticates a different commitment from the one the image was drawn from.", true);
-  const checks = await checkArt(art.png, authenticated);
+  // The pixels were drawn from `commitment`, which is the authenticated commitment byte for byte (checked above), so the
+  // check compares the file with them rather than painting the same picture a second time.
+  const checks = await checkArt(art.png, authenticated, { commitment, algorithm: art.recipe.algorithm, pixels: art.pixels });
   if (checks.regenerated.result !== "TRUE" || checks.strip.result !== "TRUE") {
     throw new ArtError("verification-failed", `The image does not regenerate from its commitment: ${checks.regenerated.detail}`, true);
   }
@@ -207,36 +211,47 @@ export async function verifyArtFile(bytes: Uint8Array, pcr0: readonly string[]):
 /* ── The proof page opens the image: redrawn from code, never stored ─────────────────── */
 
 /**
- * For a proof recorded with the inline marker, redraw the image from the commitment the proof
- * authenticates and return it only when its SHA-256 IS the recorded digest: the exact recorded
- * file, rebuilt byte for byte, so it can be shown and checked as the file in hand. Only versions
- * with the fixed deflate can be rebuilt this way (bitgraph-art/2 and /3); a version-1 file's bytes
- * came from a browser's compressor, so it is not rebuilt here (its pixels still redraw).
+ * For a proof recorded with the inline marker, redraw the image from the commitment the proof authenticates and return it
+ * only when its SHA-256 IS the recorded digest: the exact recorded file, rebuilt byte for byte, so it can be shown and
+ * checked as the file in hand. Only versions with the fixed deflate can be rebuilt this way (bitgraph-art/2 and later); a
+ * version-1 file's bytes came from a browser's compressor, so it is not rebuilt here (its pixels still redraw).
+ * Newest version first. A painting (version 15) is drawn in a worker (onTry says which version is being drawn, so the
+ * page can say it is painting); it is skipped for a record recorded before version 15 existed: the caller passes the
+ * record's signed time (recordedMs, the attestation's own timestamp), or the proof's slot or commit time stands in.
  */
-export async function redrawRecordedArt(proof: BitGraphProof): Promise<{ png: Uint8Array; algorithm: string } | null> {
+export const V15_FROM_MS = Date.UTC(2026, 9, 9);
+export async function redrawRecordedArt(proof: BitGraphProof, opts: { onTry?: (algorithm: string | null) => void; recordedMs?: number | null } = {}): Promise<{ png: Uint8Array; algorithm: string; art: DrawnArt } | null> {
   const a = proof.attribution;
   if (!a || a.title !== "base64url" || (a.name !== inlineAttribution(2).name && a.name !== inlineAttribution(3).name) || !proof.slotAllocation) return null;
   let commitment: Uint8Array;
   try { commitment = commitmentForProof(proof, proof.slotAllocation); } catch { return null; }
-  for (const algorithm of [ART_ALGORITHM_V14, ART_ALGORITHM_V13, ART_ALGORITHM_V12, ART_ALGORITHM_V11, ART_ALGORITHM_V10, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V7, ART_ALGORITHM_V6, ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
-    // Each drawing is a few hundred ms of main thread; yield between them so the page paints and
-    // stays responsive while a record that is not an /image picture is ruled out (2026-10-07).
-    await new Promise((r) => setTimeout(r, 0));
-    const art = await makeArt(commitment, algorithm);
-    if (bytesToBase64(sha256(art.png)) === proof.artifact?.digestB64) return { png: art.png, algorithm };
+  const signedMs = Number(opts.recordedMs ?? proof.slotAllocation.time ?? proof.commit?.time ?? NaN);
+  const before15 = Number.isFinite(signedMs) && signedMs < V15_FROM_MS;
+  try {
+    for (const algorithm of [ART_ALGORITHM_V15, ART_ALGORITHM_V14, ART_ALGORITHM_V13, ART_ALGORITHM_V12, ART_ALGORITHM_V11, ART_ALGORITHM_V10, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V7, ART_ALGORITHM_V6, ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
+      if (algorithm === ART_ALGORITHM_V15 && before15) continue;
+      // Each drawing is a few hundred ms of main thread (a painting, seconds in a worker); yield between them so the page
+      // paints and stays responsive while a record that is not an /image picture is ruled out (2026-10-07).
+      opts.onTry?.(algorithm);
+      await new Promise((r) => setTimeout(r, 0));
+      const art = paintsOffThread(algorithm) ? await makeArtOffThread(commitment, algorithm) : await makeArt(commitment, algorithm);
+      if (bytesToBase64(sha256(art.png)) === proof.artifact?.digestB64) return { png: art.png, algorithm, art };
+    }
+    return null;
+  } finally {
+    opts.onTry?.(null);
   }
-  return null;
 }
 
 /* ── Coming back to an image (Mike, 2026-10-06: "if you navigate away from the page the image is gone
  * forever"). It never was: the recorded file is a function of its proof. /image?p=<digest> reads the
  * proof back by digest and rebuilds the whole made image from it, byte for byte, or gives nothing. */
-export async function restoreArtImage(proof: BitGraphProof): Promise<MadeArtImage | null> {
-  const redrawn = await redrawRecordedArt(proof);
+export async function restoreArtImage(proof: BitGraphProof, opts: { onTry?: (algorithm: string | null) => void; recordedMs?: number | null } = {}): Promise<MadeArtImage | null> {
+  const redrawn = await redrawRecordedArt(proof, opts);
   if (!redrawn || !proof.slotAllocation) return null;
   const commitment = commitmentForProof(proof, proof.slotAllocation);
-  const art = await makeArt(commitment, redrawn.algorithm);
-  const checks = await checkArt(art.png, commitment);
+  const art = redrawn.art; // drawn from this commitment by redrawRecordedArt, and its file is the recorded one
+  const checks = await checkArt(art.png, commitment, { commitment, algorithm: redrawn.algorithm, pixels: art.pixels });
   const slot = proof.slotAllocation as unknown as { counter: string | number; epochId: string };
   let floor: ReturnType<typeof signedFloorOf> = null;
   try { floor = signedFloorOf(proof); } catch { floor = null; }

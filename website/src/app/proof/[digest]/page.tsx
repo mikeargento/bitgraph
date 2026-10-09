@@ -26,6 +26,8 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { redrawRecordedArt } from "@/lib/art-position";
+import { ART_ALGORITHM_V15 } from "@/lib/commitment-art";
+import { recordedMsOf } from "@/lib/recorded-time";
 import { ArtReprint } from "@/components/art-reprint";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpackSetMember, checkInline, isInlineProof, makeTreeHere, treeInputOf } from "@/lib/fuse-client";
 import { rebuildTreeFromFiles, rebuildMatches } from "@/lib/fuse-tree-make";
@@ -232,6 +234,8 @@ export default function ProofPage() {
   // digest (Mike, 2026-10-06: "cant the proof page open up and display image?"). Nothing is stored.
   const [redrawn, setRedrawn] = useState(false);
   const [redrawnAlgo, setRedrawnAlgo] = useState<string | null>(null);
+  // A painting (bitgraph-art/15) is redrawn in a worker over a few seconds: the file pane says Painting meanwhile.
+  const [painting, setPainting] = useState(false);
   useEffect(() => {
     if (!proof || cachedFile || !isInlineProof(proof)) return;
     // A record whose file this site hosts (EXAMPLE_FILES: home's example) is not an /image picture to
@@ -239,9 +243,9 @@ export default function ProofPage() {
     // the checks could paint (Mike, 2026-10-07: "the sample bitgraph loads SLOOOOOW").
     if (Object.hasOwn(EXAMPLE_FILES, decodeURIComponent(digestParam))) return;
     let live = true;
-    void redrawRecordedArt(proof as never).then((r) => {
+    void redrawRecordedArt(proof as never, { recordedMs: recordedMsOf(proof), onTry: (a) => { if (live) setPainting(a === ART_ALGORITHM_V15); } }).then((r) => {
       if (!live || !r) return;
-      setCachedFile({ name: `bitgraph-${/^bitgraph-art\/1[12]$/.test(r.algorithm) ? "portrait" : "image"}-${proof.commit?.counter ?? ""}.png`, data: r.png.slice().buffer as ArrayBuffer });
+      setCachedFile({ name: `bitgraph-${/^bitgraph-art\/1[1-4]$/.test(r.algorithm) ? "portrait" : r.algorithm === ART_ALGORITHM_V15 ? "painting" : "image"}-${proof.commit?.counter ?? ""}.png`, data: r.png.slice().buffer as ArrayBuffer });
       setRedrawn(true); setRedrawnAlgo(r.algorithm);
     }).catch(() => { /* not an image this page can redraw: the drop box stays */ });
     return () => { live = false; };
@@ -1897,6 +1901,11 @@ export default function ProofPage() {
               actions={redrawn && redrawnAlgo ? <ArtReprint proof={proof as never} algorithm={redrawnAlgo} /> : null} />
           ) : cachedFile ? (
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
+          ) : painting ? (
+            <div role="status" aria-label="Painting" style={{ padding: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "var(--muted)" }}>
+              <div className="bg-spinner" style={{ width: 28, height: 28, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <div>Painting&hellip;</div>
+            </div>
           ) : (
             <div style={{ padding: 16 }}>
               <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} />
