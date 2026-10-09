@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { commitmentForProof, type BitGraphProof } from "@mikeargento/bitgraph-verify";
-import { ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, artSize, toBase64Url } from "@/lib/commitment-art";
+import { ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, artSize, toBase64Url } from "@/lib/commitment-art";
 import { makePrint, PRINTABLE, printSizeOf } from "@/lib/art-print";
 
 /**
@@ -13,7 +13,7 @@ import { makePrint, PRINTABLE, printSizeOf } from "@/lib/art-print";
 export function ArtReprint({ proof, algorithm }: { proof: BitGraphProof; algorithm: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const portrait = algorithm === ART_ALGORITHM_V11 || algorithm === ART_ALGORITHM_V12 || algorithm === ART_ALGORITHM_V13;
+  const portrait = algorithm === ART_ALGORITHM_V11 || algorithm === ART_ALGORITHM_V12 || algorithm === ART_ALGORITHM_V13 || algorithm === ART_ALGORITHM_V14;
   const noun = portrait ? "portrait" : "picture";
   const rec = artSize(algorithm), ps = printSizeOf(algorithm);
   const printable = PRINTABLE.includes(algorithm);
