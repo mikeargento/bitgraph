@@ -244,7 +244,7 @@ export async function listKeysUnderPrefix(prefix: string, maxKeys = 100_000): Pr
 /**
  * Every recorded digest (URL-safe base64) that starts with `prefix`, up to `limit`, from the by-digest index:
  * one LIST with a delimiter, so a digest's per-position entries count once. The short-link resolver's only
- * read (/p/<prefix>, 2026-10-08): nothing is registered to make a short link, it is arithmetic over the digest.
+ * read (/<prefix> and /p/<prefix>, 2026-10-08): nothing is registered to make a short link, it is arithmetic over the digest.
  */
 export async function digestsWithPrefix(prefix: string, limit = 5): Promise<string[]> {
   const s3 = getClient();
