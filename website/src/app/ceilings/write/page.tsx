@@ -1,12 +1,17 @@
 import { notFound } from "next/navigation";
-import { BASESCAN, CEILING_WRITER, floorChainWord, floorFor, safeB64, writesForDay, type CeilingFloor } from "@/lib/ceilings";
+import { BASESCAN, CEILING_WRITER, floorChainWord, floorFor, writesForDay, type CeilingFloor } from "@/lib/ceilings";
 import { runPool } from "@/lib/s3";
 import { StatusChip } from "@/components/ceiling-status";
 
 /* ── One Base ceiling write: the transaction, its block, and every record
-   under its root, each linking to its own proof page, with its floor (the
-   block it was made after: Base from enclave v10, Ethereum before), read from
-   its sidecar. ── */
+   under its root by position and proof hash, with its floor (the block it was
+   made after: Base from enclave v10, Ethereum before), read from its sidecar.
+
+   The rows linked to each record's proof page until 2026-10-09, which made this
+   page and the Base list above it a way to open everyone's records, paintings
+   included (Mike: "We don't want that ledger."). A record is found by whoever
+   holds its file, its digest or a link its maker shared; here it is a position
+   and a proof hash, which open nothing. ── */
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Ceiling write" };
@@ -70,18 +75,14 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
       <h2 style={{ margin: "40px 0 12px", fontSize: 20 }}>Records</h2>
       <div className="cl-rows" style={{ display: "flex", flexDirection: "column" }}>
         {w.items.map((i) => {
-          const href = i.digestB64 ? `/proof/${safeB64(i.digestB64)}?counter=${encodeURIComponent(i.position)}&epoch=${encodeURIComponent(w.epochId)}` : null;
           const floor = floors.get(i.proofHash);
-          const inner = (
-            <>
+          return (
+            <div key={i.proofHash} className="xp-row" style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <span style={{ flexShrink: 0, minWidth: 88, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>#{fmt(i.position)}</span>
               <span style={{ flex: 1, minWidth: 0, ...mono, color: "var(--dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title="proofHash">{i.proofHash}</span>
               {floor && <span style={{ flexShrink: 0, fontSize: 12.5, color: "var(--dim)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>after {floorChainWord(floor)} #{fmt(floor.blockNumber)}</span>}
-            </>
+            </div>
           );
-          return href
-            ? <a key={i.proofHash} href={href} className="xp-row" style={{ display: "flex", gap: 12, alignItems: "center" }}>{inner}</a>
-            : <div key={i.proofHash} className="xp-row" style={{ display: "flex", gap: 12, alignItems: "center" }}>{inner}</div>;
         })}
       </div>
       </div>

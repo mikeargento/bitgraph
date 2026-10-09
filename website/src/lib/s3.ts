@@ -861,81 +861,10 @@ export async function getProofsByDigest(digestB64: string, options: LookupOption
  * we find the next anchor by scanning proofs with counter > proofCounter
  * in the same epoch, filtering for Ethereum anchors (attribution.name).
  */
-/**
- * Get proofs around a given counter in the same epoch.
- * Returns up to `before` proofs before and `after` proofs after the counter,
- * plus the proof at the counter itself.
- */
-export async function getProofsAroundCounter(
-  epochId: string,
-  counter: number,
-  before = 3,
-  after = 3,
-): Promise<Array<Record<string, unknown>>> {
-  try {
-    const s3 = getClient();
-    const bucket = getBucket();
-    const safeEpoch = toSafe(epochId);
-    const prefix = `proofs/${safeEpoch}/`;
-
-    // Fetch proofs BEFORE (and including) the current counter
-    // We list from the start and collect keys up to our counter
-    const targetKey = String(counter).padStart(12, "0");
-    const beforeProofs: Array<Record<string, unknown>> = [];
-
-    // To get proofs before, we list with prefix and collect those <= counter
-    // Start scanning from a few before our target
-    const scanStart = Math.max(1, counter - before - 1);
-    const scanStartKey = `${prefix}${String(scanStart).padStart(12, "0")}`;
-
-    const beforeResult = await s3.send(new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: prefix,
-      StartAfter: scanStartKey,
-      MaxKeys: before + after + 5, // extra buffer
-    }));
-
-    const allKeys = (beforeResult.Contents || []).map(o => o.Key!).filter(Boolean);
-
-    // Split into before, current, and after based on counter in key
-    const beforeKeys: string[] = [];
-    let currentKey: string | null = null;
-    const afterKeys: string[] = [];
-
-    for (const key of allKeys) {
-      const filename = key.split("/").pop() || "";
-      const keyCounter = parseInt(filename.split("-")[0], 10);
-      if (isNaN(keyCounter)) continue;
-      if (keyCounter < counter) beforeKeys.push(key);
-      else if (keyCounter === counter) currentKey = key;
-      else if (keyCounter > counter) afterKeys.push(key);
-    }
-
-    // Trim to requested sizes
-    const selectedKeys = [
-      ...beforeKeys.slice(-before),
-      ...(currentKey ? [currentKey] : []),
-      ...afterKeys.slice(0, after),
-    ];
-
-    // Fetch all proofs in parallel
-    const proofs = await Promise.all(
-      selectedKeys.map(async (key) => {
-        try {
-          const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-          const body = await result.Body?.transformToString();
-          if (!body) return null;
-          return JSON.parse(body) as Record<string, unknown>;
-        } catch { return null; }
-      })
-    );
-
-    return proofs.filter((p): p is Record<string, unknown> => p !== null);
-  } catch (err) {
-    console.error("[s3] getProofsAroundCounter failed:", (err as Error).message);
-    return [];
-  }
-}
+/* getProofsAroundCounter lived here: every proof in a window of counters,
+   recordings included, the reader behind /api/proofs/chain. Deleted with that
+   route (Mike, 2026-10-09: "We don't want that ledger."): walking counters
+   read out every record. Proofs are read by digest only. */
 
 /**
  * Get the most recent ETH anchor BEFORE a given counter on the same chain.

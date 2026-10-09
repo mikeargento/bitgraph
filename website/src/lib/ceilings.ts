@@ -37,7 +37,11 @@ export interface CeilingWrite {
   lastPos: string;
   epochId: string;
   fees: { l2Wei: string; l1Wei: string; totalWei: string };
-  items: Array<{ proofHash: string; position: string; digestB64?: string }>;
+  /* Each record's proof hash and position. The writer's JSON also names each
+     record's artifact digest; writesForDay drops it on read, so no page can link
+     or print it (Mike, 2026-10-09: "We don't want that ledger."). A proof hash
+     opens nothing: no route resolves one to a proof. */
+  items: Array<{ proofHash: string; position: string }>;
   /** L1 data inclusion (bitgraph-settlement/1), once the writer found the Ethereum batch carrying this Base block. */
   settlement?: { l1BlockNumber: number; l1BlockHash: string; l1BlockTimestamp: number; l1TxHash: string; blobs: string[]; foundAt: string } | null;
 }
@@ -90,7 +94,11 @@ export async function writesForDay(day: string, opts: { includeHidden?: boolean 
   for (const r of settled) {
     if (r.status !== "fulfilled" || !r.value) continue;
     if (!opts.includeHidden && HIDDEN_FROM_LIST.has(r.value.txHash.toLowerCase())) continue;
-    out.push(r.value);
+    // The digest stays in the bucket: only the proof hash and position go on (see items above).
+    const items = Array.isArray(r.value.items)
+      ? r.value.items.map((i) => ({ proofHash: String(i.proofHash), position: String(i.position) }))
+      : [];
+    out.push({ ...r.value, items });
   }
   return out.sort((a, b) => b.blockNumber - a.blockNumber);
 }

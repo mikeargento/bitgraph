@@ -73,6 +73,23 @@ export type LedgerRow = {
   s?: number;
 };
 
+/**
+ * The rows the public feed may show: anchors and interval recurrences, never a
+ * recording (Mike, 2026-10-09: "We don't want that ledger.").
+ *
+ * An anchor's row is public by nature: its file is the hash of an Ethereum
+ * block anyone can read. A recording's row is somebody's digest, and a list of
+ * them let a stranger open every proof page on the site, the paintings
+ * included, which are redrawn from the proof alone. A record is found by
+ * whoever already holds its file, its digest or a link its maker shared, and
+ * never by browsing. The archive's own pages still hold "p" rows (the bucket is
+ * private and Object Locked, so they stay where they are); this is the one
+ * place they are dropped before anything leaves the server.
+ */
+export function publicRows(rows: LedgerRow[]): LedgerRow[] {
+  return rows.filter((r) => r.t !== "p");
+}
+
 /** The per-day manifest. Fetched once, then every page is addressable by name.
  *
  *  `pages` is what makes a short list detectably short: without a declared

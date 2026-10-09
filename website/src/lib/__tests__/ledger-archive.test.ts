@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   PAGE_ROWS, pageKey, dayIndexKey, paginate, isSealedDay,
-  coverageOf, findPageGaps, mergeRows, endOfDayClaim, type DayIndex, type LedgerRow,
+  coverageOf, findPageGaps, mergeRows, endOfDayClaim, publicRows, type DayIndex, type LedgerRow,
 } from "../ledger-archive.ts";
 import { setRowLabel } from "../explorer.ts";
 
@@ -170,4 +170,18 @@ test("the Ledger row's tag reads file, set of N, or set, from a package-free hel
   assert.equal(setRowLabel(50), "set of 50");
   assert.equal(setRowLabel(3), "set of 3");
   assert.equal(setRowLabel(0), "set", "a set whose count is unreadable");
+});
+
+// ── the public feed: anchors, never a recording (Mike, 2026-10-09) ─────────
+
+test("publicRows drops every recording and keeps anchors and intervals in order", () => {
+  const rows = [row(9, "a"), row(8, "p"), row(7, "i"), row(6, "p"), row(5, "a")];
+  const out = publicRows(rows);
+  assert.deepEqual(out.map((r) => r.c), [9, 7, 5]);
+  assert.ok(out.every((r) => r.t !== "p"), "no recording row may leave the server");
+});
+
+test("a page of nothing but recordings becomes an empty page, never a recording", () => {
+  assert.deepEqual(publicRows([row(3, "p"), row(2, "p")]), []);
+  assert.deepEqual(publicRows([]), []);
 });

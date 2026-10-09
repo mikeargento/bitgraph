@@ -127,13 +127,13 @@ Every by-digest key is derived from `proof.artifact.digestB64` in the stored bod
 | website/src/app/api/proofs/[digest]/route.ts | GET | 10-15 | all positions |
 | api/proofs/digest/[digest]/route.ts | GET | 82-97, 128-137 | selects a position; positions payload carries counter, epoch, times, no digest, no kind |
 | api/proofs/batch/route.ts | POST | 11-18, 44-47 | up to 500 digests |
-| s3.ts | getProofsAroundCounter | 369-396 | the only position-keyed read; needs epoch and counter |
+| s3.ts | getProofsAroundCounter | (deleted 2026-10-09) | was the only position-keyed read; removed with `/api/proofs/chain`, which now answers 404 |
 | s3.ts | getAnchorBeforeCounter, getAnchorsAfterCounter | 444-475, 505-522 | paginated anchor windows |
 | api/search/route.ts | GET | 12-16, 37-39, 46-49 | legacy key only; bare numbers refused |
 | api/verify/route.ts | POST | 105-110, 154-168 | entries[0] is "the originating proof"; digest mismatch → "mismatch" |
 | app.ts | pendingSlots | 238, 492-499 | the only nonce-keyed structure anywhere; enclave memory, deleted on commit |
 
-Not possible today: lookup by nonce, by counter alone, or by proofHash. Possible: by digest (many results), by (epoch, counter) via `/api/proofs/chain`.
+Not possible today: lookup by nonce, by counter alone, or by proofHash. Possible: by digest (many results). By (epoch, counter) via `/api/proofs/chain` until 2026-10-09; that route now answers 404, so nothing walks positions (Mike: "We don't want that ledger.").
 
 ### 10. Verifier entry points and verdict categories
 

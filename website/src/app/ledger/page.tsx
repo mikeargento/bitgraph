@@ -2,9 +2,9 @@ import { DocsPageNav } from "@/components/docs-page-nav";
 import { Explorer } from "@/components/explorer";
 import { ledgerFeed, type LedgerFeedBody } from "@/lib/ledger-feed";
 
-/* ── BitGraph Ledger — the ledger stream, on its own page. Every recording in
-   causal order, newest first, with search. The camera's day: the home page
-   makes BitGraphs, this is where they live.
+/* ── BitGraph Ledger, now the history of the Ethereum anchors and nothing else
+   (2026-09-09; the feed itself stopped carrying recordings 2026-10-09). It once
+   listed every recording in causal order, newest first, with search.
 
    Day days: since the 23:59 UTC rotation (2026-07-30) each epoch is one UTC
    calendar day, so past days are browsed as sealed days — /day?day=YYYY-MM-DD
@@ -63,7 +63,10 @@ const SSR_BUDGET_MS = 1200;
 async function firstPage(day: string | null): Promise<LedgerFeedBody | null> {
   try {
     const result = await Promise.race([
-      ledgerFeed({ day, filesOnly: false }),
+      // Anchors only, so nothing but anchors ships inside the HTML either. Until
+      // 2026-10-09 this asked for every row and the client hid the recordings,
+      // which left their digests in the page source (Mike: "We don't want that ledger.").
+      ledgerFeed({ day }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), SSR_BUDGET_MS)),
     ]);
     return result && result.status === 200 ? result.body : null;

@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { anchorMarkOf, isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
-import { dayIndexKey, pageKey, type DayIndex, type DayPage, type LedgerFilter } from "./ledger-archive";
+import { dayIndexKey, pageKey, publicRows, type DayIndex, type DayPage, type LedgerFilter } from "./ledger-archive";
 import { setCountOf } from "./fuse-set";
 import { recordedMsOf } from "./recorded-time";
 
@@ -20,7 +20,19 @@ import { recordedMsOf } from "./recorded-time";
    The one value read out of the attestation is its timestamp, the row's time,
    which is in every proof and led with on every proof page. See the
    disclosure audit: the per-proof page already carries the rest; this surface
-   deliberately exposes only the spine. */
+   deliberately exposes only the spine.
+
+   ⚠️ ANCHORS ONLY, NEVER A RECORDING (Mike, 2026-10-09: "We don't want that
+   ledger."). This feed used to list every recording too, by day, with its
+   digest, and the /ledger page shipped those rows inside its HTML even while
+   it showed only anchors. With the paintings redrawn on the proof page from
+   the proof alone, that list was a gallery of everyone's work for anyone who
+   asked. A record is now found only by someone who already holds its file,
+   its digest or a link its maker shared. Every path below reads anchors (the
+   anchors/{epoch}/ index, or an archived day's rows through publicRows), and
+   every row is checked again on the way out, so a recording cannot ride along
+   even if an index is wrong. The files-only mode (?files=1) is gone with it;
+   the route ignores the parameter. */
 
 const region = (process.env.LEDGER_REGION || "us-east-2").trim();
 const bucket = (process.env.LEDGER_BUCKET || "occ-ledger-prod").trim();
@@ -166,119 +178,57 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
   };
 }
 
-/** Files-only feed: the `limit` highest-counter NON-anchor proofs at or below
- *  `top`. Anchor commits are enumerated in the anchors/{epoch}/{counter}.json
- *  index (verified 1:1 with anchor proofs' commit counters), so a LIST of that
- *  prefix identifies them without GETting each proof; only the difference is
- *  fetched. Scans at most SCAN_BUDGET counters per request and returns
- *  `floor`, the lowest counter scanned, as the resume cursor: on an
- *  anchor-only stretch a page may carry zero entries while paging continues. */
-/* 40,000, not 4,000. Recordings arrive in bursts and anchors do not, so a quiet
-   stretch is anchor-only for thousands of counters at a time. On 2026-08-09 the
-   top 4,000 counters held no recordings at all, so this budget expired before
-   finding one and the live Ledger answered a 5.2s request with ZERO rows and
-   hasMore — a page that looks exactly like an empty ledger.
+/* The two recording listers that stood here (listRecentFiles, the files-only
+   feed, and listRecent, every proof in a counter window) are gone with the
+   recordings themselves (Mike, 2026-10-09: "We don't want that ledger."). Both
+   read the proofs/ prefix, which holds everyone's records; the one lister left
+   reads only the anchors/ index, and its rows are anchor proofs by
+   construction. */
 
-   The budget is cheap to raise because the scan itself is cheap: anchor
-   counters come from the anchors/ index, so a skipped counter costs no GET,
-   and only rows that will actually be shown are fetched. What it bounds is
-   LISTs, at two per 1,000 counters. */
-const SCAN_BUDGET = 40_000;
-async function listRecentFiles(epoch: string, top: number, limit: number, lowBound = 1): Promise<{ entries: Entry[]; floor: number }> {
-  const proofsPrefix = `proofs/${epoch}/`;
-  const anchorsPrefix = `anchors/${epoch}/`;
-  const found: Entry[] = [];
+/** The `limit` highest-counter ANCHORS at or below `top` (and at or above
+ *  `lowBound`), from the anchors/{epoch}/{counter}.json index. Never touches
+ *  proofs/, so it cannot return a recording; toEntry's own classification is
+ *  checked once more on the way out regardless.
+ *
+ *  Scans down in 1000-counter windows. Counter keys are zero-padded and
+ *  unique, so one LIST of MaxKeys 1000 from a window's start holds every anchor
+ *  in that window. Returns `floor`, the resume point: the last anchor shown
+ *  when the page is full, otherwise the bottom of what was scanned, so a long
+ *  stretch with no anchor (an outage, or a busy burst of recordings) still
+ *  advances rather than reading as the end. */
+const ANCHOR_SCAN_BUDGET = 40_000;
+async function listRecentAnchors(epoch: string, top: number, limit: number, lowBound = 1): Promise<{ entries: Entry[]; floor: number }> {
+  const prefix = `anchors/${epoch}/`;
+  const keys: Array<{ key: string; counter: number; lm?: number }> = [];
   let cursor = top;
   let scanned = 0;
-  while (cursor >= lowBound && scanned < SCAN_BUDGET && found.length < limit) {
+  while (cursor >= lowBound && scanned < ANCHOR_SCAN_BUDGET && keys.length < limit) {
     const start = Math.max(lowBound - 1, cursor - Math.min(1000, cursor));
-    const inWindow = (n: number) => !isNaN(n) && n > start && n <= cursor;
-    const [pr, ar] = await Promise.all([
-      s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: proofsPrefix, StartAfter: `${proofsPrefix}${pad(start)}`, MaxKeys: 1000 })),
-      s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: anchorsPrefix, StartAfter: `${anchorsPrefix}${pad(start)}`, MaxKeys: 1000 })),
-    ]);
-    const anchorCounters = new Set(
-      (ar.Contents || [])
-        .map((o) => parseInt((o.Key!.split("/").pop() || "").replace(".json", ""), 10))
-        .filter(inWindow),
-    );
-    const fileKeys = (pr.Contents || [])
-      .map((o) => ({ key: o.Key!, counter: parseInt((o.Key!.split("/").pop() || "").split("-")[0], 10), lm: o.LastModified?.getTime() }))
-      .filter((x) => inWindow(x.counter) && !anchorCounters.has(x.counter))
-      .sort((a, b) => b.counter - a.counter);
-    /* Fetch newest-first, in batches, only as far as the page needs.
-       fileKeys covers a window of up to 1000 counters, and this used to GET
-       every key in it to render 25 rows: on a busy stretch, hundreds of round
-       trips thrown away. The sibling listRecent always sliced to `limit`
-       before fetching; this path never did, and it was the bulk of a cold
-       page's time.
-
-       Batched rather than a flat slice because a key can still turn out to be
-       an anchor (see the belt-and-suspenders check below) or fail to load, and
-       stopping at exactly `limit` keys would silently short the page. The loop
-       keeps drawing from the same window until the page is full or the window
-       is spent, so nothing inside a window is ever skipped unexamined. In
-       practice that is one batch. */
-    let idx = 0;
-    while (idx < fileKeys.length && found.length < limit) {
-      const batch = fileKeys.slice(idx, idx + (limit - found.length) + 4);
-      idx += batch.length;
-      const objs = await Promise.all(batch.map(async ({ key, lm }) => {
-        try {
-          const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-          const body = await r.Body?.transformToString();
-          return body ? { json: JSON.parse(body) as Record<string, unknown>, lm } : null;
-        } catch { return null; }
-      }));
-      for (const o of objs) {
-        const e = o ? toEntry(o.json, o.lm) : null;
-        // Belt and suspenders: the anchors/ index is authoritative for
-        // skipping, but if an index write ever went missing the proof itself
-        // still says what it is.
-        if (e && e.type === "proof") found.push(e);
-      }
+    const r = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, StartAfter: `${prefix}${pad(start)}`, MaxKeys: 1000 }));
+    for (const o of r.Contents || []) {
+      const n = parseInt(((o.Key || "").split("/").pop() || "").split("-")[0], 10);
+      if (!isNaN(n) && n > start && n <= cursor) keys.push({ key: o.Key!, counter: n, lm: o.LastModified?.getTime() });
     }
     scanned += cursor - start;
     cursor = start;
   }
-  found.sort((a, b) => b.counter - a.counter);
-  const entries = found.slice(0, limit);
-  /* Resume just below the last row actually shown, not at the bottom of the
-     window we happened to be scanning. A full page nearly always ends partway
-     through its window, and reporting the window's floor told the next page to
-     start below everything in between, so those recordings were never shown at
-     all. Only when the page did not fill is the window floor the right answer:
-     there, everything above it really has been accounted for. */
-  return {
-    entries,
-    floor: entries.length >= limit ? entries[entries.length - 1].counter : cursor + 1,
-  };
-}
-
-/** The `limit` highest-counter proofs at or below `top`. One LIST + `limit` GETs.
- *  Counters step by ~2 (slot + commit per event), so the LIST window is widened. */
-async function listRecent(epoch: string, top: number, limit: number, lowBound = 1): Promise<Entry[]> {
-  const prefix = `proofs/${epoch}/`;
-  const start = Math.max(lowBound - 1, 0, top - limit * 2 - 16);
-  const res = await s3.send(new ListObjectsV2Command({
-    Bucket: bucket, Prefix: prefix, StartAfter: `${prefix}${pad(start)}`, MaxKeys: limit * 2 + 24,
-  }));
-  const keys = (res.Contents || [])
-    .map((o) => ({ key: o.Key!, counter: parseInt((o.Key!.split("/").pop() || "").split("-")[0], 10), lm: o.LastModified?.getTime() }))
-    .filter((x) => x.key && !isNaN(x.counter) && x.counter <= top && x.counter >= lowBound)
-    .sort((a, b) => b.counter - a.counter)
-    .slice(0, limit);
-  const objs = await Promise.all(keys.map(async ({ key, lm }) => {
+  keys.sort((a, b) => b.counter - a.counter);
+  const shown = keys.slice(0, limit);
+  const objs = await Promise.all(shown.map(async ({ key, lm }) => {
     try {
       const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
       const body = await r.Body?.transformToString();
       return body ? { json: JSON.parse(body) as Record<string, unknown>, lm } : null;
     } catch { return null; }
   }));
-  return objs
+  const entries = objs
     .map((o) => (o ? toEntry(o.json, o.lm) : null))
-    .filter((e): e is Entry => e !== null)
+    .filter((e): e is Entry => e !== null && e.type !== "proof")
     .sort((a, b) => b.counter - a.counter);
+  return {
+    entries,
+    floor: shown.length >= limit ? shown[shown.length - 1].counter : cursor + 1,
+  };
 }
 
 // ── Day days ───────────────────────────────────────────────────────────────
@@ -489,14 +439,18 @@ function entryFromRow(r: DayPage["rows"][number]): Entry {
  * than towards the empty one.
  */
 async function archivedDayPage(
-  day: string, pageParam: string | null, filesOnly: boolean,
-): Promise<{ entries: Entry[]; nextPage: number | null; hasMore: boolean; total: number } | null> {
+  day: string, pageParam: string | null,
+): Promise<{ entries: Entry[]; nextPage: number | null; hasMore: boolean } | null> {
   const index = await getArchiveJson<DayIndex>(dayIndexKey(day));
   if (!index || index.v !== 1) return null;
-  const filter: LedgerFilter = filesOnly ? "f" : "a";
+  /* Always the "a" stream, read through publicRows: anchors and intervals, no
+     recording (Mike, 2026-10-09). The "f" stream is recordings only and is
+     never read here any more. No `total` goes out either: the day's declared
+     count includes the recordings dropped below, so it cannot be held against
+     the rows shown, and an undeclared day claims nothing about completeness. */
+  const filter: LedgerFilter = "a";
   const pageCount = index.pages?.[filter];
-  const rowTotal = index.rows?.[filter];
-  if (typeof pageCount !== "number" || typeof rowTotal !== "number") return null;
+  if (typeof pageCount !== "number") return null;
 
   const n = pageParam ? parseInt(pageParam, 10) : 0;
   if (isNaN(n) || n < 0) return null;
@@ -510,10 +464,11 @@ async function archivedDayPage(
 
   const hasMore = n + 1 < pageCount;
   return {
-    entries: page.rows.map(entryFromRow),
+    // A page that was all recordings comes back empty with hasMore set; the
+    // client's fetchChain walks on past it, as it does an anchor-only stretch.
+    entries: publicRows(page.rows).map(entryFromRow),
     nextPage: hasMore ? n + 1 : null,
     hasMore,
-    total: rowTotal,
   };
 }
 
@@ -538,9 +493,14 @@ async function archivedDayPage(
    so the whole-epoch listing runs about once an hour and every recompute in
    between reads only the counters written since. The 15s body cache
    (cachedLiveHead, at the bottom of this file) remains the gate on how often
-   any of this runs at all. */
+   any of this runs at all.
 
-type EpochIndex = { head: number; files: Array<{ key: string; counter: number; lm?: number }> };
+   Since 2026-10-09 the index keeps the ANCHORS, not the files: the proofs
+   prefix is still listed, but only for the head (Mike: "We don't want that
+   ledger."). The anchors prefix is the row list, and it holds nothing but
+   anchors. */
+
+type EpochIndex = { head: number; anchors: Array<{ key: string; counter: number; lm?: number }> };
 
 /* Counter keys are zero-padded to a fixed width, so the keyspace partitions
    exactly: StartAfter pad(n) enumerates from counter n, in order. That makes
@@ -602,12 +562,8 @@ async function computeEpochIndex(epoch: string): Promise<EpochIndex> {
     listAllCounters(`proofs/${epoch}/`),
     listAllCounters(`anchors/${epoch}/`),
   ]);
-  const anchorCounters = new Set(anchors.map((a) => a.counter));
   const head = proofs.reduce((m, p) => (p.counter > m ? p.counter : m), 0);
-  const files = proofs
-    .filter((p) => !anchorCounters.has(p.counter))
-    .sort((a, b) => b.counter - a.counter);
-  return { head, files };
+  return { head, anchors: anchors.sort((a, b) => b.counter - a.counter) };
 }
 
 /* The index is a BASE plus a DELTA, because the epoch's past does not change:
@@ -623,14 +579,12 @@ async function computeEpochIndex(epoch: string): Promise<EpochIndex> {
    epoch, so the first request after the daily rotation builds it when the
    epoch is a few keys deep and it costs nothing.
 
-   Classification race at the seam: an anchor's proof can land a moment before
-   its anchors/ index entry, so a delta can misread a brand-new anchor as a
-   file. The GET-level type check in liveFiles drops it (same belt and
-   suspenders the base path has always had), costing a wasted GET, never a
-   wrong row. */
+   An anchor whose index entry lands a moment after its proof simply shows on
+   the next recompute: the index is the only row source, so the seam can delay
+   a row, never misclassify one. */
 const cachedEpochBase = unstable_cache(
   (epoch: string) => computeEpochIndex(epoch),
-  ["day-live-epoch-base-v1"],
+  ["day-live-epoch-base-v2"],
   { revalidate: 3600 },
 );
 
@@ -700,21 +654,18 @@ async function liveEpochIndex(epoch: string): Promise<EpochIndex> {
     listAllCounters(`proofs/${epoch}/`, base.head),
     listAllCounters(`anchors/${epoch}/`, base.head),
   ]);
-  const deltaAnchors = new Set(da.map((a) => a.counter));
   const head = dp.reduce((m, p) => (p.counter > m ? p.counter : m), base.head);
-  const deltaFiles = dp
-    .filter((p) => !deltaAnchors.has(p.counter))
-    .sort((a, b) => b.counter - a.counter);
+  const deltaAnchors = da.sort((a, b) => b.counter - a.counter);
   // Delta counters sit strictly above base.head, so concat is the merge.
-  return { head, files: [...deltaFiles, ...base.files] };
+  return { head, anchors: [...deltaAnchors, ...base.anchors] };
 }
 
-/** The `limit` highest-counter recordings at or below `top`, from the index.
- *  No scan, no window, no budget: a slice and the GETs for the rows that
- *  will actually be shown. */
-async function liveFiles(index: EpochIndex, top: number, limit: number): Promise<{ entries: Entry[]; floor: number }> {
-  const { files } = index;
-  const slice = files.filter((f) => f.counter <= top).slice(0, limit);
+/** The `limit` highest-counter anchors at or below `top`, from the index. A
+ *  slice and the GETs for the rows that will actually be shown; every row is
+ *  checked once more to be an anchor or an interval, never a recording. */
+async function liveAnchors(index: EpochIndex, top: number, limit: number): Promise<{ entries: Entry[]; floor: number }> {
+  const { anchors } = index;
+  const slice = anchors.filter((f) => f.counter <= top).slice(0, limit);
   const objs = await Promise.all(slice.map(async ({ key, lm }) => {
     try {
       const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
@@ -724,12 +675,10 @@ async function liveFiles(index: EpochIndex, top: number, limit: number): Promise
   }));
   const entries = objs
     .map((o) => (o ? toEntry(o.json, o.lm) : null))
-    .filter((e): e is Entry => e !== null && e.type === "proof")
+    .filter((e): e is Entry => e !== null && e.type !== "proof")
     .sort((a, b) => b.counter - a.counter);
-  // The cursor is the next unshown recording, so an anchor-only stretch is
-  // skipped in one step instead of being paged through.
   const lowest = slice.length ? slice[slice.length - 1].counter : 1;
-  const more = files.some((f) => f.counter < lowest);
+  const more = anchors.some((f) => f.counter < lowest);
   return { entries, floor: more ? lowest : 1 };
 }
 
@@ -753,7 +702,11 @@ export type LedgerFeedBody = {
      against what the day says it has, instead of inferring completeness from a
      response that happened to be short. Absent on the live feed and on derived
      days, where no such declaration exists and the client must not pretend one
-     does. */
+     does.
+
+     ⚠️ Never set since 2026-10-09: the declared count includes recordings,
+     which this feed no longer shows, so it cannot be held against the anchor
+     rows. Kept in the type so a client that reads it finds it absent. */
   total?: number;
 };
 
@@ -770,11 +723,9 @@ async function computeLedgerFeed(opts: {
   before?: string | null;
   bepoch?: string | null;
   page?: string | null;
-  filesOnly?: boolean;
 }): Promise<LedgerFeedResult> {
   const now = Date.now();
   const beforeParam = opts.before ?? null;
-  const filesOnly = !!opts.filesOnly;
   const dayParam = opts.day ?? null;
 
   if (dayParam) {
@@ -798,7 +749,7 @@ async function computeLedgerFeed(opts: {
     // The archive first, always. It answers by name in two reads, and declines
     // (null) for anything it cannot answer with certainty, so the derivation
     // below stays the fallback rather than the fast path.
-    const archived = await archivedDayPage(dayParam, opts.page ?? null, filesOnly);
+    const archived = await archivedDayPage(dayParam, opts.page ?? null);
     if (archived) {
       return {
         status: 200,
@@ -808,7 +759,6 @@ async function computeLedgerFeed(opts: {
           nextBefore: null,
           nextPage: archived.nextPage,
           hasMore: archived.hasMore,
-          total: archived.total,
         },
         // A materialised page of a sealed day cannot change, so it caches hard.
         // The day is history and the page is named for its exact position in it.
@@ -845,16 +795,11 @@ async function computeLedgerFeed(opts: {
     while (segIdx < ordered.length && entries.length < PAGE) {
       const seg = ordered[segIdx];
       const want = PAGE - entries.length;
-      if (filesOnly) {
-        const r = await listRecentFiles(seg.epoch, top, want, seg.min);
-        entries.push(...r.entries);
-        if (r.floor > seg.min) { nextBefore = r.floor; nextEpoch = seg.epoch; break; }
-      } else {
-        const es = await listRecent(seg.epoch, top, want, seg.min);
-        entries.push(...es);
-        const lowest = es.length ? es[es.length - 1].counter : seg.min;
-        if (entries.length >= PAGE && lowest > seg.min) { nextBefore = lowest; nextEpoch = seg.epoch; break; }
-      }
+      // Anchors only (Mike, 2026-10-09). The cursor is the scan floor, so a
+      // stretch with no anchor still advances instead of reading as the end.
+      const r = await listRecentAnchors(seg.epoch, top, want, seg.min);
+      entries.push(...r.entries);
+      if (r.floor > seg.min) { nextBefore = r.floor; nextEpoch = seg.epoch; break; }
       segIdx++;
       if (segIdx < ordered.length) {
         const nseg = ordered[segIdx];
@@ -885,18 +830,12 @@ async function computeLedgerFeed(opts: {
     top = Math.min(b - 1, head);
   }
 
-  let entries: Entry[];
-  let nextBefore: number | null;
-  if (filesOnly) {
-    // The cursor is the scan floor, not the last entry: an anchor-only stretch
-    // legitimately yields an empty page that still advances.
-    const r = top < 1 ? { entries: [], floor: 1 } : await liveFiles(index, top, PAGE);
-    entries = r.entries;
-    nextBefore = r.floor > 1 ? r.floor : null;
-  } else {
-    entries = top < 1 ? [] : await listRecent(epoch, top, PAGE);
-    nextBefore = entries.length ? entries[entries.length - 1].counter : null;
-  }
+  // Anchors only, from the index (Mike, 2026-10-09). With the Ethereum anchor
+  // stream off since enclave v10 the live epoch has none, and the answer is an
+  // honest empty page with no cursor.
+  const r = top < 1 ? { entries: [], floor: 1 } : await liveAnchors(index, top, PAGE);
+  const entries = r.entries;
+  const nextBefore = r.floor > 1 ? r.floor : null;
 
   return {
     status: 200,
@@ -982,22 +921,23 @@ const cachedIsArchived = unstable_cache(
    Keyed apart as well as timed apart, so a day crossing from one to the other
    never reads a body the other wrote. */
 const cachedArchivedDayFeed = unstable_cache(
-  (day: string, before: string | null, bepoch: string | null, page: string | null, filesOnly: boolean) =>
-    computeOrThrow({ day, before, bepoch, page, filesOnly }),
-  ["ledger-feed-day-archived-v1"],
+  (day: string, before: string | null, bepoch: string | null, page: string | null) =>
+    computeOrThrow({ day, before, bepoch, page }),
+  // v2 (2026-10-09): v1 bodies carry recordings; a new key never reads them.
+  ["ledger-feed-day-archived-v2"],
   { revalidate: 86400 },
 );
 
 const cachedDerivedDayFeed = unstable_cache(
-  (day: string, before: string | null, bepoch: string | null, page: string | null, filesOnly: boolean) =>
-    computeOrThrow({ day, before, bepoch, page, filesOnly }),
-  ["ledger-feed-day-derived-v1"],
+  (day: string, before: string | null, bepoch: string | null, page: string | null) =>
+    computeOrThrow({ day, before, bepoch, page }),
+  ["ledger-feed-day-derived-v2"],
   { revalidate: 60 },
 );
 
 const cachedLiveCursor = unstable_cache(
-  (before: string, filesOnly: boolean) => computeOrThrow({ before, filesOnly }),
-  ["ledger-feed-live-cursor-v1"],
+  (before: string) => computeOrThrow({ before }),
+  ["ledger-feed-live-cursor-v2"],
   { revalidate: 3600 },
 );
 
@@ -1025,17 +965,15 @@ export async function ledgerFeed(opts: {
   before?: string | null;
   bepoch?: string | null;
   page?: string | null;
-  filesOnly?: boolean;
 }): Promise<LedgerFeedResult> {
-  const filesOnly = !!opts.filesOnly;
   try {
     if (opts.day) {
       // Which cache, decided before either is consulted.
       const run = (await cachedIsArchived(opts.day)) ? cachedArchivedDayFeed : cachedDerivedDayFeed;
-      return await run(opts.day, opts.before ?? null, opts.bepoch ?? null, opts.page ?? null, filesOnly);
+      return await run(opts.day, opts.before ?? null, opts.bepoch ?? null, opts.page ?? null);
     }
-    if (opts.before) return await cachedLiveCursor(opts.before, filesOnly);
-    return await computeLedgerFeed({ filesOnly });
+    if (opts.before) return await cachedLiveCursor(opts.before);
+    return await computeLedgerFeed({});
   } catch (e) {
     const message = (e as Error)?.message ?? "";
     if (message.startsWith(STATUS_PREFIX)) {
