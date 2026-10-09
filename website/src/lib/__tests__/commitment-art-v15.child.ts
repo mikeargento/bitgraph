@@ -20,7 +20,7 @@ let out: unknown;
 if (task === "pinned") {
   const a = await makeArt(C1, ART_ALGORITHM_V15), b = await makeArt(C1, ART_ALGORITHM_V15);
   const right = await checkArt(a.png, C1), wrong = await checkArt(a.png, code("another code"));
-  out = { pixels: toHex(sha256(a.pixels)), png: toHex(sha256(a.png)), pngAgain: toHex(sha256(b.png)), recipe: a.recipe.algorithm, right: [right.regenerated.result, right.strip.result, right.strip.detail], wrong: [wrong.regenerated.result, wrong.strip.result] };
+  out = { pixels: toHex(sha256(a.pixels)), png: toHex(sha256(a.png)), pngAgain: toHex(sha256(b.png)), pngBytes: a.png.length, recipe: a.recipe.algorithm, right: [right.regenerated.result, right.strip.result, right.strip.detail], wrong: [wrong.regenerated.result, wrong.strip.result] };
 } else if (task === "code") {
   const plan = planV15(C1), zeros = new Uint8Array(32), ones = new Uint8Array(32).fill(255);
   const a = renderV15(plan, zeros), b = renderV15(plan, ones);

@@ -45,7 +45,7 @@ export async function drawPrint(req: PrintRequest): Promise<Uint8Array> {
     what: `A larger redrawing, for print, of BitGraph #${req.counter}`,
     recordedFile: `sha256 ${req.digestB64}, ${algorithm}, ${rec.width} x ${rec.height}`,
     scale: Math.round(S * 1000) / 1000,
-    note: `The proof covers the recorded ${rec.width} x ${rec.height} file. This one is drawn from the same code at ${Math.round(S * 1000) / 1000} times the size.`,
+    note: `The proof covers the recorded ${rec.width} x ${rec.height} file. This one is drawn from the same code ${S === 1 ? "at the same size" : `at ${Math.round(S * 1000) / 1000} times the size`}.`,
   });
 }
 

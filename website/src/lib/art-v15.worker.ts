@@ -7,7 +7,9 @@
  *
  * Messages in:  { id, kind: "art", commitment: Uint8Array, algorithm }   -> { id, ok, art: { recipe, pixels, manifest, png } }
  *               { id, kind: "print", req: PrintRequest }                 -> { id, ok, bytes }
- * Errors come back as { id, ok: false, error }.
+ * Errors come back as { id, ok: false, error }. On load it says { ready: true }, so the page can tell a worker that never
+ * started (draw on the page instead) from one that failed while painting (say so: never retry a too-large drawing on the
+ * page itself).
  */
 import { makeArt } from "./commitment-art.ts";
 import { drawPrint, type PrintRequest } from "./art-print.ts";
@@ -16,6 +18,7 @@ type Inbound = { id: number; kind: "art"; commitment: Uint8Array; algorithm: str
 interface WorkerScope { postMessage(message: unknown, transfer?: Transferable[]): void; onmessage: ((e: MessageEvent<Inbound>) => void) | null }
 const scope = self as unknown as WorkerScope;
 
+scope.postMessage({ ready: true });
 scope.onmessage = (e: MessageEvent<Inbound>): void => {
   const m = e.data;
   void (async () => {

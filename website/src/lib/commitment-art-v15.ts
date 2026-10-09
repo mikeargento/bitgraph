@@ -47,9 +47,13 @@
  * look alone; at 1800 the median is about 5 s. The stamps stay as dense as the sketch's (about one raster pixel apart:
  * sparser deposits measurably roughened the paint), so the brush's cost is the look's.
  *
- * Other scales (renderV15At, for print): the painter decides at the recorded scale, keeping its score (every mark with
- * its resolved parameters and path), and the score is laid again on a canvas of the other scale, mark for mark. The
- * print is drawn at 2.5 times the layout, 3000 x 3000.
+ * Other scales (renderV15At): the painter decides at the recorded scale, keeping its score (every mark with its resolved
+ * parameters and path), and the score is laid again on a canvas of the other scale, mark for mark. The print is the
+ * recorded scale (V15_PRINT_LAYOUT_SCALE): a larger one needs the whole larger canvas in memory.
+ *
+ * The file: version 15 writes its own PNG encoding (png-deflate-v15.ts: the best filter per row, a full deflate with
+ * dynamic Huffman codes, in integer JavaScript), about 4 to 6 MB a painting where the fixed deflate of earlier versions
+ * left about 9 MB; still a pure function of the pixels.
  *
  * The code: a hidden grid of 16 x 16 tiles over version 11's layout scaled to 1800 (the tile centres at
  * 1.5 x (67.5 + 71 c)); tile k (row-major) carries bit k, most significant bit of byte 0 first. A painting has no
@@ -64,8 +68,13 @@ const LABEL = "bitgraph-art/15";
 /** The recorded scale: the composition is laid out on a 1200 px canvas and painted at twice that. */
 const RS = 1.5;
 export const V15_WIDTH = 1200 * RS, V15_HEIGHT = 1200 * RS;
-/** The print redrawing's scale of the 1200 px layout. */
-export const V15_PRINT_LAYOUT_SCALE = 2.5;
+/**
+ * The print's scale of the 1200 px layout: the recorded scale. A larger drawing must paint the whole canvas at that size
+ * (the paint is wet: a stroke picks up and drags what lies anywhere along its path, so no band or tile of the canvas
+ * can be painted without the rest), about 450 to 520 MB at 3000 x 3000, which phones and some laptops cannot hold; at
+ * 1800 the print is the painting as recorded, in about the memory of drawing it (about 130 MB of canvas).
+ */
+export const V15_PRINT_LAYOUT_SCALE = 1.5;
 
 /* ── Integer arithmetic ──────────────────────────────────────────────────────────────────────────────
  * Every quantity is an integer. Units: ONE = 4096 (Q12) for fractions (colour, alpha, load, pressure, wetness,
@@ -754,8 +763,11 @@ function makeEasel(P: V15Plan, S8: number) {
   // the canvas, interleaved, 8 values a pixel (one cache line holds four pixels): red, green, blue (Q12), height (Q12),
   // paint amount (Q12), wetness when laid (Q12), the stroke clock when laid, and gloss (Q8, low byte) with the layer count (high byte)
   const CAN = new Uint16Array(N * 8);
-  const BASE = new Uint32Array(N); // what a rag or a scratch reveals: 10 bits a channel
-  const ROLEMAP = new Int8Array(N).fill(-1);
+  // what a rag, a scratch or the tape reveals (10 bits a channel), kept only when the day has rag wipes, sgraffito or
+  // a taped border, the only things that read it
+  const needBase = P.process[0]! > 0 || P.process[1]! > 0 || P.edge === EDGE_TAPED;
+  const BASE = new Uint32Array(needBase ? N : 1);
+  let ROLEMAP = new Int8Array(N).fill(-1);
   let WIN: Uint8Array | null = null;
   const SLOT = new Int32Array(N).fill(-1);
   let cap = 1 << 19;
@@ -1116,13 +1128,16 @@ function makeEasel(P: V15Plan, S8: number) {
   };
 
   return {
-    D, N, S8, CAN, BASE, ROLEMAP, SLOT, linen,
+    D, N, S8, CAN, BASE, SLOT, linen,
+    get ROLEMAP() { return ROLEMAP; },
+    /** Let go of what only the painting needs (the stroke buffer, the role map) before the light is worked out. */
+    release(): void { cap = 1; TOUCH = new Int32Array(1); ACC = new Int32Array(6); nt = 0; ROLEMAP = new Int8Array(1); },
     get WIN() { return WIN; }, set WIN(w: Uint8Array | null) { WIN = w; },
     get cur() { return cur; }, set cur(v: number) { cur = v; },
     setTau(t: number): void { tau = t; dec8 = Math.floor((ONE * 256) / tau); },
     stroke, composite, add, disk,
     dryAll(): void { for (let o = 5; o < N * 8; o += 8) CAN[o] = 0; },
-    snapshotBase(): void { for (let p = 0; p < N; p++) { const o = p << 3; BASE[p] = (minI(1023, CAN[o]! >> 2) << 20) | (minI(1023, CAN[o + 1]! >> 2) << 10) | minI(1023, CAN[o + 2]! >> 2); } },
+    snapshotBase(): void { if (!needBase) return; for (let p = 0; p < N; p++) { const o = p << 3; BASE[p] = (minI(1023, CAN[o]! >> 2) << 20) | (minI(1023, CAN[o + 1]! >> 2) << 10) | minI(1023, CAN[o + 2]! >> 2); } },
   };
 }
 type Easel = ReturnType<typeof makeEasel>;
@@ -1989,7 +2004,9 @@ function finish(ez: Easel, P: V15Plan, prm: Uint8Array | null, staples: number[]
   const { D, N, S8, CAN } = ez, { T, TONE, SIZE, TOOTH } = ez.linen;
   // the planes the painting no longer needs hold the finish's fields
   const sA = new Uint16Array(ez.SLOT.buffer, 0, N), sB = new Uint16Array(ez.SLOT.buffer, N * 2, N);
-  const bA = new Uint16Array(ez.BASE.buffer, 0, N), bB = new Uint16Array(ez.BASE.buffer, N * 2, N);
+  ez.release();
+  const baseBuf = ez.BASE.length === N ? ez.BASE.buffer : new ArrayBuffer(N * 4);
+  const bA = new Uint16Array(baseBuf, 0, N), bB = new Uint16Array(baseBuf, N * 2, N);
   const Ws = new Uint16Array(N), PAb = new Uint16Array(N);
   for (let p = 0; p < N; p++) PAb[p] = CAN[(p << 3) + 4]!;
   const raw = P.ground === 5;

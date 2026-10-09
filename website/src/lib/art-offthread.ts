@@ -13,9 +13,27 @@ export interface DrawnArt { recipe: ArtRecipe; pixels: Uint8Array; manifest: Art
 export const paintsOffThread = (algorithm: string): boolean => algorithm === ART_ALGORITHM_V15;
 
 let worker: Worker | null = null;
+/** The worker could not start here (an old browser, a blocked script): draw on the page from now on. */
 let failed = false;
+/** The current worker has said it is ready, so an error from now on is a failure while painting, not a failed start. */
+let ready = false;
 let seq = 0;
-const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+/** A painting takes seconds, a slow phone a minute or two; past this the worker is taken as lost. */
+const TIMEOUT_MS = 240_000;
+
+/** The message for a drawing that failed in the worker: plain words for the device running out of memory. */
+export function paintingError(raw: string): Error {
+  return new Error(/allocation|out of memory|memory|terminated|lost/i.test(raw) ? "This device ran out of memory while painting. Try again on a computer." : raw || "the painting could not be drawn");
+}
+
+function stopWorker(err: Error): void {
+  worker?.terminate();
+  worker = null;
+  ready = false;
+  for (const p of pending.values()) { clearTimeout(p.timer); p.reject(err); }
+  pending.clear();
+}
 
 function getWorker(): Worker | null {
   if (failed || typeof window === "undefined" || typeof Worker === "undefined") return null;
@@ -26,19 +44,20 @@ function getWorker(): Worker | null {
     failed = true;
     return null;
   }
-  worker.onmessage = (e: MessageEvent<{ id: number; ok: boolean; art?: DrawnArt; bytes?: Uint8Array; error?: string }>) => {
-    const d = e.data, p = pending.get(d.id);
+  ready = false;
+  worker.onmessage = (e: MessageEvent<{ ready?: boolean; id: number; ok: boolean; art?: DrawnArt; bytes?: Uint8Array; error?: string }>) => {
+    const d = e.data;
+    if (d.ready) { ready = true; return; }
+    const p = pending.get(d.id);
     if (!p) return;
     pending.delete(d.id);
-    if (d.ok) p.resolve(d.art ?? d.bytes); else p.reject(new Error(d.error ?? "the painting could not be drawn"));
+    clearTimeout(p.timer);
+    if (d.ok) p.resolve(d.art ?? d.bytes); else p.reject(paintingError(d.error ?? ""));
   };
   worker.onerror = (e) => {
-    // A worker that cannot load (an old browser, a blocked script) never answers: fall back to this thread from now on.
-    failed = true;
-    worker = null;
-    const err = new Error(e.message || "the painting's worker stopped");
-    for (const p of pending.values()) p.reject(err);
-    pending.clear();
+    e.preventDefault?.();
+    if (!ready) { failed = true; stopWorker(new Error("NOSTART")); return; } // it never started: the callers draw on the page
+    stopWorker(paintingError("the worker was lost while painting")); // it failed while painting (most often memory)
   };
   return worker;
 }
@@ -46,31 +65,32 @@ function getWorker(): Worker | null {
 function ask<T>(w: Worker, message: Record<string, unknown>): Promise<T> {
   const id = ++seq;
   return new Promise<T>((resolve, reject) => {
-    pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+    const timer = setTimeout(() => stopWorker(paintingError("the worker was lost while painting")), TIMEOUT_MS);
+    pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
     w.postMessage({ id, ...message });
   });
 }
 
-/** makeArt, in the worker for the versions that need it, on this thread otherwise (or when the worker cannot run). */
+/** makeArt, in the worker for the versions that need it, on this thread otherwise (or when the worker cannot start). */
 export async function makeArtOffThread(commitment: Uint8Array, algorithm: string): Promise<DrawnArt> {
   const w = paintsOffThread(algorithm) ? getWorker() : null;
   if (!w) return makeArt(commitment, algorithm);
   try {
     return await ask<DrawnArt>(w, { kind: "art", commitment: commitment.slice(), algorithm });
   } catch (e) {
-    if (!failed) throw e;
-    return makeArt(commitment, algorithm); // the worker could not start: draw it here
+    if (e instanceof Error && e.message === "NOSTART") return makeArt(commitment, algorithm); // the worker could not start: draw it here
+    throw e;
   }
 }
 
-/** drawPrint, in the worker for the versions that need it. */
+/** drawPrint, in the worker for the versions that need it. A drawing that fails in the worker is never retried here. */
 export async function drawPrintOffThread(req: PrintRequest): Promise<Uint8Array> {
   const w = req.algorithm && paintsOffThread(req.algorithm) ? getWorker() : null;
   if (!w) { await new Promise((r) => setTimeout(r, 50)); return drawPrint(req); }
   try {
     return await ask<Uint8Array>(w, { kind: "print", req });
   } catch (e) {
-    if (!failed) throw e;
-    return drawPrint(req);
+    if (e instanceof Error && e.message === "NOSTART") return drawPrint(req);
+    throw e;
   }
 }

@@ -69,6 +69,7 @@ import { planV12, renderV12, decodeV12, V12_WIDTH, V12_HEIGHT, type V12Plan } fr
 import { planV13, renderV13, decodeV13, V13_WIDTH, V13_HEIGHT, type V13Plan } from "./commitment-art-v13.ts";
 import { planV14, renderV14, decodeV14, V14_WIDTH, V14_HEIGHT, type V14Plan } from "./commitment-art-v14.ts";
 import { planV15, renderV15, decodeV15, V15_WIDTH, V15_HEIGHT, type V15Plan } from "./commitment-art-v15.ts";
+import { deflateV15, filterRowsV15 } from "./png-deflate-v15.ts";
 
 export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
@@ -742,8 +743,12 @@ function fixedDeflate(raw: Uint8Array, rowLen: number): Uint8Array {
 export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promise<Uint8Array> {
   const { width: w, height: h } = artSize(manifest.algorithm);
   const rowLen = 1 + w * 3;
-  const raw = new Uint8Array(h * rowLen);
-  for (let y = 0; y < h; y++) {
+  // Version 15 (a painting: noisy, so the fixed deflate stored it near raw, about 9 MB) writes its own smaller encoding:
+  // the best filter per row and a full deflate with dynamic Huffman codes, still a pure function of the pixels
+  // (png-deflate-v15.ts).
+  const v15 = manifest.algorithm === ART_ALGORITHM_V15;
+  const raw = v15 ? filterRowsV15(px, w, h) : new Uint8Array(h * rowLen);
+  for (let y = 0; y < (v15 ? 0 : h); y++) {
     const o = y * rowLen; // filter byte 0 (None)
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
@@ -754,7 +759,7 @@ export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promi
   ihdr.set(u32be(w), 0); ihdr.set(u32be(h), 4);
   ihdr[8] = 8; ihdr[9] = 2; // 8-bit truecolour, no alpha; compression, filter, interlace 0
   const text = concat([te.encode(ART_MANIFEST_KEYWORD), Uint8Array.of(0), te.encode(manifestJson(manifest))]);
-  const idat = manifest.algorithm === ART_ALGORITHM_V1 ? await pipe(raw, new CompressionStream("deflate")) : fixedDeflate(raw, rowLen);
+  const idat = manifest.algorithm === ART_ALGORITHM_V1 ? await pipe(raw, new CompressionStream("deflate")) : v15 ? deflateV15(raw) : fixedDeflate(raw, rowLen);
   return concat([PNG_SIG, chunk("IHDR", ihdr), chunk("tEXt", text), chunk("IDAT", idat), chunk("IEND", new Uint8Array(0))]);
 }
 

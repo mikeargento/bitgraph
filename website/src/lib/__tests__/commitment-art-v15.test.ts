@@ -12,6 +12,8 @@ import { sha256 } from "@noble/hashes/sha256";
 import { ART_ALGORITHM, ART_ALGORITHM_V15, ART_ALGORITHMS, artRecipe, artSize, makeArt, recipeJson } from "../commitment-art.ts";
 import { PALETTES_V15, REF_PALETTE_NAMES_V15, STRATEGY_NAMES_V15, compositionNameV15, decodeV15, paletteNameV15, planV15, V15_HEIGHT, V15_WIDTH } from "../commitment-art-v15.ts";
 import { PRINTABLE, printSizeOf } from "../art-print.ts";
+import { deflateV15, filterRowsV15 } from "../png-deflate-v15.ts";
+import { inflateSync } from "node:zlib";
 
 const run = promisify(execFile);
 
@@ -56,12 +58,14 @@ async function alone(): Promise<void> {
 }
 
 test("version 15 is pinned: this commitment's pixels and file never change, and both image checks pass", async () => {
-  const r = await niced<{ pixels: string; png: string; pngAgain: string; recipe: string; right: string[]; wrong: string[] }>("pinned");
-  // Pinned on first run (2026-10-09).
+  const r = await niced<{ pixels: string; png: string; pngAgain: string; pngBytes: number; recipe: string; right: string[]; wrong: string[] }>("pinned");
+  // Pinned on first run (2026-10-09); the file re-pinned the same day for version 15's own encoding (png-deflate-v15.ts),
+  // the pixels unchanged.
   // A failure here means bitgraph-art/15 changed: make /16 instead.
   assert.equal(r.pixels, PINNED_PIXELS_V15);
   assert.equal(r.png, PINNED_PNG_V15);
   assert.equal(r.pngAgain, r.png, "the same file twice, the canvas weave built and then reused");
+  assert.ok(r.pngBytes < 6_000_000, `the file is ${(r.pngBytes / 1e6).toFixed(2)} MB (4.72 when pinned; the fixed deflate of earlier versions made 7.96)`);
   assert.equal(r.recipe, ART_ALGORITHM_V15);
   assert.deepEqual(artSize(ART_ALGORITHM_V15), { width: 1800, height: 1800 });
   assert.equal(r.right[0], "TRUE");
@@ -108,19 +112,36 @@ test("version 15: only the 256 reading pixels carry the code; two codes with the
   assert.deepEqual(decodeV15(px, V15_WIDTH, V15_HEIGHT), new Uint8Array(32));
 });
 
-test("version 15's print drawing is the same painting as the recorded one, and the print path serves it", async () => {
+test("version 15 redraws at another scale as the same painting, and the print is the recorded size", async () => {
   // At a reduced scale (the 1200 px layout, 1 x) the painting is the recorded scale's score laid again: compared over
-  // 600 x 600 cells (3 x 3 recorded pixels, 2 x 2 of the smaller drawing), the mean difference stays small.
+  // 600 x 600 cells (3 x 3 recorded pixels, 2 x 2 of the smaller drawing), the mean difference stays small. The print is
+  // drawn at the recorded size (V15_PRINT_LAYOUT_SCALE): a larger one needs the whole larger canvas in memory.
   const r = await niced<{ smallLength: number; mean: number; width: number; height: number; note: string | null; manifest: string | null; carries: boolean }>("print");
   assert.equal(r.smallLength, 1200 * 1200 * 4);
   assert.ok(r.mean < PRINT_PARITY_MAX, `mean difference ${r.mean.toFixed(2)} of 255`);
   assert.ok(PRINTABLE.includes(ART_ALGORITHM_V15));
-  assert.deepEqual(printSizeOf(ART_ALGORITHM_V15), { width: 3000, height: 3000 });
-  assert.equal(r.width, 3000);
-  assert.equal(r.height, 3000);
+  assert.deepEqual(printSizeOf(ART_ALGORITHM_V15), { width: 1800, height: 1800 });
+  assert.equal(r.width, 1800);
+  assert.equal(r.height, 1800);
   assert.ok(r.note!.includes("bitgraph-art/15"), "the print note names the version");
   assert.equal(r.manifest, null, "no manifest: it never passes for the recorded image");
   assert.equal(r.carries, false, "the commitment is not carried");
+});
+
+test("version 15's file encoding: zlib reads back every byte, any filter and any data, and it is smaller than stored", () => {
+  // png-deflate-v15.ts against node's own inflate: a painting's rows, flat runs, noise, and the empty and tiny cases
+  const rnd = (n: number, seed: number) => { const b = new Uint8Array(n); let x = seed; for (let i = 0; i < n; i++) { x = (Math.imul(x, 1103515245) + 12345) >>> 0; b[i] = x >>> 24; } return b; };
+  const flat = new Uint8Array(300_000).fill(7), runs = Uint8Array.from({ length: 200_000 }, (_, i) => (i >> 9) & 3);
+  for (const raw of [new Uint8Array(0), Uint8Array.of(1), Uint8Array.of(1, 2, 3, 1, 2, 3, 1, 2, 3), flat, runs, rnd(100_000, 1), rnd(70_000, 2)]) {
+    assert.deepEqual(new Uint8Array(inflateSync(deflateV15(raw))), raw);
+  }
+  assert.ok(deflateV15(flat).length < 2000 && deflateV15(runs).length < 20_000);
+  // the filters: a gradient image picks a predicting filter and reads back exactly through decoding the filters
+  const w = 64, h = 32, px = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 4; px[i] = x * 3; px[i + 1] = y * 5; px[i + 2] = (x + y) & 255; px[i + 3] = 255; }
+  const rows = filterRowsV15(px, w, h);
+  assert.equal(rows.length, h * (w * 3 + 1));
+  assert.ok(rows[w * 3 + 1]! !== 0, "a row of a gradient takes a predicting filter");
 });
 
 /**
@@ -162,8 +183,8 @@ test("version 15: the painter's checks over 120 commitments, each under 1 percen
 test("version 15 paints fast enough: plan, painting and the recorded file, median under 6 s at 1800 x 1800", async () => {
   // Last in this file, when no other test file is running. The main thread's CPU time over ten fixed
   // codes, the canvas weaves built first (built once per weave and kept). Measured on an Apple M3 alone (2026-10-09):
-  // these ten 5.0 s median, 2.8 to 8.8 s; over thirty codes the median is about 5.5 s and the heaviest (many rounds of
-  // the density loop, as the sketch's own heaviest) about 12 s.
+  // these ten about 5.6 s median (the painting 4.7 s, its file 0.87 s), 3.5 to 9.8 s; over thirty codes the median is
+  // about 6 s and the heaviest (many rounds of the density loop, as the sketch's own heaviest) about 13 s.
   await alone();
   for (const k of [0, 1, 2]) await makeArt(code(`bitgraph-art/15 weave ${k}`), ART_ALGORITHM_V15);
   const ms: number[] = [];
@@ -180,6 +201,6 @@ test("version 15 paints fast enough: plan, painting and the recorded file, media
 });
 
 const PINNED_PIXELS_V15 = "32643f0756c73ab5a0197a55f765f86cffb47e9dfed079f48f41f460c0097420";
-const PINNED_PNG_V15 = "10a8efce0e340dc6c15809ab33e23ecfcfde4399735c31f01963fb311998eea5";
+const PINNED_PNG_V15 = "4bef6a1de9648c7db46fed1e1d318e0883a8af186c36d11239cca08981c700f3";
 /** Measured 2026-10-09 on this code: 7.3 (the bristle streaks and the wet mixing differ pixel by pixel between scales; the marks do not). */
 const PRINT_PARITY_MAX = 10;

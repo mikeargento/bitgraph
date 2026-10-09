@@ -32,6 +32,7 @@ export function ArtReprint({ proof, algorithm }: { proof: BitGraphProof; algorit
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (e) {
+      // a device that runs out of memory gets a plain message (the drawing ran in a worker, so the page itself is fine)
       setErr(`The reprint could not be drawn: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
   };
@@ -39,7 +40,7 @@ export function ArtReprint({ proof, algorithm }: { proof: BitGraphProof; algorit
   return (
     <button type="button" className="bg-action-link pv-pill" onClick={reprint} disabled={busy} style={{ flexShrink: 0 }}
       title={err || `Drawn again from the proof at ${ps.width.toLocaleString("en-US")} \u00d7 ${ps.height.toLocaleString("en-US")} for printing. The proof covers the recorded ${rec.width.toLocaleString("en-US")} \u00d7 ${rec.height.toLocaleString("en-US")} file, not the reprint.`}>
-      {busy ? (paintingV15 ? "Painting\u2026" : "Drawing\u2026") : err ? "Try again" : "Save for print"}
+      {busy ? (paintingV15 ? "Painting\u2026" : "Drawing\u2026") : err ? (/memory/i.test(err) ? "Not enough memory here" : "Try again") : "Save for print"}
     </button>
   );
 }
