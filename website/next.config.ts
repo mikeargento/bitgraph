@@ -17,9 +17,12 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/overview", destination: "/docs/overview", permanent: true },
-      // The image generator became the portrait page on 2026-10-08 (Mike: "portrait page is replacing images").
+      // The image generator became the portrait page on 2026-10-08 and the painting page on 2026-10-09.
       // Every /image link keeps working, ?p=<digest> included (a redirect carries the query).
-      { source: "/image", destination: "/portrait", permanent: true },
+      { source: "/image", destination: "/painting", permanent: true },
+      // The portrait page became the painting page with bitgraph-art/15 (Mike, 2026-10-09). Temporary (307) while the
+      // name settles: browsers remember permanent redirects forever. Make it permanent once it holds.
+      { source: "/portrait", destination: "/painting", permanent: false },
       // The Recorder page left the site on 2026-09-16 (Mike: "no company is
       // going to make bitgraphs with the software"). Anyone holding its URL,
       // the release notes included, lands on the app's own release.

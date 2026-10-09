@@ -62,7 +62,7 @@ const MIN_WAIT_MS = 1000;
  * paragraph saying what just happened. The numbers, the timeline and the precise claim sit under
  * "Technical details", closed.
  *
- * A finished image is never lost by leaving the page: the address becomes /portrait?p=<digest>, and
+ * A finished image is never lost by leaving the page: the address becomes /painting?p=<digest>, and
  * that address rebuilds the same image from its proof (restoreArtImage), byte for byte.
  */
 export function ArtMaker({ children }: { children?: ReactNode } = {}) {
@@ -113,7 +113,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     return buildPromise.current;
   }, []);
 
-  // Coming back: /portrait?p=<digest> rebuilds the recorded image from its proof.
+  // Coming back: /painting?p=<digest> rebuilds the recorded image from its proof.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("p");
     if (!p) return;
@@ -128,7 +128,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           const m = item.proof ? await restoreArtImage(item.proof as never, { recordedMs: recordedMsOf(item.proof), onTry: (a) => { if (!cancelled) setPainting(a === ART_ALGORITHM_V15); } }) : null;
           if (m && !cancelled) { setMade(m); setRestored(!madeHere(urlSafe(m.digestB64))); setShown(true); void buildDownload(m); return; }
         }
-        if (!cancelled) { setError({ message: "That portrait could not be found. Draw a new one below.", recorded: false }); window.history.replaceState(null, "", "/portrait"); }
+        if (!cancelled) { setError({ message: "That painting could not be found. Make a new one below.", recorded: false }); window.history.replaceState(null, "", "/painting"); }
       } catch {
         if (!cancelled) setError({ message: "That image could not be opened right now. Try reloading the page.", recorded: false });
       } finally {
@@ -149,7 +149,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
     window.clearTimeout(showTimer.current);
     startedAt.current = performance.now();
     buildPromise.current = null;
-    window.history.replaceState(null, "", "/portrait");
+    window.history.replaceState(null, "", "/painting");
     setError(null); setMade(null); setShown(false); setRestored(false); setBuilt(null); setFailedAt(-1);
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
@@ -158,7 +158,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       });
       setMade(r);
       // The address now opens this image again, so leaving the page loses nothing.
-      window.history.replaceState(null, "", `/portrait?p=${urlSafe(r.digestB64)}`);
+      window.history.replaceState(null, "", `/painting?p=${urlSafe(r.digestB64)}`);
       rememberMade(urlSafe(r.digestB64));
       void buildDownload(r); // ready the download and the Base block in the background
       showTimer.current = window.setTimeout(() => setShown(true), Math.max(0, MIN_WAIT_MS - (performance.now() - startedAt.current)));
@@ -212,6 +212,9 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
   const running = stage !== null && !shown && failedAt < 0;
   const recordedMs = made ? recordedMsOf(made.proof) : null;
   const counter = made ? n(made.proof.commit.counter ?? 0) : "";
+  // What the recorded picture is, so a reopened older record reads right: portraits (versions 11 to 14),
+  // paintings (15 on), images before that (Mike, 2026-10-09).
+  const noun = !made ? "painting" : /^bitgraph-art\/(1[1-4])$/.test(made.manifest.algorithm) ? "portrait" : /^bitgraph-art\/([1-9]|10)$/.test(made.manifest.algorithm) ? "image" : "painting";
 
   return (
     <div className={`art${shown ? " is-active" : ""}`}>
@@ -223,7 +226,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
       <div className={`art-hero art-go-wrap${running || shown || restoring ? " is-away" : ""}`}>
         <div className="art-hero-inner">
           <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running}>
-            {failedAt >= 0 ? "Try again" : "Draw a BitGraph portrait"}
+            {failedAt >= 0 ? "Try again" : "Make a BitGraph painting"}
           </button>
         </div>
       </div>
@@ -254,14 +257,14 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           </div>
           {/* The caption under the image (Mike, 10-06: "it should caption under image"). */}
           <p className="art-explain art-explain-one art-caption">{/* Mike, 10-06: "The proof for this image began before the image existed."; "the bits" from 10-07. Accurate: the position (the
-                      proof's start) is opened and signed before the image is drawn; the signed record comes after. */}The proof for this portrait began before the bits existed. It&rsquo;s an original: no one could have made it before your click, and no click will ever make it&nbsp;again.</p>
+                      proof's start) is opened and signed before the image is drawn; the signed record comes after. */}The proof for this {noun} began before the bits existed. It&rsquo;s an original: no one could have made it before your click, and no click will ever make it&nbsp;again.</p>
           {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
               was drawn from a code; the code itself is under Technical details (Commitment). */}
           <div className="actions art-actions">
             {/* The next draw is the page's main action (Mike, 2026-10-08: "should draw another person be more distinctive"):
                 the one blue button, first; the download is outlined with the rest. */}
-            <button type="button" className="bg-action-link is-make" onClick={create}>Draw another person</button>
-            <button type="button" className="bg-action-link" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download portrait, proof inside"}</button>
+            <button type="button" className="bg-action-link is-make" onClick={create}>Make another painting</button>
+            <button type="button" className="bg-action-link" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : `Download ${noun}, proof inside`}</button>
             {/* For print (Mike, 10-06: "4 stacked buttons now 2 and 2 with one new one being the high res
                 download for printing"): the same image redrawn at 4096 x 4096 from its code. */}
             {/* Copy proof link in place of Download for print (Mike, 2026-10-08: "proof pages are what ill share"): the
