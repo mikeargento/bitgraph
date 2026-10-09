@@ -7,7 +7,7 @@
 
 ---
 
-**Position commitment for AI automation.**
+**Position commitment for all computing.**
 
 BitGraph begins the proof before the bits arrive, so their position cannot be chosen afterward.
 
