@@ -248,7 +248,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           </div>
           {/* The caption under the image (Mike, 10-06: "it should caption under image"). */}
           <p className="art-explain art-explain-one art-caption">{/* Mike, 10-06: "The proof for this image began before the image existed."; "the bits" from 10-07. Accurate: the position (the
-                      proof's start) is opened and signed before the image is drawn; the signed record comes after. */}The proof for this portrait began before the bits&nbsp;existed.</p>
+                      proof's start) is opened and signed before the image is drawn; the signed record comes after. */}The proof for this portrait began before the bits existed. It&rsquo;s an original: no one could have made it before your click, and no click will ever make it&nbsp;again.</p>
           {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
               was drawn from a code; the code itself is under Technical details (Commitment). */}
           <div className="actions art-actions">
