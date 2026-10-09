@@ -252,14 +252,16 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
           {/* No code under the image (Mike, 10-06: "do they need to know this?"): the paragraph says it
               was drawn from a code; the code itself is under Technical details (Commitment). */}
           <div className="actions art-actions">
-            <button type="button" className="bg-action-link is-make" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download portrait, proof inside"}</button>
+            {/* The next draw is the page's main action (Mike, 2026-10-08: "should draw another person be more distinctive"):
+                the one blue button, first; the download is outlined with the rest. */}
+            <button type="button" className="bg-action-link is-make" onClick={create}>Draw another person</button>
+            <button type="button" className="bg-action-link" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : "Download portrait, proof inside"}</button>
             {/* For print (Mike, 10-06: "4 stacked buttons now 2 and 2 with one new one being the high res
                 download for printing"): the same image redrawn at 4096 x 4096 from its code. */}
             {/* Copy proof link in place of Download for print (Mike, 2026-10-08: "proof pages are what ill share"): the
                 reprint moved to the proof page, where anyone holding the link can make it. */}
             <button type="button" className="bg-action-link" onClick={copyProofLink}>{copied ? "Proof link copied" : "Copy proof link"}</button>
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>
-            <button type="button" className="bg-action-link" onClick={create}>Draw another person</button>
           </div>
 
           <details className="art-details">
