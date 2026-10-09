@@ -36,7 +36,16 @@
  *    the neck (a frontal head hides it); one over a shoulder passes behind the neck's base and the torso's top, comes
  *    over the near shoulder clear of the neck and lies on the chest below the collarbone.
  *  - The tail's edge is the hair's soft outline (lighter and lost in places), not a hard line; the strands carry the
- *    form; it tapers to a fine point and ends in loose strands, never a blunt end.
+ *    form; it tapers to a fine point and ends in loose strands, never a blunt end. A single braid over the shoulder
+ *    takes the same way.
+ *
+ * The neck (operator: "kind of a wide neck", a straight column nearly as wide as the jaw, the head on a pillar): its
+ * radius is set at draw time (neckRe in makeModel), the plan's thickness placing it at 0.62 to 0.75 of the face's
+ * half-width at the jaw angle for an adult (0.6 to 0.68 for the youngest child), never over 0.8; it narrows a little
+ * under the jaw and widens toward the shoulders on gentle curves (neckAt). The fillet, the collars and the turtleneck
+ * follow the narrower neck, and the tails hang against its back. The jaw's underside shades the neck in a band just
+ * under it, deeper on the shadow side; on a turned head a light line on the shadow side runs from behind the ear toward
+ * the collarbone (the sternocleidomastoid).
  *
  * From bitgraph-art/13 (2026-10-08), engraved portraits, smoothed. Version 12's engraving is the base; version 13
  * changes:
@@ -794,6 +803,15 @@ function makeModel(P: V14Plan) {
     if ((P.hair === H_LONG || P.hair === H_LONG_LOOSE || P.hair === H_LONG_SWEPT) && v > P.e) h = mq(h, Q + mq(Q_0_3, smQ(v - P.e)));
     return Q_0_004 + mq(h, Q_0_06 + mq(Q_0_94, edge));
   };
+  // ---- version 14: the neck's radius at draw time (operator: "kind of a wide neck", a pillar as wide as the jaw). The
+  // plan's thickness sets where it falls in a range of the face's half-width at the jaw angle: 0.62 to 0.75 for an
+  // adult, 0.6 to 0.68 for the youngest child, never over 0.8 (the plan is unchanged)
+  const jawHalf = width(P.jawV);
+  const tNeck = clampQ(P.ageT < Q ? dq(P.neckR - q(0.38), q(0.16)) : dq(P.neckR - q(0.42), q(0.38)));
+  const kNeck = Math.min(q(0.8), lerpQ(q(0.6) + mq(q(0.08), tNeck), q(0.62) + mq(q(0.13), tNeck), P.ageT));
+  const neckRe = mq(jawHalf, kNeck);
+  /** The neck's radius at v: a little in under the jaw, widening toward the shoulders (its sides gentle curves). */
+  const neckAt = (v: number): number => mq(neckRe, Q - mq(Q_0_05, gexp(dq(v - P.chin - Q_0_06, Q_0_12))) + mq(q(0.14), smQ(dq(v - P.chin, q(0.65)))));
   // ---- version 14: the ear, from the template (EAR_*) and the plan's ear parameters (the plan is unchanged)
   const youth = clampQ(Q - P.ageT); // 1 for the youngest child, 0 from adulthood
   /** The ear's height: the plan's length x 1.15, a child's smaller. */
@@ -866,7 +884,7 @@ function makeModel(P: V14Plan) {
     if (Rh > 0 && Rs > 0 && r > Rs) return mq(q(0.28) + mq(q(0.14), dq(r - Rs, Math.max(Rh - Rs, 64))), Q - smQ(dq(y - q(0.6), q(0.14)))); // fading out above the lobe
     return mq(q(0.26), g2(x - q(0.27), y - q(0.18), q(0.075), q(0.035)));
   };
-  return { vCap, capA, width, dFront, dBack, rowOf, sliceZ, features, basePoint: (th: number, row: Row) => basePoint(th, row), headPoint, frontZ, hairLine, scalpV, hairAt, hairThick, foldPhase, vm, Lw, browV: browVE, eyeU, ew, uh, lh, kE, eyeR, zcEye, irisA, pupilA, inOpen, lidShade, basisOf, capDir, openAt, gEye: (side: number, k = 0): V3 => { const g = side < 0 ? GL : GR, c = centreOf(side); return k === 0 ? g : norm3([g[0] * (8 - k) + c[0] * k, g[1] * (8 - k) + c[1] * k, g[2] * (8 - k) + c[2] * k]); }, hiOf, upF, loF, eyeC, eyeS, napeV, sideStart, earH, earTop, earBot, earPlane, earPt, earRelief, earTone, conchaRho, earN: (side: number): V3 => [side * cPsi, 0, sPsi], earPsiS: sPsi, get bX() { return bX; }, get bZ() { return bZ; }, get bC() { return bC; } };
+  return { vCap, capA, width, dFront, dBack, rowOf, sliceZ, features, basePoint: (th: number, row: Row) => basePoint(th, row), headPoint, frontZ, hairLine, scalpV, hairAt, hairThick, foldPhase, vm, Lw, browV: browVE, eyeU, ew, uh, lh, kE, eyeR, zcEye, irisA, pupilA, inOpen, lidShade, basisOf, capDir, openAt, gEye: (side: number, k = 0): V3 => { const g = side < 0 ? GL : GR, c = centreOf(side); return k === 0 ? g : norm3([g[0] * (8 - k) + c[0] * k, g[1] * (8 - k) + c[1] * k, g[2] * (8 - k) + c[2] * k]); }, hiOf, upF, loF, eyeC, eyeS, napeV, sideStart, jawHalf, neckRe, neckAt, earH, earTop, earBot, earPlane, earPt, earRelief, earTone, conchaRho, earN: (side: number): V3 => [side * cPsi, 0, sPsi], earPsiS: sPsi, get bX() { return bX; }, get bZ() { return bZ; }, get bC() { return bC; } };
 }
 type Model = ReturnType<typeof makeModel>;
 
@@ -887,7 +905,7 @@ class Field {
   readonly hd2 = new Uint16Array(FW * FH);
   /** Stage two: the plane's crossing direction (whole steps, undirected 0..511) for the core shadow's second layer. */
   readonly pd = new Uint16Array(FW * FH);
-  /** Version 14: 1 where the nearest surface is a ponytail's hanging mass (its edge is the hair's soft outline). */
+  /** Version 14: which surface is nearest: 1 a ponytail's hanging mass (its edge is the hair's soft outline), 2 the neck, 3 the head. */
   readonly tail = new Uint8Array(FW * FH);
   /** Version 14, for the ponytail test only: the nearest neck or lower-face (jaw) depth at each pixel, whatever is in front of it. */
   zNJ: Int32Array | null = null;
@@ -971,22 +989,25 @@ const hypotQ = (a: number, b: number): number => isqrt(a * a + b * b);
  *    the neck: a strap down the side of the neck, in front of the jaw.)
  * len is the curve's length, roughly, for the splat's density.
  */
-interface PonyPath { pts: V3[]; body: boolean; len: number; start: number; taper: number }
+interface PonyPath { pts: V3[]; body: boolean; braid: boolean; len: number; start: number; taper: number }
 function ponyPath(P: V14Plan, M: Model): PonyPath | null {
-  if (!isPony(P.hair)) return null;
-  const t = tieOf(P, M), w = P.ponyW, side = P.hair === H_PONY_SHOULDER ? nearSide(P) : absI(P.yaw) > degA(Q_15) ? sgn(P.yaw) : P.sweptSide, dN = P.backDepth;
-  const shV = P.chin + P.neckLen, endV = shV + Q_0_5 + mq(P.ponyLen, Q_0_9); // over a shoulder it hangs the length of the plan's tail
+  // a single braid over the shoulder takes the same way as a tail over one shoulder (version 13's lay across the front
+  // of the narrower neck); down the back it stays version 13's
+  const braid = P.hair === H_BRAID_ONE && !P.braidBack;
+  if (!isPony(P.hair) && !braid) return null;
+  const t: V3 = braid ? [nearSide(P) * Q_0_3, M.napeV - Q_0_1, QN_0_4] : tieOf(P, M), w = braid ? Q_0_1 : P.ponyW, side = braid || P.hair === H_PONY_SHOULDER ? nearSide(P) : absI(P.yaw) > degA(Q_15) ? sgn(P.yaw) : P.sweptSide, dN = P.backDepth;
+  const shV = P.chin + P.neckLen, endV = braid ? shV + Q_1_3 : shV + Q_0_5 + mq(P.ponyLen, Q_0_9); // over a shoulder it hangs the length of the plan's tail
   let pts: V3[];
   // below the nape a hanging tail lies against the back of the neck (version 13 hung it a skull's depth behind: a gap of
   // ground between the neck and the tail on a turned head)
-  const neckBack = QN_0_1 - Q_0_12 - mq(P.neckR, Q_1_12);
+  const neckBack = QN_0_1 - Q_0_12 - mq(M.neckRe, Q_1_12);
   if (P.hair === H_PONY_HIGH) {
     const top = -P.craniumH - mq(P.ht, Q_0_5);
     pts = [t, [0, top + mq(w, Q_0_3), t[2] - Q_0_35], [side * Q_0_06, M.napeV - Q_0_1, -(dN + Q_0_3 + (w >> 1))], [side * Q_0_12, M.napeV + Q_0_35 + mq(P.ponyLen, Q_0_6), neckBack - mq(w, Q_0_7) - Q_0_08]];
   } else if (P.hair === H_PONY_LOW) {
     pts = [t, [0, t[1] + Q_0_3, neckBack - mq(w, Q_0_55)], [side * Q_0_08, t[1] + Q_0_3 + mq(P.ponyLen, Q_0_6), neckBack - mq(w, Q_0_6)]];
   } else {
-    const fil = filletOf(P, shV), uS = fil.u1 + mq(w, Q_0_9), vT = torsoTop(P, shV, uS), rN = fil.rb;
+    const fil = filletOf(P, shV, M.neckRe), uS = fil.u1 + mq(w, Q_0_9), vT = torsoTop(P, shV, uS), rN = fil.rb;
     const vC = shV + Q_0_4, uC = uS - mq(w, Q_0_2), uD = uS - mq(w, Q_0_45);
     const u2 = mq(uS, Q_0_8);
     // it comes round from behind under the shoulder's top edge (hidden there by the torso) and shows from the shoulder line
@@ -997,8 +1018,8 @@ function ponyPath(P: V14Plan, M: Model): PonyPath | null {
   }
   let len = 0;
   for (let i = 1; i < pts.length; i++) { const a = pts[i - 1]!, b = pts[i]!; len += isqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]) + (b[2] - a[2]) * (b[2] - a[2])); }
-  const body = P.hair === H_PONY_SHOULDER;
-  return { pts, body, len: len + Q_0_3, start: body ? q(0.6) : 0, taper: body ? q(0.8) : Q_0_15 };
+  const body = P.hair === H_PONY_SHOULDER || braid;
+  return { pts, body, braid, len: len + Q_0_3, start: body ? q(0.6) : 0, taper: body ? q(0.8) : Q_0_15 };
 }
 /** A tail's radius along it (Q16 of the plan's width): gathered at the tie (or, over a shoulder, narrow where it comes
  *  into view at `start`), swelling, then from `taper` on narrowing to a fine point (version 13 ended it at a quarter of
@@ -1093,7 +1114,7 @@ function buildField(P: V14Plan, M: Model, pose: Pose): Field {
         setDir(mq(dq(fDu, w), dTh) * 256, mq(fDv, dV) * 256);
       }
       return true;
-    }, true);
+    }, true, 3);
   }
   // ---- hair (an offset surface), the fall of the long styles, buns, a single braid; or a wrap
   {
@@ -1202,10 +1223,7 @@ function buildField(P: V14Plan, M: Model, pose: Pose): Field {
     // behind the ears down the front of the shoulders
     const braids: Array<[V3, V3, V3]> = [];
     const shV0 = P.chin + P.neckLen, nV0 = M.napeV;
-    if (hair === H_BRAID_ONE) {
-      const side = nearSide(P);
-      braids.push(P.braidBack ? [[0, nV0 - Q_0_15, QN_0_45], [0, nV0 + Q_0_6, QN_0_55], [0, nV0 + Q_1_4, QN_0_6]] : [[side * Q_0_3, nV0 - Q_0_1, QN_0_4], [side * Q_0_85, shV0 - Q_0_1, Q_0_15], [side * Q_0_55, shV0 + Q_1_3, Q_0_75]]);
-    }
+    if (hair === H_BRAID_ONE && P.braidBack) braids.push([[0, nV0 - Q_0_15, QN_0_45], [0, nV0 + Q_0_6, QN_0_55], [0, nV0 + Q_1_4, QN_0_6]]); // over the shoulder: ponyPath()
     if (hair === H_BRAIDS) for (const side of [-1, 1]) braids.push([[side * Q_0_95, P.e + Q_0_2, QN_0_15], [side * Q_0_95, P.chin + Q_0_25, Q_0_3], [side * Q_0_7, P.chin + Q_1_3, Q_0_75]]);
     for (const [p0, p1, p2] of braids) { // braids as version 13 (the ponytails are drawn along their own paths below)
       const r = hair === H_BRAIDS ? Q_0_085 : Q_0_1;
@@ -1225,21 +1243,23 @@ function buildField(P: V14Plan, M: Model, pose: Pose): Field {
     // edge takes the hair's soft outline
     const pp = ponyPath(P, M);
     if (pp) {
-      const r = P.ponyW, nA = cdiv(mq(mq(Q_9_1106, r), RU), 64) + 6, nB = cdiv(mq(pp.len, RU) * C145, 6400) + 2;
-      let rowJ = -1, rr = 0;
+      const r = pp.braid ? Q_0_1 : P.ponyW, nA = cdiv(mq(mq(Q_9_1106, r), RU), 64) + 6, nB = cdiv(mq(pp.len, RU) * C145, 6400) + 2;
+      let rowJ = -1, rr = 0, ph = 0;
       splat(F, nA, nB, (i, j) => {
         const a = idiv(A16 * i, nA), s = idiv(Q * j, nB - 1);
         if (j !== rowJ) { // the path's point and frame once a row
-          rowJ = j; rr = mq(r, ponyG(pp, s)) + Q_0_01;
+          rowJ = j; ph = sinF(a16Of(mq(s, 40 * Q))) * 4;
+          rr = pp.braid ? mq(r, (s < pp.start ? Q_0_6 : Q) + mq(Q_0_15, ph)) : mq(r, ponyG(pp, s)) + Q_0_01;
           ponyAt(pp, s);
           if (pp.body && s >= pp.start - Q_0_05) { const zMin = torsoZ(P, shV0, pX, pY) + mq(rr, Q_0_8); if (pZ < zMin) pZ = zMin; } // on the chest, never into it
         }
         const ca = cosF(a) * 4, sa = sinF(a) * 4;
         (pp.body ? xfBody : xf)(pX + mq(rr, mq(pN1[0], ca) + mq(pN2[0], sa)), pY + mq(rr, mq(pN1[1], ca) + mq(pN2[1], sa)), pZ + mq(rr, mq(pN1[2], ca) + mq(pN2[2], sa)));
         sX = tX; sY = tY; sZ = tZ; sReg = HAIR; sEx = 0;
-        setDir(mq(Q_0_18, nq(mq(s, 24 * Q), mq(radQ(a), 3 * Q), 4 * Q, P.salt + 7)), Q);
+        if (pp.braid) setDir(sgn(ca) * sgn(ph) * Q_0_7, Q);
+        else setDir(mq(Q_0_18, nq(mq(s, 24 * Q), mq(radQ(a), 3 * Q), 4 * Q, P.salt + 7)), Q);
         return true;
-      }, true, 1);
+      }, true, pp.braid ? 0 : 1);
     }
   }
   // ---- ears
@@ -1264,14 +1284,14 @@ function buildField(P: V14Plan, M: Model, pose: Pose): Field {
   // Version 13: the neck runs into the shoulders on a fillet (the torso's top edge leaves the neck's side upright and
   // curves out to the shoulder line), so there is no straight seam and no right angle; the neck stops on that edge;
   // a collar swells a little off the neck and its top edge runs round it (lower in front), never a level block.
-  const shV = P.chin + P.neckLen, gar = P.garment, neckline = necklineOf(P, shV), fil = filletOf(P, shV);
+  const shV = P.chin + P.neckLen, gar = P.garment, neckline = necklineOf(P, shV), fil = filletOf(P, shV, M.neckRe);
   {
     const v0 = P.e + Q_0_45, v1 = shV + Q_0_7, zc0 = QN_0_1;
-    const nA = cdiv(mq(mq(Q_9_1106, P.neckR), RU), 64), nB = cdiv(mq(v1 - v0, RU) * C145, 6400);
+    const nA = cdiv(mq(mq(Q_9_1106, M.neckRe), RU), 64), nB = cdiv(mq(v1 - v0, RU) * C145, 6400);
     const turtleV = P.chin + Q_0_1, highV = P.chin + Q_0_22;
     splat(F, nA, nB, (i, j) => {
       const a = idiv(A16 * i, nA), v = v0 + idiv((v1 - v0) * j, nB - 1), ca = cosF(a) * 4, sa = sinF(a) * 4;
-      const r0 = mq(P.neckR, Q + mq(Q_0_12, smQ(dq(v - P.chin, Q_0_6)))), zc = zc0 - mq(Q_0_12, smQ(dq(v - P.chin, Q_0_8)));
+      const r0 = M.neckAt(v), zc = zc0 - mq(Q_0_12, smQ(dq(v - P.chin, Q_0_8)));
       let region = SKIN, off = 0;
       if (gar === G_TURTLE) { const t0 = turtleV + mq(Q_0_05, ca); if (v > t0) { region = GARM; off = mq(Q_0_06, smQ(dq(v - t0, Q_0_08))); } }
       else if (gar === G_HIGH) { const t0 = highV + mq(Q_0_08, ca); if (v > t0) { region = GARM2; off = mq(Q_0_04, smQ(dq(v - t0, Q_0_06))); } }
@@ -1287,7 +1307,7 @@ function buildField(P: V14Plan, M: Model, pose: Pose): Field {
       xfBody(px, v, pz);
       sX = tX; sY = tY; sZ = tZ; sReg = region; sEx = 0; sDir = 0; sNJ = 1;
       return true;
-    }, true);
+    }, true, 2);
   }
   // ---- torso: an elliptical cylinder whose top edge is the shoulder line, rounded into the neck on the fillet
   {
@@ -1310,7 +1330,7 @@ function buildField(P: V14Plan, M: Model, pose: Pose): Field {
       // version 13: round the neck's base the chest rises to the neck's front, then eases into the chest's own roll
       // (the neck used to stand in front of a sunken chest top: a block where the collar met the neck)
       { // the neck's own radius and axis at this height (as the neck's splat has them), a hair in front of it
-        const rN = mq(P.neckR, Q + mq(Q_0_12, smQ(dq(v - P.chin, Q_0_6))));
+        const rN = M.neckAt(v);
         if (au < rN) { const zb = QN_0_1 - mq(Q_0_12, smQ(dq(v - P.chin, Q_0_8))) + sqrtQ(sq(rN) - sq(u)) + Q_0_01, bl = Q - smQ(dq(v - vT, Q_0_4)); if (zb > z && bl > 0) z += mq(zb - z, bl); }
       }
       let region = GARM;
@@ -1513,6 +1533,18 @@ function shadeField(P: V14Plan, F: Field, pose: Pose): void {
         else if (run >= 0 && (r === GARM || r === GARM2)) run++;
         else run = -1;
         if (run >= 0 && run < 16) F.tone[q0] = Math.min(4095, F.tone[q0]! + idiv((16 - run) * 1500, 16));
+      }
+    }
+    // version 14: the jaw's shadow on the neck, a darker band just under the jaw line and following it (the first field
+    // pixels of neck below the head in each column), deeper on the shadow side; it is what parts the head from the neck
+    for (let x = 0; x < FW; x++) {
+      let run = -1;
+      for (let y = 1; y < FH; y++) {
+        const q0 = y * FW + x, ra = F.reg[q0 - FW];
+        if (F.tail[q0] === 2 && F.reg[q0] === SKIN && F.tail[q0 - FW] !== 2 && (ra === SKIN || ra === BEARD)) run = 0;
+        else if (run >= 0 && F.tail[q0] === 2 && F.reg[q0] === SKIN) run++;
+        else run = -1;
+        if (run >= 0 && run < 14) F.tone[q0] = Math.min(4095, F.tone[q0]! + idiv(idiv((14 - run) * 1230, 14) * (Q_0_55 + mq(Q_0_45, Q - F.shade[q0]!)), Q));
       }
     }
     const cast = ((P.salt >>> 20) & 3) === 0, L = lightDir(P), Lh = hypotQ(L[0], L[1]) || 1;
@@ -1741,8 +1773,8 @@ function hatch(P: V14Plan, F: Field, prims: Prims, inv: boolean): void {
  * neck's side upright at rb and meets the shoulder line level at u1, so the neck's side and the shoulder are one
  * curve; inside rb it is the shoulder line (behind the neck), outside u1 the shoulder line itself.
  */
-function filletOf(P: V14Plan, shV: number): { rb: number; u1: number; top: (au: number) => number } {
-  const rf = Q_0_35, rb = mq(P.neckR, Q_1_12), u1 = rb + rf, vJ = torsoTop(P, shV, u1), vc = vJ - rf, rf2 = mq(rf, rf);
+function filletOf(P: V14Plan, shV: number, neckR: number): { rb: number; u1: number; top: (au: number) => number } {
+  const rf = Q_0_35, rb = mq(neckR, Q_1_12), u1 = rb + rf, vJ = torsoTop(P, shV, u1), vc = vJ - rf, rf2 = mq(rf, rf);
   const top = (au: number): number => { const t0 = torsoTop(P, shV, au); if (au >= u1) return t0; const c = au <= rb ? vc : vc + sqrtQ(rf2 - sq(au - u1)); return c > t0 ? c : t0; };
   return { rb, u1, top };
 }
@@ -1813,7 +1845,7 @@ function contours(P: V14Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
         if (absI(d - slope) > (ra === HAIR ? Q_0_3 : Q_0_09)) w = Q_0_75;
       }
       if (!w) continue;
-      if (F.tail[q0] || F.tail[r]) { if (nq(x, y, 9, P.salt + 73) > QN_0_1) continue; w = mq(w, Q_0_45); } // version 14: a tail's edge is the hair's soft outline, lost in places
+      if (F.tail[q0] === 1 || F.tail[r] === 1) { if (nq(x, y, 9, P.salt + 73) > QN_0_1) continue; w = mq(w, Q_0_45); } // version 14: a tail's edge is the hair's soft outline, lost in places
       const near = F.z[q0]! > F.z[r]! ? q0 : r, sh = F.reg[near] === BG ? Q_0_5 : F.shade[near]!;
       if (F.reg[near] === EAR && (ra === EAR) !== (rb === EAR)) continue; // version 14: the ear's own contour is drawn from its geometry (ear())
       const found = mq(kU(mq(w, wm)), Q_0_6 + (Q - sh)), lit = smQ(dq(sh - Q_0_55, Q_0_35));
@@ -2245,9 +2277,22 @@ function contours(P: V14Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
     }
   }
   if (!inv) strays(P, F, pose, drawPlaced);
+  // version 14: on a turned head, the sternocleidomastoid's line on the neck's shadow side, a light line from behind the
+  // ear down and forward toward the collarbone's inner end
+  if (absI(P.yaw) > degA(Q_12)) {
+    const side = -P.lightSide, shV = P.chin + P.neckLen;
+    drawPlaced((t) => {
+      const v = lerpQ(P.chin - Q_0_02, shV + Q_0_05, t), a = degA(lerpQ(q(100), q(18), t)), r = M.neckAt(v), zc = QN_0_1 - mq(Q_0_12, smQ(dq(v - P.chin, Q_0_8)));
+      pose.xfBody(side * mq(r, sinF(a) * 4), v, zc + mq(r + Q_0_01, cosF(a) * 4));
+      const gx = tX >> 6, gy = tY >> 6;
+      if (gx < 0 || gy < 0 || gx >= FW || gy >= FH) return false;
+      const q0 = gy * FW + gx;
+      return F.reg[q0] === SKIN && F.tail[q0] === 2 && F.z[q0]! <= tZ + Q_0_03;
+    }, 28, q(0.14), q(0.26));
+  }
   // version 14: a ponytail ends in loose strands, fanning a little from the last fifth of it past its tip
   const pp = ponyPath(P, M);
-  if (pp) {
+  if (pp && !pp.braid) {
     for (let k = 0; k < 9; k++) {
       const h = hash2(k, 977, P.salt + 2213), s0 = Q - mq(Q - pp.taper, q(0.45)) + ((h & 255) * mq(Q - pp.taper, q(0.3)) >> 8), off = (((h >>> 8) & 255) - 128) * q(0.7) >> 7, a = ((h >>> 16) & 1023) * 16;
       const len = mq(P.ponyW, q(0.9) + (((h >>> 26) & 63) * q(0.9) >> 6)), curl = (((h >>> 20) & 63) - 32) * q(0.4) >> 5;
@@ -2613,7 +2658,7 @@ export function ponyV14(plan: V14Plan): { tail: number; bad: number; allowed: nu
   }
   let tail = 0, bad = 0, allowed = 0;
   for (let q0 = 0; q0 < FW * FH; q0++) {
-    if (!F.tail[q0] || F.reg[q0] !== HAIR) continue;
+    if (F.tail[q0] !== 1 || F.reg[q0] !== HAIR) continue;
     tail++;
     if (F.zNJ![q0]! <= ZFAR || F.z[q0]! <= F.zNJ![q0]! + Q_0_03) continue; // nothing of the neck or jaw here, or the tail is not in front of it (a grazing silhouette's sampling)
     const x = q0 % FW, y = (q0 - x) / FW;
@@ -2621,6 +2666,39 @@ export function ponyV14(plan: V14Plan): { tail: number; bad: number; allowed: nu
     else bad++;
   }
   return { tail, bad, allowed };
+}
+/** Version 14: the neck against the face (for the neck test), on the page: the neck's width in the six field rows just
+ *  below the chin (their median; the run of neck pixels through the neck's axis) over the head's width in the row of the jaw's angle (the
+ *  run of head pixels through the face's midline; hair, a beard or a collar over the neck's sides shortens it), and the
+ *  same ratio in the model (the neck's diameter just below the chin over the face's width at the jaw angle), and
+ *  version 13's model ratio for the same plan. */
+export function neckV14(plan: V14Plan): { page: number; model: number; v13: number } {
+  const M = makeModel(plan), pose = makePose(plan), F = buildField(plan, M, pose);
+  /** The run in row y of pixels marked `mark` (or `also`, a speck of the chin in the neck's row) through the pixel
+   *  marked `mark` nearest x0 (within 8). */
+  const run = (y: number, x0: number, mark: number, also: number): number => {
+    if (y < 0 || y >= FH) return 0;
+    let c = -1;
+    for (let d = 0; d <= 8 && c < 0; d++) for (const x of [x0 - d, x0 + d]) if (c < 0 && x >= 0 && x < FW && F.tail[y * FW + x] === mark) c = x;
+    if (c < 0) return 0;
+    const ok = (x: number): boolean => { const m = F.tail[y * FW + x]; return m === mark || m === also; };
+    let a = c, b = c;
+    while (a > 0 && ok(a - 1)) a--;
+    while (b < FW - 1 && ok(b + 1)) b++;
+    return b - a + 1;
+  };
+  pose.xf(0, plan.chin + Q_0_02, M.dFront(plan.chin)); const yChin = tY >> 6;
+  pose.xfBody(0, plan.chin + Q_0_1, QN_0_1); const xNeck = tX >> 6;
+  pose.xf(-M.jawHalf, plan.jawV, 0); const ya = tY; pose.xf(M.jawHalf, plan.jawV, 0);
+  pose.xf(0, plan.jawV, M.dFront(plan.jawV)); const xMid = tX >> 6;
+  const yJaw = ((ya + tY) >> 1) >> 6;
+  let yN = yChin;
+  while (yN < Math.min(FH - 6, yChin + 24) && run(yN, xNeck, 2, 3) === 0) yN++; // the first row of neck below the chin
+  const rows: number[] = [];
+  for (let y = yN; y < yN + 6; y++) rows.push(run(y, xNeck, 2, 3));
+  rows.sort((a, b) => a - b);
+  const neck = rows[3]!, face = run(yJaw, xMid, 3, 3); // the median of six rows (a collar or hair may cut one)
+  return { page: face ? neck / face : 0, model: dq(M.neckAt(plan.chin + Q_0_06), M.jawHalf) / Q, v13: dq(mq(plan.neckR, Q + mq(Q_0_12, smQ(dq(Q_0_06, Q_0_6)))), M.jawHalf) / Q };
 }
 /** The pupils drawn for a plan, one entry for each eye that shows: 1 a whole disc, 2 a disc cut by something in front of it (for the eye test). */
 export function pupilsV14(plan: V14Plan): number[] {

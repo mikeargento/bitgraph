@@ -1,12 +1,13 @@
-// bitgraph-art/14 (2026-10-08): version 13 with anatomical ears and ponytails that stay behind the neck: version 11's
+// bitgraph-art/14 (2026-10-08): version 13 with anatomical ears, ponytails that stay behind the neck and a narrower neck: version 11's
 // person for the same code (the same plan), square, 2400 x 2400, the code in 256 reading pixels as versions 8 to 13
 // carry it (with the centre snap). Pinned, read back from the art alone, printable, fast, no staircases, every pupil,
-// ears that are not ovals and carry their structure, no ponytail in front of the neck or jaw; and the default.
+// ears that are not ovals and carry their structure, no ponytail in front of the neck or jaw, no pillar of a neck;
+// and the default.
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import { ART_ALGORITHM, ART_ALGORITHM_V14, ART_ALGORITHMS, artRecipe, artSize, checkArt, makeArt, recipeJson, toBase64Url, toHex } from "../commitment-art.ts";
-import { PALETTES_V14, TWINS_V14, HAIR_NAMES_V14, EXPRESSION_NAMES_V14, PALETTE_NAMES_V14, decodeV14, earsV14, outlinesV14, planV14, ponyV14, pupilsV14, renderV14, renderV14At, V14_HEIGHT, V14_WIDTH } from "../commitment-art-v14.ts";
+import { PALETTES_V14, TWINS_V14, HAIR_NAMES_V14, EXPRESSION_NAMES_V14, PALETTE_NAMES_V14, decodeV14, earsV14, neckV14, outlinesV14, planV14, ponyV14, pupilsV14, renderV14, renderV14At, V14_HEIGHT, V14_WIDTH } from "../commitment-art-v14.ts";
 import { planV11 } from "../commitment-art-v11.ts";
 import { PRINTABLE, drawPrint, printSizeOf } from "../art-print.ts";
 
@@ -138,7 +139,7 @@ test("version 14: every portrait has its pupils (200 codes): two whole discs wit
  * curve turns one way and gently. The score is zigzags per 100 field pixels of outline.
  *   Measured over the ten people below (2026-10-08): version 12's outlines (its stamps joined over the dual grid at
  *   the pixel edges' midpoints, two passes of smoothing, as it draws them) 15.1; version 13's 0.02; version 14's
- *   0.019 (its ears drawn analytically, their field edges dropped). The bar: 1.0 over all ten, 2.0 for any one.
+ *   0.038 (its ears drawn analytically, their field edges dropped; the narrower neck's curves). The bar: 1.0 over all ten, 2.0 for any one.
  */
 function staircase(lines: number[][]): { per100: number; cells: number } {
   const C = 64, step = C / 2, TH = (10 * Math.PI) / 180;
@@ -274,5 +275,29 @@ test("version 14: no ponytail lies in front of the neck or the jaw, but over one
   assert.ok(tails >= 10 && shown > 0, `${tails} ponytails seen`);
 });
 
-const PINNED_PIXELS_V14 = "78f4bc4896f341f2ee517ad9fca4138c128a2123e7991d5cd0d1c4fecd55e4ba";
-const PINNED_PNG_V14 = "dcc75072c10c1b77f49e83113b97389840d669f52a0dbcbd1f523f67ce23d18a";
+test("version 14: the neck is narrower than the jaw, never a pillar (200 codes, every face within 45 degrees of frontal)", () => {
+  // Neck width just below the jaw over the face's width at the jaw angle. In the model (the neck's diameter just below
+  // the chin over the face's width at the jaw angle, the measure the drawing sets): 0.55 to 0.82 for every face within
+  // 45 degrees of frontal. On the page (field pixels: the median of the neck's runs in the six rows under the chin over
+  // the head's run in the row of the jaw angle), checked where nothing covers either row (within 15 degrees of frontal,
+  // no beard, no hair falling past the jaw, no turtleneck or high collar): 0.52 to 0.82.
+  // Measured 2026-10-08 on these codes: version 13's model ratio 0.42 to 1.47, median 0.80, 62 of 142 faces over 0.82
+  // (the pillar); version 14's 0.58 to 0.71, median 0.64; on the page 0.55 to 0.77 over the 25 uncovered faces.
+  const falls = new Set([4, 5, 6, 7, 10, 11, 16]);
+  let faces = 0, paged = 0;
+  for (let i = 0; i < 200; i++) {
+    const plan = planV14(code(`v14-neck/${i}`)), deg = Math.abs((plan.yaw * 360) / 16384);
+    if (deg > 45) continue;
+    const r = neckV14(plan);
+    faces++;
+    assert.ok(r.model >= 0.55 && r.model <= 0.82, `code ${i} (turned ${deg.toFixed(0)} degrees): model ratio ${r.model.toFixed(3)}`);
+    if (deg <= 15 && plan.beard === 0 && !falls.has(plan.hair) && plan.garment !== 3 && plan.garment !== 10) {
+      paged++;
+      assert.ok(r.page >= 0.52 && r.page <= 0.82, `code ${i}: page ratio ${r.page.toFixed(3)}`);
+    }
+  }
+  assert.ok(faces > 120 && paged >= 20, `${faces} faces, ${paged} measured on the page`);
+});
+
+const PINNED_PIXELS_V14 = "fbbea718af57fe5edcf2207ec9190b9eef5a7d966d8521dbf56d865e7ee2c55c";
+const PINNED_PNG_V14 = "9aee554e56a53c1fb11efe46a5a8b18baa7a4ee116f88a930fa08573a309eeae";
