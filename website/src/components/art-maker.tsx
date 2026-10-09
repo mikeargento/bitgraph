@@ -273,7 +273,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
             </ol>
             <div className="art-detail-parts">
               <h3>What it proves</h3>
-              <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier.</p>
+              <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier. That makes it original: it did not exist anywhere before that moment, and no later click will ever draw it again.</p>
               <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
               <h3>How it was drawn</h3>
               <p>{made.manifest.algorithm === "bitgraph-art/13"
@@ -298,7 +298,7 @@ export function ArtMaker({ children }: { children?: ReactNode } = {}) {
                 ? <>The picture spells the code. Each of its 256 tiles is one bit: the arcs turn one way for a 0 and the other for a 1, and join into one pattern. So two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>
                 : <>The picture spells the code. Each of its 36 cells carries 7 of the code&rsquo;s 256 bits, the palette and the frame carry the rest, so two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>} Anyone can redraw it and compare, pixel for pixel.</p>
               <h3>What it does not prove</h3>
-              <p>Who made it, whether it is original, or anything about the computer it was made on.</p>
+              <p>Who made it, or anything about the computer it was made on.</p>
               <h3>The numbers</h3>
             </div>
             <dl>
