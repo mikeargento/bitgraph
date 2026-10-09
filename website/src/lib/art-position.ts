@@ -20,7 +20,7 @@ import {
 import { FuseError } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
 import { commitInPosition, fuseVersionOfFloor, openPosition, type TreeTransport } from "./fuse-tree-make.ts";
-import { ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
+import { ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
 
 /** A position is good for 120 s; the image is recorded well inside that or not at all. */
 export const POSITION_TTL_MS = 120_000;
@@ -218,7 +218,7 @@ export async function redrawRecordedArt(proof: BitGraphProof): Promise<{ png: Ui
   if (!a || a.title !== "base64url" || (a.name !== inlineAttribution(2).name && a.name !== inlineAttribution(3).name) || !proof.slotAllocation) return null;
   let commitment: Uint8Array;
   try { commitment = commitmentForProof(proof, proof.slotAllocation); } catch { return null; }
-  for (const algorithm of [ART_ALGORITHM_V13, ART_ALGORITHM_V12, ART_ALGORITHM_V11, ART_ALGORITHM_V10, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V7, ART_ALGORITHM_V6, ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
+  for (const algorithm of [ART_ALGORITHM_V14, ART_ALGORITHM_V13, ART_ALGORITHM_V12, ART_ALGORITHM_V11, ART_ALGORITHM_V10, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V7, ART_ALGORITHM_V6, ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
     // Each drawing is a few hundred ms of main thread; yield between them so the page paints and
     // stays responsive while a record that is not an /image picture is ruled out (2026-10-07).
     await new Promise((r) => setTimeout(r, 0));

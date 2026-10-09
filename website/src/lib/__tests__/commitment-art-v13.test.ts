@@ -1,8 +1,8 @@
 // bitgraph-art/13 (2026-10-08): engraved portraits, square, 2400 x 2400: version 11's person for the same code
 // (the same plan), engraved as version 12 with the shadow edge faded in lines, every outline traced sub-pixel and
 // smoothed, the neck filleted into the shoulders; the code in 256 reading pixels as versions
-// 8 to 12 carry it (with the centre snap). Pinned, read back from the art alone, printable, fast, no staircases,
-// and the default.
+// 8 to 12 carry it (with the centre snap). Pinned, read back from the art alone, printable, fast, no staircases;
+// the default until version 14 (2026-10-08).
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
@@ -39,11 +39,10 @@ test("version 13 is pinned: this commitment's pixels and file never change, and 
   assert.equal(wrong.strip.result, "FALSE");
 });
 
-test("version 13 is registered and is the default: a new image is drawn with it (2026-10-08)", () => {
+test("version 13 stays registered and redraws old records, and is no longer the default (version 14, 2026-10-08)", () => {
   assert.ok(ART_ALGORITHMS.includes(ART_ALGORITHM_V13));
-  assert.equal(ART_ALGORITHM, "bitgraph-art/13");
+  assert.notEqual(ART_ALGORITHM, "bitgraph-art/13");
   assert.equal(artRecipe(C1, ART_ALGORITHM_V13).v13?.hair, planV13(C1).hair);
-  assert.equal(artRecipe(C1).algorithm, "bitgraph-art/13");
 });
 
 test("version 13 draws version 11's person: the plan is integer-only and equal to version 11's for the same code", () => {
