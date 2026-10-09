@@ -28,7 +28,6 @@ import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/fi
 import { redrawRecordedArt } from "@/lib/art-position";
 import { ART_ALGORITHM_V15 } from "@/lib/commitment-art";
 import { recordedMsOf } from "@/lib/recorded-time";
-import { ArtReprint } from "@/components/art-reprint";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpackSetMember, checkInline, isInlineProof, makeTreeHere, treeInputOf } from "@/lib/fuse-client";
 import { rebuildTreeFromFiles, rebuildMatches } from "@/lib/fuse-tree-make";
 import { recoverRows, treePositionKey } from "@/lib/recovery-fold";
@@ -1898,7 +1897,8 @@ export default function ProofPage() {
             </div>
           ) : isInterval ? null : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
             <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "drawn from the proof" : heldLabel}
-              actions={redrawn && redrawnAlgo ? <ArtReprint proof={proof as never} algorithm={redrawnAlgo} /> : null} />
+              /* No "Save for print" (Mike, 2026-10-09: a print is a different bit version of the picture, so it would not
+                 match its own proof and would confuse; the recorded file is the one to print). */ />
           ) : cachedFile ? (
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
           ) : painting ? (
