@@ -26,7 +26,8 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { redrawRecordedArt } from "@/lib/art-position";
-import { ART_ALGORITHM_V15 } from "@/lib/commitment-art";
+import { ART_ALGORITHM_V15, ART_ALGORITHM_V16 } from "@/lib/commitment-art";
+import { planV16, svgFromPngV16, svgTextV16 } from "@/lib/commitment-art-v16";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpackSetMember, checkInline, isInlineProof, makeTreeHere, treeInputOf } from "@/lib/fuse-client";
 import { rebuildTreeFromFiles, rebuildMatches } from "@/lib/fuse-tree-make";
@@ -235,6 +236,8 @@ export default function ProofPage() {
   const [redrawnAlgo, setRedrawnAlgo] = useState<string | null>(null);
   // A painting (bitgraph-art/15) is redrawn in a worker over a few seconds: the file pane says Painting meanwhile.
   const [painting, setPainting] = useState(false);
+  // A redrawn /three piece's "SVG for print" download says why when it cannot be given.
+  const [svgMsg, setSvgMsg] = useState<string | null>(null);
   useEffect(() => {
     if (!proof || cachedFile || !isInlineProof(proof)) return;
     // A record whose file this site hosts (EXAMPLE_FILES: home's example) is not an /image picture to
@@ -244,7 +247,7 @@ export default function ProofPage() {
     let live = true;
     void redrawRecordedArt(proof as never, { recordedMs: recordedMsOf(proof), onTry: (a) => { if (live) setPainting(a === ART_ALGORITHM_V15); } }).then((r) => {
       if (!live || !r) return;
-      setCachedFile({ name: `bitgraph-${/^bitgraph-art\/1[1-4]$/.test(r.algorithm) ? "portrait" : r.algorithm === ART_ALGORITHM_V15 ? "painting" : "image"}-${proof.commit?.counter ?? ""}.png`, data: r.png.slice().buffer as ArrayBuffer });
+      setCachedFile({ name: `bitgraph-${r.algorithm === ART_ALGORITHM_V16 ? "three" : /^bitgraph-art\/1[1-4]$/.test(r.algorithm) ? "portrait" : r.algorithm === ART_ALGORITHM_V15 ? "painting" : "image"}-${proof.commit?.counter ?? ""}.png`, data: r.png.slice().buffer as ArrayBuffer });
       setRedrawn(true); setRedrawnAlgo(r.algorithm);
     }).catch(() => { /* not an image this page can redraw: the drop box stays */ });
     return () => { live = false; };
@@ -1775,6 +1778,25 @@ export default function ProofPage() {
     }
   }
 
+  /* /three's print master (bitgraph-art/16, Mike, 2026-10-09): the SVG the recorded PNG carries, taken out of the PNG
+     this page redrew from the proof (its SHA-256 is the recorded digest) and confirmed, byte for byte, against the SVG
+     drawn from the commitment the proof authenticates. Offered only for a redrawn version 16 piece. */
+  function downloadPrintSvg() {
+    if (!proof || !cachedFile || redrawnAlgo !== ART_ALGORITHM_V16 || !proof.slotAllocation) return;
+    setSvgMsg(null);
+    try {
+      const svg = svgFromPngV16(new Uint8Array(cachedFile.data));
+      const c = commitmentForProof(proof as unknown as VerifyProof, proof.slotAllocation as never);
+      const want = new TextEncoder().encode(svgTextV16(planV16(c), c));
+      if (!svg || svg.length !== want.length || !svg.every((b, i) => b === want[i])) throw new Error("the SVG inside this file is not the one drawn from this proof's commitment");
+      const url = URL.createObjectURL(new Blob([svg as BlobPart], { type: "image/svg+xml" }));
+      const el = document.createElement("a"); el.href = url; el.download = cachedFile.name.replace(/\.png$/i, ".svg"); el.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (e) {
+      setSvgMsg(`The print SVG could not be given: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   /** One object, one file, no zip. A tick apart so the browser takes both. */
   function saveJson(name: string, obj: unknown) {
     const url = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }));
@@ -2015,6 +2037,7 @@ export default function ProofPage() {
             ? [PROOF_PIECE, ...anchorsPiece]
             : [
                 ...(carrierPossible ? [{ label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: downloadCarrier, busy: carrierBusy, desc: "The file with the proof inside: one file that verifies with nothing else." }] : []),
+                ...(redrawn && redrawnAlgo === ART_ALGORITHM_V16 && cachedFile ? [{ label: "SVG for print", busyLabel: "SVG for print", onClick: downloadPrintSvg, busy: false, desc: "The print version inside the recorded PNG, checked against a redrawing from this proof. It prints sharp at any size." }] : []),
                 PROOF_PIECE,
                 ...(cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? [{ label: "Original file", busyLabel: "Recovering\u2026", onClick: downloadOriginal, busy: originBusy, desc: "The original, back out of the committed file." }] : []),
                 ...anchorsPiece,
@@ -2032,6 +2055,7 @@ export default function ProofPage() {
           const downloadNotes = [
             ...(originMsg ? [originMsg] : []),
             ...(carrierMsg ? [carrierMsg] : []),
+            ...(svgMsg ? [svgMsg] : []),
             ...(anchorsMsg ? [anchorsMsg] : []),
             ...(treeExportMsg ? [treeExportMsg] : []),
             ...(!cachedFile && !isEth && !isTree ? ["The file itself is not on this device: the downloads carry the proof and its evidence, and the BitGraphed file needs the file in hand."] : []),

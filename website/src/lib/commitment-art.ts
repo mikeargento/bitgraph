@@ -70,6 +70,7 @@ import { planV13, renderV13, decodeV13, V13_WIDTH, V13_HEIGHT, type V13Plan } fr
 import { planV14, renderV14, decodeV14, V14_WIDTH, V14_HEIGHT, type V14Plan } from "./commitment-art-v14.ts";
 import { planV15, renderV15, decodeV15, V15_WIDTH, V15_HEIGHT, type V15Plan } from "./commitment-art-v15.ts";
 import { deflateV15, filterRowsV15 } from "./png-deflate-v15.ts";
+import { ART_ALGORITHM_V16, planV16, renderV16, pngFileV16, svgFromPngV16, svgTextV16, V16_WIDTH, V16_HEIGHT, type V16Plan } from "./commitment-art-v16.ts";
 
 export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
@@ -102,7 +103,9 @@ export const ART_ALGORITHM_V13 = "bitgraph-art/13";
 export const ART_ALGORITHM_V14 = "bitgraph-art/14";
 /** Square: a gestural abstract oil painting, a bristle brush with its load, twist and splay, wet paint picked up and dragged, on a subtle linen, the relief lit from the top left; the code in 256 reading pixels by parity (commitment-art-v15.ts). */
 export const ART_ALGORITHM_V15 = "bitgraph-art/15";
-export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15];
+/** Version 16 (2026-10-09, /three): three flat shapes in primaries; the recorded PNG carries its print SVG (commitment-art-v16.ts). Not the default. */
+export { ART_ALGORITHM_V16 };
+export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15, ART_ALGORITHM_V16];
 /** Each version's canvas: 1 and 2 carry a strip under the art; 3 is the art square and its frame. */
 export function artSize(algorithm: string): { width: number; height: number } {
   if (algorithm === ART_ALGORITHM_V8) return { width: V8_WIDTH, height: V8_HEIGHT };
@@ -113,6 +116,7 @@ export function artSize(algorithm: string): { width: number; height: number } {
   if (algorithm === ART_ALGORITHM_V13) return { width: V13_WIDTH, height: V13_HEIGHT };
   if (algorithm === ART_ALGORITHM_V14) return { width: V14_WIDTH, height: V14_HEIGHT };
   if (algorithm === ART_ALGORITHM_V15) return { width: V15_WIDTH, height: V15_HEIGHT };
+  if (algorithm === ART_ALGORITHM_V16) return { width: V16_WIDTH, height: V16_HEIGHT };
   return algorithm === ART_ALGORITHM_V3 || algorithm === ART_ALGORITHM_V4 || algorithm === ART_ALGORITHM_V5 || algorithm === ART_ALGORITHM_V6 || algorithm === ART_ALGORITHM_V7 ? { width: 1024, height: 1024 } : { width: 1024, height: 1056 };
 }
 export const ART_WIDTH = 1024;
@@ -179,6 +183,8 @@ export interface ArtRecipe {
   v14?: V14Plan;
   /** Version 15 only: the painting's plan (commitment-art-v15.ts). */
   v15?: V15Plan;
+  /** Version 16 only: the three shapes' plan (commitment-art-v16.ts). */
+  v16?: V16Plan;
   cells: ArtCell[];
 }
 
@@ -251,6 +257,10 @@ export function artRecipe(commitment: Uint8Array, algorithm: string = ART_ALGORI
   if (!ART_ALGORITHMS.includes(algorithm)) throw new TypeError(`unknown art algorithm ${algorithm}`);
   if (algorithm === ART_ALGORITHM_V3) return recipeV3(commitment);
   if (algorithm === ART_ALGORITHM_V4) return recipeV4(commitment);
+  if (algorithm === ART_ALGORITHM_V16) {
+    const v16 = planV16(commitment);
+    return { algorithm, width: V16_WIDTH, height: V16_HEIGHT, commitment: toBase64Url(commitment), palette: v16.background, grid: 0, cells: [], v16 };
+  }
   if (algorithm === ART_ALGORITHM_V15) {
     const v15 = planV15(commitment);
     return { algorithm, width: V15_WIDTH, height: V15_HEIGHT, commitment: toBase64Url(commitment), palette: v15.palette, grid: 16, cells: [], v15 };
@@ -423,6 +433,7 @@ export function decodeArtV4(px: Uint8Array, width: number, height: number): Uint
 /** The recipe's JSON, keys in this fixed order: the bytes the recipe digest is taken over. */
 export function recipeJson(r: ArtRecipe): string {
   const cells = r.cells.map((c) => `[${c.shape},${c.turn},${c.fg},${c.bg}]`).join(",");
+  if (r.v16) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v16)}}`;
   if (r.v15) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v15)}}`;
   if (r.v14) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v14)}}`;
   if (r.v13) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v13)}}`;
@@ -499,6 +510,7 @@ export function renderArt(r: ArtRecipe): Uint8Array {
   const commitment = fromBase64Url(r.commitment);
   if (commitment === null) throw new TypeError("the recipe's commitment is not base64url");
   requireCommitment(commitment);
+  if (r.v16) return renderV16(r.v16);
   if (r.v15) return renderV15(r.v15, commitment);
   if (r.v14) return renderV14(r.v14, commitment);
   if (r.v13) return renderV13(r.v13, commitment);
@@ -741,6 +753,12 @@ function fixedDeflate(raw: Uint8Array, rowLen: number): Uint8Array {
  * bytes could differ between browsers while the pixels they decode to could not.
  */
 export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promise<Uint8Array> {
+  // Version 16 writes its own file (commitment-art-v16.ts): the same manifest, a copyright line and the print SVG inside.
+  if (manifest.algorithm === ART_ALGORITHM_V16) {
+    const c = fromBase64Url(manifest.commitment);
+    if (c === null || c.length !== 32) throw new TypeError("the manifest's commitment is not 32 bytes of base64url");
+    return pngFileV16(px, manifestJson(manifest), svgTextV16(planV16(c), c));
+  }
   const { width: w, height: h } = artSize(manifest.algorithm);
   const rowLen = 1 + w * 3;
   // Version 15 (a painting: noisy, so the fixed deflate stored it near raw, about 9 MB) writes its own smaller encoding:
@@ -908,6 +926,18 @@ export async function checkArt(pngBytes: Uint8Array, authenticatedCommitment: Ui
 
   // Read the commitment back from the pixels: the strip for versions 1 and 2, the art itself for 3.
   const v6 = algorithm === ART_ALGORITHM_V6, v7 = algorithm === ART_ALGORITHM_V7, v8 = algorithm === ART_ALGORITHM_V8, v9 = algorithm === ART_ALGORITHM_V9, v10 = algorithm === ART_ALGORITHM_V10, v11 = algorithm === ART_ALGORITHM_V11, v12 = algorithm === ART_ALGORITHM_V12, v13 = algorithm === ART_ALGORITHM_V13, v14 = algorithm === ART_ALGORITHM_V14, v15 = algorithm === ART_ALGORITHM_V15;
+  // Version 16 has flat colour only (no code in the pixels, by its rules): the commitment is read back from the print SVG
+  // the file carries, which must be, byte for byte, the SVG drawn from the authenticated commitment.
+  if (algorithm === ART_ALGORITHM_V16) {
+    const svg = svgFromPngV16(pngBytes);
+    const want = new TextEncoder().encode(svgTextV16(planV16(authenticatedCommitment), authenticatedCommitment));
+    const strip: ArtChecks["strip"] = svg === null
+      ? { result: "FALSE", detail: "the file carries no print SVG" }
+      : svg.length === want.length && svg.every((b, i) => b === want[i])
+        ? { result: "TRUE", detail: `the print SVG inside the file is the one drawn from the authenticated commitment ${toBase64Url(authenticatedCommitment)}, byte for byte (SHA-256 ${toHex(sha256(svg))})` }
+        : { result: "FALSE", detail: "the print SVG inside the file is not the one drawn from the authenticated commitment" };
+    return { regenerated, strip, manifest };
+  }
   const v5 = algorithm === ART_ALGORITHM_V5;
   const v4 = algorithm === ART_ALGORITHM_V4;
   const v3 = algorithm === ART_ALGORITHM_V3 || v4;

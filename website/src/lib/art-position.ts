@@ -20,7 +20,7 @@ import {
 import { FuseError } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
 import { commitInPosition, fuseVersionOfFloor, openPosition, type TreeTransport } from "./fuse-tree-make.ts";
-import { ART_ALGORITHM, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
+import { ART_ALGORITHM, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15, ART_ALGORITHM_V16, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
 import { makeArtOffThread, paintsOffThread, type DrawnArt } from "./art-offthread.ts";
 
 /** A position is good for 120 s; the image is recorded well inside that or not at all. */
@@ -75,6 +75,8 @@ export interface ArtOptions {
   onDrawn?: (pixels: Uint8Array) => void;
   /** Injectable clock for tests; the wall clock never reaches the art. */
   now?: () => number;
+  /** The drawing rules: the site's default (ART_ALGORITHM, a painting) unless a page asks for another (/three: version 16). */
+  algorithm?: string;
 }
 
 function fail(e: unknown, recorded: boolean): ArtError {
@@ -115,7 +117,7 @@ export async function createArtImage(opts: ArtOptions = {}): Promise<MadeArtImag
 
   stage("generating", opened);
   // A painting (version 15) is drawn in a worker, so the page stays responsive; the same modules, the same bytes.
-  const art = await makeArtOffThread(commitment, ART_ALGORITHM);
+  const art = await makeArtOffThread(commitment, opts.algorithm ?? ART_ALGORITHM);
   opts.onDrawn?.(art.pixels);
   const digestB64 = bytesToBase64(sha256(art.png));
   if (now() - openedAt > COMMIT_DEADLINE_MS) {
@@ -220,6 +222,8 @@ export async function verifyArtFile(bytes: Uint8Array, pcr0: readonly string[]):
  * record's signed time (recordedMs, the attestation's own timestamp), or the proof's slot or commit time stands in.
  */
 export const V15_FROM_MS = Date.UTC(2026, 9, 9);
+/** Version 16 (/three) exists from the same day; a few hundred ms to draw, so it is tried first. */
+export const V16_FROM_MS = Date.UTC(2026, 9, 9);
 export async function redrawRecordedArt(proof: BitGraphProof, opts: { onTry?: (algorithm: string | null) => void; recordedMs?: number | null } = {}): Promise<{ png: Uint8Array; algorithm: string; art: DrawnArt } | null> {
   const a = proof.attribution;
   if (!a || a.title !== "base64url" || (a.name !== inlineAttribution(2).name && a.name !== inlineAttribution(3).name) || !proof.slotAllocation) return null;
@@ -227,9 +231,11 @@ export async function redrawRecordedArt(proof: BitGraphProof, opts: { onTry?: (a
   try { commitment = commitmentForProof(proof, proof.slotAllocation); } catch { return null; }
   const signedMs = Number(opts.recordedMs ?? proof.slotAllocation.time ?? proof.commit?.time ?? NaN);
   const before15 = Number.isFinite(signedMs) && signedMs < V15_FROM_MS;
+  const before16 = Number.isFinite(signedMs) && signedMs < V16_FROM_MS;
   try {
-    for (const algorithm of [ART_ALGORITHM_V15, ART_ALGORITHM_V14, ART_ALGORITHM_V13, ART_ALGORITHM_V12, ART_ALGORITHM_V11, ART_ALGORITHM_V10, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V7, ART_ALGORITHM_V6, ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
+    for (const algorithm of [ART_ALGORITHM_V16, ART_ALGORITHM_V15, ART_ALGORITHM_V14, ART_ALGORITHM_V13, ART_ALGORITHM_V12, ART_ALGORITHM_V11, ART_ALGORITHM_V10, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V7, ART_ALGORITHM_V6, ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
       if (algorithm === ART_ALGORITHM_V15 && before15) continue;
+      if (algorithm === ART_ALGORITHM_V16 && before16) continue;
       // Each drawing is a few hundred ms of main thread (a painting, seconds in a worker); yield between them so the page
       // paints and stays responsive while a record that is not an /image picture is ruled out (2026-10-07).
       opts.onTry?.(algorithm);
