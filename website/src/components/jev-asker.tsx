@@ -4,7 +4,7 @@
  * Ask Jev (Mike, 2026-10-06: "the click a button is a better demo", "build it with both questions",
  * "make the image demo and the jev demo be similar in design"). The /image page's structure and
  * classes exactly: the headline and one button; on the click only the steps, in the middle of the
- * screen; then the result fades in under one plain paragraph, with four actions two and two and the
+ * screen; then the result fades in under one plain paragraph, with two actions (the proof, ask again) and the
  * technical details closed.
  *
  * The work is done by live.bitgraph.ing (repo ~/Code/bitgraph-live): it opens a BitGraph position
@@ -145,7 +145,6 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
   const [restored, setRestored] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [codeCheck, setCodeCheck] = useState<CodeCheck | null>(null);
   const busy = useRef(false);
   const stageRef = useRef<Stage | null>(null);
@@ -194,7 +193,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
     window.clearTimeout(showTimer.current);
     startedAt.current = performance.now();
     window.history.replaceState(null, "", "/jev");
-    setError(null); setRecord(null); setCode(null); setShown(false); setRestored(false); setFailedAt(-1); setCopied(false);
+    setError(null); setRecord(null); setCode(null); setShown(false); setRestored(false); setFailedAt(-1);
     const go = (s: Stage) => { stageRef.current = s; setStage(s); };
     go("opening");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -236,10 +235,6 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
     }
   }, []);
 
-  const copyLink = useCallback(async () => {
-    try { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* nothing to do */ }
-  }, []);
-
   const running = stage !== null && !shown && failedAt < 0;
   const q = code ? questionsFor(code) : null;
   const t = q ? truthOf(q) : null;
@@ -248,7 +243,9 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
   const floorChain = record?.floorChain ?? (codeCheck?.status === "ok" ? codeCheck.floorChain : null) ?? null;
   const floorBlockName = (num: number) => `${floorChain === "base" ? "Base block" : floorChain === "ethereum" ? "Ethereum block" : "block"} ${n(num)}`;
   const right = a && t ? { both: a.both.yes === t.both, first: a.first.choice === t.first } : null;
-  const proofHref = record ? `/proof/${record.id}` : "#";
+  /* The proof page shows the four files only from the service's own download (?files=, generic: any host's
+     bundle, shown only when it rebuilds the signed proof). The proof page names no service. */
+  const proofHref = record ? `/proof/${record.id}?files=${encodeURIComponent(`${LIVE}/api/result/${record.id}/download`)}` : "#";
   const yesNo = (b: boolean) => (b ? "Yes" : "No");
   const firstLabel = (c: string) => (c === "neither" ? "Neither" : `The ${c}`);
 
@@ -309,10 +306,9 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
 
           {/* The caption under the image (Mike, 10-06: "it should caption under image"). */}
           <p className="art-explain art-explain-one art-caption">{/* The same claim as /image's caption (Mike, 10-06: "do both"; "the bits" from 10-07). */}The proof for these questions began before the bits existed. They&rsquo;re original: no one could have asked Jev before your click, and no click will ever produce these questions&nbsp;again.</p>
+          {/* Two actions only (Mike, 2026-10-10): the proof (which now shows the files) and asking again. */}
           <div className="actions art-actions">
             <a className="bg-action-link is-make" href={proofHref}><span>See the full proof</span></a>
-            <a className="bg-action-link" href={`${LIVE}/api/result/${record.id}/download`}><span>Download the files and proof</span></a>
-            <button type="button" className="bg-action-link" onClick={copyLink}>{copied ? "Link copied" : "Copy link"}</button>
             <button type="button" className="bg-action-link" onClick={ask}>Ask two new questions</button>
           </div>
 

@@ -17,6 +17,7 @@ import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/l
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { loadLedger, heldFor } from "@/lib/local-ledger";
+import { useHostedFiles, HostedFilesView } from "@/components/hosted-files";
 
 /* How the remembered ledger learns a fused proof's origin, so a page addressed
    by the original file's digest finds the proof that was built from it. The
@@ -239,6 +240,8 @@ export default function ProofPage() {
   const [painting, setPainting] = useState(false);
   // A redrawn /three piece's "SVG for print" download says why when it cannot be given.
   const [svgMsg, setSvgMsg] = useState<string | null>(null);
+  // ?files=<https URL>: a host's bundle of this BitGraph's files, shown only if they rebuild this proof (components/hosted-files).
+  const hosted = useHostedFiles(proof);
   useEffect(() => {
     if (!proof || cachedFile || !isInlineProof(proof)) return;
     // A record whose file this site hosts (EXAMPLE_FILES: home's example) is not an /image picture to
@@ -1933,6 +1936,7 @@ export default function ProofPage() {
             </div>
           ) : (
             <div style={{ padding: 16 }}>
+              <HostedFilesView state={hosted} />
               <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} />
             </div>
           );
