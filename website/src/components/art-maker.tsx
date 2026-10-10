@@ -73,9 +73,10 @@ const MIN_WAIT_MS = 1000;
  * the print SVG the recorded PNG carries.
  */
 export type ArtMakerMode = "painting" | "three";
-const MODES: Record<ArtMakerMode, { algorithm: string; path: string; noun: string; filePrefix: string }> = {
-  painting: { algorithm: ART_ALGORITHM, path: "/painting", noun: "painting", filePrefix: "bitgraph-image" },
-  three: { algorithm: ART_ALGORITHM_V16, path: "/three", noun: "piece", filePrefix: "bitgraph-three" },
+// The make buttons: /three is Mike's own studio page, so its buttons say "Generate" (Mike, 2026-10-09: "button should be generate since its just for me").
+const MODES: Record<ArtMakerMode, { algorithm: string; path: string; noun: string; filePrefix: string; make: string; again: string }> = {
+  painting: { algorithm: ART_ALGORITHM, path: "/painting", noun: "painting", filePrefix: "bitgraph-image", make: "Make a BitGraph painting", again: "Make another painting" },
+  three: { algorithm: ART_ALGORITHM_V16, path: "/three", noun: "piece", filePrefix: "bitgraph-three", make: "Generate", again: "Generate another" },
 };
 
 export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode; mode?: ArtMakerMode } = {}) {
@@ -256,7 +257,7 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
       <div className={`art-hero art-go-wrap${running || shown || restoring ? " is-away" : ""}`}>
         <div className="art-hero-inner">
           <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running}>
-            {failedAt >= 0 ? "Try again" : `Make a BitGraph ${cfg.noun}`}
+            {failedAt >= 0 ? "Try again" : cfg.make}
           </button>
         </div>
       </div>
@@ -293,7 +294,7 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
           <div className="actions art-actions">
             {/* The next draw is the page's main action (Mike, 2026-10-08: "should draw another person be more distinctive"):
                 the one blue button, first; the download is outlined with the rest. */}
-            <button type="button" className="bg-action-link is-make" onClick={create}>{`Make another ${cfg.noun}`}</button>
+            <button type="button" className="bg-action-link is-make" onClick={create}>{cfg.again}</button>
             <button type="button" className="bg-action-link" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : `Download ${noun}, proof inside`}</button>
             {/* Version 16's print master (Mike, 2026-10-09): the SVG the recorded PNG carries, for printing at any size. */}
             {made.recipe.v16 && made.checks.strip.result === "TRUE" && <button type="button" className="bg-action-link" onClick={downloadSvg}>Download SVG for print</button>}
