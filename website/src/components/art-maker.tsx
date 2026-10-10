@@ -312,7 +312,11 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
             <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`${threePlan ? `Three shapes, ${describeV16(threePlan)},` : "An image"} drawn from the code ${made.position.commitment}`} />
           </div>
           {/* Mike, 2026-10-10: the /painting why-paragraph and caption as one, saying what just happened. */}
-          <p className="art-home-explain"><span>BitGraph began this proof before these bits existed. Your click opened a position, and that position&rsquo;s commitment was the only input this image was drawn from. The image was then recorded in the same position, so no one could have made it before your click, and no click will ever make it again. It can be drawn again from the commitment, and the proof checks without contacting anyone. Every record gets the same guarantee; this just makes it&nbsp;visible.</span></p>
+          {/* Mike, 2026-10-10 (from a Grok draft, tightened): what just happened, then why it matters beyond pictures. Not "every
+              record gets the same guarantee": every record gets its position, but "could not have existed before" holds only
+              when the content carries its commitment, as this image does. */}
+          <p className="art-home-explain"><span>BitGraph began this proof before these bits existed. Your click opened a position, and that position&rsquo;s commitment was the only input this image was drawn from. The image was then recorded in the same position, so it could not have existed before your click, and no click will ever make it again. The proof checks offline, and the image can be redrawn from the commitment&nbsp;alone.</span></p>
+          <p className="art-home-explain"><span>Any computation can carry its commitment the same way. An AI agent writes it into its trace before a task starts, so the finished record could not have been completed earlier and backdated. This image just makes it&nbsp;visible.</span></p>
           <div className="actions art-home-actions">
             <button type="button" className="bg-action-link is-make art-go" onClick={create}>{cfg.again}</button>
             <a className="bg-action-link art-go" href={`/proof/${urlSafe(made.digestB64)}`}>See the full proof</a>

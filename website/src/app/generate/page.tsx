@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import { ArtMaker } from "@/components/art-maker";
 
 export const metadata: Metadata = {
-  title: "Three",
-  description:
-    "One click makes a piece that never existed, and BitGraph proves it: it opens a position, draws three shapes from its position commitment, and records the piece in that same position.",
+  title: "Generate an image",
+  description: "One click makes an image that never existed, and BitGraph proves it.",
   // Listed (Mike, 2026-10-10): in the menu in place of /painting, in the sitemap, indexed. It was hidden on 2026-10-09.
 };
 
@@ -16,9 +15,10 @@ export default function ThreePage() {
   return (
     <div className="frame prose art-page">
       <ArtMaker mode="three">
-        <h1 className="jev-title">Three</h1>
-        <p className="lede jev-lede">One click makes a piece that never existed, and BitGraph proves&nbsp;it.</p>
-                <p className="lede jev-lede art-why">BitGraph begins the proof before the bits exist. Here you watch it happen: the click opens a position, and the position&rsquo;s commitment becomes part of the computation: it is the only input the piece is drawn from, three shapes, their sizes, places and colours. The piece is then recorded in that same position, so it could not have existed before its BitGraph began. The piece can be drawn again from the commitment, and the proof checks without contacting anyone. Every record gets the same guarantee; a piece just makes it&nbsp;visible.</p>
+        {/* Redone 2026-10-10 (Mike: "we have to redo this landing page"): the menu's name, one sentence, the button. The long
+            why-paragraph is gone from here: the same explanation appears under the image once it is made. */}
+        <h1 className="jev-title"><span>Generate an image</span></h1>
+        <p className="lede jev-lede"><span>One click makes an image that never existed, and BitGraph proves&nbsp;it.</span></p>
       </ArtMaker>
     </div>
   );

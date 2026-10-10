@@ -304,8 +304,10 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
             </ol>
           </div>
 
-          {/* The caption under the image (Mike, 10-06: "it should caption under image"). */}
-          <p className="art-explain art-explain-one art-caption">{/* The same claim as /image's caption (Mike, 10-06: "do both"; "the bits" from 10-07). */}The proof for these questions began before the bits existed. They&rsquo;re original: no one could have asked Jev before your click, and no click will ever produce these questions&nbsp;again.</p>
+          {/* Mike, 2026-10-10: the same two-part explanation as the home image (what just happened, then why it matters),
+              in place of the one-line caption. */}
+          <p className="art-home-explain"><span>BitGraph began this proof before these questions existed. Your click opened a position, and two questions were drawn from that position&rsquo;s commitment, so no one, Jev included, could have seen them before your click. Jev&rsquo;s answers were then recorded in the same position. No click will ever produce these questions again, the proof checks offline, and the questions can be drawn again from the commitment&nbsp;alone.</span></p>
+          <p className="art-home-explain"><span>This is how to test an AI on questions it could not have trained on: derive them from a commitment that came after a public block, and they cannot appear in any training data frozen before it. Jev is just the&nbsp;example.</span></p>
           {/* Two actions only (Mike, 2026-10-10): the proof (which now shows the files) and asking again. */}
           <div className="actions art-actions">
             <a className="bg-action-link is-make" href={proofHref}><span>See the full proof</span></a>
