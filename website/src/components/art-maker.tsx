@@ -76,7 +76,7 @@ export type ArtMakerMode = "painting" | "three";
 // The make buttons: /three is Mike's own studio page, so its buttons say "Generate" (Mike, 2026-10-09: "button should be generate since its just for me").
 const MODES: Record<ArtMakerMode, { algorithm: string; path: string; noun: string; filePrefix: string; make: string; again: string }> = {
   painting: { algorithm: ART_ALGORITHM, path: "/painting", noun: "painting", filePrefix: "bitgraph-image", make: "Make a BitGraph painting", again: "Make another painting" },
-  three: { algorithm: ART_ALGORITHM_V16, path: "/three", noun: "piece", filePrefix: "bitgraph-three", make: "Generate", again: "Generate another" },
+  three: { algorithm: ART_ALGORITHM_V16, path: "/generate", noun: "piece", filePrefix: "bitgraph-three", make: "Generate", again: "Generate another" },
 };
 
 export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode; mode?: ArtMakerMode } = {}) {
@@ -128,7 +128,7 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
     return buildPromise.current;
   }, [cfg.filePrefix]);
 
-  // Coming back: /painting?p=<digest> (or /three?p=) rebuilds the recorded image from its proof.
+  // Coming back: /painting?p=<digest> (or /generate?p=) rebuilds the recorded image from its proof.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("p");
     if (!p) return;

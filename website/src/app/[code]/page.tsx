@@ -5,7 +5,8 @@ import { ShortLink } from "@/components/short-link";
    Every real page and redirect wins over this route; a path that is not a recorded digest's prefix is the
    ordinary not-found page (components/short-link.tsx). */
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Short link", robots: { index: false } };
+// Titled "Not found": a match redirects before anything renders, so what this route shows is almost always the miss.
+export const metadata: Metadata = { title: "Not found", robots: { index: false } };
 
 export default async function ShortLinkRoot({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;

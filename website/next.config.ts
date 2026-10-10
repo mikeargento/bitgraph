@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
       // The portrait page became the painting page with bitgraph-art/15 (Mike, 2026-10-09). Temporary (307) while the
       // name settles: browsers remember permanent redirects forever. Make it permanent once it holds.
       { source: "/portrait", destination: "/painting", permanent: false },
+      // The hidden Three page moved to /generate (Mike, 2026-10-10: "generate"); not permanent, so the old address can be reused.
+      { source: "/three", destination: "/generate", permanent: false },
       // The Recorder page left the site on 2026-09-16 (Mike: "no company is
       // going to make bitgraphs with the software"). Anyone holding its URL,
       // the release notes included, lands on the app's own release.

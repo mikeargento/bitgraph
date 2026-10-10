@@ -182,7 +182,7 @@ test("one click on /three: recorded in its position as a PNG the verifier finds 
   assert.equal(tried[0], ART_ALGORITHM_V16, "version 16 is tried first, before any painting is drawn");
   assert.equal(bytesToBase64(sha256(r!.png)), made.digestB64);
   assert.deepEqual(svgFromPngV16(r!.png), svgV16(c));
-  // coming back to /three?p=<digest>
+  // coming back to /generate?p=<digest>
   const back = await restoreArtImage(made.proof);
   assert.ok(back);
   assert.equal(back!.digestB64, made.digestB64);
