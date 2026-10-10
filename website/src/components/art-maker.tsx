@@ -319,7 +319,7 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
           <p className="art-home-explain"><span>Any computation can carry its commitment the same way. An AI agent writes it into its trace before a task starts, so the finished record could not have been completed earlier and backdated. This image just makes it&nbsp;visible.</span></p>
           <div className="actions art-home-actions">
             <button type="button" className="bg-action-link is-make art-go" onClick={create}>{cfg.again}</button>
-            <a className="bg-more-link" href={`/proof/${urlSafe(made.digestB64)}`}>See the full proof <span className="arrow" aria-hidden>&rarr;</span></a>
+            <a className="bg-action-link art-go" href={`/proof/${urlSafe(made.digestB64)}`}>See the full proof</a>
           </div>
         </div>
       )}

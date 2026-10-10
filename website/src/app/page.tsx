@@ -57,7 +57,7 @@ export default function HomePage() {
           which warmed that link's page, is no longer rendered here. */}
       <ArtMaker
         mode="home"
-        secondary={<Link className="bg-more-link" href="/docs/overview">How it works <span className="arrow" aria-hidden>&rarr;</span></Link>}
+        secondary={<Link className="bg-action-link" href="/docs/overview">How it works</Link>}
       >
         {/* The hero (Mike, 2026-10-05): the typing line of 2026-09-30 and the game theory paragraph of
             2026-09-26, left aligned, after a day of trying shorter heroes ("GPS for files.", "The

@@ -311,7 +311,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
           {/* Two actions only (Mike, 2026-10-10): the proof (which now shows the files) and asking again. */}
           <div className="actions art-actions">
             <a className="bg-action-link is-make" href={proofHref}><span>See the full proof</span></a>
-            <button type="button" className="bg-more-link" onClick={ask}>Ask two new questions <span className="arrow" aria-hidden>&rarr;</span></button>
+            <button type="button" className="bg-action-link" onClick={ask}>Ask two new questions</button>
           </div>
 
           <details className="art-details">
