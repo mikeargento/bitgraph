@@ -3322,7 +3322,8 @@ footer { border-top: 0 !important; }
 .art-home .art-go-wrap .art-hero-inner { padding: 4px 0 6px; }
 .art-home .art-home-actions { margin: 0 !important; gap: 12px; flex-wrap: wrap; }
 .art-result.art-home-result { max-width: none; width: 100%; }
-.art-home-result .art-canvas { margin-top: 0; }
+/* The piece at the text column's width, not the frame's (Mike, 2026-10-10: "only be content width to save vertical space"). */
+.art-home-result .art-canvas { margin-top: 0; max-width: var(--measure); }
 .art-home-result .art-canvas canvas { border-radius: 12px; }
 .art-home-explain { max-width: var(--measure); margin: 22px 0 0 !important; font-size: 17px !important; line-height: 1.65 !important; color: var(--text); text-align: left; text-wrap: pretty; }
 .art-home-result .art-home-actions { margin: 22px 0 0 !important; padding: 4px 0; }
