@@ -1937,7 +1937,9 @@ export default function ProofPage() {
           ) : (
             <div style={{ padding: 16 }}>
               <HostedFilesView state={hosted} />
-              <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} />
+              {/* Once a host's files have matched, the record's files are already on the page: no "Locate the file" row
+                  (Mike, 2026-10-10). Generic, not Jev's: any matched ?files= bundle hides it; a failed or absent one keeps it. */}
+              {hosted.phase === "matched" ? null : <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} />}
             </div>
           );
           const hashes: FieldView[] = isEth
