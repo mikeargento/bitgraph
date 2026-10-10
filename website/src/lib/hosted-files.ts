@@ -34,6 +34,7 @@ export const HOSTED_TIMEOUT_MS = 15_000;
 export type HostedProblem =
   | "bad-url" // not a URL at all
   | "not-https" // http, data:, javascript:, a URL with a user name or password
+  | "not-listed" // https, but not a host this site reads files from
   | "unreachable" // network error, or CORS refused
   | "status" // the host answered, not 2xx
   | "too-large"
@@ -45,11 +46,15 @@ export interface HostedSource { url: string; host: string }
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
+/** The hosts a proof page reads files from (Mike, 2026-10-10: approved hosts only, for now; the mechanism stays generic,
+ *  and a host joins by being added here). Without a list, anyone could show content they recorded under bitgraph.ing. */
+export const HOSTED_FILE_HOSTS = new Set(["live.bitgraph.ing"]);
+
 /**
  * The `files` parameter as a fetchable source, or why not. `pageHostname` is the page's own hostname:
  * plain http is allowed only when both the page and the bundle are on this machine (a local build).
  */
-export function hostedSourceOf(raw: string | null, pageHostname: string): { ok: true; source: HostedSource } | { ok: false; problem: "bad-url" | "not-https"; host: string | null } {
+export function hostedSourceOf(raw: string | null, pageHostname: string): { ok: true; source: HostedSource } | { ok: false; problem: "bad-url" | "not-https" | "not-listed"; host: string | null } {
   if (raw === null || raw.trim() === "") return { ok: false, problem: "bad-url", host: null };
   let u: URL;
   try { u = new URL(raw); } catch { return { ok: false, problem: "bad-url", host: null }; }
@@ -58,6 +63,7 @@ export function hostedSourceOf(raw: string | null, pageHostname: string): { ok: 
   const localHttp = u.protocol === "http:" && LOOPBACK.has(u.hostname) && LOOPBACK.has(pageHostname);
   if (u.protocol !== "https:" && !localHttp) return { ok: false, problem: "not-https", host };
   if (!u.hostname) return { ok: false, problem: "bad-url", host: null };
+  if (!localHttp && !HOSTED_FILE_HOSTS.has(u.hostname)) return { ok: false, problem: "not-listed", host };
   return { ok: true, source: { url: u.toString(), host: u.host } };
 }
 

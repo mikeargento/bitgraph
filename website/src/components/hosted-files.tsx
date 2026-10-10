@@ -12,7 +12,6 @@
  * application/octet-stream, so a browser saves them rather than rendering them. No iframe, no
  * inline HTML, nothing executed.
  *
- * ⚠️ New words are staged in red (#d93025) until Mike approves them.
  */
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -27,7 +26,6 @@ export type HostedState =
   | { phase: "matched"; host: string; kind: "tree" | "file"; members: HostedFile[]; extras: string[] }
   | { phase: "failed"; host: string | null; problem: HostedProblem; status?: number };
 
-const RED = { color: "#d93025" } as const;
 
 /** Reads ?files= once; runs when the page's proof is in hand. The proof's own checks never see any of it. */
 export function useHostedFiles(proof: { artifact?: { digestB64?: string } } | null): HostedState {
@@ -94,7 +92,7 @@ function HostedFileCard({ file }: { file: HostedFile }) {
     <div className="pv-filecard">
       <div className="pv-filecard-head" style={{ borderBottom: image || text !== null ? "1px solid var(--line-2)" : "none" }}>
         <span className="pv-filecard-name"><strong>{name}</strong>{" · "}{fmtBytes(file.bytes.byteLength)}</span>
-        {dlUrl && <a href={dlUrl} download={name} className="bg-action-link pv-pill" style={{ flexShrink: 0 }}><span style={RED}>Download</span></a>}
+        {dlUrl && <a href={dlUrl} download={name} className="bg-action-link pv-pill" style={{ flexShrink: 0 }}><span>Download</span></a>}
       </div>
       {image && imgUrl && (
         <div style={{ padding: 16, display: "flex", justifyContent: "center" }}>
@@ -117,6 +115,7 @@ function failLine(s: Extract<HostedState, { phase: "failed" }>): string {
   switch (s.problem) {
     case "bad-url": return "The files link is not a web address.";
     case "not-https": return "Only https links are fetched.";
+    case "not-listed": return `This site does not read files from ${h}.`;
     case "status": return `${h} answered ${s.status ?? "with an error"}.`;
     case "too-large": return `The download is larger than ${Math.round(HOSTED_MAX_BYTES / 1024 / 1024)} MB.`;
     case "timeout": return `${h} did not answer within ${Math.round(HOSTED_TIMEOUT_MS / 1000)} seconds.`;
@@ -131,7 +130,7 @@ export function HostedFilesView({ state }: { state: HostedState }) {
   const box = useMemo(() => ({ display: "flex", flexDirection: "column" as const, alignItems: "center", textAlign: "center" as const, padding: "20px 16px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12 }), []);
   if (state.phase === "none") return null;
   if (state.phase === "working") {
-    return <div style={{ ...box, marginBottom: 16 }} role="status"><div className="dropbox-title" style={{ color: "var(--dim)" }}><span style={RED}>Fetching the files from {state.host}&hellip;</span></div></div>;
+    return <div style={{ ...box, marginBottom: 16 }} role="status"><div className="dropbox-title" style={{ color: "var(--dim)" }}><span>Fetching the files from {state.host}&hellip;</span></div></div>;
   }
   if (state.phase === "failed") {
     const title = state.problem === "mismatch" ? `The files at ${state.host} do not match this BitGraph`
@@ -139,8 +138,8 @@ export function HostedFilesView({ state }: { state: HostedState }) {
       : `The files at ${state.host ?? "the host"} could not be ${state.problem === "not-zip" ? "read" : "fetched"}`;
     return (
       <div style={{ ...box, marginBottom: 16 }} role="status">
-        <div className="dropbox-title" style={{ color: "var(--err)" }}><span style={RED}>{title}</span></div>
-        <div className="dropbox-line"><span style={RED}>{failLine(state)} Nothing on this page relies on them.</span></div>
+        <div className="dropbox-title" style={{ color: "var(--err)" }}><span>{title}</span></div>
+        <div className="dropbox-line"><span>{failLine(state)} Nothing on this page relies on them.</span></div>
       </div>
     );
   }
@@ -149,16 +148,13 @@ export function HostedFilesView({ state }: { state: HostedState }) {
     <div style={{ marginBottom: 16 }}>
       <div style={box} role="status">
         <div className="dropbox-title" style={{ color: "var(--ok)" }}>
-          {state.kind === "tree" ? <>All {n.toLocaleString()} file{n === 1 ? "" : "s"} match this BitGraph</> : <span style={RED}>This file matches this BitGraph</span>}
+          {state.kind === "tree" ? <>All {n.toLocaleString()} file{n === 1 ? "" : "s"} match this BitGraph</> : <span>This file matches this BitGraph</span>}
         </div>
-        <div className="dropbox-line"><span style={RED}>
+        <div className="dropbox-line"><span>
           {state.kind === "tree"
             ? <>Fetched from {state.host}, then rebuilt here into the tree this proof signs: every one is in it, unchanged.</>
             : <>Fetched from {state.host}; its SHA-256 is the digest this proof signs.</>}
         </span></div>
-        {state.extras.length > 0 && (
-          <div className="dropbox-quiet"><span style={RED}>Also in the ZIP, not among this BitGraph&rsquo;s files: {state.extras.slice(0, 10).map((x) => x.split("/").pop()).join(", ")}{state.extras.length > 10 ? `, and ${state.extras.length - 10} more` : ""}.</span></div>
-        )}
       </div>
       {state.members.map((f, i) => <HostedFileCard key={`${i}:${f.name}`} file={f} />)}
     </div>
