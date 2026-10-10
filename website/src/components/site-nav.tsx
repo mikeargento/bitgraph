@@ -183,9 +183,8 @@ export function SiteNav() {
             <Chevron />
           </button>
 
-          {/* Contact (Mike, 2026-10-10), the same blue pill at every width, no icon. STAGED: the red outline marks the new
-              label for review (red text on the blue pill does not read); remove the style when approved. */}
-          <Link href="/contact" className="nav-cta nav-cta-text" aria-current={pathname === "/contact" ? "page" : undefined} style={{ outline: "2px solid #d93025", outlineOffset: -5 }}>
+          {/* Contact (Mike, 2026-10-10), the same blue pill at every width, no icon. */}
+          <Link href="/contact" className="nav-cta nav-cta-text" aria-current={pathname === "/contact" ? "page" : undefined}>
             Contact
           </Link>
         </div>

@@ -86,9 +86,6 @@ const MODES: Record<ArtMakerMode, { algorithm: string; path: string; noun: strin
 };
 /** Versions 16 and 17, the two Threes (square, and 16:9 for the home page): flat shapes, a print SVG inside the PNG. */
 const isThree = (algorithm: string) => algorithm === ART_ALGORITHM_V16 || algorithm === ART_ALGORITHM_V17;
-/** STAGED for Mike (2026-10-10): new words in red; on a blue button red text does not read, so a red outline marks it. Remove when approved. */
-const STAGED = { color: "#d93025" } as const;
-const STAGED_BLUE = { outline: "2px solid #d93025", outlineOffset: -5 } as const; // inside the pill: the hero clips anything outside it
 
 export function ArtMaker({ children, mode = "painting", secondary }: { children?: ReactNode; mode?: ArtMakerMode; secondary?: ReactNode } = {}) {
   const cfg = MODES[mode];
@@ -275,7 +272,7 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
           {home ? (
             /* Home: the page's two buttons, the make first and blue (it replaced "See a real BitGraph", Mike, 2026-10-10). */
             <div className="actions art-home-actions">
-              <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running} style={failedAt >= 0 ? undefined : STAGED_BLUE}>
+              <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running}>
                 {failedAt >= 0 ? "Try again" : cfg.make}
               </button>
               {secondary}
@@ -314,11 +311,11 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
           <div className="art-canvas" style={made.manifest.width === made.manifest.height ? { maxWidth: 640 } : undefined}>
             <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`${threePlan ? `Three shapes, ${describeV16(threePlan)},` : "An image"} drawn from the code ${made.position.commitment}`} />
           </div>
-          {/* STAGED copy (Mike, 2026-10-10): the /painting why-paragraph and caption as one, saying what just happened. */}
-          <p className="art-home-explain"><span style={STAGED}>BitGraph began this proof before these bits existed. Your click opened a position, and that position&rsquo;s commitment was the only input this image was drawn from. The image was then recorded in the same position, so no one could have made it before your click, and no click will ever make it again. It can be drawn again from the commitment, and the proof checks without contacting anyone. Every record gets the same guarantee; this just makes it&nbsp;visible.</span></p>
+          {/* Mike, 2026-10-10: the /painting why-paragraph and caption as one, saying what just happened. */}
+          <p className="art-home-explain"><span>BitGraph began this proof before these bits existed. Your click opened a position, and that position&rsquo;s commitment was the only input this image was drawn from. The image was then recorded in the same position, so no one could have made it before your click, and no click will ever make it again. It can be drawn again from the commitment, and the proof checks without contacting anyone. Every record gets the same guarantee; this just makes it&nbsp;visible.</span></p>
           <div className="actions art-home-actions">
-            <button type="button" className="bg-action-link is-make art-go" onClick={create} style={STAGED_BLUE}>{cfg.again}</button>
-            <a className="bg-action-link art-go" href={`/proof/${urlSafe(made.digestB64)}`}><span style={STAGED}>See the full proof</span></a>
+            <button type="button" className="bg-action-link is-make art-go" onClick={create}>{cfg.again}</button>
+            <a className="bg-action-link art-go" href={`/proof/${urlSafe(made.digestB64)}`}>See the full proof</a>
           </div>
         </div>
       )}
