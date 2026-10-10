@@ -53,11 +53,11 @@ export default function HomePage() {
           2026-09-26, left aligned, after a day of trying shorter heroes ("GPS for files.", "The
           position comes first.", "First the position. Then the file."; all in the git history).
           Claim discipline holds: a position is what is verified, never the content, never "when". */}
-      {/* "all computing" (Mike, 2026-10-08: a friend seeing "AI automation" would ask "is this ai?"; computing, not computation, per 09-14) replaced "AI automation" (2026-10-07), which replaced "AI records" (10-05): the larger market by name. The lede says "the bits" (Mike, 2026-10-07, over "the record"): any bits, the brand's reach. */}
+      {/* "all of computing" (Mike, 2026-10-09: reads as the whole field) was "all computing" (Mike, 2026-10-08: a friend seeing "AI automation" would ask "is this ai?"; computing, not computation, per 09-14) replaced "AI automation" (2026-10-07), which replaced "AI records" (10-05): the larger market by name. The lede says "the bits" (Mike, 2026-10-07, over "the record"): any bits, the brand's reach. */}
       {/* Static (Mike, 10-05): one "for", the first market. The typing version cycled AI records → AI agent
           actions → AI evaluations → predictions → sealed bids → chain of custody → any file → any bytes →
           any bits (components/home-headline.tsx, 694a5646). */}
-      <h1>Position commitment<br />for all&nbsp;computing.</h1>
+      <h1>Position commitment<br />for all of&nbsp;computing.</h1>
 
       {/* Mike's line (2026-10-05), replacing the Schelling paragraph and then the six-item list; "Other proofs", not "Every other proof" (no absolute: Chainpoint rule, 09-21)
           ("Signatures, timestamps, append-only logs, write-once storage, notarizations, and
