@@ -3336,3 +3336,15 @@ footer { border-top: 0 !important; }
 *::before, *::after { border-radius: 0 !important; }
 /* The nav's own rules carry an id, so they need one more to square them. */
 #site-nav#site-nav *:not(.bg-spinner):not([style*="50%"]) { border-radius: 0 !important; }
+/* The quiet second action (Mike, 2026-10-10: "should the how it works be our animated arrow type button?"): one box per
+   row, the main action, and beside it a plain blue link whose arrow steps right on hover. Same height as the button so
+   the row stays level: it stretches to the row and matches the button's type. */
+.bg-more-link {
+  display: inline-flex; align-items: center; gap: 6px; align-self: stretch; min-height: 44px; padding: 0 6px; margin: 0;
+  background: none; border: 0; cursor: pointer; font: inherit; font-family: var(--font-ui); font-size: 17px; line-height: 20px; font-weight: 600;
+  color: var(--accent); text-decoration: none; white-space: nowrap;
+}
+.bg-more-link .arrow { display: inline-block; transition: transform .18s ease; }
+@media (hover: hover) { .bg-more-link:hover { color: var(--accent); text-decoration: none; } .bg-more-link:hover .arrow { transform: translateX(4px); } }
+.bg-more-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .bg-more-link .arrow { transition: none; } }
