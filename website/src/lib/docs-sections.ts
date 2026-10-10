@@ -76,7 +76,7 @@ export const DOCS_REPO = "https://github.com/mikeargento/bitgraph";
  * a "More" line, and FAQ, Contact and GitHub in a strip along the bottom. The
  * reading order above (DOCS_GROUPS) still drives previous/next and the sitemap.
  */
-export type MenuItem = { href: string; label: string; desc: string; external?: boolean };
+export type MenuItem = { href: string; label: string; desc: string; external?: boolean; /** New words staged for review: drawn in red. */ staged?: boolean };
 export type MenuGroup = { label: string; question?: string; items: MenuItem[]; more?: DocsSection[]; feature?: boolean };
 
 export const MENU_GROUPS: MenuGroup[] = [
@@ -84,7 +84,9 @@ export const MENU_GROUPS: MenuGroup[] = [
     label: "See it working",
     feature: true,
     items: [
-      { href: "/painting", label: "Make a painting", desc: "One click, a painting that never existed." },
+      // /generate in place of "Make a painting" (Mike, 2026-10-10: "i dont want the slow make a painting", "you were supposed to replace
+      // painting with it"); /painting stays, unlisted. STAGED: remove `staged` when the words are approved.
+      { href: "/generate", label: "Generate an image", desc: "One click, an image that never existed.", staged: true },
       { href: "/jev", label: "Ask Jev", desc: "Two questions no one could have seen before." },
       { href: "/exam", label: "The sealed exam", desc: "An exam sealed in BitGraph, and how to check it." },
       { href: "/docs/try", label: "Make a BitGraph", desc: "Drop in any file and get its proof." },

@@ -5,13 +5,13 @@ export const metadata: Metadata = {
   title: "Three",
   description:
     "One click makes a piece that never existed, and BitGraph proves it: it opens a position, draws three shapes from its position commitment, and records the piece in that same position.",
-  // Hidden (Mike, 2026-10-09): not in the menu or the sitemap, never indexed, and behind a password (middleware.ts).
-  robots: { index: false, follow: false },
+  // Listed (Mike, 2026-10-10): in the menu in place of /painting, in the sitemap, indexed. It was hidden on 2026-10-09.
 };
 
 /* Three (Mike, 2026-10-09: "basically copy the painting page"): /painting's page, word for word in shape, for
-   bitgraph-art/16, three flat shapes in red, yellow, blue and green that never touch. The recorded file is a PNG that carries
-   its print SVG; ArtMaker's "three" mode makes it, offers both downloads, and reopens it from ?p=<digest>. */
+   three flat shapes in red, yellow, blue and green that never touch. The recorded file is a PNG that carries its print SVG.
+   Since 2026-10-10 it makes bitgraph-art/17, the 16:9 Three (it made version 16, square, before), ends as the home page
+   does, and reopens either version from ?p=<digest>; ArtMaker's "three" mode. */
 export default function ThreePage() {
   return (
     <div className="frame prose art-page">

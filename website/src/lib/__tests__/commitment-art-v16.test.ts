@@ -179,7 +179,8 @@ test("one click on /three: recorded in its position as a PNG the verifier finds 
   const r = await redrawRecordedArt(made.proof, { onTry: (a) => tried.push(a) });
   assert.ok(r);
   assert.equal(r!.algorithm, ART_ALGORITHM_V16);
-  assert.equal(tried[0], ART_ALGORITHM_V16, "version 16 is tried first, before any painting is drawn");
+  // version 17 (home's 16:9 Three, 2026-10-10) is tried before it; a painting never is, as version 16 is found first
+  assert.ok(tried.indexOf(ART_ALGORITHM_V16) <= 1 && !tried.includes(ART_ALGORITHM_V15), "version 16 is tried before any painting is drawn");
   assert.equal(bytesToBase64(sha256(r!.png)), made.digestB64);
   assert.deepEqual(svgFromPngV16(r!.png), svgV16(c));
   // coming back to /generate?p=<digest>

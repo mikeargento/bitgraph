@@ -2279,6 +2279,8 @@ main :is(figure, .fig-well, li, .callout, .facts, .doors, .steps, .note, details
 #site-nav .nav-btn { border-radius: 999px; padding: 0 16px; height: 42px; }
 #site-nav .nav-cta { border-radius: 999px !important; background: var(--btn-primary) !important; border-color: var(--btn-primary) !important; color: #fff !important; padding: 0 22px 0 18px !important; height: 42px !important; gap: 8px !important; font-size: 15.5px !important; font-weight: 600 !important; }
 #site-nav .nav-cta:hover { background: var(--btn-primary-hover) !important; box-shadow: var(--shadow-card); }
+/* 2026-10-10: the pill holds a word alone (Contact, no "+" icon), so its sides are even. */
+#site-nav .nav-cta.nav-cta-text { padding: 0 22px !important; }
 .nav-panel, .nav-menu { background: var(--paper) !important; border: 0 !important; border-radius: 16px !important; box-shadow: var(--shadow-menu) !important; }
 .docs-menu-item { border-radius: 999px !important; }
 .nav-menu .docs-menu-item[aria-current="page"], .nav-panel .docs-menu-item[aria-current="page"],
@@ -3312,3 +3314,16 @@ footer { border-top: 0 !important; }
 
 /* 2026-10-08 (Mike: "why does this wrap so soon?"): the caption under a result fills its line; balance split one sentence into two half lines. */
 .art-result .art-explain-one.art-caption { text-wrap: pretty !important; }
+
+/* 2026-10-10 (Mike: the home page runs the Three generator inline, ArtMaker mode "home"): the demo sits in home's own
+   column. Before: home's headline, line and two buttons, as they were. After: the 16:9 piece at the column's full width
+   (so it takes little height), the paragraph at the reading measure, then two buttons in home's button style. */
+.art.art-home { max-width: none; width: 100%; min-height: 0; }
+.art-home .art-go-wrap .art-hero-inner { padding: 4px 0 6px; }
+.art-home .art-home-actions { margin: 0 !important; gap: 12px; flex-wrap: wrap; }
+.art-result.art-home-result { max-width: none; width: 100%; }
+.art-home-result .art-canvas { margin-top: 0; }
+.art-home-result .art-canvas canvas { border-radius: 12px; }
+.art-home-explain { max-width: var(--measure); margin: 22px 0 0 !important; font-size: 17px !important; line-height: 1.65 !important; color: var(--text); text-align: left; text-wrap: pretty; }
+.art-home-result .art-home-actions { margin: 22px 0 0 !important; padding: 4px 0; }
+@media (max-width: 600px) { .art-home-explain { font-size: 16px !important; margin-top: 18px !important; } }

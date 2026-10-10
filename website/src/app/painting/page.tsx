@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "Make a painting",
   description:
     "One click makes a painting that never existed, and BitGraph proves it: it opens a position, paints from its position commitment, and records the painting in that same position.",
+  // Unlisted (Mike, 2026-10-10: "i dont want the slow make a painting"): out of the menu, never indexed; the page still
+  // works for old links and shares, and /portrait and /image still redirect here.
+  robots: { index: false, follow: false },
 };
 
 /* The painting generator (Mike, 2026-10-09: at the v15 launch the page moved to /painting; /portrait and /image redirect here); before that the portrait generator (Mike, 2026-10-08: "portrait page is replacing images"), before that the image generator (Mike, 2026-10-05), laid out like the home page (Mike, 10-06: "design it like

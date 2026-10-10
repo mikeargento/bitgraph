@@ -10,7 +10,7 @@ import { MenuIcon } from "./menu-icons";
  * 2026-10-02 (Mike, pointing at base.org): "maybe the menu should be more like base. each category
  * gets a dropdown including see it working? it can be right aligned to match my sites astetic ...
  * and notice the mobile menu". Wide screens: the four groups sit on the right of the bar beside
- * Make a BitGraph, each its own dropdown of rows (icon, title, one line). Narrower than 960px:
+ * the blue button (Contact since 2026-10-10; Make a BitGraph before), each its own dropdown of rows (icon, title, one line). Narrower than 960px:
  * one Menu button opens a full-screen sheet whose groups open in place, Base's phone menu.
  * The history below is the bar this replaced.
  *
@@ -21,8 +21,9 @@ import { MenuIcon } from "./menu-icons";
  * four dropdowns, one per documentation group, that the bar carried from 2026-09-17.
  *
  * Menu opens one panel with all four groups: four columns on a wide screen, two on a
- * tablet, one list on a phone (the panel's grid rules in globals.css). The green
- * button reads "Make a BitGraph" and shortens to "New" where it has to. It says Menu,
+ * tablet, one list on a phone (the panel's grid rules in globals.css). The blue
+ * button reads "Contact" at every width (Mike, 2026-10-10: the home page makes a BitGraph
+ * itself now; it read "+ Make a BitGraph", "+ New" on phones, and opened /docs/try). It says Menu,
  * not Docs: it holds everything, Use cases, Contact and GitHub included.
  *
  * The panel opens under the cursor on a device that has one (Mike, 2026-09-17: "should
@@ -119,7 +120,8 @@ export function SiteNav() {
   const ext = <svg className="ext-arrow" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>;
   /** One row of a dropdown (icon, title, one line) or of the sheet (icon, title). */
   const item = (s: MenuItem, index: number, withDesc: boolean) => {
-    const body = (<><MenuIcon href={s.href} index={index} /><span className="nav2-text"><span className="nav2-label">{s.label}{s.external ? ext : null}</span>{withDesc ? <span className="nav2-desc">{s.desc}</span> : null}</span></>);
+    const red = s.staged ? { color: "#d93025" } : undefined; // staged words, red until approved
+    const body = (<><MenuIcon href={s.href} index={index} /><span className="nav2-text"><span className="nav2-label" style={red}>{s.label}{s.external ? ext : null}</span>{withDesc ? <span className="nav2-desc" style={red}>{s.desc}</span> : null}</span></>);
     return s.external
       ? <a key={s.href} href={s.href} target="_blank" rel="noopener" role="menuitem" className="nav2-item" onClick={() => setOpen(null)}>{body}<span className="sr-only">(opens in a new tab)</span></a>
       : <Link key={s.href} href={s.href} role="menuitem" className="nav2-item" aria-current={pathname === s.href ? "page" : undefined} onClick={() => setOpen(null)}>{body}</Link>;
@@ -140,7 +142,7 @@ export function SiteNav() {
         </Link>
 
         <div className="bg-nav-links nav2-bar" style={{ display: "flex", alignItems: "center" }}>
-          {/* Wide screens: one dropdown per group, on the right beside Make a BitGraph. */}
+          {/* Wide screens: one dropdown per group, on the right beside the blue Contact button. */}
           <div className="nav2-cats" ref={catsRef} onMouseLeave={hoverCloseAny} onMouseEnter={cancelClose}>
             {MENU_GROUPS.map((g) => (
               <button
@@ -181,12 +183,10 @@ export function SiteNav() {
             <Chevron />
           </button>
 
-          <Link href="/docs/try" className="nav-cta" aria-label="Make a BitGraph" aria-current={pathname === "/docs/try" ? "page" : undefined}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <path d="M8 2.5v11M2.5 8h11" />
-            </svg>
-            <span className="bg-long">Make a BitGraph</span>
-            <span className="bg-short">New</span>
+          {/* Contact (Mike, 2026-10-10), the same blue pill at every width, no icon. STAGED: the red outline marks the new
+              label for review (red text on the blue pill does not read); remove the style when approved. */}
+          <Link href="/contact" className="nav-cta nav-cta-text" aria-current={pathname === "/contact" ? "page" : undefined} style={{ outline: "2px solid #d93025", outlineOffset: -5 }}>
+            Contact
           </Link>
         </div>
       </div>

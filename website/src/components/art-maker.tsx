@@ -25,7 +25,7 @@ import { drawPrintOffThread } from "@/lib/art-offthread";
 import { DENSITY_NAMES_V10, PALETTE_NAMES_V10, STYLE_NAMES_V10 } from "@/lib/commitment-art-v10";
 import { AGE_BAND_NAMES_V11, EXPRESSION_NAMES_V11, HAIR_NAMES_V11, PALETTE_NAMES_V11, ageBandV11 } from "@/lib/commitment-art-v11";
 import { compositionNameV15, paletteNameV15 } from "@/lib/commitment-art-v15";
-import { ART_ALGORITHM, ART_ALGORITHM_V15, ART_ALGORITHM_V16, toHex } from "@/lib/commitment-art";
+import { ART_ALGORITHM, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, toHex } from "@/lib/commitment-art";
 import { describeV16, svgFromPngV16 } from "@/lib/commitment-art-v16";
 import { sha256 } from "@noble/hashes/sha256";
 import { rememberMade, madeHere } from "@/lib/made-here";
@@ -70,17 +70,32 @@ const MIN_WAIT_MS = 1000;
 /**
  * What the page makes. "painting" (/painting, the default, unchanged): version 15. "three" (/three, Mike, 2026-10-09:
  * "basically copy the painting page"): version 16, the same flow and buttons with its own words, and a second download,
- * the print SVG the recorded PNG carries.
+ * the print SVG the recorded PNG carries. "home" (the home page, Mike, 2026-10-10: "run the Three inline as its demo"):
+ * version 17, Three at 16:9, the same flow; before the make, the page's two buttons (the make, and `secondary`); after
+ * it, only the image at the column's width, one paragraph, "Make another" and "See the full proof". No downloads.
  */
-export type ArtMakerMode = "painting" | "three";
-// The make buttons: /three is Mike's own studio page, so its buttons say "Generate" (Mike, 2026-10-09: "button should be generate since its just for me").
+export type ArtMakerMode = "painting" | "three" | "home";
+// The make buttons: /generate (once /three) says "Generate" (Mike, 2026-10-09: "button should be generate since its just for me").
+// 2026-10-10 (Mike: "you were supposed to replace painting with it ... make it 16:9"): /generate is the public demo in place of
+// /painting, makes version 17 (16:9), and ends as home does: the piece, one paragraph, "Make another" and "See the full proof".
+// It still reopens a version 16 square from ?p=<digest> (the redraw tries 17, then 16).
 const MODES: Record<ArtMakerMode, { algorithm: string; path: string; noun: string; filePrefix: string; make: string; again: string }> = {
   painting: { algorithm: ART_ALGORITHM, path: "/painting", noun: "painting", filePrefix: "bitgraph-image", make: "Make a BitGraph painting", again: "Make another painting" },
-  three: { algorithm: ART_ALGORITHM_V16, path: "/generate", noun: "piece", filePrefix: "bitgraph-three", make: "Generate", again: "Generate another" },
+  three: { algorithm: ART_ALGORITHM_V17, path: "/generate", noun: "piece", filePrefix: "bitgraph-three", make: "Generate", again: "Make another" },
+  home: { algorithm: ART_ALGORITHM_V17, path: "/", noun: "piece", filePrefix: "bitgraph-three", make: "Make a BitGraph", again: "Make another" },
 };
+/** Versions 16 and 17, the two Threes (square, and 16:9 for the home page): flat shapes, a print SVG inside the PNG. */
+const isThree = (algorithm: string) => algorithm === ART_ALGORITHM_V16 || algorithm === ART_ALGORITHM_V17;
+/** STAGED for Mike (2026-10-10): new words in red; on a blue button red text does not read, so a red outline marks it. Remove when approved. */
+const STAGED = { color: "#d93025" } as const;
+const STAGED_BLUE = { outline: "2px solid #d93025", outlineOffset: -5 } as const; // inside the pill: the hero clips anything outside it
 
-export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode; mode?: ArtMakerMode } = {}) {
+export function ArtMaker({ children, mode = "painting", secondary }: { children?: ReactNode; mode?: ArtMakerMode; secondary?: ReactNode } = {}) {
   const cfg = MODES[mode];
+  const home = mode === "home";
+  /** Home and /generate end the same way: the piece, one paragraph, two buttons (no downloads; the proof page has them),
+   *  so neither builds the download (the BitGraphed file) in the background. */
+  const compact = home || mode === "three";
   const [stage, setStage] = useState<ArtStage | null>(null);
   const [failedAt, setFailedAt] = useState(-1);
   const [made, setMade] = useState<MadeArtImage | null>(null);
@@ -141,7 +156,7 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
         const list: Array<{ proof?: unknown }> = Array.isArray(d?.proofs) ? d.proofs : [];
         for (const item of list) {
           const m = item.proof ? await restoreArtImage(item.proof as never, { recordedMs: recordedMsOf(item.proof), onTry: (a) => { if (!cancelled) setPainting(a === ART_ALGORITHM_V15); } }) : null;
-          if (m && !cancelled) { setMade(m); setRestored(!madeHere(urlSafe(m.digestB64))); setShown(true); void buildDownload(m); return; }
+          if (m && !cancelled) { setMade(m); setRestored(!madeHere(urlSafe(m.digestB64))); setShown(true); if (!compact) void buildDownload(m); return; }
         }
         if (!cancelled) { setError({ message: `That ${cfg.noun} could not be found. Make a new one below.`, recorded: false }); window.history.replaceState(null, "", cfg.path); }
       } catch {
@@ -151,7 +166,7 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
       }
     })();
     return () => { cancelled = true; };
-  }, [buildDownload, cfg.noun, cfg.path]);
+  }, [buildDownload, cfg.noun, cfg.path, compact]);
 
   // The image appears once it is shown: painted exactly, faded in by CSS.
   useEffect(() => {
@@ -176,7 +191,7 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
       // The address now opens this image again, so leaving the page loses nothing.
       window.history.replaceState(null, "", `${cfg.path}?p=${urlSafe(r.digestB64)}`);
       rememberMade(urlSafe(r.digestB64));
-      void buildDownload(r); // ready the download and the Base block in the background
+      if (!compact) void buildDownload(r); // ready the download and the Base block in the background (home and /generate offer none)
       showTimer.current = window.setTimeout(() => setShown(true), Math.max(0, MIN_WAIT_MS - (performance.now() - startedAt.current)));
     } catch (e) {
       setFailedAt(stepIndex(stageRef.current));
@@ -185,7 +200,7 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
     } finally {
       busy.current = false;
     }
-  }, [buildDownload, cfg.algorithm, cfg.path]);
+  }, [buildDownload, cfg.algorithm, cfg.path, compact]);
 
   const download = useCallback(async () => {
     if (!made) return;
@@ -200,8 +215,8 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
 
   /** Version 16's print master: the SVG inside the recorded PNG, byte for byte (checked against a redrawing when the piece was made or reopened). */
   const downloadSvg = useCallback(() => {
-    if (!made || made.manifest.algorithm !== ART_ALGORITHM_V16 || made.checks.strip.result !== "TRUE") return;
-    const svg = svgFromPngV16(made.png);
+    if (!made || !isThree(made.manifest.algorithm) || made.checks.strip.result !== "TRUE") return;
+    const svg = svgFromPngV16(made.png); // the same iTXt chunk in versions 16 and 17
     if (!svg) return;
     const url = URL.createObjectURL(new Blob([svg as BlobPart], { type: "image/svg+xml" }));
     const a = document.createElement("a");
@@ -243,12 +258,13 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
   // What the recorded picture is, so a reopened older record reads right: portraits (versions 11 to 14),
   // paintings (15 on), images before that (Mike, 2026-10-09).
   // Version 16 (/three) is a "piece".
-  const noun = !made ? cfg.noun : made.manifest.algorithm === ART_ALGORITHM_V16 ? "piece" : /^bitgraph-art\/(1[1-4])$/.test(made.manifest.algorithm) ? "portrait" : /^bitgraph-art\/([1-9]|10)$/.test(made.manifest.algorithm) ? "image" : "painting";
+  const noun = !made ? cfg.noun : isThree(made.manifest.algorithm) ? "piece" : /^bitgraph-art\/(1[1-4])$/.test(made.manifest.algorithm) ? "portrait" : /^bitgraph-art\/([1-9]|10)$/.test(made.manifest.algorithm) ? "image" : "painting";
   const paints = cfg.algorithm === ART_ALGORITHM_V15;
-  const printSvgSha = made?.recipe.v16 ? (() => { const svg = svgFromPngV16(made.png); return svg ? toHex(sha256(svg)) : null; })() : null;
+  const threePlan = made ? made.recipe.v17 ?? made.recipe.v16 ?? null : null;
+  const printSvgSha = made && threePlan ? (() => { const svg = svgFromPngV16(made.png); return svg ? toHex(sha256(svg)) : null; })() : null;
 
   return (
-    <div className={`art${shown ? " is-active" : ""}`}>
+    <div className={`art${home ? " art-home" : ""}${shown ? " is-active" : ""}`}>
       {children && (
         <div className={`art-hero${stage !== null || failedAt >= 0 || shown || restoring ? " is-away" : ""}`}>
           <div className="art-hero-inner">{children}</div>
@@ -256,9 +272,19 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
       )}
       <div className={`art-hero art-go-wrap${running || shown || restoring ? " is-away" : ""}`}>
         <div className="art-hero-inner">
-          <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running}>
-            {failedAt >= 0 ? "Try again" : cfg.make}
-          </button>
+          {home ? (
+            /* Home: the page's two buttons, the make first and blue (it replaced "See a real BitGraph", Mike, 2026-10-10). */
+            <div className="actions art-home-actions">
+              <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running} style={failedAt >= 0 ? undefined : STAGED_BLUE}>
+                {failedAt >= 0 ? "Try again" : cfg.make}
+              </button>
+              {secondary}
+            </div>
+          ) : (
+            <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running}>
+              {failedAt >= 0 ? "Try again" : cfg.make}
+            </button>
+          )}
         </div>
       </div>
 
@@ -280,11 +306,28 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
         </div>
       )}
 
-      {made && shown && (
+      {made && shown && compact && (
+        /* Home's result (Mike, 2026-10-10), and /generate's: the 16:9 piece at the column's width, what just happened under
+           it, and two buttons. Nothing else: no downloads, no link to copy, no details (the proof page has them all). A
+           version 16 square reopened on /generate is held to 640px wide, so it does not run a screen and a half tall. */
+        <div className="art-result art-home-result">
+          <div className="art-canvas" style={made.manifest.width === made.manifest.height ? { maxWidth: 640 } : undefined}>
+            <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`${threePlan ? `Three shapes, ${describeV16(threePlan)},` : "An image"} drawn from the code ${made.position.commitment}`} />
+          </div>
+          {/* STAGED copy (Mike, 2026-10-10): the /painting why-paragraph and caption as one, saying what just happened. */}
+          <p className="art-home-explain"><span style={STAGED}>BitGraph began this proof before these bits existed. Your click opened a position, and that position&rsquo;s commitment was the only input this image was drawn from. The image was then recorded in the same position, so no one could have made it before your click, and no click will ever make it again. It can be drawn again from the commitment, and the proof checks without contacting anyone. Every record gets the same guarantee; this just makes it&nbsp;visible.</span></p>
+          <div className="actions art-home-actions">
+            <button type="button" className="bg-action-link is-make art-go" onClick={create} style={STAGED_BLUE}>{cfg.again}</button>
+            <a className="bg-action-link art-go" href={`/proof/${urlSafe(made.digestB64)}`}><span style={STAGED}>See the full proof</span></a>
+          </div>
+        </div>
+      )}
+
+      {made && shown && !compact && (
         <div className="art-result">
           {/* What just happened, for someone who has never heard of BitGraph, above the image (Mike, 10-06, after trying it below: "i suppose this paragraph should be on top eh?": a square image fills the screen, so text under it sits below the fold). */}
           <div className="art-canvas">
-            <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`${made.recipe.v16 ? `Three shapes, ${describeV16(made.recipe.v16)},` : made.recipe.v14 || made.recipe.v13 || made.recipe.v12 || made.recipe.v11 ? "Portrait" : "Abstract image"} drawn from the code ${made.position.commitment}`} />
+            <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`${threePlan ? `Three shapes, ${describeV16(threePlan)},` : made.recipe.v14 || made.recipe.v13 || made.recipe.v12 || made.recipe.v11 ? "Portrait" : "Abstract image"} drawn from the code ${made.position.commitment}`} />
           </div>
           {/* The caption under the image (Mike, 10-06: "it should caption under image"). */}
           <p className="art-explain art-explain-one art-caption">{/* Mike, 10-06: "The proof for this image began before the image existed."; "the bits" from 10-07. Accurate: the position (the
@@ -297,7 +340,7 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
             <button type="button" className="bg-action-link is-make" onClick={create}>{cfg.again}</button>
             <button type="button" className="bg-action-link" onClick={download} disabled={building && !built}>{building && !built ? "Preparing the download" : `Download ${noun}, proof inside`}</button>
             {/* Version 16's print master (Mike, 2026-10-09): the SVG the recorded PNG carries, for printing at any size. */}
-            {made.recipe.v16 && made.checks.strip.result === "TRUE" && <button type="button" className="bg-action-link" onClick={downloadSvg}>Download SVG for print</button>}
+            {threePlan && made.checks.strip.result === "TRUE" && <button type="button" className="bg-action-link" onClick={downloadSvg}>Download SVG for print</button>}
             {/* For print (Mike, 10-06: "4 stacked buttons now 2 and 2 with one new one being the high res
                 download for printing"): the same image redrawn at 4096 x 4096 from its code. */}
             {/* Copy proof link in place of Download for print (Mike, 2026-10-08: "proof pages are what ill share"): the
@@ -311,7 +354,7 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
             <ol className="art-timeline">
               <li><span>{made.position.floorChain === "base" ? "Base" : "Ethereum"} block {made.position.floorBlock ? n(made.position.floorBlock) : ""}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
               <li><span>Position {n(made.position.slotCounter)} opened, commitment issued</span><span>after the floor</span></li>
-              <li><span>Image drawn from the commitment</span><span>{made.recipe.v16 ? `three shapes, ${describeV16(made.recipe.v16)}, the print SVG inside the file` : made.recipe.v15 ? `painting, ${compositionNameV15(made.recipe.v15)}, ${paletteNameV15(made.recipe.v15)}, 256 bits in its pixels` : made.recipe.v14 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v14.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v14.age)]}, ${HAIR_NAMES_V11[made.recipe.v14.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v14.expr]}, 256 bits in its pixels` : made.recipe.v13 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v13.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v13.age)]}, ${HAIR_NAMES_V11[made.recipe.v13.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v13.expr]}, 256 bits in its pixels` : made.recipe.v12 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v12.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v12.age)]}, ${HAIR_NAMES_V11[made.recipe.v12.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v12.expr]}, 256 bits in its pixels` : made.recipe.v11 ? `ink portrait, ${PALETTE_NAMES_V11[made.recipe.v11.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v11.age)]}, ${HAIR_NAMES_V11[made.recipe.v11.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v11.expr]}, 256 bits in its pixels` : made.recipe.v10 ? `flow field, ${STYLE_NAMES_V10[made.recipe.v10.style]}, ${DENSITY_NAMES_V10[made.recipe.v10.density]}, ${PALETTE_NAMES_V10[made.recipe.v10.palette]}, ${made.recipe.v10.segments.length.toLocaleString("en-US")} segments, 256 bits in its pixels` : made.recipe.v9 ? `five families, ${["strata", "interference", "cut paper", "blocks", "ribbons"][made.recipe.v9.dominant]} leading, ${made.recipe.v9.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v8 ? `${made.recipe.v8.layers.length} shapes, ${made.recipe.v8.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v7 ? `${made.recipe.v7.layers.length} layers, ${made.recipe.v7.loud ? "loud" : "calm"}, 256 bits in its colours` : made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
+              <li><span>Image drawn from the commitment</span><span>{threePlan ? `three shapes, ${describeV16(threePlan)}, the print SVG inside the file` : made.recipe.v15 ? `painting, ${compositionNameV15(made.recipe.v15)}, ${paletteNameV15(made.recipe.v15)}, 256 bits in its pixels` : made.recipe.v14 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v14.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v14.age)]}, ${HAIR_NAMES_V11[made.recipe.v14.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v14.expr]}, 256 bits in its pixels` : made.recipe.v13 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v13.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v13.age)]}, ${HAIR_NAMES_V11[made.recipe.v13.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v13.expr]}, 256 bits in its pixels` : made.recipe.v12 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v12.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v12.age)]}, ${HAIR_NAMES_V11[made.recipe.v12.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v12.expr]}, 256 bits in its pixels` : made.recipe.v11 ? `ink portrait, ${PALETTE_NAMES_V11[made.recipe.v11.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v11.age)]}, ${HAIR_NAMES_V11[made.recipe.v11.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v11.expr]}, 256 bits in its pixels` : made.recipe.v10 ? `flow field, ${STYLE_NAMES_V10[made.recipe.v10.style]}, ${DENSITY_NAMES_V10[made.recipe.v10.density]}, ${PALETTE_NAMES_V10[made.recipe.v10.palette]}, ${made.recipe.v10.segments.length.toLocaleString("en-US")} segments, 256 bits in its pixels` : made.recipe.v9 ? `five families, ${["strata", "interference", "cut paper", "blocks", "ribbons"][made.recipe.v9.dominant]} leading, ${made.recipe.v9.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v8 ? `${made.recipe.v8.layers.length} shapes, ${made.recipe.v8.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v7 ? `${made.recipe.v7.layers.length} layers, ${made.recipe.v7.loud ? "loud" : "calm"}, 256 bits in its colours` : made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
               <li><span>Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{counter}</a></span><span>{recordedMs ? utc(recordedMs) : ""}</span></li>
               <li className={built?.existedBy ? "" : "is-pending"}><span>{built?.existedBy ? `Existed by Base block ${n(built.existedBy.blockNumber)}` : "Base block"}</span><span>{built?.existedBy ? utc(built.existedBy.timestamp * 1000) : building ? "waiting for it" : "not in yet"}</span></li>
             </ol>
@@ -320,8 +363,8 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
               <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier. That makes it original: it did not exist anywhere before that moment, and no later click will ever draw it again.</p>
               <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
               <h3>How it was drawn</h3>
-              <p>{made.manifest.algorithm === ART_ALGORITHM_V16
-                ? <>Every piece is three flat shapes on a flat ground, squares or rectangles that never touch, in red, yellow, blue and green: the ground is one of the four, and each shape one of the other three. Every size, position, gap and colour comes from the code ({made.manifest.algorithm}). The recorded file is a PNG, and it carries the print version inside it, an SVG of the same shapes in whole numbers on an 1800 by 1800 grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</>
+              <p>{isThree(made.manifest.algorithm)
+                ? <>Every piece is three flat shapes on a flat ground, squares or rectangles that never touch, in red, yellow, blue and green: the ground is one of the four, and each shape one of the other three. Every size, position, gap and colour comes from the code ({made.manifest.algorithm}). The recorded file is a PNG, and it carries the print version inside it, an SVG of the same shapes in whole numbers on {made.manifest.algorithm === ART_ALGORITHM_V17 ? "a 1920 by 1080" : "an 1800 by 1800"} grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</>
                 : made.manifest.algorithm === "bitgraph-art/15"
                 ? <>Every picture is a painting no one painted: an abstract oil painting whose every decision comes from the code ({made.manifest.algorithm}), the painter&rsquo;s choices for the day, the composition, each brush, its load of paint, how it twists, splays and runs dry, and the wet paint it picks up and drags, laid on linen and lit from the top left. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is its painted colour or that colour one level away in blue, so that its red, green and blue add up to an odd number exactly when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
                 : made.manifest.algorithm === "bitgraph-art/14" || made.manifest.algorithm === "bitgraph-art/13"
@@ -356,7 +399,7 @@ export function ArtMaker({ children, mode = "painting" }: { children?: ReactNode
               <dt>Commitment</dt><dd><code className="break">{made.position.commitment}</code></dd>
               <dt>Recipe SHA-256</dt><dd><code className="break">{made.manifest.recipeSha256}</code></dd>
               <dt>Pixels SHA-256</dt><dd><code className="break">{made.manifest.pixelsSha256}</code></dd>
-              {made.recipe.v16 && printSvgSha && <><dt>Print SVG SHA-256</dt><dd><code className="break">{printSvgSha}</code></dd></>}
+              {threePlan && printSvgSha && <><dt>Print SVG SHA-256</dt><dd><code className="break">{printSvgSha}</code></dd></>}
               <dt>Recorded file SHA-256</dt><dd><code className="break">{made.digestB64}</code> (base64)</dd>
             </dl>
           </details>

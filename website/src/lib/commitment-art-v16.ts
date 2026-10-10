@@ -40,10 +40,31 @@ import { sha256 } from "@noble/hashes/sha256";
 import { deflateV15, filterRowsV15 } from "./png-deflate-v15.ts";
 
 export const ART_ALGORITHM_V16 = "bitgraph-art/16";
-const LABEL = ART_ALGORITHM_V16;
 export const V16_SIZE = 1800;
 export const V16_WIDTH = V16_SIZE, V16_HEIGHT = V16_SIZE;
 export const V16_COPYRIGHT = "© 2026 Michael Argento. All rights reserved.";
+
+/**
+ * The rules of a "Three" version, as numbers: version 16 (this file, square) and version 17 (commitment-art-v17.ts, the
+ * same rules on a 16:9 canvas) are the same code reading different numbers. Every range is `min + below(span)`, so it
+ * runs from min to min + span - 1. Version 16's numbers are fixed by the pieces recorded with it (its tests pin bytes).
+ */
+export interface ThreeSpec {
+  /** The version label: the stream's domain and the SVG's metadata. */
+  label: string;
+  width: number;
+  height: number;
+  /** The least background between any two objects. */
+  gap: readonly [min: number, span: number];
+  /** A square's side. */
+  square: readonly [min: number, span: number];
+  /** A rectangle's width, then its height (drawn in that order). */
+  rectW: readonly [min: number, span: number];
+  rectH: readonly [min: number, span: number];
+  /** A rectangle with |w - h| below this is dropped (never nearly square). */
+  nearSquare: number;
+}
+export const THREE_SPEC_V16: ThreeSpec = { label: ART_ALGORITHM_V16, width: V16_SIZE, height: V16_SIZE, gap: [12, 140], square: [90, 760], rectW: [40, 1300], rectH: [40, 1300], nearSquare: 40 };
 
 export type RGB = readonly [number, number, number];
 /**
@@ -83,9 +104,9 @@ class Stream {
   private at = 0;
   private k = 0;
   private readonly prefix: Uint8Array;
-  constructor(commitment: Uint8Array) {
+  constructor(label_: string, commitment: Uint8Array) {
     const te = new TextEncoder();
-    const label = te.encode(LABEL), purpose = te.encode("draw");
+    const label = te.encode(label_), purpose = te.encode("draw");
     this.prefix = new Uint8Array(label.length + 1 + purpose.length + 1 + 32);
     this.prefix.set(label, 0);
     this.prefix.set(purpose, label.length + 1);
@@ -122,25 +143,30 @@ function requireCommitment(c: Uint8Array): void {
 }
 
 export function planV16(commitment: Uint8Array): V16Plan {
+  return planThree(THREE_SPEC_V16, commitment);
+}
+
+/** The plan under a version's numbers (version 16's, or version 17's). */
+export function planThree(spec: ThreeSpec, commitment: Uint8Array): V16Plan {
   requireCommitment(commitment);
-  const s = new Stream(commitment);
+  const s = new Stream(spec.label, commitment);
   const background = s.below(COLOURS_V16.length);
-  const gap = 12 + s.below(140);
+  const gap = spec.gap[0] + s.below(spec.gap[1]);
   const placed: Array<Omit<V16Object, "colour">> = [];
   let attempts = 0;
   while (placed.length < 3) {
-    if (++attempts > MAX_ATTEMPTS) throw new Error("bitgraph-art/16: no placement found");
+    if (++attempts > MAX_ATTEMPTS) throw new Error(`${spec.label}: no placement found`);
     let w: number, h: number, kind: V16Object["kind"];
     if (s.below(3) === 0) {
       kind = "square";
-      w = h = 90 + s.below(760);
+      w = h = spec.square[0] + s.below(spec.square[1]);
     } else {
       kind = "rectangle";
-      w = 40 + s.below(1300);
-      h = 40 + s.below(1300);
-      if (Math.abs(w - h) < 40) continue;
+      w = spec.rectW[0] + s.below(spec.rectW[1]);
+      h = spec.rectH[0] + s.below(spec.rectH[1]);
+      if (Math.abs(w - h) < spec.nearSquare) continue;
     }
-    const x = s.below(V16_SIZE - w + 1), y = s.below(V16_SIZE - h + 1);
+    const x = s.below(spec.width - w + 1), y = s.below(spec.height - h + 1);
     const r = { kind, x, y, w, h };
     if (placed.every((o) => !touchingV16(r, o, gap))) placed.push(r);
   }
@@ -157,15 +183,18 @@ const b64url = (b: Uint8Array): string => {
 
 /** The SVG text, canonical: one element a line, attributes in a fixed order, integers only, LF, a final LF. */
 export function svgTextV16(plan: V16Plan, commitment: Uint8Array): string {
+  return svgTextThree(THREE_SPEC_V16, plan, commitment);
+}
+export function svgTextThree(spec: ThreeSpec, plan: V16Plan, commitment: Uint8Array): string {
   requireCommitment(commitment);
   const fill = (c: number) => COLOURS_V16[c]!.hex;
   const lines = [
     `<?xml version="1.0" encoding="UTF-8"?>`,
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${V16_SIZE} ${V16_SIZE}" width="100%" height="100%" shape-rendering="crispEdges">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${spec.width} ${spec.height}" width="100%" height="100%" shape-rendering="crispEdges">`,
     `<title>Three</title>`,
     `<desc>${V16_COPYRIGHT}</desc>`,
-    `<metadata>${ART_ALGORITHM_V16} commitment ${b64url(commitment)}</metadata>`,
-    `<rect x="0" y="0" width="${V16_SIZE}" height="${V16_SIZE}" fill="${fill(plan.background)}"/>`,
+    `<metadata>${spec.label} commitment ${b64url(commitment)}</metadata>`,
+    `<rect x="0" y="0" width="${spec.width}" height="${spec.height}" fill="${fill(plan.background)}"/>`,
     ...plan.objects.map((o) => `<rect x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" fill="${fill(o.colour)}"/>`),
     `</svg>`,
   ];
@@ -179,7 +208,11 @@ export function svgV16(commitment: Uint8Array): Uint8Array {
 
 /** The canonical RGBA pixels of the plan, 1800 x 1800. */
 export function renderV16(plan: V16Plan): Uint8Array {
-  const W = V16_SIZE, px = new Uint8Array(W * W * 4);
+  return renderThree(THREE_SPEC_V16, plan);
+}
+/** The canonical RGBA pixels of the plan on the version's canvas. */
+export function renderThree(spec: ThreeSpec, plan: V16Plan): Uint8Array {
+  const W = spec.width, px = new Uint8Array(W * spec.height * 4);
   const bg = COLOURS_V16[plan.background]!.rgb;
   for (let i = 0; i < px.length; i += 4) { px[i] = bg[0]; px[i + 1] = bg[1]; px[i + 2] = bg[2]; px[i + 3] = 255; }
   for (const o of plan.objects) {
@@ -234,11 +267,15 @@ export const V16_SVG_KEYWORD = "bitgraph-print-svg";
  * tEXt is Latin-1, so the copyright sign would not survive there byte for byte); IDAT (version 15's pure deflate); IEND.
  */
 export function pngFileV16(px: Uint8Array, manifestText: string, svgText: string): Uint8Array {
+  return pngFileThree(THREE_SPEC_V16, px, manifestText, svgText);
+}
+/** The same file on the version's canvas (version 17: 1920 x 1080), chunk for chunk as above. */
+export function pngFileThree(spec: ThreeSpec, px: Uint8Array, manifestText: string, svgText: string): Uint8Array {
   const ihdr = new Uint8Array(13);
-  ihdr.set(u32be(V16_SIZE), 0); ihdr.set(u32be(V16_SIZE), 4);
+  ihdr.set(u32be(spec.width), 0); ihdr.set(u32be(spec.height), 4);
   ihdr[8] = 8; ihdr[9] = 2; // 8-bit truecolour, no alpha; compression, filter, interlace 0
   const itxt = chunk("iTXt", concat([latin1(V16_SVG_KEYWORD), Uint8Array.of(0, 0, 0, 0, 0), new TextEncoder().encode(svgText)]));
-  const idat = deflateV15(filterRowsV15(px, V16_SIZE, V16_SIZE));
+  const idat = deflateV15(filterRowsV15(px, spec.width, spec.height));
   return concat([PNG_SIG, chunk("IHDR", ihdr), text("bitgraph-art", manifestText), text("Copyright", V16_COPYRIGHT), itxt, chunk("IDAT", idat), chunk("IEND", new Uint8Array(0))]);
 }
 
@@ -270,9 +307,12 @@ export function svgFromPngV16(png: Uint8Array): Uint8Array | null {
 
 /** The commitment an SVG of this version states in its metadata, or null. Informational: a check redraws instead. */
 export function readCommitmentV16(svg: Uint8Array): Uint8Array | null {
+  return readCommitmentThree(THREE_SPEC_V16, svg);
+}
+export function readCommitmentThree(spec: ThreeSpec, svg: Uint8Array): Uint8Array | null {
   let s: string;
   try { s = new TextDecoder("utf-8", { fatal: true }).decode(svg); } catch { return null; }
-  const m = /<metadata>bitgraph-art\/16 commitment ([A-Za-z0-9_-]{43})<\/metadata>/.exec(s);
+  const m = new RegExp(`<metadata>${spec.label.replace(/[/.]/g, "\\$&")} commitment ([A-Za-z0-9_-]{43})</metadata>`).exec(s);
   if (!m) return null;
   try {
     const bin = atob(m[1]!.replace(/-/g, "+").replace(/_/g, "/") + "=");
