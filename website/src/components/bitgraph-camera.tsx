@@ -1288,9 +1288,12 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     let carrierProofs: Map<File, BitGraphProof> | null = null;
     {
       const dc = await deCarrierFiles(files);
-      files = dc.files;
+      // Files whose proof block cannot be read are held back: never recorded, never checked as plain bytes.
+      files = dc.files.filter((f) => !dc.unreadable.has(f));
       if (dc.notes.length) setCarrierDrops(dc.notes);
       if (dc.proofs.size) carrierProofs = dc.proofs as unknown as Map<File, BitGraphProof>;
+      // Everything dropped was held back: the line above the results says why, and nothing is recorded.
+      if (files.length === 0) return;
     }
 
     const zips = files.filter((f) => f.name.toLowerCase().endsWith(".zip"));
@@ -3499,7 +3502,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     <div key={c.name} style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                       <span>
                         {c.ceiling === "corrupt"
-                          ? `${c.name}: its proof block is unreadable (corrupted, not judged), so the whole file was checked as bytes.`
+                          ? `${c.name}: its proof block can't be read (damaged, or a newer format than this page knows), so it was not recorded or checked.`
                           : c.innerMatches === false
                             ? `${c.name}: the bytes inside do not match the proof it carries, so they were checked as plain bytes.`
                             : `${c.name} carries its proof inside.${c.ceiling === "present" && !c.note ? " Its time window is complete." : ""}${c.note ? ` ${c.note}` : ""}`}

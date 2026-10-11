@@ -262,9 +262,10 @@ export interface CarriedMember {
   evidence: TreeMemberEvidence;
 }
 
-export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; notes: DeCarrierNote[]; proofs: Map<File, CarrierProof>; members: Map<File, CarriedMember> }> {
+export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; notes: DeCarrierNote[]; proofs: Map<File, CarrierProof>; members: Map<File, CarriedMember>; unreadable: Set<File> }> {
   const MAGIC = [0x42, 0x47, 0x50, 0x52, 0x4f, 0x4f, 0x46, 0x01];
   const out = files.slice();
+  const unreadable = new Set<File>();
   const notes: DeCarrierNote[] = [];
   const proofs = new Map<File, CarrierProof>();
   const members = new Map<File, CarriedMember>();
@@ -316,10 +317,13 @@ export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; no
           : { name: f.name, ceiling: parsed.payload.ceiling.status, ...(matches ? { proof: parsed.payload.proof } : {}), innerMatches: matches, ...(member ? { member } : {}) });
       } else if (parsed.kind === "corrupt") {
         notes.push({ name: f.name, ceiling: "corrupt" });
+        // The safety catch (Mike, 2026-10-11): a file whose proof block cannot be read is never recorded as new bytes.
+        // A damaged BitGraphed file, or one in a format newer than this site, is held back, not re-minted.
+        unreadable.add(f);
       }
     } catch { /* unreadable: the file goes through the normal path untouched */ }
   }
-  return { files: out, notes, proofs, members };
+  return { files: out, notes, proofs, members, unreadable };
 }
 
 function hexBytes(hex: string): Uint8Array {
