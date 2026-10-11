@@ -87,8 +87,8 @@ export default function HomePage() {
             (Mike, 10-05). */}
         {/* Mike, 2026-10-11: the stat replaces "BitGraph begins the proof before the bits arrive, so their position cannot be
             chosen afterward." as the line under the headline; its footnote stays under the buttons. STAGED: red. */}
-        <p className="lede">
-          <span style={{ color: "#d93025" }}>Every photo taken on Earth, every day, for about&nbsp;$2.<br className="br-desk" /> Each gets its own place in a position fixed before it existed, sealed to a public&nbsp;blockchain.</span>
+        <p className="lede home-lede-stat">
+          <span style={{ color: "#d93025" }}>Every photo taken on Earth, every day, for about&nbsp;$2. Each gets its own place in a position fixed before it existed, sealed to a public&nbsp;blockchain.</span>
         </p>
       </ArtMaker>
 
