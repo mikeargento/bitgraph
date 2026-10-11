@@ -4,13 +4,14 @@
  * versions draw in well under a second and stay on the main thread, as they always have. Where there is no Worker (node,
  * the tests) or it cannot start, everything is drawn here, the same way: the result is the same bytes either way.
  */
-import { ART_ALGORITHM_V15, makeArt, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
+import { ART_ALGORITHM_V15, ART_ALGORITHM_V18, makeArt, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
 import { drawPrint, type PrintRequest } from "./art-print.ts";
 
 export interface DrawnArt { recipe: ArtRecipe; pixels: Uint8Array; manifest: ArtManifest; png: Uint8Array }
 
-/** The versions drawn in the worker. */
-export const paintsOffThread = (algorithm: string): boolean => algorithm === ART_ALGORITHM_V15;
+/** The versions drawn in the worker: the painting, and the bridge (bitgraph-art/18: its packing takes about half a second,
+ *  more on a phone, 2026-10-10). */
+export const paintsOffThread = (algorithm: string): boolean => algorithm === ART_ALGORITHM_V15 || algorithm === ART_ALGORITHM_V18;
 
 let worker: Worker | null = null;
 /** The worker could not start here (an old browser, a blocked script): draw on the page from now on. */

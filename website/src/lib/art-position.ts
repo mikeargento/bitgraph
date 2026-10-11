@@ -20,7 +20,7 @@ import {
 import { FuseError } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
 import { commitInPosition, fuseVersionOfFloor, openPosition, type TreeTransport } from "./fuse-tree-make.ts";
-import { ART_ALGORITHM, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
+import { ART_ALGORITHM, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, checkArt, makeArt, toBase64Url, type ArtChecks, type ArtManifest, type ArtRecipe } from "./commitment-art.ts";
 import { makeArtOffThread, paintsOffThread, type DrawnArt } from "./art-offthread.ts";
 
 /** A position is good for 120 s; the image is recorded well inside that or not at all. */
@@ -148,7 +148,7 @@ export async function createArtImage(opts: ArtOptions = {}): Promise<MadeArtImag
   if (!bytesEqual(authenticated, commitment)) throw new ArtError("verification-failed", "The proof authenticates a different commitment from the one the image was drawn from.", true);
   // The pixels were drawn from `commitment`, which is the authenticated commitment byte for byte (checked above), so the
   // check compares the file with them rather than painting the same picture a second time.
-  const checks = await checkArt(art.png, authenticated, { commitment, algorithm: art.recipe.algorithm, pixels: art.pixels });
+  const checks = await checkArt(art.png, authenticated, { commitment, algorithm: art.recipe.algorithm, pixels: art.pixels, recipe: art.recipe });
   if (checks.regenerated.result !== "TRUE" || checks.strip.result !== "TRUE") {
     throw new ArtError("verification-failed", `The image does not regenerate from its commitment: ${checks.regenerated.detail}`, true);
   }
@@ -226,6 +226,8 @@ export const V15_FROM_MS = Date.UTC(2026, 9, 9);
 export const V16_FROM_MS = Date.UTC(2026, 9, 9);
 /** Version 17 (the home page's 16:9 Three) exists from 2026-10-10; as quick to draw as 16, and the most made, so it is tried first. */
 export const V17_FROM_MS = Date.UTC(2026, 9, 10);
+/** Version 18 (/bridge) exists from 2026-10-10; about half a second to pack (in a worker), so it is tried after the two quick Threes. */
+export const V18_FROM_MS = Date.UTC(2026, 9, 10);
 export async function redrawRecordedArt(proof: BitGraphProof, opts: { onTry?: (algorithm: string | null) => void; recordedMs?: number | null } = {}): Promise<{ png: Uint8Array; algorithm: string; art: DrawnArt } | null> {
   const a = proof.attribution;
   if (!a || a.title !== "base64url" || (a.name !== inlineAttribution(2).name && a.name !== inlineAttribution(3).name) || !proof.slotAllocation) return null;
@@ -235,11 +237,13 @@ export async function redrawRecordedArt(proof: BitGraphProof, opts: { onTry?: (a
   const before15 = Number.isFinite(signedMs) && signedMs < V15_FROM_MS;
   const before16 = Number.isFinite(signedMs) && signedMs < V16_FROM_MS;
   const before17 = Number.isFinite(signedMs) && signedMs < V17_FROM_MS;
+  const before18 = Number.isFinite(signedMs) && signedMs < V18_FROM_MS;
   try {
-    for (const algorithm of [ART_ALGORITHM_V17, ART_ALGORITHM_V16, ART_ALGORITHM_V15, ART_ALGORITHM_V14, ART_ALGORITHM_V13, ART_ALGORITHM_V12, ART_ALGORITHM_V11, ART_ALGORITHM_V10, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V7, ART_ALGORITHM_V6, ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
+    for (const algorithm of [ART_ALGORITHM_V17, ART_ALGORITHM_V16, ART_ALGORITHM_V18, ART_ALGORITHM_V15, ART_ALGORITHM_V14, ART_ALGORITHM_V13, ART_ALGORITHM_V12, ART_ALGORITHM_V11, ART_ALGORITHM_V10, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V7, ART_ALGORITHM_V6, ART_ALGORITHM_V5, ART_ALGORITHM_V4, ART_ALGORITHM_V3, ART_ALGORITHM_V2]) {
       if (algorithm === ART_ALGORITHM_V15 && before15) continue;
       if (algorithm === ART_ALGORITHM_V16 && before16) continue;
       if (algorithm === ART_ALGORITHM_V17 && before17) continue;
+      if (algorithm === ART_ALGORITHM_V18 && before18) continue;
       // Each drawing is a few hundred ms of main thread (a painting, seconds in a worker); yield between them so the page
       // paints and stays responsive while a record that is not an /image picture is ruled out (2026-10-07).
       opts.onTry?.(algorithm);
@@ -261,7 +265,7 @@ export async function restoreArtImage(proof: BitGraphProof, opts: { onTry?: (alg
   if (!redrawn || !proof.slotAllocation) return null;
   const commitment = commitmentForProof(proof, proof.slotAllocation);
   const art = redrawn.art; // drawn from this commitment by redrawRecordedArt, and its file is the recorded one
-  const checks = await checkArt(art.png, commitment, { commitment, algorithm: redrawn.algorithm, pixels: art.pixels });
+  const checks = await checkArt(art.png, commitment, { commitment, algorithm: redrawn.algorithm, pixels: art.pixels, recipe: art.recipe });
   const slot = proof.slotAllocation as unknown as { counter: string | number; epochId: string };
   let floor: ReturnType<typeof signedFloorOf> = null;
   try { floor = signedFloorOf(proof); } catch { floor = null; }
