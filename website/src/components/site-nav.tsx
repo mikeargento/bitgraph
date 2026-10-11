@@ -85,7 +85,11 @@ export function SiteNav() {
     const t = triggers.current[g], cats = catsRef.current;
     if (!t || !cats) return;
     const cr = cats.getBoundingClientRect(), tr = t.getBoundingClientRect();
-    const left = Math.max(16, Math.min(window.innerWidth - 16 - dropWidth, tr.left + tr.width / 2 - dropWidth / 2));
+    // Never past the frame's right edge (the blue button's right side), so the last group's panel (Verify) lines up with
+    // the bar instead of running to the window's edge (Mike, 2026-10-10: "when you hover verify it hits right side of browser").
+    const cta = navRef.current?.querySelector(".nav-cta")?.getBoundingClientRect();
+    const rightEdge = Math.min(window.innerWidth - 16, cta ? cta.right : window.innerWidth - 16);
+    const left = Math.max(16, Math.min(rightEdge - dropWidth, tr.left + tr.width / 2 - dropWidth / 2));
     setDrop({ x: left - cr.left, h: innerRef.current?.offsetHeight ?? 0, slide: shown.current !== null });
     shown.current = g;
   }, [open]);
@@ -168,7 +172,7 @@ export function SiteNav() {
                   role="menu"
                   aria-label={g.label}
                   className={`nav2-drop${drop.slide ? " slide" : ""}`}
-                  style={{ width: dropWidth, transform: `translateX(${drop.x}px)`, height: drop.h || undefined }}
+                  style={{ width: dropWidth, left: 0, right: "auto", transform: `translateX(${drop.x}px)`, height: drop.h || undefined }} /* x is measured from the strip's left edge, so the panel is anchored there */
                 >
                   <div ref={innerRef} key={g.label} className="nav2-drop-inner">
                     {g.items.map((it, k) => item(it, k, true))}
