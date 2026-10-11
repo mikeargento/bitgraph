@@ -14,7 +14,7 @@ export const metadata: Metadata = {
    readers. The format itself is normative in packages/verify (carrier.ts),
    from which this page is derived; version 4 (a tree member) is written out
    in spec/CARRIER-4.md. Words in red are staged for Mike's reading. */
-const staged = { color: "#d93025" } as const;
+const staged = {} as const; // approved 2026-10-11 (Mike: push); was red while staged
 export default function CarrierPage() {
   return (
     <article className="prose">

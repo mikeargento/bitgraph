@@ -122,7 +122,7 @@ function formatHashAlg(alg: string): string {
    putting the file back in the same commit, or the page fetches a 404 on every
    load. */
 /** New words staged for Mike's reading, in red until he approves them (the site's staging convention). */
-const staged = (text: string) => <span style={{ color: "#d93025" }}>{text}</span>;
+const staged = (text: string) => <>{text}</>; // approved 2026-10-11 (Mike: push); was red while staged
 
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
