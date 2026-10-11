@@ -297,7 +297,22 @@ export function renderCheckMarkdown(outcomes: readonly CheckOutcome[]): string {
   return lines.join("\n");
 }
 
+/** A Base floor the proof signs (commit.slotFloor, enclave v10), or null for an Ethereum floor or none. */
+function baseFloorOf(detail: ProofDetailResponse): { blockNumber: number; blockTimestamp: number } | null {
+  const f = (detail.proofs[0]?.proof?.commit as { slotFloor?: { chain?: unknown; blockNumber?: unknown; blockTimestamp?: unknown } } | undefined)?.slotFloor;
+  if (!f || f.chain !== "base" || typeof f.blockNumber !== "number" || typeof f.blockTimestamp !== "number") return null;
+  return { blockNumber: f.blockNumber, blockTimestamp: f.blockTimestamp };
+}
+
 function renderWindow(detail: ProofDetailResponse): string | null {
+  // A Base-floored record (enclave v10 on): the floor block it signs, and the Base ceiling written after it.
+  // The Ethereum anchors stopped on 2026-10-07, so for these the anchor window is hours stale.
+  const base = baseFloorOf(detail);
+  if (base !== null) {
+    const floorLine = `BitGraphed after Base block ${base.blockNumber} (mined ${new Date(base.blockTimestamp * 1000).toISOString().replace(".000Z", "Z")})`;
+    const c = detail.ceiling;
+    return c ? `${floorLine}, and existed by Base block ${c.blockNumber} (mined ${c.blockTime.replace(".000Z", "Z")}), the ceiling.` : `${floorLine}; its Base ceiling is not written yet.`;
+  }
   const w = detail.causalWindow;
   if (!w) return null;
   const lower = w.anchorBefore?.blockTime ?? null; // earlier block: BitGraphed after it
@@ -333,10 +348,16 @@ export function renderProofMarkdown(
   }
   const window = renderWindow(detail);
   if (window) lines.push(`- ${window}`);
-  const etherscan =
-    detail.causalWindow?.anchorAfter?.etherscanUrl ??
-    detail.causalWindow?.anchorBefore?.etherscanUrl;
-  if (etherscan) lines.push(`- Anchor block on Etherscan: ${etherscan}`);
+  const baseFloor = baseFloorOf(detail);
+  if (baseFloor !== null) {
+    lines.push(`- Floor block on Basescan: https://basescan.org/block/${baseFloor.blockNumber}`);
+    if (detail.ceiling?.txHash) lines.push(`- Ceiling transaction on Basescan: https://basescan.org/tx/${detail.ceiling.txHash}`);
+  } else {
+    const etherscan =
+      detail.causalWindow?.anchorAfter?.etherscanUrl ??
+      detail.causalWindow?.anchorBefore?.etherscanUrl;
+    if (etherscan) lines.push(`- Anchor block on Etherscan: ${etherscan}`);
+  }
   if (proof.environment?.enforcement) {
     lines.push(`- Enforcement: ${proof.environment.enforcement}`);
   }
@@ -351,8 +372,9 @@ export function renderProofMarkdown(
     lines.push(`## Causal positions (${fmt(positions.length)})`);
     positions.forEach((p, i) => {
       const label = i === 0 ? " · original" : "";
-      const bracket =
-        p.lowerTime && p.upperTime ? ` · after ${p.lowerTime}, before the closing anchor (its block mined ${p.upperTime})` : "";
+      const bracket = p.floor
+        ? ` · after Base block ${p.floor.blockNumber} (${p.floor.blockTime})${p.ceiling ? `, existed by Base block ${p.ceiling.blockNumber} (${p.ceiling.blockTime})` : ""}`
+        : p.lowerTime && p.upperTime ? ` · after ${p.lowerTime}, before the closing anchor (its block mined ${p.upperTime})` : "";
       lines.push(`- #${p.counter ?? "?"}${label}${p.member ? ` · set of ${fmt(p.member.count)}` : ""}${bracket}`);
     });
   }

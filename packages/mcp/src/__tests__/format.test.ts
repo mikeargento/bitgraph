@@ -113,3 +113,18 @@ test("capJson elides large attestation reports before truncating", () => {
   assert.ok(text.includes("keep me"));
   assert.ok(text.length <= 25_000 + 200);
 });
+
+test("a Base-floored proof states its Base floor and its Base ceiling, never the stale Ethereum anchor", () => {
+  const detail: ProofDetailResponse = {
+    proofs: [{ proof: { artifact: { digestB64: DIGEST }, commit: { counter: "201", epochId: EPOCH, slotFloor: { chain: "base", evmChainId: 8453, blockNumber: 52278218, blockHash: "0x92", blockTimestamp: 1791345783 } } } as never }],
+    positions: [{ counter: "201", epoch: toUrlSafeB64(EPOCH), lowerTime: null, upperTime: null }],
+    causalWindow: { anchorBefore: { blockTime: "2026-10-07T01:51:59.000Z", blockNumber: 26137339 }, anchorAfter: null },
+    ceiling: { chain: "base", blockNumber: 52278221, blockTime: "2026-10-07T04:03:09.000Z", txHash: "0xee29" },
+  };
+  const md = renderProofMarkdown(detail, "https://bitgraph.ing");
+  assert.ok(md.includes("BitGraphed after Base block 52278218 (mined 2026-10-07T04:03:03Z), and existed by Base block 52278221 (mined 2026-10-07T04:03:09Z), the ceiling."), md);
+  assert.ok(md.includes("https://basescan.org/tx/0xee29"), md);
+  assert.ok(!md.includes("26137339") && !md.includes("Etherscan"), "the Ethereum anchor is not offered for a Base-floored record");
+  const pending = renderProofMarkdown({ ...detail, ceiling: null }, "https://bitgraph.ing");
+  assert.ok(pending.includes("its Base ceiling is not written yet"), pending);
+});

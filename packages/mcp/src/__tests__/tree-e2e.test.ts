@@ -138,7 +138,7 @@ after(() => {
 });
 
 test("the default pipeline makes a signed tree/1 and the export it writes proves every file", async () => {
-  const server = buildServer();
+  const server = buildServer({ structuredAlways: true });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -173,7 +173,7 @@ test("check finds a tree member through its recovery entry, with its leaf and th
   await mkdir(checked, { recursive: true });
   await writeFile(join(checked, "one.txt"), "checked one\n");
   await writeFile(join(checked, "two.txt"), "checked two\n");
-  const server = buildServer();
+  const server = buildServer({ structuredAlways: true });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -197,7 +197,7 @@ test("recovery: the tree keeps a sealed entry per file, and recording the same f
   await mkdir(kept, { recursive: true });
   await writeFile(join(kept, "a.txt"), "kept a\n");
   await writeFile(join(kept, "b.png"), Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("kept b")]));
-  const server = buildServer();
+  const server = buildServer({ structuredAlways: true });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);

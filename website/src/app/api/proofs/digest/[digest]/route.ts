@@ -6,6 +6,27 @@ import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, Ledg
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 import { buildAnchorView, computeWindow } from "@/lib/causal-window";
 import { recordedMsOf } from "@/lib/recorded-time";
+import { readSidecarText } from "@/lib/ceilings";
+
+/** The Base floor a proof signs (commit.slotFloor, enclave v10 on), or null for an Ethereum floor or none. */
+function baseFloorOf(proof: Record<string, unknown>): { chain: "base"; blockNumber: number; blockHash: string | null; blockTime: string } | null {
+  const f = (proof.commit as { slotFloor?: { chain?: unknown; blockNumber?: unknown; blockHash?: unknown; blockTimestamp?: unknown } } | undefined)?.slotFloor;
+  if (!f || f.chain !== "base" || typeof f.blockNumber !== "number" || typeof f.blockTimestamp !== "number") return null;
+  return { chain: "base", blockNumber: f.blockNumber, blockHash: typeof f.blockHash === "string" ? f.blockHash : null, blockTime: new Date(f.blockTimestamp * 1000).toISOString() };
+}
+
+/** The record's Base ceiling (its bitgraph-ceiling/1 sidecar), or null when the writer has not written one. */
+async function baseCeilingOf(proof: Record<string, unknown>): Promise<{ chain: "base"; blockNumber: number; blockTime: string; txHash: string | null } | null> {
+  const ph = typeof proof.proofHash === "string" ? proof.proofHash : null;
+  if (!ph) return null;
+  try {
+    const text = await readSidecarText(ph);
+    if (!text) return null;
+    const a = (JSON.parse(text) as { anchor?: { blockNumber?: unknown; blockTimestamp?: unknown; txHash?: unknown } }).anchor;
+    if (!a || typeof a.blockNumber !== "number" || typeof a.blockTimestamp !== "number") return null;
+    return { chain: "base", blockNumber: a.blockNumber, blockTime: new Date(a.blockTimestamp * 1000).toISOString(), txHash: typeof a.txHash === "string" ? a.txHash : null };
+  } catch { return null; }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +129,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       catch { return { anchorBefore: null, anchorAfter: null }; }
     }));
 
+    // The Base floor each proof signs and the Base ceiling written after it (2026-10-11): since the Ethereum
+    // anchor stream stopped (10-07), the anchor window above is hours stale for a Base-floored record, and
+    // it never carried the Base ceiling. These are the record's own bounds, in time.
+    const baseFloors = positionEntries.map((e) => baseFloorOf(e.proof as Record<string, unknown>));
+    const baseCeilings = await Promise.all(positionEntries.map((e) => baseCeilingOf(e.proof as Record<string, unknown>)));
+
     // A set entry's member count, from the manifest the index hydrated and
     // bindSet bound (hash to the signed digest, commitment to the slot);
     // absent when the entry could not be bound, never guessed from raw metadata.
@@ -122,8 +149,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       return {
         counter: c?.counter ?? null,
         epoch: c?.epochId ? toUrlSafeB64(c.epochId) : null,
-        lowerTime: w.anchorBefore?.blockTime ?? null,
-        upperTime: w.anchorAfter?.blockTime ?? null,
+        // A Base-floored record: the floor block it signs and its Base ceiling, both in time. Earlier
+        // records keep the Ethereum anchor window, unchanged.
+        lowerTime: baseFloors[idx]?.blockTime ?? w.anchorBefore?.blockTime ?? null,
+        upperTime: baseFloors[idx] ? baseCeilings[idx]?.blockTime ?? null : baseCeilings[idx]?.blockTime ?? w.anchorAfter?.blockTime ?? null,
+        floor: baseFloors[idx],
+        ceiling: baseCeilings[idx],
         // When BitGraph recorded this position, by the TEE's signed clock: the
         // same time the proof page leads with, so a Positions row and the page
         // it opens never disagree (Mike, 2026-09-27: "make it consistent").
@@ -153,12 +184,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
       return c?.counter === selCommit?.counter && c?.epochId === selCommit?.epochId;
     });
+    let floor: ReturnType<typeof baseFloorOf> = null;
+    let ceiling: Awaited<ReturnType<typeof baseCeilingOf>> = null;
     if (selIdx >= 0) {
+      floor = baseFloors[selIdx];
+      ceiling = baseCeilings[selIdx];
       const w = positionWindows[selIdx];
       if (w.anchorAfter || w.anchorBefore) causalWindow = { anchorBefore: w.anchorBefore, anchorAfter: w.anchorAfter };
     } else if (selCommit?.counter && selCommit?.epochId) {
       // The selected proof is not in the list at all. Not expected, and the
       // lead card must still carry its window rather than silently losing it.
+      floor = baseFloorOf(proof as Record<string, unknown>);
+      ceiling = await baseCeilingOf(proof as Record<string, unknown>);
       try {
         const w = await computeWindow(parseInt(selCommit.counter, 10), selCommit.epochId);
         if (w.anchorAfter || w.anchorBefore) causalWindow = { anchorBefore: w.anchorBefore, anchorAfter: w.anchorAfter };
@@ -190,12 +227,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // doesn't contain) by refetching on a fresh cache key. A proof still waiting
     // on its upper anchor gets a short TTL so the pending "waiting on Ethereum"
     // window fills in promptly (the client also polls).
-    const settled = !!causalWindow?.anchorAfter?.blockTime;
+    const settled = !!causalWindow?.anchorAfter?.blockTime || ceiling !== null;
     const cacheControl = settled
       ? "public, s-maxage=60, stale-while-revalidate=300"
       : "public, s-maxage=5, stale-while-revalidate=30";
     return NextResponse.json({ proofs: [{ proof }],
-        lookupKind, positions, causalWindow, anchorBlock }, { headers: { "Cache-Control": cacheControl } });
+        lookupKind, positions, causalWindow, anchorBlock, floor, ceiling }, { headers: { "Cache-Control": cacheControl } });
   } catch (e) {
     // Never cached, and never confusable with the `{ proofs: [] }` miss above:
     // that answer means the ledger has nothing, this one means we could not

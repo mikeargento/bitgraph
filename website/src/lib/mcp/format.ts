@@ -133,7 +133,11 @@ function renderWindow(detail: ProofDetailResponse): string | null {
   // opened, signed into the proof with its time. No anchor follows it: order
   // after a record is the next BitGraph in the chain.
   const base = baseFloorOf(detail);
-  if (base !== null) return `Placed after Base block ${base.blockNumber} (mined ${new Date(base.blockTimestamp * 1000).toISOString().replace(".000Z", "Z")}).`;
+  if (base !== null) {
+    const floorLine = `Placed after Base block ${base.blockNumber} (mined ${new Date(base.blockTimestamp * 1000).toISOString().replace(".000Z", "Z")})`;
+    const c = detail.ceiling;
+    return c ? `${floorLine}, and existed by Base block ${c.blockNumber} (mined ${c.blockTime.replace(".000Z", "Z")}), the ceiling.` : `${floorLine}; its Base ceiling is not written yet.`;
+  }
   const w = detail.causalWindow;
   if (!w) return null;
   // The floor is a block and its mine time, Ethereum's clock. The ceiling is
@@ -178,6 +182,7 @@ export function renderProofMarkdown(
   const baseFloor = baseFloorOf(detail);
   if (baseFloor !== null) {
     lines.push(`- Floor block on Basescan: https://basescan.org/block/${baseFloor.blockNumber}`);
+    if (detail.ceiling?.txHash) lines.push(`- Ceiling transaction on Basescan: https://basescan.org/tx/${detail.ceiling.txHash}`);
   } else {
     const etherscan =
       detail.causalWindow?.anchorAfter?.etherscanUrl ??

@@ -467,8 +467,10 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
     {
       "counter": "278",
       "epoch": "<url-safe>",
-      "lowerTime": "2026-03-07T12:00:00.000Z",   // earlier proofs: the floor, the block time of the anchor before this position, or null
-      "upperTime": "2026-03-07T12:00:12.000Z",   // earlier proofs: the block time of the next anchor, or null; a place in the order, not an upper bound on the bytes
+      "lowerTime": "2026-03-07T12:00:00.000Z",   // the floor in time: the Base floor block's time (Base-floored records), else the block time of the anchor before this position, or null
+      "upperTime": "2026-03-07T12:00:12.000Z",   // the Base ceiling block's time when written; earlier proofs: the block time of the next anchor, a place in the order, not an upper bound on the bytes
+      "floor": { "chain": "base", "blockNumber": 52278218, "blockHash": "0x…", "blockTime": "…" },   // the Base floor the proof signs, or null
+      "ceiling": { "chain": "base", "blockNumber": 52278221, "blockTime": "…", "txHash": "0x…" },   // the record's Base ceiling, or null until written
       "kind": "recorded",             // "recorded" | "fused"
       "artifactDigest": "<url-safe>"
     },
@@ -487,7 +489,9 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
     }
   ],
   "causalWindow": { "anchorBefore": { ... }, "anchorAfter": { ... } },   // earlier proofs: AnchorView each, or null; null when neither exists
-  "anchorBlock": null                 // for an earlier anchor proof: its own block, as an AnchorView
+  "anchorBlock": null,                // for an earlier anchor proof: its own block, as an AnchorView
+  "floor": { ... },                   // the selected proof's Base floor, or null
+  "ceiling": { ... }                  // the selected proof's Base ceiling, or null
 }`}
           />
           <ul>

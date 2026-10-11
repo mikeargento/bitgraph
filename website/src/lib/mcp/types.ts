@@ -55,6 +55,10 @@ export interface AnchorView {
   recordedMs?: number | null;
 }
 
+/** A Base-floored record's own bounds (2026-10-11): the floor block it signs and its Base ceiling. */
+export interface BaseFloorView { chain: "base"; blockNumber: number; blockHash: string | null; blockTime: string }
+export interface BaseCeilingView { chain: "base"; blockNumber: number; blockTime: string; txHash: string | null }
+
 export interface PositionView {
   counter: string | null;
   epoch: string | null;
@@ -65,6 +69,8 @@ export interface PositionView {
   kind?: "recorded" | "fused";
   placement?: string | null;
   member?: SetMemberView;
+  floor?: BaseFloorView | null;
+  ceiling?: BaseCeilingView | null;
 }
 
 /**
@@ -80,6 +86,8 @@ export interface ProofDetailResponse {
   positions?: PositionView[];
   causalWindow?: { anchorBefore: AnchorView | null; anchorAfter: AnchorView | null } | null;
   anchorBlock?: AnchorView | null;
+  floor?: BaseFloorView | null;
+  ceiling?: BaseCeilingView | null;
 }
 
 /** GET /api/search response. */

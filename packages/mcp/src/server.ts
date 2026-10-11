@@ -53,7 +53,7 @@ import { TASK_INSTRUCTIONS } from "./instructions.js";
 
 export type { FuseTreeFn, TreeSummary, FuseFileFn, FuseSetFn, FusedSummary, SetSummary } from "@mikeargento/bitgraph-sdk";
 
-export const SERVER_VERSION = "0.10.0";
+export const SERVER_VERSION = "0.10.1";
 
 const SCAN_CONCURRENCY = 4;
 /** Paths per call; a directory counts once and expands to its files. */
@@ -73,6 +73,8 @@ export interface ServerDeps {
   fuseSet?: FuseSetFn;
   /** Superseded (the single-file Frame); no longer used. Kept so callers that pass it still type-check. */
   fuseFile?: FuseFileFn;
+  /** Add structuredContent to markdown answers too (default: only response_format "json" carries it). */
+  structuredAlways?: boolean;
 }
 
 /** Hash the given paths (bounded concurrency). Throws before any network call. */
@@ -164,6 +166,11 @@ const PHASES: Record<FuseTreeProgress["phase"], string> = {
 
 export function buildServer(deps: ServerDeps = {}): McpServer {
   const runFuseTree = deps.fuseTree ?? fuseTreePipeline;
+  /* A markdown answer goes out as text alone unless asked otherwise: clients that see structuredContent show it in
+   * place of the text, so a markdown answer that carried it arrived as raw JSON (Claude Code, 2026-10-11).
+   * response_format "json" always carries it; BITGRAPH_MCP_STRUCTURED=always (or deps) adds it to markdown too. */
+  const structuredAlways = deps.structuredAlways ?? process.env.BITGRAPH_MCP_STRUCTURED === "always";
+  const md = (text: string, structured: Record<string, unknown>): ToolResult => (structuredAlways ? ok(text, structured) : ok(text));
   const server = new McpServer(
     {
       name: "bitgraph-mcp-server",
@@ -513,14 +520,14 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           return {
             isError: true,
             content: [{ type: "text", text: `${failure ?? `${summary.not_fused} file(s) were left out.`}\n\n${markdown}` }],
-            structuredContent: structured,
+            ...(response_format === "json" || structuredAlways ? { structuredContent: structured } : {}),
           };
         }
         if (response_format === "json") {
           const full = { ...structured, tree: tree !== null && made !== null ? { ...tree, proof: made.proof } : null };
           return ok(capJson(full).text, structured);
         }
-        return ok(markdown, structured);
+        return md(markdown, structured);
       } catch (err) {
         return fail(errorText(err));
       }
@@ -548,7 +555,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         const b = await beginTask(config);
         const structured = { outcome: "opened", task: true, slot_counter: b.slotCounter, epoch: b.epoch, commitment: b.commitment, commitment_base64: b.commitmentB64, floor: b.floor, fuse_token: b.token, expires_in_seconds: SLOT_TTL_SECONDS, instructions: TASK_INSTRUCTIONS };
         if (response_format === "json") return ok(JSON.stringify(structured, null, 2), structured);
-        return ok(
+        return md(
           `Opened position ${b.slotCounter} before any work exists. Floor: ${b.floor ? `not before ${b.floor.chain === "base" ? "Base" : "Ethereum"} block ${b.floor.block}` : "the sealed proof will carry the signed floor"}.\n\n` +
             `Commitment (put this string into the task): ${b.commitment}\n\n${TASK_INSTRUCTIONS}\n\n` +
             "```json\n" + JSON.stringify({ fuse_token: b.token, commitment: b.commitment, slot_counter: b.slotCounter, epoch: b.epoch, floor: b.floor }, null, 2) + "\n```",
@@ -605,7 +612,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         }
         const structured = { outcome: "sealed", slot_counter: state.slot.counter, counter, epoch: epoch ? toUrlSafeB64(epoch) : null, floor_block: floor, floor_chain: floor !== null ? floorChain.toLowerCase() : null, artifact_digest: toUrlSafeB64(sealed.artifactDigestB64), commitment_offsets: sealed.offsets, proof_path: proofPath, instructions: proofNote.trim(), proof: sealed.proof };
         if (response_format === "json") return ok(JSON.stringify(structured, null, 2), structured);
-        return ok(
+        return md(
           `Sealed the task at position ${counter ?? "?"} (reserved at ${state.slot.counter}).${floor !== null ? ` Not before ${floorChain} block ${floor}.` : ""} ` +
             (sealed.offsets !== null ? `The commitment string was found in the sealed bytes at offset ${sealed.offsets[0]}. ` : "The bytes were not read here; a verifier looks for the commitment string in them. ") +
             proofNote +
@@ -724,9 +731,8 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
             not_on_record: outcomes.filter((o) => !o.on_record).length,
           },
         };
-        const text =
-          response_format === "json" ? capJson(structured).text : renderCheckMarkdown(outcomes);
-        return ok(text, structured);
+        if (response_format === "json") return ok(capJson(structured).text, structured);
+        return md(renderCheckMarkdown(outcomes), structured);
       } catch (err) {
         return fail(errorText(err));
       }
@@ -837,7 +843,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
             const offlineNote = `Judged offline from the proof this BitGraphed file carries: carried proof ${v.verdict}${v.not_after === null ? ", closing anchor NOT FETCHED" : ""}. Not found in this ledger.`;
             const structured = { ...synth, carrier: v } as unknown as Record<string, unknown>;
             if (response_format === "json") return ok(capJson(structured).text, structured);
-            return ok(`${renderProofMarkdown(synth, config.baseUrl)}\n\n${offlineNote}`, structured);
+            return md(`${renderProofMarkdown(synth, config.baseUrl)}\n\n${offlineNote}`, structured);
           }
           return fail(
             `Not on record: no proof exists for digest ${urlSafeDigest}. Use bitgraph_record to make a BitGraph of the file.`
@@ -849,11 +855,11 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           const capped = capJson(withCarrier);
           return ok(capped.text, withCarrier as Record<string, unknown>);
         }
-        const md = renderProofMarkdown(detail, config.baseUrl);
+        const mdText = renderProofMarkdown(detail, config.baseUrl);
         const carrierNote = carrierRow?.view
           ? `\n\nThis file carries its own proof (carried proof ${carrierRow.view.verdict}, judged offline).`
           : "";
-        return ok(`${md}${carrierNote}`, detail as unknown as Record<string, unknown>);
+        return md(`${mdText}${carrierNote}`, detail as unknown as Record<string, unknown>);
       } catch (err) {
         return fail(errorText(err));
       }

@@ -204,7 +204,7 @@ const fakeFuseTree: FuseTreeFn = async (files, _config, opts) => {
   return fakeTree(files, { counter: String(mintCounter), epochId: EPOCH, asIs: asIsDigests });
 };
 async function connectedClient(): Promise<Client> {
-  const server = buildServer({ fuseTree: fakeFuseTree });
+  const server = buildServer({ fuseTree: fakeFuseTree, structuredAlways: true });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -554,4 +554,17 @@ test("get_proof requires exactly one selector", async () => {
     arguments: { digest: toUrlSafeB64(digestA), number: "10" },
   });
   assert.ok(result.isError);
+});
+
+test("a markdown answer is text alone by default, so clients show the summary, not raw JSON", async () => {
+  const server = buildServer({ fuseTree: fakeFuseTree });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test-client", version: "0.0.0" });
+  await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+  const md = await client.callTool({ name: "bitgraph_check", arguments: { digests: [toUrlSafeB64(digestA)] } });
+  assert.ok(!md.isError, JSON.stringify(md.content));
+  assert.equal(md.structuredContent, undefined, "no structuredContent with markdown");
+  assert.ok(textOf(md).includes("on record"), textOf(md));
+  const json = await client.callTool({ name: "bitgraph_check", arguments: { digests: [toUrlSafeB64(digestA)], response_format: "json" } });
+  assert.ok(json.structuredContent !== undefined, "json still carries structuredContent");
 });

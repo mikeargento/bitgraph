@@ -174,7 +174,7 @@ const guardFuseTree: FuseTreeFn = async (files) => {
 };
 
 async function connectedClient(): Promise<Client> {
-  const server = buildServer({ fuseTree: guardFuseTree });
+  const server = buildServer({ fuseTree: guardFuseTree, structuredAlways: true });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
