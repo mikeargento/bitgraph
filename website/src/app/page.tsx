@@ -67,7 +67,7 @@ export default function HomePage() {
         {/* Static (Mike, 10-05): one "for", the first market. The typing version cycled AI records → AI agent
             actions → AI evaluations → predictions → sealed bids → chain of custody → any file → any bytes →
             any bits (components/home-headline.tsx, 694a5646). */}
-        <h1>Position commitment<br />for all of&nbsp;computing.</h1>
+        <h1>Position commitment<br />for&nbsp;automated computing.</h1>
 
         {/* Mike's line (2026-10-05), replacing the Schelling paragraph and then the six-item list; "Other proofs", not "Every other proof" (no absolute: Chainpoint rule, 09-21)
             ("Signatures, timestamps, append-only logs, write-once storage, notarizations, and
@@ -78,7 +78,7 @@ export default function HomePage() {
             (Mike, 10-05). */}
         {/* Mike, 2026-10-11 (what a BitGraph gives, then the spec-style example; counts in the fine print; two balanced paragraphs, no "Example:", Mike: the single run sat off to one side on phones): the stat replaces "BitGraph begins the proof before the bits arrive, so their position cannot be
             chosen afterward." as the line under the headline; its footnote sits under it. */}
-        <p className="lede home-lede-stat">BitGraph gives any file or computation a provable floor and ceiling in&nbsp;time.</p>
+        <p className="lede home-lede-stat">Data infrastructure that sequences the training and serving of AI&nbsp;models.</p>
         {/* The footnote right under the claim it qualifies, before the buttons (Mike, 2026-10-11). Basis: the benchmark on
             branch bench (bench/RESULTS.md): 5 billion photos / 1,000,000 per BitGraph = 5,000 BitGraphs x $0.00036 (one Base
             ceiling write, 24,000 gas at 0.006 gwei, ETH $2,499.85, 2026-10-11 13:52 UTC) = $1.80. */}

@@ -3197,7 +3197,7 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
    be 3 lines"; no, both three-line breaks are bad). The 34px floor wrapped it to "Position / commitment /
    for AI automation." at 320 (302px of text in a 288px column); scaled with the width it fills the line,
    about 37px at 375 and 31px at 320. */
-@media (max-width: 600px) { .home.home-typing h1 { font-size: 9vw !important; } }
+@media (max-width: 600px) { .home.home-typing h1 { font-size: 8vw !important; } } /* 8vw (was 9vw): "for automated computing." fits one line on phones (Mike, 2026-10-11) */
 /* And air at the sides (Mike, 2026-10-07: "these texts are tight"): 9vw leaves about 40px each side
    of "Position commitment" (9.8vw left 25 to 28), and the line under it stops at 20em, so a large
    phone sets it in three balanced lines instead of two running nearly edge to edge. */
@@ -3341,8 +3341,6 @@ footer { border-top: 0 !important; }
 /* The lede and the footnote never run wider than the headline (Mike, 2026-10-11): 640px is the h1's measured text width at 72px. */
 /* One paragraph, full column width, no orphan last word (Mike, 2026-10-11: no "Example:", nothing off to one side). */
 .home .lede.home-lede-stat { max-width: 640px !important; text-wrap: pretty; }
-/* Desks: the one sentence on one line (Mike, 2026-10-11: "one line on desk"). */
-@media (min-width: 900px) { .home .lede.home-lede-stat { max-width: none !important; white-space: nowrap; } }
 .home-stat { margin-top: 28px; max-width: 640px; }
 /* Desktop: the fine print is as narrow as the line above the buttons renders (Mike, 2026-10-11). */
 @media (min-width: 768px) { .home-stat { max-width: 440px; } }
