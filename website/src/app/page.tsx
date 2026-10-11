@@ -64,7 +64,7 @@ export default function HomePage() {
              24,000 gas at 0.006 gwei, ETH $2,499.85 (2026-10-11 13:52 UTC). 5 billion photos a day / 1,000,000 per
              BitGraph = 5,000 BitGraphs x $0.00036 = $1.80. A projection, and the footnote says so. */
           <div className="home-stat">
-            <p className="home-stat-note"><span>Projected: about 5 billion photos a day, hashed and fused on the devices that take them, 1,000,000 per BitGraph, sealed to <Link href="/ceilings">Base</Link> (an Ethereum layer 2) at October 11, 2026 fees. The same works for any kind of&nbsp;file.</span></p>
+            <p className="home-stat-note"><span style={{ color: "#d93025" }}>Projected: about 5 billion photos a day, 1,000,000 per BitGraph (5,000 BitGraphs), hashed and fused on the devices that take them, sealed to <Link href="/ceilings">Base</Link> (an Ethereum layer 2) at October 11, 2026 fees. Assumes integration at capture. Blockchain fees only. The same works for any kind of&nbsp;file.</span></p>
           </div>
         }
       >
@@ -85,10 +85,10 @@ export default function HomePage() {
             come after the record. BitGraph begins before it arrives. The proof travels with the
             record, and nobody has to host it." (2048aed6, 0f1cac1c), distilled to one sentence
             (Mike, 10-05). */}
-        {/* Mike, 2026-10-11: the stat replaces "BitGraph begins the proof before the bits arrive, so their position cannot be
+        {/* Mike, 2026-10-11 (spec-style example, counts in the fine print; STAGED red): the stat replaces "BitGraph begins the proof before the bits arrive, so their position cannot be
             chosen afterward." as the line under the headline; its footnote stays under the buttons. */}
         <p className="lede home-lede-stat">
-          <span>Every photo taken on Earth, every day, for about&nbsp;$2. Each gets its own place in a position fixed before it existed, sealed to a public&nbsp;blockchain.</span>
+          <span style={{ color: "#d93025" }}>Example: BitGraphing every photo taken on Earth in one day would cost about $2 in blockchain&nbsp;fees.</span>
         </p>
       </ArtMaker>
 
