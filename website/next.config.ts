@@ -25,6 +25,9 @@ const nextConfig: NextConfig = {
       { source: "/portrait", destination: "/painting", permanent: false },
       // The hidden Three page moved to /generate (Mike, 2026-10-10: "generate"); not permanent, so the old address can be reused.
       { source: "/three", destination: "/generate", permanent: false },
+      // The square bridge page is gone (Mike, 2026-10-11: "you can cut the bridge page that makes square ones"); its ?p= links
+      // land on /generate, which reopens square bridges (version 18) too, and their proof pages redraw them as before.
+      { source: "/bridge", destination: "/generate", permanent: false },
       // The Recorder page left the site on 2026-09-16 (Mike: "no company is
       // going to make bitgraphs with the software"). Anyone holding its URL,
       // the release notes included, lands on the app's own release.

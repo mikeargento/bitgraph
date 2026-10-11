@@ -88,7 +88,8 @@ export type ArtMakerMode = "painting" | "generate" | "home" | "bridge";
 const MODES: Record<ArtMakerMode, { algorithm: string; path: string; noun: string; filePrefix: string; make: string; again: string }> = {
   painting: { algorithm: ART_ALGORITHM, path: "/painting", noun: "painting", filePrefix: "bitgraph-image", make: "Make a BitGraph painting", again: "Make another painting" },
   generate: { algorithm: ART_ALGORITHM_V19, path: "/generate", noun: "bridge", filePrefix: "bitgraph-bridge", make: "Generate", again: "Make another" },
-  home: { algorithm: ART_ALGORITHM_V17, path: "/", noun: "piece", filePrefix: "bitgraph-three", make: "Make a BitGraph", again: "Make another" },
+  // Home makes the 16:9 bridge too (Mike, 2026-10-11: "this is the new demo"); its ?p= still reopens every Three it made before.
+  home: { algorithm: ART_ALGORITHM_V19, path: "/", noun: "bridge", filePrefix: "bitgraph-bridge", make: "Make a BitGraph", again: "Make another" },
   bridge: { algorithm: ART_ALGORITHM_V18, path: "/bridge", noun: "bridge", filePrefix: "bitgraph-bridge", make: "Generate", again: "Make another" },
 };
 /** Versions 16 and 17, the two Threes (square, and 16:9 for the home page): flat shapes, a print SVG inside the PNG. */
