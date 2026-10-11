@@ -119,6 +119,10 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
       </div>
 
       <div style={{ display: "flex", gap: 12, margin: "28px 0 20px" }}>
+        {/* Calendar first, as on the anchors page (Mike, 2026-10-11: "base block page doesnt have a calendar"). */}
+        <a href="/ceilings/archive" className="bg-action-link" style={{ margin: 0 }}>
+          Calendar <span className="arrow" aria-hidden>&rarr;</span>
+        </a>
         {prev >= EARLIEST_DAY && (
           <a href={`/ceilings?day=${prev}`} className="bg-action-link" style={{ margin: 0 }}>
             <span className="arrow" aria-hidden>&larr;</span> {shortLabel(prev)}
@@ -128,6 +132,10 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
           <a href={next >= todayUTC ? "/ceilings" : `/ceilings?day=${next}`} className="bg-action-link" style={{ margin: 0 }}>
             {next >= todayUTC ? "Today" : shortLabel(next)} <span className="arrow" aria-hidden>&rarr;</span>
           </a>
+        )}
+        {/* Today, from any earlier day (Mike, 2026-10-11: "there should be a today and calendar"); the next-day link already says Today on yesterday. */}
+        {day && next && next < todayUTC && (
+          <a href="/ceilings" className="bg-action-link" style={{ margin: 0 }}>Today</a>
         )}
       </div>
 
