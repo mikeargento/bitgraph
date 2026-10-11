@@ -16,8 +16,8 @@ export default function BridgePage() {
   return (
     <div className="frame prose art-page">
       <ArtMaker mode="bridge">
-        <h1 className="jev-title"><span style={{ color: "#d93025" }}>Bridge</span></h1>
-        <p className="lede jev-lede"><span style={{ color: "#d93025" }}>One click builds a bridge that never existed, and BitGraph proves&nbsp;it.</span></p>
+        <h1 className="jev-title"><span>Bridge</span></h1>
+        <p className="lede jev-lede"><span>One click builds a bridge that never existed, and BitGraph proves&nbsp;it.</span></p>
       </ArtMaker>
     </div>
   );
