@@ -3339,9 +3339,8 @@ footer { border-top: 0 !important; }
 /* Home's stat line under the buttons (2026-10-11): a quiet h2 and a small note, left aligned with the hero. */
 .art-home .art-go-wrap .art-hero-inner:has(.home-stat) { display: block; }
 /* The lede and the footnote never run wider than the headline (Mike, 2026-10-11): 640px is the h1's measured text width at 72px. */
-/* Two short paragraphs, full column width, no orphan last words (Mike, 2026-10-11: no "Example:", nothing off to one side). */
+/* One paragraph, full column width, no orphan last word (Mike, 2026-10-11: no "Example:", nothing off to one side). */
 .home .lede.home-lede-stat { max-width: 640px !important; text-wrap: pretty; }
-.home .lede.home-lede-stat:has(+ .home-lede-stat-2) { margin-bottom: 0.6em !important; }
 .home-stat { margin-top: 28px; max-width: 640px; }
 /* Desktop: the fine print is as narrow as the line above the buttons renders (Mike, 2026-10-11). */
 @media (min-width: 768px) { .home-stat { max-width: 440px; } }
