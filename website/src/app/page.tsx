@@ -64,7 +64,7 @@ export default function HomePage() {
              24,000 gas at 0.006 gwei, ETH $2,499.85 (2026-10-11 13:52 UTC). 5 billion photos a day / 1,000,000 per
              BitGraph = 5,000 BitGraphs x $0.00036 = $1.80. A projection, and the footnote says so. */
           <div className="home-stat">
-            <p className="home-stat-note"><span style={{ color: "#d93025" }}>Projected: about 5 billion photos a day, 1,000,000 per BitGraph (5,000 BitGraphs), hashed and fused on the devices that take them, sealed to <Link href="/ceilings">Base</Link> (an Ethereum layer 2) at October 11, 2026 fees. Assumes integration at capture. Blockchain fees only. The same works for any kind of&nbsp;file.</span></p>
+            <p className="home-stat-note"><span style={{ color: "#d93025" }}>Projection: 5 billion photos a day, 1,000,000 per BitGraph, 5,000 <Link href="/ceilings">Base</Link> transactions at October 11, 2026 fees. Blockchain fees only. Works for any&nbsp;file.</span></p>
           </div>
         }
       >
