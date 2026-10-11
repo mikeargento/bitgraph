@@ -25,7 +25,7 @@ import { drawPrintOffThread } from "@/lib/art-offthread";
 import { DENSITY_NAMES_V10, PALETTE_NAMES_V10, STYLE_NAMES_V10 } from "@/lib/commitment-art-v10";
 import { AGE_BAND_NAMES_V11, EXPRESSION_NAMES_V11, HAIR_NAMES_V11, PALETTE_NAMES_V11, ageBandV11 } from "@/lib/commitment-art-v11";
 import { compositionNameV15, paletteNameV15 } from "@/lib/commitment-art-v15";
-import { ART_ALGORITHM, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, toHex } from "@/lib/commitment-art";
+import { ART_ALGORITHM, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, ART_ALGORITHM_V19, toHex } from "@/lib/commitment-art";
 import { describeV16, svgFromPngV16 } from "@/lib/commitment-art-v16";
 import { describeV18, settingsTextV18 } from "@/lib/commitment-art-v18";
 import { sha256 } from "@noble/hashes/sha256";
@@ -75,29 +75,35 @@ const MIN_WAIT_MS = 1000;
  * version 17, Three at 16:9, the same flow; before the make, the page's two buttons (the make, and `secondary`); after
  * it, only the image at the column's width, one paragraph, "Make another" and "See the full proof". No downloads.
  * "bridge" (/bridge, hidden, 2026-10-10): version 18, a suspension bridge of packed rectangles, /generate's flow and ending.
+ * "generate" (/generate, 2026-10-11, Mike: "we should make this the demo", then "/generate"; it was "three", making the
+ * Threes): version 19, the bridge at 16:9, the same flow and ending as before.
  */
-export type ArtMakerMode = "painting" | "three" | "home" | "bridge";
+export type ArtMakerMode = "painting" | "generate" | "home" | "bridge";
 // The make buttons: /generate (once /three) says "Generate" (Mike, 2026-10-09: "button should be generate since its just for me").
 // 2026-10-10 (Mike: "you were supposed to replace painting with it ... make it 16:9"): /generate is the public demo in place of
 // /painting, makes version 17 (16:9), and ends as home does: the piece, one paragraph, "Make another" and "See the full proof".
 // It still reopens a version 16 square from ?p=<digest> (the redraw tries 17, then 16).
+// 2026-10-11: /generate makes version 19, the 16:9 bridge, and still reopens every Three (16 and 17) and bridge (18) it or
+// /bridge made: the redraw tries every version, not only the page's.
 const MODES: Record<ArtMakerMode, { algorithm: string; path: string; noun: string; filePrefix: string; make: string; again: string }> = {
   painting: { algorithm: ART_ALGORITHM, path: "/painting", noun: "painting", filePrefix: "bitgraph-image", make: "Make a BitGraph painting", again: "Make another painting" },
-  three: { algorithm: ART_ALGORITHM_V17, path: "/generate", noun: "piece", filePrefix: "bitgraph-three", make: "Generate", again: "Make another" },
+  generate: { algorithm: ART_ALGORITHM_V19, path: "/generate", noun: "bridge", filePrefix: "bitgraph-bridge", make: "Generate", again: "Make another" },
   home: { algorithm: ART_ALGORITHM_V17, path: "/", noun: "piece", filePrefix: "bitgraph-three", make: "Make a BitGraph", again: "Make another" },
   bridge: { algorithm: ART_ALGORITHM_V18, path: "/bridge", noun: "bridge", filePrefix: "bitgraph-bridge", make: "Generate", again: "Make another" },
 };
 /** Versions 16 and 17, the two Threes (square, and 16:9 for the home page): flat shapes, a print SVG inside the PNG. */
 const isThree = (algorithm: string) => algorithm === ART_ALGORITHM_V16 || algorithm === ART_ALGORITHM_V17;
-/** The versions whose recorded PNG carries a print SVG: the Threes and the bridge (version 18). */
-const hasPrintSvg = (algorithm: string) => isThree(algorithm) || algorithm === ART_ALGORITHM_V18;
+/** Versions 18 and 19, the two bridges (square, and 16:9 for /generate). */
+const isBridge = (algorithm: string) => algorithm === ART_ALGORITHM_V18 || algorithm === ART_ALGORITHM_V19;
+/** The versions whose recorded PNG carries a print SVG: the Threes and the bridges. */
+const hasPrintSvg = (algorithm: string) => isThree(algorithm) || isBridge(algorithm);
 
 export function ArtMaker({ children, mode = "painting", secondary }: { children?: ReactNode; mode?: ArtMakerMode; secondary?: ReactNode } = {}) {
   const cfg = MODES[mode];
   const home = mode === "home";
   /** Home and /generate end the same way: the piece, one paragraph, two buttons (no downloads; the proof page has them),
    *  so neither builds the download (the BitGraphed file) in the background. */
-  const compact = home || mode === "three" || mode === "bridge";
+  const compact = home || mode === "generate" || mode === "bridge";
   const [stage, setStage] = useState<ArtStage | null>(null);
   const [failedAt, setFailedAt] = useState(-1);
   const [made, setMade] = useState<MadeArtImage | null>(null);
@@ -218,11 +224,11 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
   /** Version 16's print master: the SVG inside the recorded PNG, byte for byte (checked against a redrawing when the piece was made or reopened). */
   const downloadSvg = useCallback(() => {
     if (!made || !hasPrintSvg(made.manifest.algorithm) || made.checks.strip.result !== "TRUE") return;
-    const svg = svgFromPngV16(made.png); // the same iTXt chunk in versions 16, 17 and 18
+    const svg = svgFromPngV16(made.png); // the same iTXt chunk in versions 16 to 19
     if (!svg) return;
     const url = URL.createObjectURL(new Blob([svg as BlobPart], { type: "image/svg+xml" }));
     const a = document.createElement("a");
-    a.href = url; a.download = `bitgraph-${made.manifest.algorithm === ART_ALGORITHM_V18 ? "bridge" : "three"}-${made.proof.commit.counter ?? ""}.svg`;
+    a.href = url; a.download = `bitgraph-${isBridge(made.manifest.algorithm) ? "bridge" : "three"}-${made.proof.commit.counter ?? ""}.svg`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }, [made]);
@@ -260,10 +266,10 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
   // What the recorded picture is, so a reopened older record reads right: portraits (versions 11 to 14),
   // paintings (15 on), images before that (Mike, 2026-10-09).
   // Version 16 (/three) is a "piece".
-  const noun = !made ? cfg.noun : made.manifest.algorithm === ART_ALGORITHM_V18 ? "bridge" : isThree(made.manifest.algorithm) ? "piece" : /^bitgraph-art\/(1[1-4])$/.test(made.manifest.algorithm) ? "portrait" : /^bitgraph-art\/([1-9]|10)$/.test(made.manifest.algorithm) ? "image" : "painting";
+  const noun = !made ? cfg.noun : isBridge(made.manifest.algorithm) ? "bridge" : isThree(made.manifest.algorithm) ? "piece" : /^bitgraph-art\/(1[1-4])$/.test(made.manifest.algorithm) ? "portrait" : /^bitgraph-art\/([1-9]|10)$/.test(made.manifest.algorithm) ? "image" : "painting";
   const paints = cfg.algorithm === ART_ALGORITHM_V15;
   const threePlan = made ? made.recipe.v17 ?? made.recipe.v16 ?? null : null;
-  const bridgePlan = made?.recipe.v18 ?? null;
+  const bridgePlan = made ? made.recipe.v19 ?? made.recipe.v18 ?? null : null;
   const printSvgSha = !compact && made && (threePlan || bridgePlan) ? (() => { const svg = svgFromPngV16(made.png); return svg ? toHex(sha256(svg)) : null; })() : null;
 
   return (
@@ -372,8 +378,8 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
               <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier. That makes it original: it did not exist anywhere before that moment, and no later click will ever draw it again.</p>
               <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
               <h3>How it was drawn</h3>
-              <p>{made.manifest.algorithm === ART_ALGORITHM_V18
-                ? <span>Every bridge is the same suspension bridge built from flat rectangles: thousands of small ones fill its towers, deck and cables, and larger ones fill the sky and the water around it. The colors, the detail, the gaps, the share of bars, the largest sizes and every rectangle&rsquo;s place, size and shape come from the code ({made.manifest.algorithm}); this one drew {settingsTextV18(made.recipe.v18!)}. The recorded file is a PNG, and it carries the print version inside it, an SVG of the same rectangles in whole numbers on a 1200 by 1200 grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</span>
+              <p>{bridgePlan
+                ? <span>Every bridge is the same suspension bridge built from flat rectangles: thousands of small ones fill its towers, deck and cables, and larger ones fill the sky and the water around it. The colors, the detail, the gaps, the share of bars, the largest sizes and every rectangle&rsquo;s place, size and shape come from the code ({made.manifest.algorithm}); this one drew {settingsTextV18(bridgePlan)}. The recorded file is a PNG, and it carries the print version inside it, an SVG of the same rectangles in whole numbers on a {made.manifest.width} by {made.manifest.height} grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</span>
                 : isThree(made.manifest.algorithm)
                 ? <>Every piece is three flat shapes on a flat ground, squares or rectangles that never touch, in red, yellow, blue and green: the ground is one of the four, and each shape one of the other three. Every size, position, gap and color comes from the code ({made.manifest.algorithm}). The recorded file is a PNG, and it carries the print version inside it, an SVG of the same shapes in whole numbers on {made.manifest.algorithm === ART_ALGORITHM_V17 ? "a 1920 by 1080" : "an 1800 by 1800"} grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</>
                 : made.manifest.algorithm === "bitgraph-art/15"

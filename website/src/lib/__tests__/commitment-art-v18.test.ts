@@ -8,7 +8,7 @@ import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToBase64, verifyFuse } from "@mikeargento/bitgraph-verify";
-import { ART_ALGORITHM, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHMS, artSize, checkArt, decodePng, makeArt, manifestJson, toBase64Url, toHex } from "../commitment-art.ts";
+import { ART_ALGORITHM, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V19, ART_ALGORITHMS, artSize, checkArt, decodePng, makeArt, manifestJson, toBase64Url, toHex } from "../commitment-art.ts";
 import { svgV16 } from "../commitment-art-v16.ts";
 import { svgV17 } from "../commitment-art-v17.ts";
 import {
@@ -359,7 +359,8 @@ test("one click on /bridge: recorded in its position as a PNG the verifier finds
   const r = await redrawRecordedArt(made.proof, { onTry: (a) => tried.push(a) });
   assert.ok(r);
   assert.equal(r!.algorithm, ART_ALGORITHM_V18);
-  assert.deepEqual(tried.filter((a) => a !== null), [ART_ALGORITHM_V17, ART_ALGORITHM_V16, ART_ALGORITHM_V18], "the two quick Threes, then the bridge, and no painting");
+  // since 2026-10-11 the 16:9 bridge (version 19, /generate's) is tried before the square one
+  assert.deepEqual(tried.filter((a) => a !== null), [ART_ALGORITHM_V17, ART_ALGORITHM_V16, ART_ALGORITHM_V19, ART_ALGORITHM_V18], "the two quick Threes, then the bridges, and no painting");
   assert.equal(bytesToBase64(sha256(r!.png)), made.digestB64);
   assert.deepEqual(svgFromPngV18(r!.png), svgV18(c));
   // coming back to /bridge?p=<digest>

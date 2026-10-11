@@ -27,10 +27,11 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { redrawRecordedArt } from "@/lib/art-position";
-import { ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, toBase64Url, type ArtRecipe } from "@/lib/commitment-art";
+import { ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, ART_ALGORITHM_V19, toBase64Url, type ArtRecipe } from "@/lib/commitment-art";
 import { planV16, svgFromPngV16, svgTextV16 } from "@/lib/commitment-art-v16";
 import { planV17, svgFromPngV17, svgTextV17 } from "@/lib/commitment-art-v17";
 import { planV18, svgFromPngV18, svgTextV18 } from "@/lib/commitment-art-v18";
+import { planV19, svgFromPngV19, svgTextV19 } from "@/lib/commitment-art-v19";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpackSetMember, checkInline, isInlineProof, makeTreeHere, treeInputOf } from "@/lib/fuse-client";
 import { rebuildTreeFromFiles, rebuildMatches } from "@/lib/fuse-tree-make";
@@ -255,7 +256,7 @@ export default function ProofPage() {
     let live = true;
     void redrawRecordedArt(proof as never, { recordedMs: recordedMsOf(proof), onTry: (a) => { if (live) setPainting(a === ART_ALGORITHM_V15); } }).then((r) => {
       if (!live || !r) return;
-      setCachedFile({ name: `bitgraph-${r.algorithm === ART_ALGORITHM_V18 ? "bridge" : r.algorithm === ART_ALGORITHM_V16 || r.algorithm === ART_ALGORITHM_V17 ? "three" : /^bitgraph-art\/1[1-4]$/.test(r.algorithm) ? "portrait" : r.algorithm === ART_ALGORITHM_V15 ? "painting" : "image"}-${proof.commit?.counter ?? ""}.png`, data: r.png.slice().buffer as ArrayBuffer });
+      setCachedFile({ name: `bitgraph-${r.algorithm === ART_ALGORITHM_V18 || r.algorithm === ART_ALGORITHM_V19 ? "bridge" : r.algorithm === ART_ALGORITHM_V16 || r.algorithm === ART_ALGORITHM_V17 ? "three" : /^bitgraph-art\/1[1-4]$/.test(r.algorithm) ? "portrait" : r.algorithm === ART_ALGORITHM_V15 ? "painting" : "image"}-${proof.commit?.counter ?? ""}.png`, data: r.png.slice().buffer as ArrayBuffer });
       redrawnRecipe.current = r.art.recipe;
       setRedrawn(true); setRedrawnAlgo(r.algorithm);
     }).catch(() => { /* not an image this page can redraw: the drop box stays */ });
@@ -1791,16 +1792,18 @@ export default function ProofPage() {
      this page redrew from the proof (its SHA-256 is the recorded digest) and confirmed, byte for byte, against the SVG
      drawn from the commitment the proof authenticates. Offered only for a redrawn version 16 piece, or a version 17 one
      (home's 16:9 Three, 2026-10-10), checked against its own SVG; and a version 18 bridge (/bridge, 2026-10-10), the same way
-     (its plan is the one the redraw just packed, so it is not packed again). */
+     (its plan is the one the redraw just packed, so it is not packed again); and a version 19 bridge (/generate's 16:9 bridge,
+     2026-10-11), the same way against its own SVG. */
   function downloadPrintSvg() {
-    if (!proof || !cachedFile || (redrawnAlgo !== ART_ALGORITHM_V16 && redrawnAlgo !== ART_ALGORITHM_V17 && redrawnAlgo !== ART_ALGORITHM_V18) || !proof.slotAllocation) return;
+    if (!proof || !cachedFile || (redrawnAlgo !== ART_ALGORITHM_V16 && redrawnAlgo !== ART_ALGORITHM_V17 && redrawnAlgo !== ART_ALGORITHM_V18 && redrawnAlgo !== ART_ALGORITHM_V19) || !proof.slotAllocation) return;
     setSvgMsg(null);
     try {
-      const v17 = redrawnAlgo === ART_ALGORITHM_V17, v18 = redrawnAlgo === ART_ALGORITHM_V18;
-      const svg = v18 ? svgFromPngV18(new Uint8Array(cachedFile.data)) : v17 ? svgFromPngV17(new Uint8Array(cachedFile.data)) : svgFromPngV16(new Uint8Array(cachedFile.data));
+      const v17 = redrawnAlgo === ART_ALGORITHM_V17, v18 = redrawnAlgo === ART_ALGORITHM_V18, v19 = redrawnAlgo === ART_ALGORITHM_V19;
+      const svg = v19 ? svgFromPngV19(new Uint8Array(cachedFile.data)) : v18 ? svgFromPngV18(new Uint8Array(cachedFile.data)) : v17 ? svgFromPngV17(new Uint8Array(cachedFile.data)) : svgFromPngV16(new Uint8Array(cachedFile.data));
       const c = commitmentForProof(proof as unknown as VerifyProof, proof.slotAllocation as never);
       const kept = redrawnRecipe.current?.v18 && redrawnRecipe.current.commitment === toBase64Url(c) ? redrawnRecipe.current.v18 : null;
-      const want = new TextEncoder().encode(v18 ? svgTextV18(kept ?? planV18(c), c) : v17 ? svgTextV17(planV17(c), c) : svgTextV16(planV16(c), c));
+      const kept19 = redrawnRecipe.current?.v19 && redrawnRecipe.current.commitment === toBase64Url(c) ? redrawnRecipe.current.v19 : null;
+      const want = new TextEncoder().encode(v19 ? svgTextV19(kept19 ?? planV19(c), c) : v18 ? svgTextV18(kept ?? planV18(c), c) : v17 ? svgTextV17(planV17(c), c) : svgTextV16(planV16(c), c));
       if (!svg || svg.length !== want.length || !svg.every((b, i) => b === want[i])) throw new Error("the SVG inside this file is not the one drawn from this proof's commitment");
       const url = URL.createObjectURL(new Blob([svg as BlobPart], { type: "image/svg+xml" }));
       const el = document.createElement("a"); el.href = url; el.download = cachedFile.name.replace(/\.png$/i, ".svg"); el.click();
@@ -2053,7 +2056,7 @@ export default function ProofPage() {
             ? [PROOF_PIECE, ...anchorsPiece]
             : [
                 ...(carrierPossible ? [{ label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: downloadCarrier, busy: carrierBusy, desc: "The file with the proof inside: one file that verifies with nothing else." }] : []),
-                ...(redrawn && (redrawnAlgo === ART_ALGORITHM_V16 || redrawnAlgo === ART_ALGORITHM_V17 || redrawnAlgo === ART_ALGORITHM_V18) && cachedFile ? [{ label: "SVG for print", busyLabel: "SVG for print", onClick: downloadPrintSvg, busy: false, desc: "The print version inside the recorded PNG, checked against a redrawing from this proof. It prints sharp at any size." }] : []),
+                ...(redrawn && (redrawnAlgo === ART_ALGORITHM_V16 || redrawnAlgo === ART_ALGORITHM_V17 || redrawnAlgo === ART_ALGORITHM_V18 || redrawnAlgo === ART_ALGORITHM_V19) && cachedFile ? [{ label: "SVG for print", busyLabel: "SVG for print", onClick: downloadPrintSvg, busy: false, desc: "The print version inside the recorded PNG, checked against a redrawing from this proof. It prints sharp at any size." }] : []),
                 PROOF_PIECE,
                 ...(cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? [{ label: "Original file", busyLabel: "Recovering\u2026", onClick: downloadOriginal, busy: originBusy, desc: "The original, back out of the committed file." }] : []),
                 ...anchorsPiece,

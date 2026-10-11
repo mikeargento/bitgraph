@@ -73,6 +73,7 @@ import { deflateV15, filterRowsV15 } from "./png-deflate-v15.ts";
 import { ART_ALGORITHM_V16, planV16, renderV16, pngFileV16, svgFromPngV16, svgTextV16, V16_WIDTH, V16_HEIGHT, type V16Plan } from "./commitment-art-v16.ts";
 import { ART_ALGORITHM_V17, planV17, renderV17, pngFileV17, svgFromPngV17, svgTextV17, V17_WIDTH, V17_HEIGHT, type V17Plan } from "./commitment-art-v17.ts";
 import { ART_ALGORITHM_V18, planV18, renderV18, pngFileV18, settingsTextV18, svgFromPngV18, svgTextV18, V18_WIDTH, V18_HEIGHT, type V18Plan } from "./commitment-art-v18.ts";
+import { ART_ALGORITHM_V19, planV19, renderV19, pngFileV19, settingsTextV19, svgFromPngV19, svgTextV19, V19_WIDTH, V19_HEIGHT, type V19Plan } from "./commitment-art-v19.ts";
 
 export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
@@ -111,7 +112,9 @@ export { ART_ALGORITHM_V16 };
 export { ART_ALGORITHM_V17 };
 /** Version 18 (2026-10-10, /bridge, hidden): a suspension bridge of packed flat rectangles, 1200 x 1200, every setting of Mike's generator drawn per click; the recorded PNG carries its print SVG (commitment-art-v18.ts). Not the default. */
 export { ART_ALGORITHM_V18 };
-export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18];
+/** Version 19 (2026-10-11, /generate): version 18's bridge on a 16:9 canvas, 1920 x 1080, the silhouette redrawn wide (commitment-art-v19.ts). Not the default. */
+export { ART_ALGORITHM_V19 };
+export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, ART_ALGORITHM_V19];
 /** Each version's canvas: 1 and 2 carry a strip under the art; 3 is the art square and its frame. */
 export function artSize(algorithm: string): { width: number; height: number } {
   if (algorithm === ART_ALGORITHM_V8) return { width: V8_WIDTH, height: V8_HEIGHT };
@@ -125,6 +128,7 @@ export function artSize(algorithm: string): { width: number; height: number } {
   if (algorithm === ART_ALGORITHM_V16) return { width: V16_WIDTH, height: V16_HEIGHT };
   if (algorithm === ART_ALGORITHM_V17) return { width: V17_WIDTH, height: V17_HEIGHT };
   if (algorithm === ART_ALGORITHM_V18) return { width: V18_WIDTH, height: V18_HEIGHT };
+  if (algorithm === ART_ALGORITHM_V19) return { width: V19_WIDTH, height: V19_HEIGHT };
   return algorithm === ART_ALGORITHM_V3 || algorithm === ART_ALGORITHM_V4 || algorithm === ART_ALGORITHM_V5 || algorithm === ART_ALGORITHM_V6 || algorithm === ART_ALGORITHM_V7 ? { width: 1024, height: 1024 } : { width: 1024, height: 1056 };
 }
 export const ART_WIDTH = 1024;
@@ -197,6 +201,8 @@ export interface ArtRecipe {
   v17?: V17Plan;
   /** Version 18 only: the bridge's plan, the palette and every rectangle (commitment-art-v18.ts). */
   v18?: V18Plan;
+  /** Version 19 only: the 16:9 bridge's plan (commitment-art-v19.ts). */
+  v19?: V19Plan;
   cells: ArtCell[];
 }
 
@@ -269,6 +275,10 @@ export function artRecipe(commitment: Uint8Array, algorithm: string = ART_ALGORI
   if (!ART_ALGORITHMS.includes(algorithm)) throw new TypeError(`unknown art algorithm ${algorithm}`);
   if (algorithm === ART_ALGORITHM_V3) return recipeV3(commitment);
   if (algorithm === ART_ALGORITHM_V4) return recipeV4(commitment);
+  if (algorithm === ART_ALGORITHM_V19) {
+    const v19 = planV19(commitment);
+    return { algorithm, width: V19_WIDTH, height: V19_HEIGHT, commitment: toBase64Url(commitment), palette: v19.palette, grid: 0, cells: [], v19 };
+  }
   if (algorithm === ART_ALGORITHM_V18) {
     const v18 = planV18(commitment);
     return { algorithm, width: V18_WIDTH, height: V18_HEIGHT, commitment: toBase64Url(commitment), palette: v18.palette, grid: 0, cells: [], v18 };
@@ -453,6 +463,7 @@ export function decodeArtV4(px: Uint8Array, width: number, height: number): Uint
 /** The recipe's JSON, keys in this fixed order: the bytes the recipe digest is taken over. */
 export function recipeJson(r: ArtRecipe): string {
   const cells = r.cells.map((c) => `[${c.shape},${c.turn},${c.fg},${c.bg}]`).join(",");
+  if (r.v19) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v19)}}`;
   if (r.v18) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v18)}}`;
   if (r.v17) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v17)}}`;
   if (r.v16) return `{"algorithm":${JSON.stringify(r.algorithm)},"width":${r.width},"height":${r.height},"commitment":${JSON.stringify(r.commitment)},"plan":${JSON.stringify(r.v16)}}`;
@@ -532,6 +543,7 @@ export function renderArt(r: ArtRecipe): Uint8Array {
   const commitment = fromBase64Url(r.commitment);
   if (commitment === null) throw new TypeError("the recipe's commitment is not base64url");
   requireCommitment(commitment);
+  if (r.v19) return renderV19(r.v19);
   if (r.v18) return renderV18(r.v18);
   if (r.v17) return renderV17(r.v17);
   if (r.v16) return renderV16(r.v16);
@@ -779,6 +791,13 @@ function fixedDeflate(raw: Uint8Array, rowLen: number): Uint8Array {
 export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promise<Uint8Array> {
   // Version 18 writes version 16's file at 1200 x 1200 (commitment-art-v18.ts), with its own print SVG (the plan is the
   // last one drawn, so it is not packed a second time).
+  // Version 19 is the same file at 1920 x 1080 (commitment-art-v19.ts).
+  if (manifest.algorithm === ART_ALGORITHM_V19) {
+    const c = fromBase64Url(manifest.commitment);
+    if (c === null || c.length !== 32) throw new TypeError("the manifest's commitment is not 32 bytes of base64url");
+    const plan = planV19(c);
+    return pngFileV19(px, manifestJson(manifest), svgTextV19(plan, c), settingsTextV19(plan));
+  }
   if (manifest.algorithm === ART_ALGORITHM_V18) {
     const c = fromBase64Url(manifest.commitment);
     if (c === null || c.length !== 32) throw new TypeError("the manifest's commitment is not 32 bytes of base64url");
@@ -963,10 +982,12 @@ export async function checkArt(pngBytes: Uint8Array, authenticatedCommitment: Ui
   const v6 = algorithm === ART_ALGORITHM_V6, v7 = algorithm === ART_ALGORITHM_V7, v8 = algorithm === ART_ALGORITHM_V8, v9 = algorithm === ART_ALGORITHM_V9, v10 = algorithm === ART_ALGORITHM_V10, v11 = algorithm === ART_ALGORITHM_V11, v12 = algorithm === ART_ALGORITHM_V12, v13 = algorithm === ART_ALGORITHM_V13, v14 = algorithm === ART_ALGORITHM_V14, v15 = algorithm === ART_ALGORITHM_V15;
   // Version 18 is checked as version 16 is, against its own SVG. Its plan takes a moment to pack, so the recipe drawn
   // moments ago from this same commitment (in a worker, on the page) stands in for packing it again, as its pixels do.
-  if (algorithm === ART_ALGORITHM_V18) {
-    const mine = reuse && drawn.recipe?.v18 && drawn.recipe.algorithm === algorithm && drawn.recipe.commitment === toBase64Url(authenticatedCommitment) ? drawn.recipe.v18 : planV18(authenticatedCommitment);
-    const svg = svgFromPngV18(pngBytes);
-    const want = new TextEncoder().encode(svgTextV18(mine, authenticatedCommitment));
+  // Version 19 (the 16:9 bridge) the same way, against its own SVG.
+  if (algorithm === ART_ALGORITHM_V18 || algorithm === ART_ALGORITHM_V19) {
+    const v19 = algorithm === ART_ALGORITHM_V19;
+    const kept = reuse && drawn.recipe && drawn.recipe.algorithm === algorithm && drawn.recipe.commitment === toBase64Url(authenticatedCommitment) ? (v19 ? drawn.recipe.v19 : drawn.recipe.v18) : undefined;
+    const svg = v19 ? svgFromPngV19(pngBytes) : svgFromPngV18(pngBytes);
+    const want = new TextEncoder().encode(v19 ? svgTextV19(kept ?? planV19(authenticatedCommitment), authenticatedCommitment) : svgTextV18(kept ?? planV18(authenticatedCommitment), authenticatedCommitment));
     const strip: ArtChecks["strip"] = svg === null
       ? { result: "FALSE", detail: "the file carries no print SVG" }
       : svg.length === want.length && svg.every((b, i) => b === want[i])
