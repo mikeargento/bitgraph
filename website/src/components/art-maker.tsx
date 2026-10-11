@@ -330,7 +330,7 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
           <p className="art-home-explain"><span>BitGraph began this proof before these bits existed. Your click opened a position, and that position&rsquo;s commitment was the only input this image was drawn from. The image was then recorded in the same position, so it could not have existed before your click, and no click will ever make it again. The proof checks offline, and the image can be redrawn from the commitment&nbsp;alone.</span></p>
           <p className="art-home-explain"><span>Any computation can carry its commitment the same way. An AI agent writes it into its trace before a task starts, so the finished record could not have been completed earlier and backdated. This image just makes it&nbsp;visible.</span></p>
           {/* Bridge (2026-10-10): every setting of Mike's generator is drawn per click; how this one was drawn. */}
-          {bridgePlan && <p className="art-home-explain art-fine"><span>How it was drawn: {settingsTextV18(bridgePlan)}.</span></p>}
+          {/* No visible settings line under a bridge (Mike, 2026-10-11: "this info can be left off"); the settings stay in the files' metadata. */}
           <div className="actions art-home-actions">
             <button type="button" className="bg-action-link is-make art-go" onClick={create}>{cfg.again}</button>
             <a className="bg-action-link art-go" href={`/proof/${urlSafe(made.digestB64)}`}>See the full proof</a>
