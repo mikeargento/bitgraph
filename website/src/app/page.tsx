@@ -64,7 +64,7 @@ export default function HomePage() {
              24,000 gas at 0.006 gwei, ETH $2,499.85 (2026-10-11 13:52 UTC). 5 billion photos a day / 1,000,000 per
              BitGraph = 5,000 BitGraphs x $0.00036 = $1.80. A projection, and the footnote says so. STAGED: red. */
           <div className="home-stat">
-            <h2><span style={{ color: "#d93025" }}>Every photo taken on Earth each day could be sealed to a public blockchain for about&nbsp;$2.</span></h2>
+            <h2><span style={{ color: "#d93025" }}>Every photo taken on Earth each day could carry a position fixed before it existed, sealed to a public blockchain for about&nbsp;$2.</span></h2>
             <p className="home-stat-note"><span style={{ color: "#d93025" }}>Projected: about 5 billion photos a day (industry estimates), hashed and fused on the devices that take them, 1,000,000 per BitGraph, sealed to <Link href="/ceilings">Base</Link> (an Ethereum layer 2) at October 11, 2026 fees. Server and storage costs not included.</span></p>
           </div>
         }
