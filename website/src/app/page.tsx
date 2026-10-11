@@ -64,7 +64,7 @@ export default function HomePage() {
              24,000 gas at 0.006 gwei, ETH $2,499.85 (2026-10-11 13:52 UTC). 5 billion photos a day / 1,000,000 per
              BitGraph = 5,000 BitGraphs x $0.00036 = $1.80. A projection, and the footnote says so. */
           <div className="home-stat">
-            <p className="home-stat-note"><span style={{ color: "#d93025" }}>Projection: 5 billion photos per day. Works for any&nbsp;file.</span></p>
+            <p className="home-stat-note"><span>Projection: 5 billion photos per day. Works for any&nbsp;file.</span></p>
           </div>
         }
       >
@@ -85,10 +85,10 @@ export default function HomePage() {
             come after the record. BitGraph begins before it arrives. The proof travels with the
             record, and nobody has to host it." (2048aed6, 0f1cac1c), distilled to one sentence
             (Mike, 10-05). */}
-        {/* Mike, 2026-10-11 (spec-style example, counts in the fine print; STAGED red): the stat replaces "BitGraph begins the proof before the bits arrive, so their position cannot be
+        {/* Mike, 2026-10-11 (spec-style example, counts in the fine print): the stat replaces "BitGraph begins the proof before the bits arrive, so their position cannot be
             chosen afterward." as the line under the headline; its footnote stays under the buttons. */}
         <p className="lede home-lede-stat">
-          <span style={{ color: "#d93025" }}>Example: BitGraphing every photo taken on Earth in one day would cost about $2 in blockchain&nbsp;fees.</span>
+          <span>Example: BitGraphing every photo taken on Earth in one day would cost about $2 in blockchain&nbsp;fees.</span>
         </p>
       </ArtMaker>
 
