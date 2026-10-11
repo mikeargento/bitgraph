@@ -76,11 +76,10 @@ export default function HomePage() {
             come after the record. BitGraph begins before it arrives. The proof travels with the
             record, and nobody has to host it." (2048aed6, 0f1cac1c), distilled to one sentence
             (Mike, 10-05). */}
-        {/* Mike, 2026-10-11 (what a BitGraph gives, then the spec-style example; counts in the fine print; on phones the line stops short of the edge, Mike: "place" sat right at it): the stat replaces "BitGraph begins the proof before the bits arrive, so their position cannot be
+        {/* Mike, 2026-10-11 (what a BitGraph gives, then the spec-style example; counts in the fine print; two balanced paragraphs, no "Example:", Mike: the single run sat off to one side on phones): the stat replaces "BitGraph begins the proof before the bits arrive, so their position cannot be
             chosen afterward." as the line under the headline; its footnote sits under it. */}
-        <p className="lede home-lede-stat">
-          <span>Once BitGraphed, a file has a fixed, verifiable place in history, and its proof travels with it. Example: BitGraphing every photo taken on Earth in one day would cost about $2 in blockchain&nbsp;fees.</span>
-        </p>
+        <p className="lede home-lede-stat">Once BitGraphed, a file has a fixed, verifiable place in history, and its proof travels with&nbsp;it.</p>
+        <p className="lede home-lede-stat home-lede-stat-2">BitGraphing every photo taken on Earth in one day would cost about $2 in blockchain&nbsp;fees.</p>
         {/* The footnote right under the claim it qualifies, before the buttons (Mike, 2026-10-11). Basis: the benchmark on
             branch bench (bench/RESULTS.md): 5 billion photos / 1,000,000 per BitGraph = 5,000 BitGraphs x $0.00036 (one Base
             ceiling write, 24,000 gas at 0.006 gwei, ETH $2,499.85, 2026-10-11 13:52 UTC) = $1.80. */}
