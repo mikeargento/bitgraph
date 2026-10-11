@@ -119,7 +119,7 @@ node verifier/exam.mjs selftest                          # DRBG vectors, determi
         </p>
 
         <p className="note">
-          The packages that make positions are software of Argento Computing Inc., provided under the licence in the package, which grants evaluation use. The verifier is MIT. Questions, or a sitting of your own: <a href="/contact" className="nowrap">get in&nbsp;touch</a>.
+          The packages that make positions are software of Argento Computing Inc., provided under the license in the package, which grants evaluation use. The verifier is MIT. Questions, or a sitting of your own: <a href="/contact" className="nowrap">get in&nbsp;touch</a>.
         </p>
       </article>
     <DocsPageNav current="/exam" />

@@ -17,7 +17,7 @@ export default function TrustModelPage() {
     <article className="prose">
       <h1>Trust model</h1>
       <p className="lede">
-        This page is for the reader who wants to know exactly what enforces each claim and what happens when an assumption fails. It is organised so the limits can be found without reading everything: what is trusted, what is assumed, what is guaranteed and by what, what an attacker is prevented from doing, what is only detected, what is neither, and what the verifier has to do for any of it to hold.
+        This page is for the reader who wants to know exactly what enforces each claim and what happens when an assumption fails. It is organized so the limits can be found without reading everything: what is trusted, what is assumed, what is guaranteed and by what, what an attacker is prevented from doing, what is only detected, what is neither, and what the verifier has to do for any of it to hold.
       </p>
 
       <h2 id="trusted">What is trusted, and what is not</h2>
@@ -44,7 +44,7 @@ export default function TrustModelPage() {
         </div>
       </div>
       <p>
-        The trust root is one vendor and one build: Amazon&rsquo;s hardware and the published enclave image. Accepting that root is a one-time decision by the reader, not an ongoing dependency. After it, a proof stands on its own, in as many copies as it is made, with nothing of BitGraph&rsquo;s required to be online. The word for that is portable and independently verifiable, not decentralised.
+        The trust root is one vendor and one build: Amazon&rsquo;s hardware and the published enclave image. Accepting that root is a one-time decision by the reader, not an ongoing dependency. After it, a proof stands on its own, in as many copies as it is made, with nothing of BitGraph&rsquo;s required to be online. The word for that is portable and independently verifiable, not decentralized.
       </p>
 
       <h2 id="assumptions">Assumptions, and what fails with them</h2>
@@ -58,7 +58,7 @@ export default function TrustModelPage() {
             <tr><td className="k">Nonce freshness</td><td>A predictable or repeated nonce would let a position be precomputed or replayed within an epoch. The nonce is 32 bytes from the hardware generator.</td></tr>
             <tr><td className="k">Monotonic counter</td><td>If the counter repeated or moved backward within an epoch, positions inside it would be ambiguous. The counter is per chain, single-threaded, and in enclave memory.</td></tr>
             <tr><td className="k">Position before digest</td><td>If a position record could be minted after a digest had reached the enclave, the position would be a label. The position record has no field for a digest and is signed at allocation; the commit signature covers its hash.</td></tr>
-            <tr><td className="k">Honest Base blocks</td><td>The floor is a Base block&rsquo;s time, which the enclave checks against Base mainnet&rsquo;s schedule for its number and against its own clock. That the block is Base&rsquo;s own is confirmed by one lookup on Base, by number, comparing the hash. Coinbase runs Base&rsquo;s sequencer; if Base&rsquo;s record of its own blocks were wrong, the floor would be too. The floor is the newest block, not a confirmed one: a reorganisation near it can orphan it, and the lookup then fails, so that bound is lost rather than silently wrong. Earlier proofs&rsquo; floors rest the same way on Ethereum block times.</td></tr>
+            <tr><td className="k">Honest Base blocks</td><td>The floor is a Base block&rsquo;s time, which the enclave checks against Base mainnet&rsquo;s schedule for its number and against its own clock. That the block is Base&rsquo;s own is confirmed by one lookup on Base, by number, comparing the hash. Coinbase runs Base&rsquo;s sequencer; if Base&rsquo;s record of its own blocks were wrong, the floor would be too. The floor is the newest block, not a confirmed one: a reorganization near it can orphan it, and the lookup then fails, so that bound is lost rather than silently wrong. Earlier proofs&rsquo; floors rest the same way on Ethereum block times.</td></tr>
             <tr><td className="k">A strict verifier policy</td><td>A verifier that accepts any measurement, or skips the attestation, has verified a signature by an unknown key. Everything below the cryptographic class depends on the reader pinning PCR0.</td></tr>
           </tbody>
         </table>
@@ -68,11 +68,11 @@ export default function TrustModelPage() {
       <p>Each class names what it assumes and what weakens it. They are not interchangeable, and a verifier that checks one has not checked the others.</p>
       <dl className="terms">
         <dt>Cryptographic</dt>
-        <dd>The Ed25519 signature is valid over the canonical signed body under the proof&rsquo;s public key. Assumes the security of Ed25519 and SHA-256 and correct canonicalisation. Trusts nothing beyond the mathematics and the reconstruction logic.</dd>
+        <dd>The Ed25519 signature is valid over the canonical signed body under the proof&rsquo;s public key. Assumes the security of Ed25519 and SHA-256 and correct canonicalization. Trusts nothing beyond the mathematics and the reconstruction logic.</dd>
         <dt>Causal ordering</dt>
         <dd>A position existed, signed and without a digest, before this digest was bound to it. Assumes the boundary is uncompromised and is the published image. Weakened to &ldquo;some key asserted this&rdquo; by any verifier that does not pin the measurement.</dd>
         <dt>Sequence</dt>
-        <dd>This proof occupies a position linked to its predecessor by the previous-proof hash, within a named epoch. Assumes the reader holds the neighbouring proofs to check the links. Counters alone do not establish order across a gap.</dd>
+        <dd>This proof occupies a position linked to its predecessor by the previous-proof hash, within a named epoch. Assumes the reader holds the neighboring proofs to check the links. Counters alone do not establish order across a gap.</dd>
         <dt>Integrity</dt>
         <dd>Every field in the signed body is tamper-evident. <code>metadata</code>, <code>timestamps</code> and <code>claims</code> sit outside the signature and are advisory; the attestation, the agency envelope and the position record are outside it but self-authenticating.</dd>
         <dt>Exact bits</dt>
@@ -98,7 +98,7 @@ export default function TrustModelPage() {
         <li><strong>Double consumption.</strong> The position is deleted synchronously on lookup; the event loop is single-threaded.</li>
         <li><strong>Position swapping.</strong> The position record&rsquo;s hash is inside the signed body.</li>
         <li><strong>Forgery under a closed epoch&rsquo;s key.</strong> Keys live only in enclave memory and are destroyed at restart.</li>
-        <li><strong>Silent epoch continuation.</strong> Initialisation is fail-closed; a genesis must be explicit.</li>
+        <li><strong>Silent epoch continuation.</strong> Initialization is fail-closed; a genesis must be explicit.</li>
         <li><strong>Tampering with signed fields in transit.</strong> Any edit breaks the signature.</li>
         <li><strong>Downgrading the tier field.</strong> <code>enforcement</code> is signed.</li>
       </ul>
@@ -138,7 +138,7 @@ export default function TrustModelPage() {
         <li><strong>Pin the measurement.</strong> Set <code>allowedMeasurements</code> to the PCR0 you accept and require <code>measured-tee</code>. The published value is <code className="break">5a947cc66095adcceefa9e5ece5d1416dfe08c3470df1bcaa5b2bc5267b0480e6cdc172fe077cd06b0afb07614307973</code> (enclave v10, from 2026-10-07 23:59 UTC; earlier images in PINS.md), and you can rebuild it yourself.</li>
         <li><strong>Require and validate the attestation.</strong> The core verifier does not parse it; the audit package does, chaining to the embedded Nitro root and checking user data against the signed body.</li>
         <li><strong>Check the artifact binding.</strong> A result whose <code>artifactBinding</code> is <code>not-checked</code> has not tied the proof to any file.</li>
-        <li><strong>Hold the neighbours for chain claims.</strong> Order across a gap is not established by counters alone.</li>
+        <li><strong>Hold the neighbors for chain claims.</strong> Order across a gap is not established by counters alone.</li>
         <li><strong>Hold the floor and the ceiling for temporal claims.</strong> The floor is signed into the proof; confirm its block with one lookup on Base. The ceiling is the ceiling file, which an export carries once it exists. An earlier proof&rsquo;s Ethereum floor needs its block header, which its export carries.</li>
         <li><strong>Treat unsigned fields as advisory.</strong> <code>metadata</code>, <code>timestamps</code> and <code>claims</code> are never evidence.</li>
         <li><strong>Refuse debug enclaves.</strong> A measurement of all zeros means a debug-mode enclave; treat its proofs as software tier.</li>

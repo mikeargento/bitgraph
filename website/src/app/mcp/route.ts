@@ -380,7 +380,7 @@ const handler = createMcpHandler(
           "New files are virtual: keep the originals unchanged and the export, and any reader can rebuild a new file and check it. BitGraph does not index a tree's files. " +
           "(A fuse_token from an older open, without a floor, still commits the earlier way: a set with sets[].proof, or one file with its Frame in frames[].) " +
           "Returns, per file, the position just made, plus any earlier position BitGraph's copy holds. Positions held elsewhere are in their holder's proofs. " +
-          "A 'not fused' outcome says why and what to do (usually: commit again in a few seconds, or open again). Nothing is labelled fused unless the proof came back under the named position and verified.",
+          "A 'not fused' outcome says why and what to do (usually: commit again in a few seconds, or open again). Nothing is labeled fused unless the proof came back under the named position and verified.",
         inputSchema: z.object({
           entries: z
             .array(

@@ -5,7 +5,7 @@ import { DocsPageNav } from "@/components/docs-page-nav";
 export const metadata: Metadata = {
   title: "Use cases",
   description:
-    "Where a record's position is worth proving: records an AI agent writes about its own work, evaluations that must postdate a public moment, automated decisions in regulated settings, and records that cross organisations. Each case names the existing record, the verification problem, where BitGraph enters, and what the proof adds.",
+    "Where a record's position is worth proving: records an AI agent writes about its own work, evaluations that must postdate a public moment, automated decisions in regulated settings, and records that cross organizations. Each case names the existing record, the verification problem, where BitGraph enters, and what the proof adds.",
   openGraph: {
     title: "BitGraph: use cases",
     description: "Where a record's position is worth proving, and what the proof adds in each case.",
@@ -64,8 +64,8 @@ const cases: Case[] = [
   {
     id: "clinical-ai",
     title: "Clinical decision support and change control",
-    record: "A decision record, a model manifest, an authorisation, or a change-control artifact for AI-enabled software. HIPAA's audit-control and integrity requirements and change-control expectations all assume a decision can be reconstructed later.",
-    problem: "Reconstruction may be needed years later, and ordinary logging, however strong, stays under the control of the organisation whose history is being audited.",
+    record: "A decision record, a model manifest, an authorization, or a change-control artifact for AI-enabled software. HIPAA's audit-control and integrity requirements and change-control expectations all assume a decision can be reconstructed later.",
+    problem: "Reconstruction may be needed years later, and ordinary logging, however strong, stays under the control of the organization whose history is being audited.",
     where: "Manifests and decision records are committed as they change. Patient data is never sent; a digest reveals nothing about the record's contents unless someone already holds the exact bytes.",
     adds: "Independent evidence of the order between exact digital states: which manifest was in force before which decision, and after which public block.",
     not: "That the decision was clinically right, or who made it. Note the privacy exposures below before recording low-entropy records.",
@@ -82,7 +82,7 @@ const cases: Case[] = [
   },
   {
     id: "multi-party-agents",
-    title: "Records that cross organisations",
+    title: "Records that cross organizations",
     record: "Company A signs a delegation; company B signs an execution receipt. Each may attest the hardware that ran its side.",
     problem: "Neither record can show where the two stood relative to each other, and the ordering evidence lives inside one company's infrastructure, which is exactly what the other does not want to trust.",
     where: "Each delegation, receipt or manifest is committed by whoever produces it, on the same public sequence.",

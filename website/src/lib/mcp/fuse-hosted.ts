@@ -565,12 +565,12 @@ async function commitUnderSlot(
 
   // Never label as fused a proof under any other slot or for any other bytes.
   if (proofUnderSlot([proof], slot, artifactDigestB64) === null) {
-    throw new HostedFuseError("slot-mismatch", "the boundary returned a proof under a different slot; nothing is labelled fused");
+    throw new HostedFuseError("slot-mismatch", "the boundary returned a proof under a different slot; nothing is labeled fused");
   }
   const attr = proof.attribution;
   const want = body.attribution;
   if (attr?.name !== want.name || attr?.title !== want.title || (attr?.message ?? undefined) !== want.message) {
-    throw new HostedFuseError("marker-mismatch", "the returned proof does not carry the signed marker that was sent; nothing is labelled fused");
+    throw new HostedFuseError("marker-mismatch", "the returned proof does not carry the signed marker that was sent; nothing is labeled fused");
   }
   return { proof, recovered };
 }
@@ -712,7 +712,7 @@ export async function commitHostedSet(entries: readonly SetEntry[]): Promise<Com
   }
   const echoed = readSetMetadata(proof as unknown as VerifyProof);
   if (echoed !== null && !bytesEqual(echoed, built.manifestBytes)) {
-    throw new HostedFuseError("verification-failed", "the returned proof echoes a different set manifest; nothing is labelled fused");
+    throw new HostedFuseError("verification-failed", "the returned proof echoes a different set manifest; nothing is labeled fused");
   }
   if (echoed === null) {
     const prior = proof.metadata;
@@ -806,7 +806,7 @@ export async function commitHostedTree(entries: readonly SetEntry[]): Promise<Co
   const md = proof.metadata;
   const mdObj = md !== null && typeof md === "object" && !Array.isArray(md) ? (md as Record<string, unknown>) : null;
   if (mdObj?.[TREE_METADATA_KEY] !== undefined && mdObj[TREE_METADATA_KEY] !== hex) {
-    throw new HostedFuseError("verification-failed", "the returned proof carries a different root document; nothing is labelled fused");
+    throw new HostedFuseError("verification-failed", "the returned proof carries a different root document; nothing is labeled fused");
   }
   const echoed = mdObj?.[TREE_METADATA_KEY] !== undefined;
   if (!echoed) proof.metadata = { ...(mdObj ?? {}), [TREE_METADATA_KEY]: hex };

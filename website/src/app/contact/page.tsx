@@ -51,7 +51,7 @@ export default function ContactPage() {
           it and the page read as two pages. A form page's measure is its form. */}
       <div style={{ maxWidth: 560 }}>
       <p className="lede">
-        BitGraph is built and run by Michael Argento at Argento Computing Inc. Write with a question, an evaluation you want to run, or a licence you need. Email <a href="mailto:mike@bitgraph.ing">mike@bitgraph.ing</a> or use the form; both reach the same inbox.
+        BitGraph is built and run by Michael Argento at Argento Computing Inc. Write with a question, an evaluation you want to run, or a license you need. Email <a href="mailto:mike@bitgraph.ing">mike@bitgraph.ing</a> or use the form; both reach the same inbox.
       </p>
         {status === "sent" ? (
           <div className="callout is-ok" role="status">

@@ -20,7 +20,7 @@ export function EpochFigure() {
      (Mike, 2026-09-17: it overlapped the borders at 40). */
   const BOX_W = 253;
   const wide = (
-    <Svg w={960} h={240} top={22} title="Three compartments side by side, labelled as three consecutive UTC days, each with its own key and a counter that restarts. Inside each, a short sequence with blue floored positions at both ends. Between compartments: 23:59 UTC, key destroyed. Below, the Base block numbers named by those floors increase from left to right.">
+    <Svg w={960} h={240} top={22} title="Three compartments side by side, labeled as three consecutive UTC days, each with its own key and a counter that restarts. Inside each, a short sequence with blue floored positions at both ends. Between compartments: 23:59 UTC, key destroyed. Below, the Base block numbers named by those floors increase from left to right.">
       {/* The rule first, so the block chips sit on top of it. */}
       <T x={0} y={178} cls="ttl">BASE BLOCKS NAMED BY THE FLOORS</T>
       <line className="rule-2" x1={0} y1={200} x2={960} y2={200} />
@@ -57,7 +57,7 @@ export function EpochFigure() {
   );
 
   const narrow = (
-    <Svg w={360} h={512} title="Three compartments stacked, labelled as three consecutive UTC days, each with its own key and a restarting counter, with floored positions at the start and end. The Base block numbers named by those floors increase from top to bottom.">
+    <Svg w={360} h={512} title="Three compartments stacked, labeled as three consecutive UTC days, each with its own key and a restarting counter, with floored positions at the start and end. The Base block numbers named by those floors increase from top to bottom.">
       {[["14 Sep 2026", "key A", 10, "51,277,330", "51,320,480"], ["15 Sep 2026", "key B", 180, "51,320,530", "51,363,680"], ["16 Sep 2026", "key C", 350, "51,363,730", "51,406,880"]].map(([day, key, y0, b1, b2]) => {
         const y = Number(y0);
         return (
