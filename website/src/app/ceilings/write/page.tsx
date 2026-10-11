@@ -73,12 +73,14 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
         <Row label="Fee">{eth(w.fees.totalWei)} ETH</Row>
       </div>
       <h2 style={{ margin: "40px 0 12px", fontSize: 20 }}>Records</h2>
-      <div className="cl-rows" style={{ display: "flex", flexDirection: "column" }}>
+      {/* Plain rows, not the clickable card rows (Mike, 2026-10-10): since the public ledger closed these link nowhere, so
+          nothing here should look like a button: no card, no hover, no marker, just the position, proof hash and floor. */}
+      <div style={{ display: "flex", flexDirection: "column", borderTop: "1px solid var(--line-2)" }}>
         {w.items.map((i) => {
           const floor = floors.get(i.proofHash);
           return (
-            <div key={i.proofHash} className="xp-row" style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <span style={{ flexShrink: 0, minWidth: 88, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>#{fmt(i.position)}</span>
+            <div key={i.proofHash} style={{ display: "flex", gap: 12, alignItems: "baseline", padding: "10px 0", borderBottom: "1px solid var(--line-2)", fontSize: 14 }}>
+              <span style={{ flexShrink: 0, minWidth: 88, fontWeight: 600, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>#{fmt(i.position)}</span>
               <span style={{ flex: 1, minWidth: 0, ...mono, color: "var(--dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title="proofHash">{i.proofHash}</span>
               {floor && <span style={{ flexShrink: 0, fontSize: 12.5, color: "var(--dim)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>after {floorChainWord(floor)} #{fmt(floor.blockNumber)}</span>}
             </div>
