@@ -99,7 +99,7 @@ const isBridge = (algorithm: string) => algorithm === ART_ALGORITHM_V18 || algor
 /** The versions whose recorded PNG carries a print SVG: the Threes and the bridges. */
 const hasPrintSvg = (algorithm: string) => isThree(algorithm) || isBridge(algorithm);
 
-export function ArtMaker({ children, mode = "painting", secondary }: { children?: ReactNode; mode?: ArtMakerMode; secondary?: ReactNode } = {}) {
+export function ArtMaker({ children, mode = "painting", secondary, below }: { children?: ReactNode; mode?: ArtMakerMode; secondary?: ReactNode; below?: ReactNode } = {}) {
   const cfg = MODES[mode];
   const home = mode === "home";
   /** Home and /generate end the same way: the piece, one paragraph, two buttons (no downloads; the proof page has them),
@@ -295,6 +295,8 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
               {failedAt >= 0 ? "Try again" : cfg.make}
             </button>
           )}
+          {/* Under the buttons, before a make (home's stat line, Mike, 2026-10-11); it folds away with the headline. */}
+          {below}
         </div>
       </div>
 

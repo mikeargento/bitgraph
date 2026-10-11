@@ -58,6 +58,16 @@ export default function HomePage() {
       <ArtMaker
         mode="home"
         secondary={<Link className="bg-action-link" href="/docs/overview">How it works</Link>}
+        below={
+          /* The stat line (Mike, 2026-10-11), from the benchmark on branch bench (bench/RESULTS.md): 100,000 fused files
+             measured on an M3, 1,000,000-file BitGraphs measured in production (#9687, #9855), one Base ceiling write
+             24,000 gas at 0.006 gwei, ETH $2,499.85 (2026-10-11 13:52 UTC). 5 billion photos a day / 1,000,000 per
+             BitGraph = 5,000 BitGraphs x $0.00036 = $1.80. A projection, and the footnote says so. STAGED: red. */
+          <div className="home-stat">
+            <h2><span style={{ color: "#d93025" }}>Every photo taken on Earth each day could be BitGraphed for about $2 in Base&nbsp;fees.</span></h2>
+            <p className="home-stat-note"><span style={{ color: "#d93025" }}>Projected: about 5 billion photos a day (industry estimates), hashed and fused on the devices that take them, 1,000,000 per BitGraph, sealed to Base at October 11, 2026 fees. Server and storage costs not included.</span></p>
+          </div>
+        }
       >
         {/* The hero (Mike, 2026-10-05): the typing line of 2026-09-30 and the game theory paragraph of
             2026-09-26, left aligned, after a day of trying shorter heroes ("GPS for files.", "The
