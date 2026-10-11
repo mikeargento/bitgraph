@@ -3339,7 +3339,9 @@ footer { border-top: 0 !important; }
 /* Home's stat line under the buttons (2026-10-11): a quiet h2 and a small note, left aligned with the hero. */
 .art-home .art-go-wrap .art-hero-inner:has(.home-stat) { display: block; }
 /* The lede and the footnote never run wider than the headline (Mike, 2026-10-11): 640px is the h1's measured text width at 72px. */
-.home .lede.home-lede-stat { max-width: 640px !important; }
+.home .lede.home-lede-stat { max-width: 640px !important; text-wrap: pretty; }
+/* Phones: the line stops a little short of the right edge, so no word sits against it (Mike, 2026-10-11: "place" at the edge). */
+@media (max-width: 600px) { .home .lede.home-lede-stat { padding-right: 28px; } }
 .home-stat { margin-top: 28px; max-width: 640px; }
 /* Desktop: the fine print is as narrow as the line above the buttons renders (Mike, 2026-10-11). */
 @media (min-width: 768px) { .home-stat { max-width: 440px; } }
