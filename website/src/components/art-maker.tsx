@@ -27,7 +27,7 @@ import { AGE_BAND_NAMES_V11, EXPRESSION_NAMES_V11, HAIR_NAMES_V11, PALETTE_NAMES
 import { compositionNameV15, paletteNameV15 } from "@/lib/commitment-art-v15";
 import { ART_ALGORITHM, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, toHex } from "@/lib/commitment-art";
 import { describeV16, svgFromPngV16 } from "@/lib/commitment-art-v16";
-import { describeV18 } from "@/lib/commitment-art-v18";
+import { describeV18, settingsTextV18 } from "@/lib/commitment-art-v18";
 import { sha256 } from "@noble/hashes/sha256";
 import { rememberMade, madeHere } from "@/lib/made-here";
 import { recordedMsOf } from "@/lib/recorded-time";
@@ -323,6 +323,8 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
               when the content carries its commitment, as this image does. */}
           <p className="art-home-explain"><span>BitGraph began this proof before these bits existed. Your click opened a position, and that position&rsquo;s commitment was the only input this image was drawn from. The image was then recorded in the same position, so it could not have existed before your click, and no click will ever make it again. The proof checks offline, and the image can be redrawn from the commitment&nbsp;alone.</span></p>
           <p className="art-home-explain"><span>Any computation can carry its commitment the same way. An AI agent writes it into its trace before a task starts, so the finished record could not have been completed earlier and backdated. This image just makes it&nbsp;visible.</span></p>
+          {/* Bridge (2026-10-10): every setting of Mike's generator is drawn per click; how this one was drawn. */}
+          {bridgePlan && <p className="art-home-explain art-fine"><span style={{ color: "#d93025" }}>How it was drawn: {settingsTextV18(bridgePlan)}.</span></p>}
           <div className="actions art-home-actions">
             <button type="button" className="bg-action-link is-make art-go" onClick={create}>{cfg.again}</button>
             <a className="bg-action-link art-go" href={`/proof/${urlSafe(made.digestB64)}`}>See the full proof</a>
@@ -371,7 +373,7 @@ export function ArtMaker({ children, mode = "painting", secondary }: { children?
               <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
               <h3>How it was drawn</h3>
               <p>{made.manifest.algorithm === ART_ALGORITHM_V18
-                ? <span style={{ color: "#d93025" }}>Every bridge is the same suspension bridge built from flat rectangles: thousands of small ones fill its towers, deck and cables, and larger ones fill the sky and the water around it. Every rectangle&rsquo;s place, size and shape and the colors come from the code ({made.manifest.algorithm}). The recorded file is a PNG, and it carries the print version inside it, an SVG of the same rectangles in whole numbers on a 1200 by 1200 grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</span>
+                ? <span style={{ color: "#d93025" }}>Every bridge is the same suspension bridge built from flat rectangles: thousands of small ones fill its towers, deck and cables, and larger ones fill the sky and the water around it. The colors, the detail, the gaps, the share of bars, the largest sizes and every rectangle&rsquo;s place, size and shape come from the code ({made.manifest.algorithm}); this one drew {settingsTextV18(made.recipe.v18!)}. The recorded file is a PNG, and it carries the print version inside it, an SVG of the same rectangles in whole numbers on a 1200 by 1200 grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</span>
                 : isThree(made.manifest.algorithm)
                 ? <>Every piece is three flat shapes on a flat ground, squares or rectangles that never touch, in red, yellow, blue and green: the ground is one of the four, and each shape one of the other three. Every size, position, gap and color comes from the code ({made.manifest.algorithm}). The recorded file is a PNG, and it carries the print version inside it, an SVG of the same shapes in whole numbers on {made.manifest.algorithm === ART_ALGORITHM_V17 ? "a 1920 by 1080" : "an 1800 by 1800"} grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</>
                 : made.manifest.algorithm === "bitgraph-art/15"

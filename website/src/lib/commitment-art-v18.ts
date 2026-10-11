@@ -6,10 +6,10 @@
  * SVG print master in an iTXt chunk.
  *
  * The piece is defined on a 1200 x 1200 grid of integers. A fixed bridge silhouette (the mask, below; the same for every
- * piece) is filled with small rectangles in the bridge's colours, then the field around it (sky above the horizon,
+ * piece) is filled with small rectangles in the bridge's colors, then the field around it (sky above the horizon,
  * water below) with larger ones, in staged rejection packing: each stage tries a number of times to place a rectangle of
  * at most a given size at a random free point, shrinking it a few times when it does not fit. The ground (the
- * background colour) shows through every gap. Nothing is ever drawn with a canvas: the mask is rasterised here, by the
+ * background color) shows through every gap. Nothing is ever drawn with a canvas: the mask is rasterized here, by the
  * rules below, so the pixels are the same on every device.
  *
  * ── The stream (the pattern of every version) ──────────────────────────────────────────────────────────────────────
@@ -25,22 +25,22 @@
  *               R(cx - 39, a, cx + 39, b) for (a, b) = (409, 427), (463, 481), (525, 545), (603, 621); piers
  *               R(cx - 41, 697, cx - 13, 787) and R(cx + 13, 697, cx + 41, 787); footings R(cx - 45, 787, cx - 9, 811)
  *               and R(cx + 9, 787, cx + 45, 811); a slab R(cx - 64, 811, cx + 64, 818)
- *   cables      two, offset off = -27 and +27 from the tower centres (each runs over one leg of each tower, so the two
+ *   cables      two, offset off = -27 and +27 from the tower centers (each runs over one leg of each tower, so the two
  *               double up and cross). With xa = 332 + off, xb = 868 + off, mid = 600 + off, each is three parabolas:
  *                 main span  xa <= x <= xb:  y = 663 - 262 ((x - mid) / 268)^2        (saddles at y = 401, low 663)
  *                 west side  48 <= x < xa:   y = 665 - 264 ((x - 48) / (xa - 48))^2   (horizontal at the deck end)
  *                 east side  xb < x <= 1152: y = 665 - 264 ((1152 - x) / (1152 - xb))^2
  *               THE CABLE RULE (a stroke 7 units thick, without a canvas): pixel (X, Y), 48 <= X < 1152, is cable when,
- *               at its centre's x = X + 1/2, its centre's vertical offset e from the parabola satisfies
+ *               at its center's x = X + 1/2, its center's vertical offset e from the parabola satisfies
  *                 e^2 <= 3.5^2 (1 + s^2),  s = the parabola's slope there,
  *               which is exactly "within 3.5 of the line" for a straight line of that slope (the curves bend gently:
  *               their tightest radius is 137 units against a half-thickness of 3.5). In integers: with
  *               t = 2X + 1 - 2 x0 (x0 = mid, 48 or 1152), Q = 4 L^2 (L = 268, xa - 48 or 1152 - xb) and
  *               N = Y0 Q - A t^2 (Y0, A = 663, 262 on the main span, 665, 264 on the sides),
  *                 E = (2Y + 1) Q - 2N,   cable  <=>  E^2 <= 49 (Q^2 + 16 A^2 t^2),
- *               every product an integer below 2^53 (exact in a double). Round ends as a stroke has: a pixel whose centre
+ *               every product an integer below 2^53 (exact in a double). Round ends as a stroke has: a pixel whose center
  *               is within 3.5 of (48, 665) or (1152, 665), (2X + 1 - 2ex)^2 + (2Y + 1 - 1330)^2 <= 49, is cable too.
- *               Each column's band is at least 7 pixels tall and its centre moves at most about 2.1 a column, so a
+ *               Each column's band is at least 7 pixels tall and its center moves at most about 2.1 a column, so a
  *               cable is one connected run of pixels from deck end to deck end (tested).
  *   suspenders  for x = 58, 76, ... (every 18) up to 1152, skipping |x - 332| < 46 and |x - 868| < 46: under the higher
  *               cable at the integer x (top = the smaller y, a fraction compared exactly), skipped when 667 - top < 14,
@@ -49,34 +49,53 @@
  * A summed-area table of the mask answers "how much bridge is in this box" in four reads.
  *
  * ── The plan, read in exactly this order ───────────────────────────────────────────────────────────────────────────
- *   palette   PALETTES_V18[below(5)]: background, bridge, footing, sky, water (Mike's five presets)
- *   bridge    stages (largest side, attempts) (90, 150), (50, 800), (28, 4000), (16, 14000), (9, 45000), (5, 120000),
- *             gap 1: every rectangle fully inside the mask
- *   field     stages (360, 60), (210, 220), (120, 750), (60, 2400), (30, 7000), (15, 22000), (8, 40000), gap 5: every
- *             rectangle clear of the mask by 4 on every side, at least 16 from the canvas edge, and wholly above or
- *             wholly below the horizon
- *   one attempt, for a stage of largest side M (units in thousandths, m-units, so every choice is an integer):
+ * Every setting of Mike's standalone page comes from the commitment, per click (Mike, 2026-10-10: "i want all the
+ * different possibilities"), drawn first, in this order, each a sum of below() draws so the space is wide while most
+ * pieces still read well (tri(a, b) = below(a) + below(b), a triangle peaked in the middle):
+ *   palette      PALETTES_V18[below(5)]: background, bridge, footing, sky, water (Mike's five presets), uniform
+ *   detail       how many bridge stages run, 2 to 6, by u = below(100): u < 8: 2, u < 20: 3 (the sparse "ghost"
+ *                bridges, 1 in 5), u < 35: 4, u < 60: 5, else 6 (dense, 2 in 5)
+ *   bridge gap   1 to 5, by u = below(100): u < 40: 1, u < 65: 2, u < 80: 3, u < 92: 4, else 5 (tight most often)
+ *   field gap    the bridge gap plus an offset 0 to 12, by u = below(100) against the cuts 4, 11, 21, 33, 46, 58,
+ *                68, 77, 84, 90, 94, 97 (percent 4, 7, 10, 12, 13, 12, 10, 9, 7, 6, 4, 3, 3: peak 4, the page's default)
+ *   buffer       field clear of the bridge by 0 to 16, tri(9, 9)                                   (peak 8)
+ *   margin       field this far from the canvas edge, 0 to 64, tri(33, 33)                         (peak 32)
+ *   bars         the share of bars, 0 to 100 percent, tri(51, 51)                                  (peak 50)
+ *   bridge max   the largest bridge rectangle, 20 to 160, 20 + tri(71, 71)                         (peak 90, the page's default)
+ *   field max    the largest field rectangle, 60 to 600 in tens, 60 + 10 tri(28, 28)               (peak 330)
+ * Then the packing (lengths in thousandths, m-units, so every choice is an integer):
+ *   bridge   stages (largest side, attempts) (90, 150), (50, 800), (28, 4000), (16, 14000), (9, 45000), (5, 120000),
+ *            the first `detail` of them, each side scaled by bridge max / 90: M = max(2000, floor(1000 side bridgeMax / 90));
+ *            every rectangle fully inside the mask, the bridge gap from every rectangle before it
+ *   field    stages (360, 60), (210, 220), (120, 750), (60, 2400), (30, 7000), (15, 22000), (8, 40000), each side scaled
+ *            by field max / 360: M = max(2000, floor(1000 side fieldMax / 360)); every rectangle clear of the mask by the
+ *            buffer on every side, at least the margin from the canvas edge, wholly above or wholly below the horizon,
+ *            and the field gap from every rectangle before it
+ *   one attempt, for a stage of largest side M (m-units):
  *     the point   up to 12 tries: i = below(1200 * 1200), (x, y) = (i mod 1200, i div 1200); taken when the pixel is
  *                 free and in the region (mask 1 for the bridge, 0 for the field); none in 12 tries, the attempt ends
- *     the size    s = 450 M + below(550 M)                  (0.45 M to M, in m-units)
- *     the shape   below(100) < 55: a bar, ratio r = 80 + below(250) (0.080 to 0.329); else a block, r = 550 + below(450)
+ *     the size    s = floor(45 M / 100) + below(floor(55 M / 100))      (0.45 M to M)
+ *     the shape   below(100) < bars: a bar, ratio r = 80 + below(250) (0.080 to 0.329); else a block, r = 550 + below(450)
  *                 (0.550 to 0.999); w = s, h = floor(s r / 1000); below(2) == 0 swaps w and h
  *     placing     up to 5 tries: iw = max(2, round(w / 1000)), ih likewise (round half up, integer division);
  *                 x0 = x - floor(iw / 2), y0 = y - floor(ih / 2); kept when it is inside the canvas and its region's
  *                 rules hold and no occupied pixel lies within the gap of it; otherwise w = floor(62 w / 100),
  *                 h = floor(62 h / 100), and when both are under 2 units the attempt ends
- *   colour    by position: a bridge rectangle is footing when its centre is below y = 787 (y0 + y1 > 1574), else bridge;
- *             a field rectangle is sky above the horizon (y0 + y1 < 1394), else water.
+ *   color    by position: a bridge rectangle is footing when its center is below y = 787 (y0 + y1 > 1574), else bridge;
+ *            a field rectangle is sky above the horizon (y0 + y1 < 1394), else water.
  *
  * ── The files ──────────────────────────────────────────────────────────────────────────────────────────────────────
  *   the SVG (svgV18)  the print master: the background, then every rectangle in the order placed, integers on a
- *                     1200 x 1200 viewBox, crisp edges. Canonical bytes: fixed element and attribute order, LF, a final LF.
- *   the PNG           THE RECORDED FILE: 1200 x 1200 RGB, the same rectangles as pixels, written exactly as version 16
- *                     writes its file (pngFileThree: the manifest and the copyright in tEXt, the SVG byte for byte in
- *                     iTXt "bitgraph-print-svg", version 15's pure deflate).
+ *                     1200 x 1200 viewBox, crisp edges; its metadata states the commitment and every setting drawn.
+ *                     Canonical bytes: fixed element and attribute order, LF, a final LF.
+ *   the PNG           THE RECORDED FILE: 1200 x 1200 RGB, the same rectangles as pixels, laid out as version 16's file:
+ *                     IHDR; tEXt "bitgraph-art" (the manifest); tEXt "Copyright"; tEXt "bitgraph-art-settings" (the
+ *                     settings, as in the SVG); iTXt "bitgraph-print-svg" (the SVG, byte for byte); IDAT (version 15's
+ *                     pure deflate); IEND.
  */
 import { sha256 } from "@noble/hashes/sha256";
-import { THREE_SPEC_V16, V16_COPYRIGHT, V16_SVG_KEYWORD, pngFileThree, svgFromPngV16 } from "./commitment-art-v16.ts";
+import { V16_COPYRIGHT, V16_SVG_KEYWORD, svgFromPngV16 } from "./commitment-art-v16.ts";
+import { deflateV15, filterRowsV15 } from "./png-deflate-v15.ts";
 
 export const ART_ALGORITHM_V18 = "bitgraph-art/18";
 export const V18_SIZE = 1200;
@@ -85,35 +104,60 @@ export const V18_COPYRIGHT = V16_COPYRIGHT;
 /** The iTXt keyword of the print SVG: version 16's. */
 export const V18_SVG_KEYWORD = V16_SVG_KEYWORD;
 export const V18_HORIZON = 697;
-/** A bridge rectangle centred below this line is footing. */
+/** A bridge rectangle centerd below this line is footing. */
 export const V18_FOOTING_LINE = 787;
 
 const G = V18_SIZE;
 
 /** Mike's five presets, in his order: background, bridge, footing, sky, water. */
-export const PALETTES_V18: readonly { name: string; colours: readonly [string, string, string, string, string] }[] = [
-  { name: "International orange", colours: ["#f5efe0", "#c0362c", "#b08d4a", "#8fb3c9", "#1d4e6b"] },
-  { name: "Red and black", colours: ["#ffffff", "#000000", "#000000", "#ee1c25", "#ee1c25"] },
-  { name: "Night", colours: ["#0d1b2a", "#f25c3b", "#c9a45c", "#2c4f7c", "#1b3a5c"] },
-  { name: "Sunset", colours: ["#fbe3c2", "#7a1f2b", "#4a2a1a", "#f08a24", "#3a2d6b"] },
-  { name: "Fog", colours: ["#ecebe6", "#b3341f", "#8a7a55", "#a3b0b5", "#55707d"] },
+export const PALETTES_V18: readonly { name: string; colors: readonly [string, string, string, string, string] }[] = [
+  { name: "International orange", colors: ["#f5efe0", "#c0362c", "#b08d4a", "#8fb3c9", "#1d4e6b"] },
+  { name: "Red and black", colors: ["#ffffff", "#000000", "#000000", "#ee1c25", "#ee1c25"] },
+  { name: "Night", colors: ["#0d1b2a", "#f25c3b", "#c9a45c", "#2c4f7c", "#1b3a5c"] },
+  { name: "Sunset", colors: ["#fbe3c2", "#7a1f2b", "#4a2a1a", "#f08a24", "#3a2d6b"] },
+  { name: "Fog", colors: ["#ecebe6", "#b3341f", "#8a7a55", "#a3b0b5", "#55707d"] },
 ];
-/** A rectangle's kind; its colour is the palette's entry kind + 1 (entry 0 is the background). */
+/** A rectangle's kind; its color is the palette's entry kind + 1 (entry 0 is the background). */
 export const KINDS_V18 = ["bridge", "footing", "sky", "water"] as const;
 export const KIND_BRIDGE = 0, KIND_FOOTING = 1, KIND_SKY = 2, KIND_WATER = 3;
 
 /** (largest side, attempts), in order. */
 export const BRIDGE_STAGES_V18: readonly (readonly [number, number])[] = [[90, 150], [50, 800], [28, 4000], [16, 14000], [9, 45000], [5, 120000]];
 export const FIELD_STAGES_V18: readonly (readonly [number, number])[] = [[360, 60], [210, 220], [120, 750], [60, 2400], [30, 7000], [15, 22000], [8, 40000]];
-/** The spec's fixed numbers. */
-export const V18_RULES = { bridgeGap: 1, fieldGap: 5, buffer: 4, margin: 16, barPercent: 55, pointTries: 12, sizeTries: 5 } as const;
+/** The packing's fixed numbers. */
+export const V18_RULES = { pointTries: 12, sizeTries: 5 } as const;
+
+/** The settings of Mike's standalone page, each drawn from the commitment (the header gives the distributions). */
+export interface V18Settings {
+  /** Bridge stages run, 2 to 6. */
+  detail: number;
+  /** Least space between bridge rectangles, 1 to 5. */
+  bridgeGap: number;
+  /** Added to the bridge gap for the field, 0 to 12. */
+  fieldGapOffset: number;
+  /** Field kept this far from the bridge, 0 to 16. */
+  buffer: number;
+  /** Field kept this far from the canvas edge, 0 to 64. */
+  margin: number;
+  /** Percent of rectangles that are bars, 0 to 100. */
+  bars: number;
+  /** Largest bridge rectangle, 20 to 160. */
+  bridgeMax: number;
+  /** Largest field rectangle, 60 to 600, in tens. */
+  fieldMax: number;
+}
+/** The standalone page's sliders: each setting's range, inclusive. */
+export const V18_SETTING_RANGES: Readonly<Record<keyof V18Settings, readonly [number, number]>> = {
+  detail: [2, 6], bridgeGap: [1, 5], fieldGapOffset: [0, 12], buffer: [0, 16], margin: [0, 64], bars: [0, 100], bridgeMax: [20, 160], fieldMax: [60, 600],
+};
 
 /**
- * A piece's plan: the palette (an index into PALETTES_V18) and every rectangle in the order placed, flat, five integers
+ * A piece's plan: the palette (an index into PALETTES_V18), the settings drawn, and every rectangle in the order placed, flat, five integers
  * each: x, y, w, h, kind (KINDS_V18). Never overlapping, so the order does not change the picture.
  */
 export interface V18Plan {
   palette: number;
+  settings: V18Settings;
   rects: number[];
 }
 
@@ -157,7 +201,7 @@ const idiv = (n: number, d: number): number => (n - (n % d)) / d;
 
 /* ── The mask ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
 
-export const TOWER_CENTRES_V18 = [332, 868] as const;
+export const TOWER_CENTERS_V18 = [332, 868] as const;
 export const CABLE_OFFSETS_V18 = [-27, 27] as const;
 const STRUTS: readonly (readonly [number, number])[] = [[409, 427], [463, 481], [525, 545], [603, 621]];
 
@@ -166,7 +210,7 @@ export function maskRectsV18(): Array<[number, number, number, number, string]> 
   const out: Array<[number, number, number, number, string]> = [];
   out.push([48, 667, 1152, 677, "deck top chord"], [48, 689, 1152, 697, "deck bottom chord"]);
   for (let x = 48; x + 4 <= 1152; x += 16) out.push([x, 677, x + 4, 689, "deck post"]);
-  for (const cx of TOWER_CENTRES_V18) {
+  for (const cx of TOWER_CENTERS_V18) {
     out.push([cx - 39, 397, cx - 15, 697, "leg"], [cx + 15, 397, cx + 39, 697, "leg"]);
     for (const lx of [cx - 27, cx + 27]) out.push([lx - 5, 387, lx + 5, 397, "finial"], [lx - 2, 379, lx + 2, 387, "finial"]);
     for (const [a, b] of STRUTS) out.push([cx - 39, a, cx + 39, b, "strut"]);
@@ -180,7 +224,7 @@ export function maskRectsV18(): Array<[number, number, number, number, string]> 
 /** One cable's parabola for the column (or integer x) given: y = Y0 - A ((x - x0) / L)^2. */
 function cablePiece(off: number, x: number, integerX: boolean): { Y0: number; A: number; x0: number; L: number } {
   const xa = 332 + off, xb = 868 + off;
-  // A column X has its centre at X + 1/2, never on xa or xb, so it is main span exactly when xa <= X < xb; an integer x
+  // A column X has its center at X + 1/2, never on xa or xb, so it is main span exactly when xa <= X < xb; an integer x
   // (a suspender) is main span when xa <= x <= xb, as the generator chose it.
   const main = integerX ? x >= xa && x <= xb : x >= xa && x < xb;
   if (main) return { Y0: 663, A: 262, x0: 600 + off, L: 268 };
@@ -272,20 +316,49 @@ export function planV18(commitment: Uint8Array): V18Plan {
   const key = keyOf(commitment);
   if (memo && memo.key === key) return memo.plan; // the last plan (frozen): the file, its check and its redraw ask in turn
   const plan = packV18(commitment);
-  Object.freeze(plan.rects);
+  Object.freeze(plan.rects); Object.freeze(plan.settings);
   memo = { key, plan: Object.freeze(plan) };
   return plan;
+}
+
+/** The palette and the settings: the stream's first draws, in the header's order. */
+function drawSettings(s: Stream): { palette: number; settings: V18Settings } {
+  const palette = s.below(PALETTES_V18.length);
+  const pick = (cuts: readonly number[]) => { const u = s.below(100); let k = 0; while (k < cuts.length && u >= cuts[k]!) k++; return k; };
+  const tri = (a: number, b: number) => s.below(a) + s.below(b);
+  const detail = 2 + pick([8, 20, 35, 60]);
+  const bridgeGap = 1 + pick([40, 65, 80, 92]);
+  const fieldGapOffset = pick([4, 11, 21, 33, 46, 58, 68, 77, 84, 90, 94, 97]);
+  const buffer = tri(9, 9);
+  const margin = tri(33, 33);
+  const bars = tri(51, 51);
+  const bridgeMax = 20 + tri(71, 71);
+  const fieldMax = 60 + 10 * tri(28, 28);
+  return { palette, settings: { detail, bridgeGap, fieldGapOffset, buffer, margin, bars, bridgeMax, fieldMax } };
+}
+
+/** The palette and settings a commitment draws, without packing (they are the stream's first draws). */
+export function settingsV18(commitment: Uint8Array): { palette: number; settings: V18Settings } {
+  requireCommitment(commitment);
+  return drawSettings(new Stream(ART_ALGORITHM_V18, commitment));
+}
+
+/** The settings in words, as the SVG's metadata and the PNG's text state them. */
+export function settingsTextV18(plan: Pick<V18Plan, "palette" | "settings">): string {
+  const t = plan.settings;
+  return `palette ${PALETTES_V18[plan.palette]!.name}; detail ${t.detail} of 6; bridge gap ${t.bridgeGap}; field gap ${t.bridgeGap + t.fieldGapOffset} (offset ${t.fieldGapOffset}); field buffer ${t.buffer}; edge margin ${t.margin}; bars ${t.bars}%; largest bridge rectangle ${t.bridgeMax}; largest field rectangle ${t.fieldMax}`;
 }
 
 /** The plan packed afresh, never from the memo (planV18 keeps the last one): the tests draw every piece twice with it. */
 export function packV18(commitment: Uint8Array): V18Plan {
   requireCommitment(commitment);
   const s = new Stream(ART_ALGORITHM_V18, commitment);
-  const palette = s.below(PALETTES_V18.length);
+  const { palette, settings } = drawSettings(s);
   const mask = bridgeMaskV18(), sat = satV18(), W = G + 1;
   const occ = new Uint8Array(G * G);
   const rects: number[] = [];
-  const { margin, buffer, barPercent, pointTries, sizeTries } = V18_RULES;
+  const { margin, buffer, bars: barPercent } = settings;
+  const { pointTries, sizeTries } = V18_RULES;
 
   /** Bridge pixels in [x0, x1) x [y0, y1), clipped to the grid. */
   const bridgeIn = (x0: number, y0: number, x1: number, y1: number): number => {
@@ -300,9 +373,10 @@ export function packV18(commitment: Uint8Array): V18Plan {
     return true;
   };
 
-  const run = (stages: readonly (readonly [number, number])[], field: boolean, gap: number) => {
+  const run = (stages: readonly (readonly [number, number])[], field: boolean, gap: number, largest: number, base: number) => {
     const want = field ? 0 : 1;
-    for (const [M, attempts] of stages) {
+    for (const [side, attempts] of stages) {
+      const M = Math.max(2000, idiv(1000 * side * largest, base)); // the stage's largest side, scaled, in m-units
       for (let a = 0; a < attempts; a++) {
         let p = -1;
         for (let t = 0; t < pointTries; t++) {
@@ -312,7 +386,7 @@ export function packV18(commitment: Uint8Array): V18Plan {
         }
         if (p < 0) continue;
         const px = p % G, py = (p - px) / G;
-        const size = 450 * M + s.below(550 * M);
+        const size = idiv(45 * M, 100) + s.below(idiv(55 * M, 100));
         const ratio = s.below(100) < barPercent ? 80 + s.below(250) : 550 + s.below(450);
         let w = size, h = idiv(size * ratio, 1000);
         if (s.below(2) === 0) { const t = w; w = h; h = t; }
@@ -339,9 +413,9 @@ export function packV18(commitment: Uint8Array): V18Plan {
       }
     }
   };
-  run(BRIDGE_STAGES_V18, false, V18_RULES.bridgeGap);
-  run(FIELD_STAGES_V18, true, V18_RULES.fieldGap);
-  return { palette, rects };
+  run(BRIDGE_STAGES_V18.slice(0, settings.detail), false, settings.bridgeGap, settings.bridgeMax, 90);
+  run(FIELD_STAGES_V18, true, settings.bridgeGap + settings.fieldGapOffset, settings.fieldMax, 360);
+  return { palette, settings, rects };
 }
 
 /* ── The files ────────────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -355,13 +429,13 @@ const b64url = (b: Uint8Array): string => {
 /** The SVG text, canonical: one element a line, attributes in a fixed order, integers only, LF, a final LF. */
 export function svgTextV18(plan: V18Plan, commitment: Uint8Array): string {
   requireCommitment(commitment);
-  const pal = PALETTES_V18[plan.palette]!.colours;
+  const pal = PALETTES_V18[plan.palette]!.colors;
   const lines = [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${G} ${G}" width="100%" height="100%" shape-rendering="crispEdges">`,
     `<title>Bridge</title>`,
     `<desc>${V18_COPYRIGHT}</desc>`,
-    `<metadata>${ART_ALGORITHM_V18} commitment ${b64url(commitment)}</metadata>`,
+    `<metadata>${ART_ALGORITHM_V18} commitment ${b64url(commitment)}; ${settingsTextV18(plan)}</metadata>`,
     `<rect x="0" y="0" width="${G}" height="${G}" fill="${pal[0]}"/>`,
   ];
   const r = plan.rects;
@@ -379,7 +453,7 @@ const rgbOf = (hex: string): [number, number, number] => [parseInt(hex.slice(1, 
 
 /** The canonical RGBA pixels of the plan, 1200 x 1200. */
 export function renderV18(plan: V18Plan): Uint8Array {
-  const pal = PALETTES_V18[plan.palette]!.colours.map(rgbOf);
+  const pal = PALETTES_V18[plan.palette]!.colors.map(rgbOf);
   const px = new Uint8Array(G * G * 4);
   const bg = pal[0]!;
   for (let i = 0; i < px.length; i += 4) { px[i] = bg[0]; px[i + 1] = bg[1]; px[i + 2] = bg[2]; px[i + 3] = 255; }
@@ -393,9 +467,47 @@ export function renderV18(plan: V18Plan): Uint8Array {
   return px;
 }
 
-/** The recorded PNG: version 16's file, chunk for chunk (the manifest, the copyright, the SVG in iTXt), 1200 x 1200. */
-export function pngFileV18(px: Uint8Array, manifestText: string, svgText: string): Uint8Array {
-  return pngFileThree({ ...THREE_SPEC_V16, label: ART_ALGORITHM_V18, width: G, height: G }, px, manifestText, svgText);
+const PNG_SIG = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+function crc32(parts: Uint8Array[]): number {
+  let c = 0xffffffff;
+  for (const b of parts) for (let i = 0; i < b.length; i++) c = CRC_TABLE[(c ^ b[i]!) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+const u32be = (n: number) => Uint8Array.from([(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff]);
+/** ASCII and Latin-1 (tEXt is Latin-1: the copyright sign is the single byte 0xA9). */
+const latin1 = (s: string): Uint8Array => Uint8Array.from(s, (ch) => { const c = ch.charCodeAt(0); if (c > 255) throw new TypeError("not Latin-1"); return c; });
+const concat = (parts: Uint8Array[]): Uint8Array => {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+};
+function chunk(type: string, data: Uint8Array): Uint8Array {
+  const t = latin1(type);
+  return concat([u32be(data.length), t, data, u32be(crc32([t, data]))]);
+}
+const text = (keyword: string, value: string) => chunk("tEXt", concat([latin1(keyword), Uint8Array.of(0), latin1(value)]));
+
+/** The tEXt keyword under which the PNG states the settings drawn. */
+export const V18_SETTINGS_KEYWORD = "bitgraph-art-settings";
+
+/**
+ * The recorded PNG, 1200 x 1200: version 16's file, chunk for chunk, with the settings in one more tEXt chunk: IHDR;
+ * tEXt "bitgraph-art" (the manifest); tEXt "Copyright"; tEXt "bitgraph-art-settings"; iTXt "bitgraph-print-svg"
+ * (uncompressed, no language: its text bytes ARE the SVG's UTF-8 bytes); IDAT (version 15's pure deflate); IEND.
+ */
+export function pngFileV18(px: Uint8Array, manifestText: string, svgText: string, settingsText: string): Uint8Array {
+  const ihdr = new Uint8Array(13);
+  ihdr.set(u32be(G), 0); ihdr.set(u32be(G), 4);
+  ihdr[8] = 8; ihdr[9] = 2; // 8-bit truecolor, no alpha; compression, filter, interlace 0
+  const itxt = chunk("iTXt", concat([latin1(V18_SVG_KEYWORD), Uint8Array.of(0, 0, 0, 0, 0), new TextEncoder().encode(svgText)]));
+  const idat = deflateV15(filterRowsV15(px, G, G));
+  return concat([PNG_SIG, chunk("IHDR", ihdr), text("bitgraph-art", manifestText), text("Copyright", V18_COPYRIGHT), text(V18_SETTINGS_KEYWORD, settingsText), itxt, chunk("IDAT", idat), chunk("IEND", new Uint8Array(0))]);
 }
 
 /** The print SVG a version 18 PNG carries (version 16's iTXt keyword), or null. */
@@ -405,7 +517,7 @@ export const svgFromPngV18 = svgFromPngV16;
 export function readCommitmentV18(svg: Uint8Array): Uint8Array | null {
   let s: string;
   try { s = new TextDecoder("utf-8", { fatal: true }).decode(svg); } catch { return null; }
-  const m = /<metadata>bitgraph-art\/18 commitment ([A-Za-z0-9_-]{43})<\/metadata>/.exec(s);
+  const m = /<metadata>bitgraph-art\/18 commitment ([A-Za-z0-9_-]{43})[;<]/.exec(s);
   if (!m) return null;
   try {
     const bin = atob(m[1]!.replace(/-/g, "+").replace(/_/g, "/") + "=");
@@ -414,7 +526,7 @@ export function readCommitmentV18(svg: Uint8Array): Uint8Array | null {
   } catch { return null; }
 }
 
-/** A short description of a plan: "Fog, 21,345 rectangles". */
+/** A short description of a plan: "Fog, detail 6, 7,345 rectangles". */
 export function describeV18(plan: V18Plan): string {
-  return `${PALETTES_V18[plan.palette]!.name}, ${(plan.rects.length / 5).toLocaleString("en-US")} rectangles`;
+  return `${PALETTES_V18[plan.palette]!.name}, detail ${plan.settings.detail}, ${(plan.rects.length / 5).toLocaleString("en-US")} rectangles`;
 }

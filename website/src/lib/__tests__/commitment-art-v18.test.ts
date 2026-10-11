@@ -1,8 +1,9 @@
-// bitgraph-art/18 (2026-10-10), "Bridge": a suspension bridge of packed flat rectangles on a 1200 square, every draw from
-// the commitment's labelled SHA-256 stream, integers only, the recorded PNG carrying its print SVG. Pinned; the mask is
-// pinned and its parts checked (two legs and four struts a tower, continuous double cables, suspenders); 300 codes
-// property-checked and each drawn twice; the PNG is the SVG's rectangles; the image checks pass and fail as they should;
-// versions 16 and 17 are untouched; the proof page rebuilds both files from the proof alone.
+// bitgraph-art/18 (2026-10-10), "Bridge": a suspension bridge of packed flat rectangles on a 1200 square, every draw (the
+// palette and every setting of Mike's generator, then the packing) from the commitment's labelled SHA-256 stream, integers
+// only, the recorded PNG carrying its print SVG. Pinned; the mask is pinned and its parts checked (two legs and four struts
+// a tower, continuous double cables, suspenders); the settings' distributions checked over 200 codes; 300 codes
+// property-checked under their own settings (50 of them drawn twice); the PNG is the SVG's rectangles; the image checks
+// pass and fail as they should; versions 16 and 17 are untouched; the proof page rebuilds both files from the proof alone.
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
@@ -11,8 +12,9 @@ import { ART_ALGORITHM, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17,
 import { svgV16 } from "../commitment-art-v16.ts";
 import { svgV17 } from "../commitment-art-v17.ts";
 import {
-  ART_ALGORITHM_V18, CABLE_OFFSETS_V18, KIND_BRIDGE, KIND_FOOTING, KIND_SKY, KIND_WATER, PALETTES_V18, TOWER_CENTRES_V18, V18_COPYRIGHT, V18_HEIGHT, V18_HORIZON, V18_WIDTH,
-  bridgeMaskV18, cableMaskV18, describeV18, maskRectsV18, packV18, planV18, readCommitmentV18, renderV18, suspendersV18, svgFromPngV18, svgTextV18, svgV18,
+  ART_ALGORITHM_V18, CABLE_OFFSETS_V18, KIND_BRIDGE, KIND_FOOTING, KIND_SKY, KIND_WATER, PALETTES_V18, TOWER_CENTERS_V18, V18_COPYRIGHT, V18_HEIGHT, V18_HORIZON, V18_WIDTH,
+  V18_SETTINGS_KEYWORD, V18_SETTING_RANGES, bridgeMaskV18, cableMaskV18, describeV18, maskRectsV18, packV18, planV18, readCommitmentV18, renderV18, settingsTextV18, settingsV18,
+  suspendersV18, svgFromPngV18, svgTextV18, svgV18, type V18Settings,
 } from "../commitment-art-v18.ts";
 import { createArtImage, redrawRecordedArt, restoreArtImage } from "../art-position.ts";
 import { makeStub } from "./tree1-helpers.ts";
@@ -22,9 +24,10 @@ const C1 = code("bitgraph-art test commitment one");
 const utf8 = (b: Uint8Array) => new TextDecoder("utf-8", { fatal: true }).decode(b);
 const G = 1200;
 
-// Pinned on first run (2026-10-10). A failure here means bitgraph-art/18 changed: make /19 instead.
-const PINNED_SVG_V18 = "c50f7d46152d5063f77b80873fdaf85fe1bf76a0b2fb7af7e1a805f013ebd316";
-const PINNED_PNG_V18 = "48bfaaf201a930167c8fa860214780d0ab72a4b72f579d4e7fb201648fae3379";
+// Pinned 2026-10-10 (re-pinned the same night, before any piece was recorded, when every setting became per click). A
+// failure here means bitgraph-art/18 changed: make /19 instead.
+const PINNED_SVG_V18 = "9c43f7621a872f129e8c6d39672c2fef2cfac480c6583cccedfbfabc2a98ec48";
+const PINNED_PNG_V18 = "71db0ede89dd7159b1b47e69c9bb376936550a35ab6b59adc7f4259b06b0ce1a";
 const PINNED_MASK_V18 = "e33d85adab2288db77ab2696a1f180c68aab44f7016d95f81b8b02346e9bc1d2";
 // Versions 16 and 17's own pins (their tests), repeated: version 18 writes their file, and must not move it.
 const PINNED_SVG_V16 = "e322b1a099dccf4f07cdd836c7d92d7c8ae808446c62c828dbb04f971ff76752";
@@ -66,7 +69,7 @@ test("version 18 is registered and is not the default", () => {
 });
 
 test("the five palettes are Mike's presets: background, bridge, footing, sky, water", () => {
-  assert.deepEqual(PALETTES_V18.map((p) => [p.name, [...p.colours]]), [
+  assert.deepEqual(PALETTES_V18.map((p) => [p.name, [...p.colors]]), [
     ["International orange", ["#f5efe0", "#c0362c", "#b08d4a", "#8fb3c9", "#1d4e6b"]],
     ["Red and black", ["#ffffff", "#000000", "#000000", "#ee1c25", "#ee1c25"]],
     ["Night", ["#0d1b2a", "#f25c3b", "#c9a45c", "#2c4f7c", "#1b3a5c"]],
@@ -94,14 +97,14 @@ test("the mask is pinned, binary, the same object every call, and nothing of the
   for (let x = 0; x < G; x++) for (const y of [0, 300, 900, 1199]) assert.equal(m[y * G + x], 0);
   for (let y = V18_HORIZON; y < G; y++) for (let x = 0; x < G; x++) {
     if (!m[y * G + x]) continue;
-    assert.ok(TOWER_CENTRES_V18.some((cx) => Math.abs(x + 0.5 - cx) < 64 && y < 818), `(${x}, ${y}) under the deck belongs to a tower`);
+    assert.ok(TOWER_CENTERS_V18.some((cx) => Math.abs(x + 0.5 - cx) < 64 && y < 818), `(${x}, ${y}) under the deck belongs to a tower`);
   }
 });
 
 test("each tower has two legs and four struts, a pier, footing and slab under it, and finials on top", () => {
   const m = bridgeMaskV18();
   const runs = (xs: boolean[]) => { const out: Array<[number, number]> = []; let start = -1; xs.forEach((v, i) => { if (v && start < 0) start = i; if (!v && start >= 0) { out.push([start, i]); start = -1; } }); if (start >= 0) out.push([start, xs.length]); return out; };
-  for (const cx of TOWER_CENTRES_V18) {
+  for (const cx of TOWER_CENTERS_V18) {
     // full columns from 397 to 697 near the tower: exactly the two legs, 24 wide each
     const cols: boolean[] = [];
     for (let x = cx - 60; x < cx + 60; x++) { let full = true; for (let y = 397; y < 697; y++) if (!m[y * G + x]) { full = false; break; } cols.push(full); }
@@ -135,7 +138,7 @@ test("the cables: each one connected run from deck end to deck end, at least 7 p
     assert.equal(seen[665 * G + 1151], 1, `cable ${k} reaches the far deck end`);
     // it rises to the saddles over the legs (y about 401) and sags to 663 mid-span
     const off = CABLE_OFFSETS_V18[k]!;
-    for (const cx of TOWER_CENTRES_V18) assert.equal(c[401 * G + cx + off], 1);
+    for (const cx of TOWER_CENTERS_V18) assert.equal(c[401 * G + cx + off], 1);
     assert.equal(c[663 * G + 600 + off], 1);
   }
   // doubled: over most of the main span the two run apart; crossed: some columns hold both at once
@@ -173,7 +176,36 @@ function rectsOf(svg: string): Array<[number, number, number, number, string]> {
   return [...svg.matchAll(/<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)" fill="(#[0-9a-f]{6})"\/>/g)].map((m) => [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), m[5]!]);
 }
 
-test("300 codes: no overlaps, the gaps kept, bridge inside the mask, field clear of it, never across the horizon, inside the margin, colours by position, one of the five palettes, integers only, the same bytes drawn twice", () => {
+test("the settings: every one in its slider's range, spread across it, sparse ghost bridges about 1 in 5 and dense ones most often (200 codes)", () => {
+  const n = 200;
+  const all: Array<{ palette: number; settings: V18Settings }> = [];
+  for (let k = 0; k < n; k++) all.push(settingsV18(code(`bitgraph-art/18 settings ${k}`)));
+  for (const { palette, settings } of all) {
+    assert.ok(Number.isInteger(palette) && palette >= 0 && palette < 5);
+    for (const [key, [lo, hi]] of Object.entries(V18_SETTING_RANGES)) {
+      const v = settings[key as keyof V18Settings];
+      assert.ok(Number.isInteger(v) && v >= lo && v <= hi, `${key} ${v} in ${lo} to ${hi}`);
+    }
+    assert.equal(settings.fieldMax % 10, 0, "the field's largest side moves in tens, as the page's slider does");
+  }
+  const share = (f: (s: V18Settings) => boolean) => all.filter((a) => f(a.settings)).length / n;
+  const sparse = share((s) => s.detail <= 3), dense = share((s) => s.detail >= 5);
+  assert.ok(sparse >= 0.12 && sparse <= 0.3, `sparse (detail 2 or 3) ${sparse}`);
+  assert.ok(dense >= 0.5, `dense (detail 5 or 6) ${dense}`);
+  assert.ok(share((s) => s.detail === 2) > 0 && share((s) => s.detail === 6) > share((s) => s.detail === 4));
+  const values = (key: keyof V18Settings) => new Set(all.map((a) => a.settings[key]));
+  assert.deepEqual([...values("detail")].sort(), [2, 3, 4, 5, 6]);
+  assert.deepEqual([...values("bridgeGap")].sort(), [1, 2, 3, 4, 5]);
+  assert.ok(share((s) => s.bridgeGap === 1) > share((s) => s.bridgeGap === 5), "tight bridge gaps most often");
+  const spans: Array<[keyof V18Settings, number, number]> = [["fieldGapOffset", 1, 9], ["buffer", 3, 13], ["margin", 12, 52], ["bars", 20, 80], ["bridgeMax", 50, 130], ["fieldMax", 200, 460]];
+  for (const [key, low, high] of spans) {
+    assert.ok(share((s) => s[key] <= low) > 0 && share((s) => s[key] >= high) > 0, `${key} reaches both ends`);
+    assert.ok(values(key).size >= 8, `${key} takes many values`);
+  }
+  assert.equal(new Set(all.map((a) => a.palette)).size, 5, "every palette");
+});
+
+test("300 codes under their own settings: no overlaps, the gaps kept, bridge inside the mask, field clear of it by the buffer, never across the horizon, inside the margin, sizes within the largest, colors by position, integers only; 50 drawn twice, byte for byte; sparse settings draw sparse bridges", () => {
   const cs = [new Uint8Array(32), new Uint8Array(32).fill(255), C1];
   for (let k = 0; cs.length < 300; k++) cs.push(code(`bitgraph-art/18 property ${k}`));
   const mask = bridgeMaskV18();
@@ -186,25 +218,30 @@ test("300 codes: no overlaps, the gaps kept, bridge inside the mask, field clear
   };
   const palettes = new Set<number>();
   let minRects = Infinity, maxRects = 0;
+  const bridgeCount: Record<string, number[]> = { sparse: [], dense: [] };
   const occ = new Uint8Array(G * G);
   cs.forEach((c, i) => {
     const plan = planV18(c);
     const svg = svgTextV18(plan, c);
-    // drawn twice: packed afresh (not the memo), the same plan and the same SVG bytes
-    const again = packV18(c);
-    assert.equal(JSON.stringify(again), JSON.stringify(plan), `code ${i}: a second packing is identical`);
-    assert.equal(svgTextV18(again, c), svg, `code ${i}: a second render is byte-identical`);
+    const t = plan.settings;
+    assert.deepEqual({ palette: plan.palette, settings: t }, settingsV18(c), `code ${i}: the plan's settings are the stream's first draws`);
+    // drawn twice (the first 50): packed afresh (not the memo), the same plan and the same SVG bytes
+    if (i < 50) {
+      const again = packV18(c);
+      assert.equal(JSON.stringify(again), JSON.stringify(plan), `code ${i}: a second packing is identical`);
+      assert.equal(svgTextV18(again, c), svg, `code ${i}: a second render is byte-identical`);
+    }
     assert.ok(Number.isInteger(plan.palette) && plan.palette >= 0 && plan.palette < 5);
     palettes.add(plan.palette);
-    const pal = PALETTES_V18[plan.palette]!.colours;
-    assert.ok(plan.rects.every(Number.isInteger), `code ${i}: integers only`);
+    const pal = PALETTES_V18[plan.palette]!.colors;
+    assert.ok(plan.rects.every(Number.isInteger) && Object.values(t).every(Number.isInteger), `code ${i}: integers only`);
     assert.equal(plan.rects.length % 5, 0);
     const n = plan.rects.length / 5;
     minRects = Math.min(minRects, n); maxRects = Math.max(maxRects, n);
     // the SVG: canonical, the background then every rectangle in order, coloured by its kind, nothing else
     assert.ok(!/\d\.\d/.test(svg.slice(svg.indexOf("\n"))) && !svg.includes("\r") && !svg.includes("\t") && svg.endsWith("</svg>\n"), `code ${i}: canonical text`);
     assert.ok(svg.includes(`viewBox="0 0 1200 1200"`) && svg.includes(`shape-rendering="crispEdges"`) && !svg.includes("stroke"));
-    assert.ok(svg.includes(`<desc>${V18_COPYRIGHT}</desc>`) && svg.includes(`<metadata>bitgraph-art/18 commitment ${toBase64Url(c)}</metadata>`));
+    assert.ok(svg.includes(`<desc>${V18_COPYRIGHT}</desc>`) && svg.includes(`<metadata>bitgraph-art/18 commitment ${toBase64Url(c)}; ${settingsTextV18(plan)}</metadata>`));
     assert.deepEqual(readCommitmentV18(new TextEncoder().encode(svg)), c);
     const rects = rectsOf(svg);
     assert.equal(rects.length, n + 1);
@@ -222,16 +259,18 @@ test("300 codes: no overlaps, the gaps kept, bridge inside the mask, field clear
         bridge++;
         assert.equal(bridgeIn(x, y, x + w, y + h), w * h, `code ${i} rect ${k}: fully inside the mask`);
         assert.equal(kind, 2 * y + h > 1574 ? KIND_FOOTING : KIND_BRIDGE, `code ${i} rect ${k}: footing below 787`);
+        assert.ok(w <= t.bridgeMax && h <= t.bridgeMax, `code ${i} rect ${k}: within the largest bridge rectangle`);
       } else {
         field++;
         assert.ok(kind === KIND_SKY || kind === KIND_WATER);
-        assert.equal(bridgeIn(x - 4, y - 4, x + w + 4, y + h + 4), 0, `code ${i} rect ${k}: clear of the mask by 4`);
+        assert.equal(bridgeIn(x - t.buffer, y - t.buffer, x + w + t.buffer, y + h + t.buffer), 0, `code ${i} rect ${k}: clear of the mask by the buffer`);
+        assert.ok(w <= t.fieldMax && h <= t.fieldMax, `code ${i} rect ${k}: within the largest field rectangle`);
         assert.ok(y + h <= V18_HORIZON || y >= V18_HORIZON, `code ${i} rect ${k}: never across the horizon`);
         assert.equal(kind, y + h <= V18_HORIZON ? KIND_SKY : KIND_WATER, `code ${i} rect ${k}: sky above, water below`);
-        assert.ok(x >= 16 && y >= 16 && x + w <= G - 16 && y + h <= G - 16, `code ${i} rect ${k}: within the edge margin`);
+        assert.ok(x >= t.margin && y >= t.margin && x + w <= G - t.margin && y + h <= G - t.margin, `code ${i} rect ${k}: within the edge margin`);
       }
-      // the gap to every rectangle placed before it (1 in the bridge, 5 in the field): so no two ever overlap
-      const gap = isBridge ? 1 : 5;
+      // the gap to every rectangle placed before it (the bridge gap in the bridge, plus the offset in the field): so no two ever overlap
+      const gap = isBridge ? t.bridgeGap : t.bridgeGap + t.fieldGapOffset;
       for (let yy = Math.max(0, y - gap); yy < Math.min(G, y + h + gap); yy++) {
         const r = yy * G;
         for (let xx = Math.max(0, x - gap); xx < Math.min(G, x + w + gap); xx++) if (occ[r + xx]) assert.fail(`code ${i} rect ${k}: within ${gap} of an earlier rectangle at (${xx}, ${yy})`);
@@ -240,10 +279,16 @@ test("300 codes: no overlaps, the gaps kept, bridge inside the mask, field clear
     }
     // the bridge is packed first, then the field
     assert.ok(plan.rects.slice(0, 5 * bridge).every((v, j) => j % 5 !== 4 || v === KIND_BRIDGE || v === KIND_FOOTING));
-    assert.ok(bridge > 2000 && field > 1000, `code ${i}: ${bridge} bridge and ${field} field rectangles`);
+    assert.ok(bridge >= 50 && field >= 50, `code ${i}: ${bridge} bridge and ${field} field rectangles`);
+    if (t.detail <= 3) bridgeCount.sparse!.push(bridge);
+    if (t.detail === 6) bridgeCount.dense!.push(bridge);
   });
   assert.equal(palettes.size, 5, "every palette is drawn");
-  assert.ok(minRects > 5000 && maxRects < 12000, `${minRects} to ${maxRects} rectangles`);
+  assert.ok(minRects > 200 && maxRects < 20000, `${minRects} to ${maxRects} rectangles`);
+  // the ghosts are drawn: sparse settings give far fewer bridge rectangles than dense ones
+  const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+  assert.ok(bridgeCount.sparse!.length > 20 && bridgeCount.dense!.length > 60);
+  assert.ok(mean(bridgeCount.sparse!) < 0.5 * mean(bridgeCount.dense!), `sparse ${mean(bridgeCount.sparse!)} vs dense ${mean(bridgeCount.dense!)} bridge rectangles`);
 });
 
 test("the PNG is the same picture: its pixels are the SVG's rectangles, its text carries the manifest, the copyright and the SVG", async () => {
@@ -259,6 +304,7 @@ test("the PNG is the same picture: its pixels are the SVG's rectangles, its text
     assert.deepEqual(d.rgba, renderV18(plan));
     assert.equal(d.texts["bitgraph-art"], manifestJson(manifest));
     assert.equal(d.texts["Copyright"], V18_COPYRIGHT);
+    assert.equal(d.texts[V18_SETTINGS_KEYWORD], settingsTextV18(plan), "the PNG states the settings drawn");
     assert.equal(JSON.parse(d.texts["bitgraph-art"]!).commitment, toBase64Url(c));
     assert.deepEqual(svgFromPngV18(png), svg);
     const px = new Uint8Array(G * G * 4);
@@ -268,7 +314,7 @@ test("the PNG is the same picture: its pixels are the SVG's rectangles, its text
     }
     assert.ok(px.every((v, i) => v === d.rgba[i]), `code ${k}: SVG and PNG agree`);
     // flat colours only: every pixel is one of the palette's
-    const allowed = new Set(PALETTES_V18[plan.palette]!.colours.map((h) => h.slice(1)));
+    const allowed = new Set(PALETTES_V18[plan.palette]!.colors.map((h) => h.slice(1)));
     for (let i = 0; i < d.rgba.length; i += 4) {
       const h = [d.rgba[i]!, d.rgba[i + 1]!, d.rgba[i + 2]!].map((v) => v.toString(16).padStart(2, "0")).join("");
       if (!allowed.has(h)) assert.fail(`code ${k}: pixel ${i / 4} is ${h}, not a palette colour`);
@@ -287,7 +333,7 @@ test("a wrong or damaged SVG reads no commitment; a description names the palett
   assert.equal(svgFromPngV18(new Uint8Array([1, 2, 3])), null);
   assert.equal(readCommitmentV18(svg.slice(0, 200)), null);
   assert.equal(readCommitmentV18(new Uint8Array([0xff, 0xfe])), null);
-  assert.match(describeV18(planV18(C1)), /^(International orange|Red and black|Night|Sunset|Fog), [\d,]+ rectangles$/);
+  assert.match(describeV18(planV18(C1)), /^(International orange|Red and black|Night|Sunset|Fog), detail [2-6], [\d,]+ rectangles$/);
   assert.throws(() => planV18(new Uint8Array(31)));
   assert.throws(() => packV18(new Uint8Array(33)));
 });

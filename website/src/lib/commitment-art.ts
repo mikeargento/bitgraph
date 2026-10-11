@@ -72,7 +72,7 @@ import { planV15, renderV15, decodeV15, V15_WIDTH, V15_HEIGHT, type V15Plan } fr
 import { deflateV15, filterRowsV15 } from "./png-deflate-v15.ts";
 import { ART_ALGORITHM_V16, planV16, renderV16, pngFileV16, svgFromPngV16, svgTextV16, V16_WIDTH, V16_HEIGHT, type V16Plan } from "./commitment-art-v16.ts";
 import { ART_ALGORITHM_V17, planV17, renderV17, pngFileV17, svgFromPngV17, svgTextV17, V17_WIDTH, V17_HEIGHT, type V17Plan } from "./commitment-art-v17.ts";
-import { ART_ALGORITHM_V18, planV18, renderV18, pngFileV18, svgFromPngV18, svgTextV18, V18_WIDTH, V18_HEIGHT, type V18Plan } from "./commitment-art-v18.ts";
+import { ART_ALGORITHM_V18, planV18, renderV18, pngFileV18, settingsTextV18, svgFromPngV18, svgTextV18, V18_WIDTH, V18_HEIGHT, type V18Plan } from "./commitment-art-v18.ts";
 
 export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
@@ -109,7 +109,7 @@ export const ART_ALGORITHM_V15 = "bitgraph-art/15";
 export { ART_ALGORITHM_V16 };
 /** Version 17 (2026-10-10, the home page): version 16's rules on a 16:9 canvas, 1920 x 1080 (commitment-art-v17.ts). Not the default. */
 export { ART_ALGORITHM_V17 };
-/** Version 18 (2026-10-10, /bridge, hidden): a suspension bridge of packed flat rectangles, 1200 x 1200; the recorded PNG carries its print SVG (commitment-art-v18.ts). Not the default. */
+/** Version 18 (2026-10-10, /bridge, hidden): a suspension bridge of packed flat rectangles, 1200 x 1200, every setting of Mike's generator drawn per click; the recorded PNG carries its print SVG (commitment-art-v18.ts). Not the default. */
 export { ART_ALGORITHM_V18 };
 export const ART_ALGORITHMS: readonly string[] = [ART_ALGORITHM_V1, ART_ALGORITHM_V2, ART_ALGORITHM_V3, ART_ALGORITHM_V4, ART_ALGORITHM_V5, ART_ALGORITHM_V6, ART_ALGORITHM_V7, ART_ALGORITHM_V8, ART_ALGORITHM_V9, ART_ALGORITHM_V10, ART_ALGORITHM_V11, ART_ALGORITHM_V12, ART_ALGORITHM_V13, ART_ALGORITHM_V14, ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18];
 /** Each version's canvas: 1 and 2 carry a strip under the art; 3 is the art square and its frame. */
@@ -782,7 +782,8 @@ export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promi
   if (manifest.algorithm === ART_ALGORITHM_V18) {
     const c = fromBase64Url(manifest.commitment);
     if (c === null || c.length !== 32) throw new TypeError("the manifest's commitment is not 32 bytes of base64url");
-    return pngFileV18(px, manifestJson(manifest), svgTextV18(planV18(c), c));
+    const plan = planV18(c);
+    return pngFileV18(px, manifestJson(manifest), svgTextV18(plan, c), settingsTextV18(plan));
   }
   // Version 16 writes its own file (commitment-art-v16.ts): the same manifest, a copyright line and the print SVG inside.
   if (manifest.algorithm === ART_ALGORITHM_V16 || manifest.algorithm === ART_ALGORITHM_V17) {
