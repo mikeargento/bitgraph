@@ -82,7 +82,7 @@ export default function HomePage() {
         {/* The footnote right under the claim it qualifies, before the buttons (Mike, 2026-10-11). Basis: the benchmark on
             branch bench (bench/RESULTS.md): 5 billion photos / 1,000,000 per BitGraph = 5,000 BitGraphs x $0.00036 (one Base
             ceiling write, 24,000 gas at 0.006 gwei, ETH $2,499.85, 2026-10-11 13:52 UTC) = $1.80. */}
-        <p className="home-stat-note home-lede-note">Projection: 5 billion photos per day. Works for any&nbsp;file.</p>
+        <p className="home-stat-note home-lede-note">Based on about 5 billion photos per day. Works for any&nbsp;file.</p>
       </ArtMaker>
 
     </div>
