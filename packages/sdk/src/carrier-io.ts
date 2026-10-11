@@ -1,7 +1,7 @@
 // Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
- * @mikeargento/bitgraph-mcp: BitGraphed files (bitgraph-carrier/1, /2 and /3).
+ * @mikeargento/bitgraph-mcp: BitGraphed files (bitgraph-carrier/1, /2, /3 and /4).
  *
  * A BitGraphed file is committed bytes followed by one structural block that
  * carries the proof and the anchor evidence. The block is found from the END
@@ -41,7 +41,9 @@ export interface CarrierWindowView {
   settled_by: { chain: "ethereum"; block: number; hash: string; time: string } | null;
   /** "none" on carrier/3: no ceiling in position exists; order is the chain of proof hashes. */
   ceiling: "present" | "unfetched" | "none" | null;
-  version: 1 | 2 | 3 | null;
+  version: 1 | 2 | 3 | 4 | null;
+  /** carrier/4: the tree member the file's bytes are, once its path reached the signed root; null otherwise. */
+  member: { index: number; count: number; placement: string } | null;
   reasons: string[];
 }
 
@@ -56,6 +58,7 @@ export function carrierWindowView(r: CarrierVerifyResult): CarrierWindowView {
     settled_by: r.bounds?.settledBy ? { chain: "ethereum", block: r.bounds.settledBy.blockNumber, hash: r.bounds.settledBy.blockHash, time: iso(r.bounds.settledBy.timestamp) as string } : null,
     ceiling: r.ceiling,
     version: r.version,
+    member: r.member ? { index: r.member.index, count: r.member.count, placement: r.member.placement } : null,
     reasons: r.reasons,
   };
 }
@@ -71,6 +74,8 @@ export function carrierWindowView(r: CarrierVerifyResult): CarrierWindowView {
  */
 export function carrierLine(view: CarrierWindowView): string {
   const parts: string[] = [`carried proof ${view.verdict}`];
+  // carrier/4: one member of a tree; as is, the bytes themselves are not dated (the record floor only).
+  if (view.member) parts.push(`tree member: leaf ${view.member.index} of ${view.member.count}${view.member.placement === "as-is" ? " (kept as is: recorded after the floor, the bytes themselves are not dated)" : ""}`);
   if (view.not_before) parts.push(`after ${view.not_before.chain === "base" ? "Base block" : "block"} ${view.not_before.block}${view.not_before.time ? ` (mined ${view.not_before.time})` : ""}`);
   if (view.floor_time_withheld) parts.push(`floor time not used as a bound (${view.floor_time_withheld})`);
   if (view.existed_by) parts.push(`existed by Base block ${view.existed_by.block} (${view.existed_by.time})`);

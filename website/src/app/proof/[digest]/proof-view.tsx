@@ -97,7 +97,7 @@ export interface DownloadView {
   busy: boolean;
   primary?: boolean;
   /** One line under the name: what this download is. */
-  desc?: string;
+  desc?: ReactNode;
 }
 
 export interface FieldView {
@@ -149,14 +149,14 @@ export interface ProofViewModel {
   /** The export's row name: what the one download is, for this kind of position. */
   exportName: string;
   /** One line under it: what the export holds. */
-  exportInside: string;
+  exportInside: ReactNode;
   /** The pieces on their own, as small text links: the proof, the anchors, the
    *  original, the BitGraphed file. For the few who want one part. */
   pieces: DownloadView[];
-  downloadNotes: string[];
+  downloadNotes: ReactNode[];
   /** "Check it anywhere": the command that matches this kind of export, or null. */
-  checkText: string | null;
-  checkCommand: string | null;
+  checkText: ReactNode | null;
+  checkCommand: ReactNode | null;
   againNode: ReactNode;
   hashes: FieldView[];
   positions: { intro: string; rows: PositionRowView[] } | null;

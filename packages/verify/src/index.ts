@@ -138,6 +138,12 @@ export type { CarrierBaseFloor } from "./carrier.js";
 export { assembleCarrierV3Payload } from "./carrier-assemble.js";
 export type { CarrierV3Parts } from "./carrier-assemble.js";
 
+/* bitgraph-carrier/4 (2026-10-11): one member of a tree/1 BitGraph carries its own proof: the bytes are the leaf's, the block walks them to the signed root document. */
+export { CARRIER_VERSION_4, memberArtifactDigest } from "./carrier.js";
+export type { CarrierTree } from "./carrier.js";
+export { assembleCarrierV4Payload } from "./carrier-assemble.js";
+export type { CarrierV4Parts } from "./carrier-assemble.js";
+
 /* AWS Nitro attestation: decode, verify (chain to the AWS root, validity at the document's instant), and the openssl-checkable witness. */
 export {
   AWS_NITRO_ROOT_CA_PEM, awsNitroRootDer, awsNitroRootSha256, decodeNitroAttestation, verifyNitroAttestation,

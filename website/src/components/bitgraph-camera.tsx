@@ -64,7 +64,7 @@ import { LEDGER_CHANGED } from "@/components/ledger-light";
 import { rebuildSetMember, isTeeRestarting, fusedMarkerOf, rebuildFromOrigin, makeTreeHere, planTrees, treeInputOf, type FusedOutcome, type FusedSetMember, type MadeTree, type MadeTreeMember } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
 import type { SitePlacement } from "@/lib/fuse-placement";
-import { SPEC_FILE_NAME, specFileFor, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, ownerTree, rootOnlyTree, treeHandoff, treeOfOneEvidence, treeOfOneEvidenceFromSource } from "@/lib/fuse-tree";
+import { SPEC_FILE_NAME, specFileFor, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, ownerTree, rootOnlyTree, treeHandoff, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource } from "@/lib/fuse-tree";
 import { recoverRows, treePositionKey } from "@/lib/recovery-fold";
 import { browserRecoveryQueue } from "@/lib/recovery-queue";
 import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CHUNK } from "@/lib/fuse-set";
@@ -1402,6 +1402,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       // happens now; the proof page polls the cache, so navigation never waits
       // on the ~6 MB C2PA toolkit.
       void cacheArtifactToIDB(file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+      // A tree member that arrived in its own BitGraphed file (carrier/4) goes over with the
+      // evidence its block placed it by (the strip checked it against the proof): a tree's
+      // members are indexed nowhere, so the page could not place it from a lookup.
+      if (!fresh && treeMemberHandoffOf(p)) {
+        setFreshProof(toUrlSafeB64(proofDigest), {
+          proofs: [{ proof: p }],
+          positions: c ? [{ counter: c, epoch: epoch || null, lowerTime: null, upperTime: null }] : [],
+          causalWindow: null,
+          anchorBlock: null,
+        });
+      }
       // On a fresh recording, hand the committed proof to the proof page so it
       // paints the record instantly (image + hash + "Recorded"), no skeleton.
       // The causal window / anchor stay pending until the background fetch fills

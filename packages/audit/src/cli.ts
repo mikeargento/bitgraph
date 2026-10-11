@@ -17,11 +17,11 @@
  * input error (no report was produced).
  */
 
-import { readFileSync } from "node:fs";
+import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
-import { CARRIER_VERSION_3, baseHeaderFields, parseCarrier, verifyCarrier } from "@mikeargento/bitgraph-verify";
+import { CARRIER_MAGIC, CARRIER_VERSION_3, CARRIER_VERSION_4, baseHeaderFields, buildExport, parseCarrier, verifyCarrier } from "@mikeargento/bitgraph-verify";
 import type { CarrierPayload, VerificationPolicy } from "@mikeargento/bitgraph-verify";
 import { auditToolVersion, computeExitFlags, runAudit } from "./audit.js";
 import { attestationTimestampMs } from "./attestation.js";
@@ -63,8 +63,9 @@ function helpText(): string {
     USAGE_LINE,
     "",
     "The bundle may be a directory, a .tar archive, a .tar.gz/.tgz,",
-    "or a single BitGraphed file (bitgraph-carrier/1, /2 or /3: a file",
-    "with its proof inside): a carrier is unpacked and audited as the",
+    "or a single BitGraphed file (bitgraph-carrier/1, /2, /3 or /4: a file",
+    "with its proof inside; /4 is one member of a tree/1 BitGraph, unpacked",
+    "as the file and its own bitgraph-export/1): a carrier is unpacked and audited as the",
     "bundle it carries, and its own verdict (TRUE / FALSE / UNDETERMINED,",
     "with the time window) is printed first. The unpacked bundle holds the",
     "committed bytes and proof.json, and the floor: for /1 and /2 the",
@@ -316,6 +317,41 @@ async function writeCarrierFloor(dir: string, payload: CarrierPayload): Promise<
   }
 }
 
+/**
+ * carrier/4: a tree member's file unpacks as the member and its own
+ * bitgraph-export/1, the shape a tree member always travels in, so the audit
+ * checks it with verifyExport like any export beside its file. The export
+ * carries the floor header (from the anchor's witness or the Base header) and
+ * the ceiling in time; the closing anchor and the settlement pointer have no
+ * place in export/1 and are judged in the carrier's own verdict printed above.
+ */
+function memberExportOf(payload: CarrierPayload): string {
+  const floor = payload.floor;
+  const fields = floor.basis === "base-header" ? baseHeaderFields(floor.header) : null;
+  const exp = buildExport({
+    proof: payload.proof as never,
+    tree: { rootDocument: payload.tree!.rootDocument, member: payload.tree!.member },
+    floor: floor.basis === "base-header"
+      ? (fields !== null ? { chain: "base", blockNumber: fields.blockNumber, blockHash: fields.blockHash, header: floor.header.toLowerCase() } : null)
+      : { blockNumber: floor.witness.blockNumber, blockHash: floor.witness.blockHash.toLowerCase(), header: floor.witness.headerRlpHex.toLowerCase() },
+    ceiling: payload.ceilingInTime?.status === "present" ? (payload.ceilingInTime.sidecar as never) : { status: "pending" },
+    settlement: null,
+  });
+  return JSON.stringify(exp, null, 2) + "\n";
+}
+
+/** True when the file's last eight bytes are the BitGraphed file's magic. One positioned read. */
+function tailIsCarrier(path: string, size: number): boolean {
+  const fd = openSync(path, "r");
+  try {
+    const tail = Buffer.alloc(CARRIER_MAGIC.length);
+    readSync(fd, tail, 0, tail.length, size - tail.length);
+    return tail.equals(Buffer.from(CARRIER_MAGIC));
+  } finally {
+    closeSync(fd);
+  }
+}
+
 async function main(): Promise<number> {
   let parsed: ParsedArgs | "help";
   try {
@@ -357,7 +393,10 @@ async function main(): Promise<number> {
     const info = await stat(parsed.bundlePath);
     const lower = parsed.bundlePath.toLowerCase();
     const isArchive = lower.endsWith(".tar") || lower.endsWith(".tar.gz") || lower.endsWith(".tgz");
-    if (info.isFile() && !isArchive && info.size >= 26) {
+    // A tree member placed in a container is a tar, and its BitGraphed file (carrier/4) is named
+    // as one: the carrier's tail decides before the extension does. A bundle tar never ends in it.
+    const endsInCarrier = info.isFile() && info.size >= 26 && tailIsCarrier(parsed.bundlePath, info.size);
+    if (info.isFile() && (!isArchive || endsInCarrier) && info.size >= 26) {
       const bytes = new Uint8Array(readFileSync(parsed.bundlePath));
       const parsedCarrier = parseCarrier(bytes);
       if (parsedCarrier.kind !== "none") {
@@ -379,9 +418,11 @@ async function main(): Promise<number> {
         // carrier/3 (enclave v10): the floor is a Base block and no closing
         // anchor exists; order after the record is the chain of proof hashes.
         const v3 = verdict.payload?.carrier === CARRIER_VERSION_3 || b?.notBefore.chain === "base";
+        const member = verdict.member ?? null;
         const chainWord = b?.notBefore.chain === "base" ? "Base" : "Ethereum";
         const lines = [
           `carrier: ${verdict.verdict}${verdict.carrier === "corrupt" ? " (block unreadable: corrupted, not judged)" : ""}`,
+          member ? `  tree member:     leaf ${member.index} of ${member.count}${member.placement === "as-is" ? " (kept as is: recorded after the floor, the bytes themselves are not dated)" : ` (${member.placement})`}` : null,
           b ? `  no earlier than: ${chainWord} block ${b.notBefore.blockNumber}${b.notBefore.timestamp !== null ? ` (${v3 ? "stamped" : "mined"} ${new Date(b.notBefore.timestamp * 1000).toISOString()})` : ""}` : null,
           attestedMs !== null ? `  committed:       ${new Date(attestedMs).toISOString()} per the enclave platform's signed clock` : null,
           b && v3
@@ -396,8 +437,13 @@ async function main(): Promise<number> {
           const dir = await mkdtemp(join(tmpdir(), "bitgraph-carrier-"));
           const name = basename(parsed.bundlePath).replace(/\.bitgraph(\.[^.]+)$/i, "$1").replace(/\.bitgraph$/i, "") || "artifact";
           await writeFile(join(dir, name), parsedCarrier.inner);
-          await writeFile(join(dir, "proof.json"), JSON.stringify(parsedCarrier.payload.proof, null, 2));
-          await writeCarrierFloor(dir, parsedCarrier.payload);
+          if (parsedCarrier.payload.carrier === CARRIER_VERSION_4) {
+            // A tree member: its signed digest names the root document, so it travels as the file and its own export.
+            await writeFile(join(dir, `${name}.bitgraph.json`), memberExportOf(parsedCarrier.payload));
+          } else {
+            await writeFile(join(dir, "proof.json"), JSON.stringify(parsedCarrier.payload.proof, null, 2));
+            await writeCarrierFloor(dir, parsedCarrier.payload);
+          }
           bundlePath = dir;
         }
       }

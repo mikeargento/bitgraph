@@ -1,6 +1,7 @@
 /**
- * The site's carrier glue: assemble a bitgraph-carrier/1 from a proof the
- * page already holds, and complete a dropped carrier's time window.
+ * The site's carrier glue: assemble a BitGraphed file from a proof the page
+ * already holds (carrier/2 or /3 for a single-file position, carrier/4 for one
+ * member of a tree/1 BitGraph), and complete a dropped carrier's time window.
  *
  * Everything here is material-fetching and honesty plumbing around the
  * format module (lib/carrier.ts, the byte-identical copy of the verify
@@ -26,6 +27,9 @@ import {
   type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierParse, type CarrierBounds, type CarrierCeilingInTime, type CarrierBaseFloor,
 } from "./carrier";
 import { toUrlSafeB64 } from "./explorer";
+import { assembleMemberCarrier } from "./carrier-member";
+import { treeHandoff } from "./fuse-tree";
+import { verifyTreeMember, TREE_MEMBER_CATEGORIES, type TreeMemberEvidence } from "@mikeargento/bitgraph-verify";
 
 type AnchorSideAnswer = {
   anchors?: Array<Record<string, unknown>>;
@@ -224,6 +228,8 @@ export function innerFileName(name: string): string {
  */
 export interface DeCarrierNote {
   name: string;
+  /** carrier/4: the file is one member of a tree, placed by the evidence inside its block. */
+  member?: { index: number; count: number };
   ceiling: "present" | "unfetched" | "none" | "corrupt";
   outer?: Uint8Array;
   /** The carried proof, when the inner bytes hash to its artifact digest: the row needs no lookup. */
@@ -249,11 +255,19 @@ const CARRIER_MIN_BYTES = 4096;
 /** Tail reads in flight, for the files big enough to check (a folder of photos). */
 const TAIL_READS_IN_FLIGHT = 32;
 
-export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; notes: DeCarrierNote[]; proofs: Map<File, CarrierProof> }> {
+/** carrier/4: what a tree member's block placed it by, checked against the proof before it is believed. */
+export interface CarriedMember {
+  proof: CarrierProof;
+  rootDocumentHex: string;
+  evidence: TreeMemberEvidence;
+}
+
+export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; notes: DeCarrierNote[]; proofs: Map<File, CarrierProof>; members: Map<File, CarriedMember> }> {
   const MAGIC = [0x42, 0x47, 0x50, 0x52, 0x4f, 0x4f, 0x46, 0x01];
   const out = files.slice();
   const notes: DeCarrierNote[] = [];
   const proofs = new Map<File, CarrierProof>();
+  const members = new Map<File, CarriedMember>();
   // Which files end in the magic, read in parallel. Only those are read whole.
   const tagged: number[] = [];
   let next = 0;
@@ -278,21 +292,40 @@ export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; no
       if (parsed.kind === "carrier") {
         const inner = new File([parsed.inner.slice() as Uint8Array<ArrayBuffer>], innerFileName(f.name), { type: f.type, lastModified: f.lastModified });
         out[i] = inner;
-        const matches = innerDigestMatches(parsed.inner, parsed.payload);
+        let matches = innerDigestMatches(parsed.inner, parsed.payload);
+        const tree = parsed.payload.tree;
+        let member: DeCarrierNote["member"];
+        if (matches && tree) {
+          // carrier/4: a tree member. Its bytes match its leaf; the leaf must reach the
+          // signed root before the row is answered by the carried proof, which then rides
+          // with the member's evidence beside it (the proof page's own hand-off shape).
+          const r = await verifyTreeMember({ proof: parsed.payload.proof as never, bytes: parsed.inner, member: tree.member, rootDocument: hexBytes(tree.rootDocument) }).catch(() => null);
+          matches = r !== null && r.member !== null && (TREE_MEMBER_CATEGORIES as readonly string[]).includes(r.category);
+          if (matches && r?.member) {
+            member = { index: r.member.index, count: r.member.count };
+            members.set(inner, { proof: parsed.payload.proof, rootDocumentHex: tree.rootDocument, evidence: tree.member as TreeMemberEvidence });
+          }
+        }
         // A matching carrier is its own answer: the carried proof rides with the
         // row, so the drop needs no lookup and can never re-mint what it holds.
-        if (matches) proofs.set(inner, parsed.payload.proof);
+        if (matches) proofs.set(inner, tree ? (treeHandoff(parsed.payload.proof as never, tree.rootDocument, tree.member as TreeMemberEvidence) as unknown as CarrierProof) : parsed.payload.proof);
         // The outer bytes ride along only while incomplete, so one click can
         // fetch the closing anchor and hand back the completed file.
         notes.push(parsed.payload.ceiling.status === "unfetched"
-          ? { name: f.name, ceiling: "unfetched", outer: whole, ...(matches ? { proof: parsed.payload.proof } : {}), innerMatches: matches }
-          : { name: f.name, ceiling: parsed.payload.ceiling.status, ...(matches ? { proof: parsed.payload.proof } : {}), innerMatches: matches });
+          ? { name: f.name, ceiling: "unfetched", outer: whole, ...(matches ? { proof: parsed.payload.proof } : {}), innerMatches: matches, ...(member ? { member } : {}) }
+          : { name: f.name, ceiling: parsed.payload.ceiling.status, ...(matches ? { proof: parsed.payload.proof } : {}), innerMatches: matches, ...(member ? { member } : {}) });
       } else if (parsed.kind === "corrupt") {
         notes.push({ name: f.name, ceiling: "corrupt" });
       }
     } catch { /* unreadable: the file goes through the normal path untouched */ }
   }
-  return { files: out, notes, proofs };
+  return { files: out, notes, proofs, members };
+}
+
+function hexBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length >> 1);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
 }
 
 /**
@@ -417,6 +450,40 @@ export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: 
     witness,
     bounds: carrierBounds(payload),
     ceilingNote: ev.ceilingNote,
+  };
+}
+
+/**
+ * One tree member's BitGraphed file (bitgraph-carrier/4): the same vetted
+ * evidence a single-file position's file carries (assembleProofEvidence), and
+ * the member's place in the tree. `fileBytes` is the file in hand, the
+ * original or the committed bytes; the builder takes the leaf's committed
+ * bytes from it and checks them and the member against the proof before a
+ * block is written (lib/carrier-member).
+ */
+export async function buildMemberCarrierForProof(
+  fileBytes: Uint8Array,
+  proofIn: { version: string; commit: unknown },
+  tree: { rootDocument: Uint8Array; commitment: Uint8Array },
+  evidence: TreeMemberEvidence,
+  fileName: string,
+  opts: { waitForCeilingMs?: number } = {},
+): Promise<BuiltCarrier & { placement: string; floorCovers: "content" | "record" }> {
+  const ev = await assembleProofEvidence(proofIn, opts);
+  const built = await assembleMemberCarrier({
+    fileBytes, fileName, proof: proofIn as unknown as BitGraphProof, rootDocument: tree.rootDocument, commitment: tree.commitment, evidence,
+    parts: ev.parts as never,
+  });
+  return {
+    bytes: built.bytes,
+    fileName: built.fileName,
+    ceiling: ev.ceiling,
+    ceilingInTime: ev.ceilingInTime,
+    witness: built.witness,
+    bounds: carrierBounds(built.payload),
+    ceilingNote: ev.ceilingNote,
+    placement: built.placement,
+    floorCovers: built.floorCovers,
   };
 }
 

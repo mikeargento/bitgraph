@@ -12,9 +12,15 @@
  * is its header (checked by the caller with checkFloorHeader), and the block
  * states that no ceiling in position exists, since order is the chain of
  * proof hashes. /2 stays the format for Ethereum-floor proofs.
+ *
+ * /4 is for one member of a tree/1 BitGraph, over either floor: the same parts
+ * as /2 (an Ethereum floor) or /3 (a Base floor), plus the tree part a
+ * one-file export/1 carries (the root document and the member's evidence).
+ * The caller has checked the member against the proof (verifyTreeMember) and
+ * the committed bytes against the leaf; this only lays the parts out.
  */
 
-import { CARRIER_VERSION_2, CARRIER_VERSION_3, encodeCarrierBlock, type CarrierPayload, type CarrierFloor, type CarrierBaseFloor, type CarrierCeiling, type CarrierCeilingInTime, type CarrierSettlement, type CarrierPins, type CarrierProof } from "./carrier.js";
+import { CARRIER_VERSION_2, CARRIER_VERSION_3, CARRIER_VERSION_4, encodeCarrierBlock, type CarrierPayload, type CarrierFloor, type CarrierBaseFloor, type CarrierCeiling, type CarrierCeilingInTime, type CarrierSettlement, type CarrierPins, type CarrierProof, type CarrierTree } from "./carrier.js";
 import { attestationWitness } from "./nitro.js";
 import { computeProofHash, computeSignedBodyHash } from "./proof-hash.js";
 import { BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID } from "./carrier-verify.js";
@@ -47,6 +53,18 @@ export interface CarrierV3Parts extends Omit<CarrierV2Parts, "floor" | "ceiling"
   floor: CarrierBaseFloor;
 }
 
+/**
+ * The parts of a /4 block: the floor the proof signs (an Ethereum anchor with
+ * its header, or a Base header), the ceiling in position for an Ethereum floor
+ * (ignored over a Base floor, where none exists and the block says so), and
+ * the tree member.
+ */
+export interface CarrierV4Parts extends Omit<CarrierV2Parts, "floor" | "ceiling"> {
+  floor: CarrierFloor | CarrierBaseFloor;
+  ceiling?: CarrierCeiling;
+  tree: CarrierTree;
+}
+
 export function assembleCarrierV2Payload(parts: CarrierV2Parts): CarrierPayload {
   return assemble(CARRIER_VERSION_2, parts);
 }
@@ -55,7 +73,14 @@ export function assembleCarrierV3Payload(parts: CarrierV3Parts): CarrierPayload 
   return assemble(CARRIER_VERSION_3, { ...parts, ceiling: { status: "none", basis: "hash-chain" } });
 }
 
-function assemble(version: typeof CARRIER_VERSION_2 | typeof CARRIER_VERSION_3, parts: Omit<CarrierV2Parts, "floor"> & { floor: CarrierFloor | CarrierBaseFloor }): CarrierPayload {
+export function assembleCarrierV4Payload(parts: CarrierV4Parts): CarrierPayload {
+  const baseFloor = (parts.floor as { basis?: unknown }).basis === "base-header";
+  const ceiling: CarrierCeiling = baseFloor ? { status: "none", basis: "hash-chain" } : parts.ceiling ?? { status: "unfetched" };
+  const tree: CarrierTree = { rootDocument: parts.tree.rootDocument, member: { index: parts.tree.member.index, count: parts.tree.member.count, leaf: parts.tree.member.leaf, path: [...parts.tree.member.path] } };
+  return assemble(CARRIER_VERSION_4, { ...parts, ceiling }, tree);
+}
+
+function assemble(version: typeof CARRIER_VERSION_2 | typeof CARRIER_VERSION_3 | typeof CARRIER_VERSION_4, parts: Omit<CarrierV2Parts, "floor"> & { floor: CarrierFloor | CarrierBaseFloor }, tree?: CarrierTree): CarrierPayload {
   const proof = parts.proof as unknown as BitGraphProof;
   const att = proof.environment?.attestation;
   const wantWitness = parts.withAttestationWitness ?? (att?.format === "aws-nitro" && typeof att.reportB64 === "string");
@@ -68,6 +93,7 @@ function assemble(version: typeof CARRIER_VERSION_2 | typeof CARRIER_VERSION_3, 
   const payload: CarrierPayload = {
     carrier: version,
     proof: parts.proof,
+    ...(tree ? { tree } : {}),
     floor: parts.floor,
     ceiling: parts.ceiling,
     ceilingInTime: parts.ceilingInTime,

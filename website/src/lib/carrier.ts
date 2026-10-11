@@ -52,6 +52,26 @@
  * Everything else (ceiling in time, settlement, pins, attestation witness) is
  * /2's. Ethereum-floor proofs keep travelling as /1 and /2.
  *
+ * bitgraph-carrier/4 (2026-10-11) is the BitGraphed file of ONE MEMBER of a
+ * tree/1 BitGraph. In a tree the signed digest is the SHA-256 of the tree's
+ * 84-byte root document, not of any file, so the committed bytes before the
+ * block are a LEAF's committed bytes (the bytes whose SHA-256 is the leaf's
+ * artifact digest: the file itself for a leaf kept as is, the file with the
+ * commitment placed in it otherwise), and the block carries what reaches the
+ * signed digest from them, exactly the tree part a one-file export/1 carries:
+ * `tree: { rootDocument, member: { index, count, leaf, path } }`. A reader
+ * hashes the bytes before the block, requires that digest to be the leaf's
+ * artifact (and, for a placed leaf, the commitment to be inside the bytes),
+ * walks the path to the root, and requires the root document to hold that
+ * root and the position's commitment and to hash to the signed digest. The
+ * floor is the one the proof signs, in its own shape: an Ethereum anchor and
+ * header (as /2, with the ceiling in position unfetched or present) or a Base
+ * header (as /3, with no ceiling in position). Ceiling in time, settlement,
+ * pins and attestation witness are /2's. A new version and not a field added
+ * to /2 or /3, on purpose: a reader that knows only /1 to /3 would hash the
+ * bytes against the root document's digest and call a good file FALSE, so it
+ * must see a version it does not know and say UNDETERMINED instead.
+ *
  * ⚠️ TWO BYTE-IDENTICAL COPIES OF THIS FILE EXIST, on purpose:
  *   packages/verify/src/carrier.ts   (canonical, published with the package)
  *   website/src/lib/carrier.ts       (the site cannot import unpublished code)
@@ -75,7 +95,8 @@ export const MAX_CARRIER_PAYLOAD = 8 * 1024 * 1024;
 export const CARRIER_VERSION = "bitgraph-carrier/1";
 export const CARRIER_VERSION_2 = "bitgraph-carrier/2";
 export const CARRIER_VERSION_3 = "bitgraph-carrier/3";
-export type CarrierVersion = typeof CARRIER_VERSION | typeof CARRIER_VERSION_2 | typeof CARRIER_VERSION_3;
+export const CARRIER_VERSION_4 = "bitgraph-carrier/4";
+export type CarrierVersion = typeof CARRIER_VERSION | typeof CARRIER_VERSION_2 | typeof CARRIER_VERSION_3 | typeof CARRIER_VERSION_4;
 /** The sidecar and pointer formats a v2 block carries; their shapes are checked by their own modules. */
 export const CEILING_SIDECAR_VERSION = "bitgraph-ceiling/1";
 export const SETTLEMENT_POINTER_VERSION = "bitgraph-settlement/1";
@@ -136,6 +157,19 @@ export type CarrierSettlement =
   | { status: "unfetched" }
   | { status: "present"; pointer: Record<string, unknown> };
 
+/**
+ * v4: the tree member the committed bytes are, in export/1's words: the
+ * tree's root document and the member's evidence, both lowercase hex. Bound
+ * to nothing until a verifier walks it: the leaf must be the bytes, the path
+ * must reach the root, the root document must hash to the signed digest.
+ */
+export interface CarrierTree {
+  /** The 84-byte root document (168 hex characters); its SHA-256 is the proof's artifact digest. */
+  rootDocument: string;
+  /** The member's evidence, exactly export/1's `tree.member`: the 65-byte leaf, its index, the tree's size and the sibling path from the leaf up. */
+  member: { index: number; count: number; leaf: string; path: string[] };
+}
+
 /** v2: what the file was made under. Declared only; a verifier compares with its own pins. */
 export interface CarrierPins {
   pcr0?: string;
@@ -148,17 +182,19 @@ export interface CarrierPayload {
   carrier: CarrierVersion;
   /** The bitgraph/1 proof exactly as the commit returned it. */
   proof: CarrierProof;
-  /** v1 and v2: the Ethereum anchor proof and its header. v3: the Base header. */
+  /** v4, required there: the tree member the committed bytes are. */
+  tree?: CarrierTree;
+  /** v1 and v2: the Ethereum anchor proof and its header. v3: the Base header. v4: whichever the proof signs. */
   floor: CarrierFloor | CarrierBaseFloor;
-  /** The ceiling in position: the next anchor in the chain (v1, v2), or on v3 the statement that there is none. */
+  /** The ceiling in position: the next anchor in the chain (v1, v2, v4 on an Ethereum floor), or on a Base floor the statement that there is none. */
   ceiling: CarrierCeiling;
-  /** v2 and v3. Required there, so absence reads as a corrupt block, never as "no ceiling". */
+  /** v2, v3 and v4. Required there, so absence reads as a corrupt block, never as "no ceiling". */
   ceilingInTime?: CarrierCeilingInTime;
-  /** v2 and v3, optional. */
+  /** v2, v3 and v4, optional. */
   settlement?: CarrierSettlement;
-  /** v2 and v3, optional. */
+  /** v2, v3 and v4, optional. */
   pins?: CarrierPins;
-  /** v2 and v3, optional: the proof's attestation as aws-nitro-witness/1 evidence. */
+  /** v2, v3 and v4, optional: the proof's attestation as aws-nitro-witness/1 evidence. */
   attestation?: Record<string, unknown>;
 }
 
@@ -252,24 +288,46 @@ export function buildCarrier(inner: Uint8Array, payload: CarrierPayload): Uint8A
   return out;
 }
 
+/** v4: the tree part's shape (export/1's one-file tree), lowercase hex throughout. Whether it holds is verifyCarrier's question. */
+function treeShapeError(t: unknown): string | null {
+  const o = record(t);
+  if (o === null) return `a ${CARRIER_VERSION_4} block carries its tree member: "tree" is missing`;
+  if (Object.keys(o).sort().join(",") !== "member,rootDocument") return "tree must hold exactly rootDocument and member";
+  if (typeof o["rootDocument"] !== "string" || !/^[0-9a-f]{168}$/.test(o["rootDocument"])) return "tree.rootDocument is not 84 bytes of lowercase hex";
+  const m = record(o["member"]);
+  if (m === null || Object.keys(m).sort().join(",") !== "count,index,leaf,path") return "tree.member must hold exactly index, count, leaf and path";
+  const { index, count } = m;
+  if (typeof count !== "number" || !Number.isInteger(count) || count < 1) return "tree.member.count is not a whole number of leaves";
+  if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= count) return "tree.member.index is not a leaf of the tree";
+  if (typeof m["leaf"] !== "string" || !/^[0-9a-f]{130}$/.test(m["leaf"])) return "tree.member.leaf is not 65 bytes of lowercase hex";
+  if (!Array.isArray(m["path"]) || !(m["path"] as unknown[]).every((n) => typeof n === "string" && /^[0-9a-f]{64}$/.test(n))) return "tree.member.path is not a list of 32-byte lowercase-hex nodes";
+  return null;
+}
+
 /** Structural payload check: is this object a readable bitgraph-carrier/1 payload? */
 function payloadShapeError(p: unknown): string | null {
   const o = record(p);
   if (o === null) return "payload is not an object";
+  const v4 = o["carrier"] === CARRIER_VERSION_4;
   const v3 = o["carrier"] === CARRIER_VERSION_3;
-  const v2 = o["carrier"] === CARRIER_VERSION_2 || v3;
+  const v2 = o["carrier"] === CARRIER_VERSION_2 || v3 || v4;
   if (o["carrier"] !== CARRIER_VERSION && !v2) return `unknown carrier version ${JSON.stringify(o["carrier"])}`;
   if (record(o["proof"]) === null) return "payload carries no proof object";
+  if (v4) {
+    const te = treeShapeError(o["tree"]);
+    if (te !== null) return te;
+  }
   const floor = record(o["floor"]);
   if (floor === null || floor["status"] !== "present") return "floor must be present: a floorless carrier is not a not-before";
   const ceil = record(o["ceiling"]);
   if (ceil === null) return "ceiling is missing: absence must be a stated fact, not a missing key";
-  if (v3) {
-    // v3: the floor is a Base header, and no ceiling in position exists.
+  // v3, and v4 over a Base floor: the floor is a Base header, and no ceiling in position exists.
+  const baseFloor = v3 || (v4 && floor["basis"] === "base-header");
+  if (baseFloor) {
     if (floor["basis"] !== "base-header") return `a ${CARRIER_VERSION_3} floor must be a Base header (basis "base-header"), got ${JSON.stringify(floor["basis"])}`;
     if (typeof floor["header"] !== "string" || baseHeaderFields(floor["header"]) === null) return "floor carries no readable Base block header";
-    if (floor["anchor"] !== undefined || floor["witness"] !== undefined) return `a ${CARRIER_VERSION_3} floor carries no anchor proof`;
-    if (ceil["status"] !== "none" || ceil["basis"] !== "hash-chain") return `a ${CARRIER_VERSION_3} block states no ceiling in position ({ status: "none", basis: "hash-chain" })`;
+    if (floor["anchor"] !== undefined || floor["witness"] !== undefined) return `a ${String(o["carrier"])} ${v4 ? "Base " : ""}floor carries no anchor proof`;
+    if (ceil["status"] !== "none" || ceil["basis"] !== "hash-chain") return `a ${String(o["carrier"])} block ${v4 ? "over a Base floor " : ""}states no ceiling in position ({ status: "none", basis: "hash-chain" })`;
   } else {
     if (floor["basis"] !== undefined) return `unknown floor basis ${JSON.stringify(floor["basis"])} on ${String(o["carrier"])}`;
     if (record(floor["anchor"]) === null) return "floor carries no anchor proof";
@@ -278,7 +336,7 @@ function payloadShapeError(p: unknown): string | null {
       return "floor carries no readable block-header witness";
     }
   }
-  if (!v3 && ceil["status"] !== "unfetched") {
+  if (!baseFloor && ceil["status"] !== "unfetched") {
     if (ceil["status"] !== "present") return `ceiling status must be "unfetched" or "present", got ${JSON.stringify(ceil["status"])}`;
     if (ceil["basis"] !== "counter-order") return `unknown ceiling basis ${JSON.stringify(ceil["basis"])}`;
     if (record(ceil["anchor"]) === null) return "ceiling carries no anchor proof";
@@ -288,7 +346,7 @@ function payloadShapeError(p: unknown): string | null {
     }
   }
   if (!v2) return null;
-  // v2 and v3: the ceiling in time is stated either way; settlement, pins and the attestation witness are optional.
+  // v2, v3 and v4: the ceiling in time is stated either way; settlement, pins and the attestation witness are optional.
   const ct = record(o["ceilingInTime"]);
   if (ct === null) return "ceilingInTime is missing: a v2 block states the ceiling in time or that it was not fetched";
   if (ct["status"] === "present") {
@@ -311,9 +369,9 @@ function payloadShapeError(p: unknown): string | null {
   return null;
 }
 
-/** 1, 2 or 3, from a parsed payload. */
-export function carrierVersionOf(payload: CarrierPayload): 1 | 2 | 3 {
-  return payload.carrier === CARRIER_VERSION_3 ? 3 : payload.carrier === CARRIER_VERSION_2 ? 2 : 1;
+/** 1, 2, 3 or 4, from a parsed payload. */
+export function carrierVersionOf(payload: CarrierPayload): 1 | 2 | 3 | 4 {
+  return payload.carrier === CARRIER_VERSION_4 ? 4 : payload.carrier === CARRIER_VERSION_3 ? 3 : payload.carrier === CARRIER_VERSION_2 ? 2 : 1;
 }
 
 export function parseCarrier(bytes: Uint8Array): CarrierParse {
@@ -350,7 +408,7 @@ export function completeCarrier(
   const p = parseCarrier(bytes);
   if (p.kind !== "carrier") return { changed: false, bytes, error: p.kind === "none" ? "not a carrier" : `corrupt block: ${p.reason}` };
   const cur = p.payload.ceiling;
-  if (cur.status === "none") return { changed: false, bytes, error: `a ${CARRIER_VERSION_3} block has no ceiling in position: its order is the chain of proof hashes` };
+  if (cur.status === "none") return { changed: false, bytes, error: `${p.payload.carrier === CARRIER_VERSION_3 ? `a ${CARRIER_VERSION_3} block` : "a block over a Base floor"} has no ceiling in position: its order is the chain of proof hashes` };
   if (cur.status === "present") {
     if (ceiling === null) return { changed: false, bytes };
     const a = record(record(cur.anchor)?.["commit"]);
@@ -695,8 +753,29 @@ export function carrierBounds(payload: CarrierPayload): CarrierBounds {
   return { notBefore, notAfter, existedBy, settledBy };
 }
 
-/** SHA-256 of the committed bytes, compared to the carried proof's artifact digest. */
+/**
+ * v4: the leaf's artifact digest, the SHA-256 the committed bytes must have,
+ * read from the carried leaf (bytes 1 to 33 of its 65). Null when the block
+ * carries no readable leaf. That the leaf is in the signed tree is
+ * verifyCarrier's check, not this one.
+ */
+export function memberArtifactDigest(payload: CarrierPayload): Uint8Array | null {
+  const leaf = payload.tree?.member?.leaf;
+  const raw = typeof leaf === "string" && /^[0-9a-f]{130}$/.test(leaf) ? hexToBytes(leaf) : null;
+  return raw === null ? null : raw.slice(1, 33);
+}
+
+/**
+ * SHA-256 of the committed bytes, compared to the carried proof's artifact
+ * digest; on v4, to the carried leaf's artifact digest (a tree's signed digest
+ * names its root document, which no file is). A digest match only: the
+ * verifier does the rest.
+ */
 export function innerDigestMatches(inner: Uint8Array, payload: CarrierPayload): boolean {
+  if (payload.carrier === CARRIER_VERSION_4) {
+    const want = memberArtifactDigest(payload);
+    return want !== null && sameDigest(bytesToB64(sha256(inner)), bytesToB64(want));
+  }
   const artifact = record(payload.proof["artifact"]);
   return sameDigest(bytesToB64(sha256(inner)), artifact?.["digestB64"] as string);
 }

@@ -2,11 +2,15 @@
 
 /**
  * verifyCarrier: the offline read path for a BitGraphed file (bitgraph-carrier/1,
- * /2 or /3), one result per claim, each saying what it rests on.
+ * /2, /3 or /4), one result per claim, each saying what it rests on.
  *
  * Given the file and nothing else, it strips the block by structure and checks:
  *
- *   the bytes       SHA-256 of the committed bytes is the digest the proof names
+ *   the bytes       SHA-256 of the committed bytes is the digest the proof names; on v4
+ *                   (one member of a tree/1 BitGraph) it is the leaf's artifact digest, a
+ *                   placed leaf's bytes carry the commitment, the path reaches the root, and
+ *                   the root document carries that root and the position's commitment and
+ *                   hashes to the signed digest (verifyTreeMember), under a spec it knows
  *   the proof       Ed25519 signature, the position record and its bindings, the
  *                   fused commitment rebuilt (bitgraph-fuse/1, /2 or /3), proofHash
  *   the attestation ES384 signature, the certificate chain to the AWS Nitro root
@@ -41,7 +45,8 @@
 
 import { verify, verifyProofIntegrity, createVerificationContext } from "./verifier.js";
 import { verifyFuse } from "./fuse-verify.js";
-import { readFuseAttribution, signedFloorOf, type SignedFloor } from "./fuse.js";
+import { readFuseAttribution, signedFloorOf, hexToBytes as treeHex, type SignedFloor } from "./fuse.js";
+import { verifyTreeMember, TREE_MEMBER_CATEGORIES, type TreeVerifyResult } from "./tree.js";
 import { computeProofHash, computeSignedBodyHash } from "./proof-hash.js";
 import { verifyNitroAttestation, witnessMatchesAttestation, awsNitroRootSha256, type AttestationWitness } from "./nitro.js";
 import { baseTimeIsBound, checkFloorHeader, floorTimeIsBound, verifyCeiling, checkCeilingOnline, type CeilingSidecar } from "./ceiling.js";
@@ -52,7 +57,7 @@ import type { BitGraphProof } from "./types.js";
 import { sha256 } from "@noble/hashes/sha256";
 import {
   parseCarrier, checkFloorBinding, checkCeilingBinding, anchorMessageBytes,
-  verifyWitnessHeader, carrierBounds, innerDigestMatches, carrierVersionOf,
+  verifyWitnessHeader, carrierBounds, innerDigestMatches, carrierVersionOf, CARRIER_VERSION_4,
   type CarrierBounds, type CarrierPayload,
 } from "./carrier.js";
 
@@ -85,6 +90,8 @@ export interface CarrierVerifyOptions {
   /** The one online question per chain, answered by nodes the caller names. Without them the confirmed level is UNDETERMINED. */
   lookups?: CarrierLookups;
   /** The verifier's own pins. The file's declared pins are compared with these, never used as these. */
+  /** v4: spec hashes (base64) to accept beside the ones this verifier knows (KNOWN_TREE_SPEC_HASHES). */
+  extraSpecHashes?: readonly string[];
   pins?: {
     /**
      * PCR0 values the verifier accepts. Default: BitGraph's published images
@@ -108,7 +115,11 @@ export interface CarrierVerifyResult {
   floorTimeWithheld?: string | null;
   /** "ok" | "none" | "corrupt" — whether the bytes carried a readable block at all. */
   carrier: "ok" | "none" | "corrupt";
-  version: 1 | 2 | 3 | null;
+  version: 1 | 2 | 3 | 4 | null;
+  /** v4: the leaf the committed bytes are, once its path reached the signed root; null otherwise (and on v1 to v3). */
+  member?: TreeVerifyResult["member"];
+  /** v4: "content" when the bytes carry the commitment (a placed leaf), "record" when kept as is; null when the bytes were not matched or not in hand. */
+  floorCovers?: TreeVerifyResult["floorCovers"];
   /** Every failed or undetermined check, in the order met. Empty on a clean TRUE. */
   reasons: string[];
   /** Stated only when the block was readable. notAfter null = NOT FETCHED, in those words. */
@@ -135,7 +146,7 @@ export async function verifyCarrier(bytes: Uint8Array, opts: CarrierVerifyOption
     return { verdict: "UNDETERMINED", carrier: "corrupt", version: null, reasons: [detail], bounds: null, ceiling: null, claims: [claim], reading: "The file ends in a proof block this reader cannot read. That is a damaged or newer block, not a verdict on the file.", payload: null, inner: null };
   }
   const result = await verifyCarrierPayload(parsed.payload, parsed.inner, opts);
-  return { ...result, reading: `${result.reading} ${envelopeSentence(bytes, parsed.inner)}` };
+  return { ...result, reading: `${result.reading} ${envelopeSentence(bytes, parsed.inner, parsed.payload.carrier === CARRIER_VERSION_4)}` };
 }
 
 /**
@@ -144,8 +155,9 @@ export async function verifyCarrier(bytes: Uint8Array, opts: CarrierVerifyOption
  * that file travels without the README"). A reader who hashes the file they were handed
  * and compares it with the proof would otherwise conclude the proof is wrong.
  */
-function envelopeSentence(outer: Uint8Array, inner: Uint8Array): string {
+function envelopeSentence(outer: Uint8Array, inner: Uint8Array, member = false): string {
   const hex = (b: Uint8Array) => Array.from(sha256(b), (x) => x.toString(16).padStart(2, "0")).join("");
+  if (member) return `This file's own SHA-256 (${hex(outer)}) is not the committed digest and is not meant to be: the proof block at its end is part of this file's bytes. The proof names the tree's root document; the bytes before that block (SHA-256 ${hex(inner)}) are the tree member the block names, and those are the bytes checked here.`;
   return `This file's own SHA-256 (${hex(outer)}) is not the committed digest and is not meant to be: the proof block at its end is part of this file's bytes. The proof names the bytes before that block (SHA-256 ${hex(inner)}), and those are the bytes checked here.`;
 }
 
@@ -167,7 +179,7 @@ export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8
   } catch (e) {
     const detail = `a part of this proof block is malformed: ${e instanceof Error ? e.message : String(e)}`;
     add("wellformed", "Every part of the proof block is well formed", "FALSE", "", detail);
-    let version: 1 | 2 | 3 | null = null;
+    let version: 1 | 2 | 3 | 4 | null = null;
     try { version = carrierVersionOf(payload); } catch { /* unreadable */ }
     const ceilingStatus = (payload as { ceiling?: { status?: unknown } } | null)?.ceiling?.status;
     return {
@@ -199,9 +211,13 @@ async function verifyCarrierPayloadChecks(
   const baseChainId = opts.pins?.baseChainId ?? BASE_MAINNET_CHAIN_ID;
 
   if (inner !== null) add("block", "A proof block at the end of the file", "TRUE", "the block's own structure", `bitgraph-carrier/${version}, found from the end of the file and stripped exactly once`);
+  const isMember = version === 4;
 
-  // 1. The committed bytes are the ones the proof names.
-  if (inner !== null) {
+  // 1. The committed bytes are the ones the proof names. On v4 they are a
+  //    tree member's, checked against its leaf in step 3.
+  if (isMember) {
+    // below, with the tree
+  } else if (inner !== null) {
     const digestOk = innerDigestMatches(inner, payload);
     add("bytes.digest", "The committed bytes are the ones the proof names", digestOk ? "TRUE" : "FALSE", "SHA-256", digestOk ? "SHA-256 of the bytes before the block equals the proof's artifact digest" : "the committed bytes do not hash to the carried proof's artifact digest");
   } else {
@@ -211,7 +227,9 @@ async function verifyCarrierPayloadChecks(
   // 2. The proof itself, under the existing bitgraph/1 algorithm. A fresh
   //    context: a carrier is judged alone, not against this process's history.
   //    Without the bytes, the integrity half runs (verify() without bytes).
-  const proofResult = inner !== null
+  //    On v4 the signed digest names the root document, never the bytes, so
+  //    the integrity half runs and the tree binds the bytes (step 3).
+  const proofResult = inner !== null && !isMember
     ? await verify({ proof, bytes: inner, context: createVerificationContext() })
     : await verifyProofIntegrity({ proof, context: createVerificationContext() });
   add("proof.signature", "The proof is signed and its position record is bound to it", proofResult.valid ? "TRUE" : "FALSE", "Ed25519", proofResult.valid ? "the enclave's Ed25519 signature over the canonical signed body verifies; the position record's own signature, its hash in the commit, the nonce and the counter order all agree" : `the carried proof does not verify: ${proofResult.reason ?? "unspecified"}`);
@@ -223,8 +241,14 @@ async function verifyCarrierPayloadChecks(
   }
 
   // 3. Fused: the commitment inside the bytes, rebuilt from the signed record (fuse/2 and fuse/3: and the signed floor block).
+  //    v4: the tree. The spec the proof pins, the root document against the
+  //    signed digest and the position's commitment, the path, the bytes
+  //    against the leaf, and for a placed leaf the commitment in the bytes.
   const marker = readFuseAttribution(proof);
-  if (marker !== null && inner === null) {
+  let tr: TreeVerifyResult | null = null;
+  if (isMember) {
+    tr = await memberClaims(payload, proof, inner, opts, add);
+  } else if (marker !== null && inner === null) {
     add("proof.fused", "The bytes carry the position commitment", "NOT_CARRIED", "", `the file is not in hand; its bytes carry a bitgraph-fuse/${marker.version ?? 1} commitment to check`);
   } else if (marker !== null && inner !== null) {
     const f = await verifyFuse({ proof, bytes: inner });
@@ -450,7 +474,10 @@ async function verifyCarrierPayloadChecks(
   // says only that some AWS Nitro enclave signed.
   const pins = claims.find((c) => c.id === "attestation.pins");
   if (reasons.length === 0 && pins?.result !== "TRUE") reasons.push(pins ? `${pins.name}: ${pins.detail}` : "The image is one the verifier accepts: the proof carries no attestation, so no image was established");
-  const verdict: CarrierVerifyResult["verdict"] = claims.some((c) => c.result === "FALSE") ? "FALSE" : pins?.result === "TRUE" ? "TRUE" : "UNDETERMINED";
+  // v4: a tree this verifier could not judge (a spec it does not know) is not judged, never TRUE.
+  const treeUnjudged = isMember ? claims.filter((c) => TREE_CLAIM_IDS.includes(c.id) && c.result === "UNDETERMINED") : [];
+  if (reasons.length === 0) for (const c of treeUnjudged) reasons.push(`${c.name}: ${c.detail}`);
+  const verdict: CarrierVerifyResult["verdict"] = claims.some((c) => c.result === "FALSE") ? "FALSE" : pins?.result === "TRUE" && treeUnjudged.length === 0 ? "TRUE" : "UNDETERMINED";
   const bounds = carrierBounds(payload);
   // The ceiling in time reaches callers only as verified here, and only when its stamp is a bound.
   bounds.existedBy = ceilingTime ? { chain: "base", blockNumber: ceilingTime.blockNumber, blockHash: ceilingTime.blockHash, timestamp: ceilingTime.blockTimestamp } : null;
@@ -466,10 +493,84 @@ async function verifyCarrierPayloadChecks(
     bounds,
     ceiling: payload.ceiling.status,
     claims,
-    reading: writeReading(verdict, claims, bounds, proof, ceilingTime, bounds.notBefore.timestamp, baseTimeWithheld, floorTimeWithheld),
+    member: tr?.member ?? null,
+    floorCovers: tr && (TREE_MEMBER_CATEGORIES as readonly string[]).includes(tr.category) ? tr.floorCovers : null,
+    reading: writeReading(verdict, claims, bounds, proof, ceilingTime, bounds.notBefore.timestamp, baseTimeWithheld, floorTimeWithheld, tr),
     payload,
     inner,
   };
+}
+
+/** The claims a v4 block adds in place of the digest and fused lines; their verdict weight is checked by id. */
+const TREE_CLAIM_IDS: readonly string[] = ["spec.pin", "tree.root", "tree.member", "bytes.digest"];
+
+/**
+ * v4: the bytes, as one member of the tree the proof commits. Five claims, in
+ * export/1's words: the spec pin, the root document, the member's path, the
+ * bytes against the leaf, and (as proof.fused, the content floor) the
+ * commitment inside a placed leaf's bytes. A leaf kept as is carries no
+ * commitment: recorded after the floor block, the bytes themselves are not
+ * dated. The bytes must be the leaf's COMMITTED bytes: an original that would
+ * rebuild them is not what a BitGraphed file carries, and is refused.
+ */
+async function memberClaims(
+  payload: CarrierPayload,
+  proof: BitGraphProof,
+  inner: Uint8Array | null,
+  opts: CarrierVerifyOptions,
+  add: (id: string, name: string, result: ClaimResult, restsOn: string, detail: string, level?: "offline" | "confirmed") => number,
+): Promise<TreeVerifyResult> {
+  const t = payload.tree!;
+  const rootDocument = treeHex(t.rootDocument) ?? new Uint8Array(0);
+  // The proof's own check is its own claim (step 2); the tree is judged on its own evidence.
+  const tr = await verifyTreeMember({
+    proof,
+    ...(inner !== null ? { bytes: inner } : {}),
+    member: t.member,
+    rootDocument,
+    ...(opts.extraSpecHashes ? { extraSpecHashes: opts.extraSpecHashes } : {}),
+    proofAlreadyVerified: true,
+  });
+  const unknownSpec = tr.category === "UNKNOWN_SPEC";
+  const notTree = tr.category === "NOT_TREE";
+  const specOk = !unknownSpec && !notTree && tr.category !== "INVALID_TREE_MARKER";
+  add("spec.pin", "The proof pins a spec this verifier knows", specOk ? "TRUE" : unknownSpec ? "UNDETERMINED" : "FALSE", "the signed attribution.message",
+    specOk ? `SPEC.md SHA-256 ${tr.specHashB64}` : notTree ? `the carried proof is not a tree/1 proof (${tr.reason}); a ${CARRIER_VERSION_4} block carries one member of a tree` : unknownSpec ? `${tr.reason}; a verifier that knows that spec can judge the tree` : tr.reason);
+  const rootOk = tr.tree !== null;
+  add("tree.root", "The root document is the signed one and carries this position's commitment", rootOk ? "TRUE" : unknownSpec ? "UNDETERMINED" : "FALSE",
+    "SHA-256 over the signed position record, its nonce and the signed floor block hash",
+    rootOk ? `a tree of ${tr.tree!.count} leaves, root ${tr.tree!.rootHex.slice(0, 16)}…; SHA-256 of the root document is the proof's artifact digest` : unknownSpec ? "not judged: the proof follows a spec this verifier does not know" : tr.reason);
+  const pathOk = tr.member !== null;
+  add("tree.member", "The member's leaf is in the committed tree", pathOk ? "TRUE" : rootOk ? "FALSE" : "UNDETERMINED", "SHA-256 (RFC 9162 path)",
+    pathOk ? `leaf ${tr.member!.index} of ${tr.member!.count} (${tr.member!.placement === "as-is" ? "kept as is" : tr.member!.placement}); a path proves this leaf only, not the order of the others` : rootOk ? tr.reason : "not judged: the root it would reach is not established");
+  const where = tr.member ? `leaf ${tr.member.index} of ${tr.member.count}` : `leaf ${t.member.index} of ${t.member.count}`;
+  const asIs = tr.member?.placement === "as-is" || /^00/.test(t.member.leaf);
+  if (inner === null) {
+    add("bytes.digest", "The bytes are this member's committed bytes", "NOT_CARRIED", "", `the file is not in hand; the block names ${where}, SHA-256 ${t.member.leaf.slice(2, 66)}`);
+    add("proof.fused", "The committed bytes carry the position commitment", "NOT_CARRIED", "", asIs
+      ? "the member was kept as is: the bytes carry no commitment, so the bytes themselves are not dated"
+      : "the file is not in hand; its bytes carry the position commitment to check");
+    return tr;
+  }
+  const isMember = (TREE_MEMBER_CATEGORIES as readonly string[]).includes(tr.category);
+  if (tr.category === "TREE_MEMBER_FROM_ORIGIN") {
+    add("bytes.digest", "The bytes are this member's committed bytes", "FALSE", "SHA-256",
+      `the bytes before the block are ${where}'s original, not its committed bytes: a BitGraphed file carries the bytes the leaf names, with the commitment placed in them`);
+  } else {
+    add("bytes.digest", "The bytes are this member's committed bytes", isMember ? "TRUE" : pathOk ? "FALSE" : "UNDETERMINED", "SHA-256",
+      isMember ? `SHA-256 of the bytes before the block is the artifact digest of ${where}` : pathOk ? `${tr.category}: ${tr.reason}` : "not judged: the member's place in the tree did not verify");
+  }
+  if (tr.category === "TREE_MEMBER_DIRECT") {
+    add("proof.fused", "The committed bytes carry the position commitment", "TRUE", "SHA-256 over the signed position record, its nonce and the signed floor block hash",
+      `${tr.member!.placement}: the commitment binds the floor block, so these bytes could not have been finished before that block existed; the original inside them is not dated by it`);
+  } else if (tr.category === "TREE_MEMBER_AS_IS" || asIs) {
+    add("proof.fused", "The committed bytes carry the position commitment", "NOT_CARRIED", "", "the member was kept as is: the bytes carry no commitment, so the bytes themselves are not dated (the record floor only)");
+  } else if (tr.category === "INVALID_SLOT_COMMITMENT" || tr.category === "INVALID_ORIGIN") {
+    add("proof.fused", "The committed bytes carry the position commitment", "FALSE", "", `${tr.category}: ${tr.reason}`);
+  } else {
+    add("proof.fused", "The committed bytes carry the position commitment", "NOT_CARRIED", "", "not reached: the bytes before the block are not this leaf's committed bytes");
+  }
+  return tr;
 }
 
 async function safe<T>(f: () => Promise<T>): Promise<T | null> {
@@ -493,6 +594,7 @@ function writeReading(
   floorTs: number | null,
   baseTimeWithheld: string | null = null,
   floorTimeWithheld: string | null = null,
+  tr: TreeVerifyResult | null = null,
 ): string {
   const get = (id: string) => claims.find((c) => c.id === id);
   if (verdict === "FALSE") {
@@ -513,7 +615,15 @@ function writeReading(
   // Two floors (SPEC 8.6): every record has the record floor; only bytes that
   // carry the commitment have the content floor. Without it, the bytes
   // themselves are not dated.
-  const subject = digest?.result !== "TRUE"
+  // v4: the same two floors, said of one member of the tree (SPEC 8.6, export/1's words).
+  const leafWords = tr?.member ? `leaf ${tr.member.index} of ${tr.member.count} in the committed tree` : null;
+  const subject = tr !== null
+    ? digest?.result !== "TRUE"
+      ? leafWords ? `The tree this proof names was committed under this position, and ${leafWords.replace(/ in the committed tree$/, "")} is in it.` : "The tree this proof names was committed under this position."
+      : fused?.result === "TRUE"
+        ? `These exact bytes are ${leafWords} and carry the commitment, so they were finished after the floor block (the content floor); an original inside them is not dated by it.`
+        : `These exact bytes are ${leafWords}, kept as is: they carry no commitment, so the bytes themselves are not dated (the record floor only).`
+    : digest?.result !== "TRUE"
     ? "The bytes this proof names were committed under this position."
     : fused?.result === "TRUE"
       ? (fused.restsOn.includes("floor block") ? "These exact bytes carry the commitment, so they were finished after the floor block (the content floor)." : "These exact bytes carry the commitment, so they were finished after their position was opened (the content floor).")

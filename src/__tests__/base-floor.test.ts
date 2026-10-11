@@ -478,7 +478,8 @@ describe("bitgraph-carrier/3: the BitGraphed file over a Base floor", () => {
     corrupt({ ...payload, floor: { ...payload.floor, anchor: {} } }, /carries no anchor proof/);
     corrupt({ ...payload, ceilingInTime: undefined }, /ceilingInTime is missing/);
     corrupt({ ...payload, carrier: "bitgraph-carrier/2" }, /unknown floor basis "base-header"/);
-    corrupt({ ...payload, carrier: "bitgraph-carrier/4" }, /unknown carrier version/);
+    corrupt({ ...payload, carrier: "bitgraph-carrier/4" }, /carries its tree member: "tree" is missing/);
+    corrupt({ ...payload, carrier: "bitgraph-carrier/5" }, /unknown carrier version/);
   });
 
   test("completion: no closing anchor is ever stamped into /3; the ceiling in time is", async () => {

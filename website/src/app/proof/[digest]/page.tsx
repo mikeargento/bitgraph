@@ -38,8 +38,9 @@ import { rebuildTreeFromFiles, rebuildMatches } from "@/lib/fuse-tree-make";
 import { recoverRows, treePositionKey } from "@/lib/recovery-fold";
 import { browserRecoveryQueue } from "@/lib/recovery-queue";
 import { SPEC_FILE_NAME, specFileFor, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, rootOnlyTree, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource, type BoundTree } from "@/lib/fuse-tree";
-import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence, fetchBaseFloorHeader } from "@/lib/carrier-site";
-import { verifyCarrierPayload, type CarrierClaim, type CarrierLookups, blobSource, } from "@mikeargento/bitgraph-verify";
+import { buildCarrierForProof, buildMemberCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence, fetchBaseFloorHeader } from "@/lib/carrier-site";
+import { memberCarrierFormat, memberCommittedBytes } from "@/lib/carrier-member";
+import { verifyCarrierPayload, assembleCarrierV4Payload, type CarrierClaim, type CarrierLookups, blobSource, } from "@mikeargento/bitgraph-verify";
 import { ProofView, type ProofViewModel, type FieldView, type PositionRowView, type SetRowView, type DownloadView } from "./proof-view";
 import { PUBLISHED_PCR0S, PUBLISHED_ENCLAVE_MEASUREMENTS } from "@/lib/enclave-measurements";
 import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_CARRIER_DIR, PKG_README, PKG_BASE_FLOOR_FILE, floorHeaderFile, packageReadme } from "@/lib/package-layout";
@@ -120,6 +121,9 @@ function formatHashAlg(alg: string): string {
    page shows: a deliberate trade, not a regression. Do not re-add a row without
    putting the file back in the same commit, or the page fetches a 404 on every
    load. */
+/** New words staged for Mike's reading, in red until he approves them (the site's staging convention). */
+const staged = (text: string) => <span style={{ color: "#d93025" }}>{text}</span>;
+
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
@@ -314,6 +318,15 @@ export default function ProofPage() {
     })();
     return () => { cancelled = true; };
   }, [proof, treeBound, cachedFile, treeEvidence]);
+  // tree/1: the placed member's committed bytes, from the file in hand (rebuilt from an original,
+  // or the bytes themselves): what the checks judge and what its BitGraphed file (carrier/4) carries.
+  const [treeCommitted, setTreeCommitted] = useState<{ of: object; bytes: Uint8Array } | null>(null);
+  useEffect(() => {
+    if (!treeBound || !treeMember || !cachedFile) { setTreeCommitted(null); return; }
+    let committed: Uint8Array | null = null;
+    try { committed = memberCommittedBytes(new Uint8Array(cachedFile.data), treeMember.evidence, treeBound.commitment); } catch { committed = null; }
+    setTreeCommitted(committed ? { of: treeMember, bytes: committed } : null);
+  }, [treeBound, treeMember, cachedFile]);
   // The checks (2026-09-30): the same claims the CLI answers, computed here from
   // the same evidence a download carries (assembleProofEvidence: the floor anchor
   // and its header, the closing anchor, the Base sidecar, each vetted), with the
@@ -329,8 +342,10 @@ export default function ProofPage() {
     floor: { counter: string; blockNumber: number; blockHash: string; timestamp: number | null; digestB64: string | null; recordedMs: number | null } | null;
     ceiling: { counter: string; blockNumber: number; blockHash: string; timestamp: number | null; digestB64: string | null; recordedMs: number | null } | null;
   }>({ floor: null, ceiling: null });
-  const evidenceRef = useRef<{ payload: Parameters<typeof verifyCarrierPayload>[0]; forCounter: string | null; ceilings: string } | null>(null);
+  const evidenceRef = useRef<{ payload: Parameters<typeof verifyCarrierPayload>[0]; parts: Awaited<ReturnType<typeof assembleProofEvidence>>["parts"]; forCounter: string | null; ceilings: string } | null>(null);
   const checksBytesRef = useRef<Uint8Array | null>(null);
+  // tree/1: the member in hand, placed: the checks then judge it exactly as its BitGraphed file (carrier/4) would be judged.
+  const checksMemberRef = useRef<{ evidence: TreeMemberEvidence; committed: Uint8Array; rootDocument: Uint8Array } | null>(null);
   const runChecks = async (lookups?: CarrierLookups) => {
     const signsFloor = !!proof?.commit?.slotAnchor || baseFloorOfProof(proof) !== null;
     if (!proof || !signsFloor) { setChecks((c) => ({ ...c, state: "failed", note: proof && !signsFloor ? "This proof was recorded before enclave v7 and carries no signed floor, so its window cannot be checked here; the signature and attestation can be checked from the package." : null })); return; }
@@ -340,11 +355,15 @@ export default function ProofPage() {
       let ev = evidenceRef.current;
       if (!ev || ev.forCounter !== (proof.commit.counter ?? null) || ev.ceilings !== key) {
         const assembled = await assembleProofEvidence(proof as never);
-        ev = { payload: assembled.payload as never, forCounter: proof.commit.counter ?? null, ceilings: key };
+        ev = { payload: assembled.payload as never, parts: assembled.parts, forCounter: proof.commit.counter ?? null, ceilings: key };
         evidenceRef.current = ev;
       }
-      const r = await verifyCarrierPayload(ev.payload, checksBytesRef.current, { pins: { pcr0: [...PUBLISHED_PCR0S] }, ...(lookups ? { lookups } : {}) });
-      setChecks({ state: "done", claims: r.claims, reading: r.reading, verdict: r.verdict, note: null, bytesInHand: checksBytesRef.current !== null, confirming: false, confirmed: lookups !== undefined });
+      const tm = checksMemberRef.current;
+      const payload = tm
+        ? assembleCarrierV4Payload({ ...(ev.parts as never as Parameters<typeof assembleCarrierV4Payload>[0]), tree: { rootDocument: bytesToHex(tm.rootDocument), member: tm.evidence } })
+        : ev.payload;
+      const r = await verifyCarrierPayload(payload as never, tm ? tm.committed : checksBytesRef.current, { pins: { pcr0: [...PUBLISHED_PCR0S] }, ...(lookups ? { lookups } : {}) });
+      setChecks({ state: "done", claims: r.claims, reading: r.reading, verdict: r.verdict, note: null, bytesInHand: tm !== null || checksBytesRef.current !== null, confirming: false, confirmed: lookups !== undefined });
       const sideOf = (anchor: Record<string, unknown> | undefined, witness: { blockNumber: number; blockHash: string } | undefined, ts: number | null) => {
         const ac = (anchor as { commit?: { counter?: string } } | undefined)?.commit;
         const digest = (anchor as { artifact?: { digestB64?: string } } | undefined)?.artifact?.digestB64 ?? null;
@@ -375,6 +394,10 @@ export default function ProofPage() {
     const bytes = cachedFile && cachedRole !== "original" && !isSetProof(proof)
       ? new Uint8Array(cachedFile.data)
       : typeof anchorText === "string" && anchorText.length > 0 ? new TextEncoder().encode(anchorText) : null;
+    // A tree member placed by the verifier is judged as its BitGraphed file would be (carrier/4).
+    checksMemberRef.current = treeBound && treeMember && treeCommitted && treeCommitted.of === treeMember
+      ? { evidence: treeMember.evidence, committed: treeCommitted.bytes, rootDocument: treeBound.rootDocument }
+      : null;
     (async () => {
       if (bytes) {
         const h = await hashBytes(bytes);
@@ -385,7 +408,7 @@ export default function ProofPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proof, cachedFile, cachedRole, baseCeiling?.anchor?.txHash, causalWindow?.anchorAfter?.counter]);
+  }, [proof, cachedFile, cachedRole, baseCeiling?.anchor?.txHash, causalWindow?.anchorAfter?.counter, treeCommitted]);
   const confirmAgainstNodes = () => {
     const rpc = (url: string) => async (n: number): Promise<string | null> => {
       try {
@@ -1063,6 +1086,12 @@ export default function ProofPage() {
   // A tree/1 proof: the files are leaves of one tree, and the committed
   // artifact is the root document over them (treeBound above, once bound).
   const isTree = isTreeTitled(proof);
+  // tree/1: whether the placed member's kind of file can carry a proof block after its end (lib/carrier-member).
+  const treeCarrierFormat = isTree && treeMember && cachedFile
+    ? memberCarrierFormat(new Uint8Array(cachedFile.data, 0, Math.min(64, cachedFile.data.byteLength)), treeMember.placement)
+    : null;
+  const signsFloor = Boolean((proof.commit as { slotAnchor?: unknown }).slotAnchor || baseFloorOf(proof as never) !== null);
+  const treeCarrierOk = Boolean(isTree && treeBound && treeMember && treeCarrierFormat?.ok && signsFloor);
   // Every BitGraph answers the same question, so the page asks it the same way
   // and only the answer changes: how does this artifact carry the commitment
   // to the slot it consumed? A fused file carries it in its own bytes, a set
@@ -1389,6 +1418,16 @@ export default function ProofPage() {
       if (!treeMember) notes.push(treeBound.count === 1
         ? "This export carries the proof and its times, not the file: drop the file in the box above first, and the export carries it too."
         : `This export carries the proof and its times, not a file's place among the ${treeBound.count.toLocaleString()} files: that comes with each file's own export.`);
+      // The member's BitGraphed file (carrier/4) rides along when it can be built: one file with the
+      // whole proof inside, for whoever receives only a file. A failure leaves it out, said below.
+      if (treeMember && cachedFile && treeCarrierOk) {
+        try {
+          const c = await buildMemberCarrierForProof(new Uint8Array(cachedFile.data), proof, { rootDocument: treeBound.rootDocument, commitment: treeBound.commitment }, treeMember.evidence, cachedFile.name, { waitForCeilingMs: 0 });
+          files[c.fileName] = c.bytes;
+        } catch (e) {
+          notes.push(`The BitGraphed file was left out of the zip: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
       const zip = zipSync(files);
       const url = URL.createObjectURL(new Blob([zip.slice().buffer as ArrayBuffer], { type: "application/zip" }));
       const a = document.createElement("a");
@@ -1760,6 +1799,19 @@ export default function ProofPage() {
     setCarrierBusy(true);
     setCarrierMsg(null);
     try {
+      // tree/1: one member's file (carrier/4), its bytes walked to the signed root document by the
+      // evidence that placed it. The same capped wait for a closing anchor on an Ethereum floor.
+      if (isTree) {
+        if (!treeBound || !treeMember) throw new Error("this file is not placed in the tree yet, so its BitGraphed file cannot be built");
+        const built = await buildMemberCarrierForProof(new Uint8Array(cachedFile.data), proof, { rootDocument: treeBound.rootDocument, commitment: treeBound.commitment }, treeMember.evidence, cachedFile.name, { waitForCeilingMs: 15000 });
+        const url = URL.createObjectURL(new Blob([built.bytes as unknown as BlobPart], { type: "application/octet-stream" }));
+        const el = document.createElement("a"); el.href = url; el.download = built.fileName; el.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setCarrierMsg(built.ceiling === "present" || built.ceiling === "none"
+          ? null
+          : `Floor inside; the closing anchor is not, yet: ${built.ceilingNote ?? "none has landed."} Drop the file back here later and it completes.`);
+        return;
+      }
       const bytes = new Uint8Array(cachedFile.data);
       let committed = bytes;
       let label = cachedFile.name;
@@ -2023,20 +2075,25 @@ export default function ProofPage() {
              (the proof alone, the anchors, the original, the BitGraphed file) stay
              reachable as text under it. Before this, four pills: Export (.zip) /
              Package (.zip) / Proof (.json) / Ethereum anchors, plus the ceiling file. */
-          const carrierPossible = Boolean(cachedFile && !isSet && ((commit as { slotAnchor?: unknown }).slotAnchor || baseFloor !== null));
+          // A tree member gets its own BitGraphed file (carrier/4) once the file in hand is placed in the
+          // tree and its kind of file can carry a block; every other position as before.
+          const carrierPossible = isTree
+            ? Boolean(cachedFile && treeCarrierOk)
+            : Boolean(cachedFile && !isSet && ((commit as { slotAnchor?: unknown }).slotAnchor || baseFloor !== null));
           const treeCount = treeBound?.count ?? 0;
           const exportAction: DownloadView | null = isEth
             ? { label: "Export", busyLabel: "Export", onClick: downloadProof, busy: false }
             : isTree
             // tree/1 leaves as export/1, never as the package a single fused file
-            // or a set member gets: no BitGraphed file, no original out of a wrapper.
+            // or a set member gets: no original out of a wrapper. The member's
+            // BitGraphed file (carrier/4) rides inside it when it can be built.
             ? (treeBound ? { label: "Export", busyLabel: "Exporting\u2026", onClick: exportTree, busy: exporting } : null)
             : { label: "Export", busyLabel: "Exporting\u2026", onClick: exportZip, busy: exporting };
           const exportInside = isEth
             ? "The anchor's proof as one JSON file."
             : isTree
             ? (treeMember && cachedFile
-                ? `One zip: this file's own export, which proves its place in the tree of ${treeCount.toLocaleString("en-US")}, and SPEC.md, the rules the proof pins.`
+                ? <>{`One zip: this file's own export, which proves its place in the tree of ${treeCount.toLocaleString("en-US")}, and SPEC.md, the rules the proof pins`}{carrierPossible ? staged(", with the BitGraphed file, this file with the proof inside") : null}.</>
                 : treeCount === 1
                 ? "One zip: the tree's export, with the proof and its times, and SPEC.md, the rules the proof pins. Drop the file in the box above first and the export carries its place too."
                 : `One zip: the tree's export, with the proof and its times, and SPEC.md, the rules the proof pins. A file's own place among the ${treeCount.toLocaleString("en-US")} files comes with that file's export: drop it in the box above first.`)
@@ -2047,15 +2104,16 @@ export default function ProofPage() {
             ? (treeMember && cachedFile ? "This file's export" : "The tree's export")
             : "The package";
           const PROOF_PIECE: DownloadView = { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false, desc: "The signed proof alone, byte for byte as the ledger serves it." };
+          const CARRIER_PIECE: DownloadView = { label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: downloadCarrier, busy: carrierBusy, desc: "The file with the proof inside: one file that verifies with nothing else." };
           const ANCHORS_PIECE: DownloadView = { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy, desc: "The floor and the ceiling in position, each with its Ethereum block header." };
           // A Base floor has no Ethereum anchors to download: the floor's header is in the export and the package.
           const anchorsPiece: DownloadView[] = baseFloor !== null ? [] : [ANCHORS_PIECE];
           const pieces: DownloadView[] = isEth
             ? []
             : isTree
-            ? [PROOF_PIECE, ...anchorsPiece]
+            ? [...(carrierPossible ? [CARRIER_PIECE] : []), PROOF_PIECE, ...anchorsPiece]
             : [
-                ...(carrierPossible ? [{ label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: downloadCarrier, busy: carrierBusy, desc: "The file with the proof inside: one file that verifies with nothing else." }] : []),
+                ...(carrierPossible ? [CARRIER_PIECE] : []),
                 ...(redrawn && (redrawnAlgo === ART_ALGORITHM_V16 || redrawnAlgo === ART_ALGORITHM_V17 || redrawnAlgo === ART_ALGORITHM_V18 || redrawnAlgo === ART_ALGORITHM_V19) && cachedFile ? [{ label: "SVG for print", busyLabel: "SVG for print", onClick: downloadPrintSvg, busy: false, desc: "The print version inside the recorded PNG, checked against a redrawing from this proof. It prints sharp at any size." }] : []),
                 PROOF_PIECE,
                 ...(cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? [{ label: "Original file", busyLabel: "Recovering\u2026", onClick: downloadOriginal, busy: originBusy, desc: "The original, back out of the committed file." }] : []),
@@ -2064,12 +2122,12 @@ export default function ProofPage() {
           const checkText = isEth
             ? null
             : isTree
-            ? "An export verifies offline beside its file, one line per claim, on any machine: the file's own export for one file, the tree's export with any of its files."
+            ? <>{"An export verifies offline beside its file, one line per claim, on any machine: the file's own export for one file, the tree's export with any of its files."}{carrierPossible ? staged(" The BitGraphed file verifies with nothing but itself.") : null}</>
             : `The BitGraphed file verifies with nothing but itself, one line per claim, on any machine. The package holds the proof, ${baseFloor !== null ? "the floor block's header" : "the anchors with their block headers"} and the ceiling file, for the offline audit.`;
           const checkCommand = isEth
             ? null
             : isTree
-            ? "npx @mikeargento/bitgraph-sdk verify <file> <export>.bitgraph.json"
+            ? <>{"npx @mikeargento/bitgraph-sdk verify <file> <export>.bitgraph.json"}{carrierPossible ? <>{"\n"}{staged("npx @mikeargento/bitgraph-sdk verify <file>.bitgraph<ext>")}</> : null}</>
             : "npx @mikeargento/bitgraph-sdk verify <file>.bitgraph<ext>\nnpx @mikeargento/bitgraph-audit ./BitGraph-package/";
           const downloadNotes = [
             ...(originMsg ? [originMsg] : []),
@@ -2077,7 +2135,9 @@ export default function ProofPage() {
             ...(svgMsg ? [svgMsg] : []),
             ...(anchorsMsg ? [anchorsMsg] : []),
             ...(treeExportMsg ? [treeExportMsg] : []),
-            ...(!cachedFile && !isEth && !isTree ? ["The file itself is not on this device: the downloads carry the proof and its evidence, and the BitGraphed file needs the file in hand."] : []),
+            ...(!cachedFile && !isEth ? ["The file itself is not on this device: the downloads carry the proof and its evidence, and the BitGraphed file needs the file in hand."] : []),
+            // A member kept as is in a kind of file a trailing block would break travels with its export instead.
+            ...(isTree && cachedFile && treeMember && treeCarrierFormat && !treeCarrierFormat.ok ? [staged(treeCarrierFormat.reason)] : []),
           ];
           /* The checks, for a tree: the carrier checks run without bytes (a
              tree's committed artifact is its root document, never a file), and
@@ -2087,6 +2147,8 @@ export default function ProofPage() {
              file in hand, placed by the verifier when there is evidence. */
           const treeChecks = (c: typeof checks): typeof checks => {
             if (c.state !== "done") return c;
+            // The member in hand was judged as its BitGraphed file would be (carrier/4): the verifier's own tree lines stand.
+            if (c.claims.some((x) => x.id === "tree.member")) return c;
             const offline = "offline" as const;
             const claims = c.claims.filter((x) => x.id !== "proof.fused" && x.id !== "bytes.digest");
             const added: CarrierClaim[] = [
@@ -2352,10 +2414,23 @@ function BringYourFile({
       if (isTreeTitled(proof)) {
         const bound = bindTree(proof);
         if (!bound.ok) { setState("mismatch"); return; }
-        const files = Array.isArray(source) ? source
+        let files = Array.isArray(source) ? source
           : source.entries ? (await walkEntries(source.entries, (n) => { setReadCount(n); setState("reading"); })).map((w) => w.file)
           : source.files;
         setState("checking");
+        /* A member's BitGraphed file (carrier/4) places itself: the block's evidence, checked against
+           the proof in the strip (lib/carrier-site), names its leaf, whatever the tree's size. Its
+           committed bytes are what the page then holds; the envelope's own hash is checked nowhere. */
+        const carried = await deCarrierFiles(files);
+        for (const f of carried.files) {
+          const m = carried.members.get(f);
+          if (m && (m.proof as { artifact?: { digestB64?: string } }).artifact?.digestB64 === proof.artifact.digestB64) {
+            onTreeEvidence?.(m.evidence);
+            await accept(f);
+            return;
+          }
+        }
+        files = carried.files;
         const dropped = await readTreeExports(files);
         const mine = dropped.exports.filter((e) => e.exp.proof?.artifact?.digestB64 === proof.artifact.digestB64);
         if (mine.length > 0) {

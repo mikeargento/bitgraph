@@ -2,6 +2,11 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.18.0 (unreleased)
+
+- **bitgraph-carrier/4: a tree member carries its own proof.** In a tree/1 BitGraph the signed digest names the tree's root document, so a member could not travel as a BitGraphed file. Version 4 puts the member's committed bytes before the block and carries, in the block, export/1's one-file tree part (`tree: { rootDocument, member: { index, count, leaf, path } }`) beside everything version 2 carries; its floor is the one the proof signs, as an Ethereum anchor (version 2's shape) or a Base header (version 3's, no ceiling in position). `verifyCarrier` walks the bytes to the signed digest (the leaf's artifact digest, the commitment inside a placed leaf, the path, the root document's hash and commitment, the spec pin) and states the two floors of SPEC 8.6 for that one member: a placed leaf's bytes were finished after the floor block; a leaf kept as is is recorded after it, the bytes themselves not dated. New: `CARRIER_VERSION_4`, `assembleCarrierV4Payload`, `memberArtifactDigest`, `CarrierTree`; `verifyCarrier` returns `member` and `floorCovers` and takes `extraSpecHashes`; `innerDigestMatches` compares a /4 block's bytes with its leaf. The format is in `spec/CARRIER-4.md` (SPEC.md and SPEC-v2.md are frozen and unchanged).
+- Versions 1 to 3 parse and verify exactly as before. A reader of 1.17.0 or earlier given a version 4 file reports the block unreadable (UNDETERMINED: "a damaged or newer block, not a verdict on the file"), never a verdict.
+
 ## 1.17.0 (2026-10-06)
 
 - **The Base floor** (enclave v10, SPEC v2 in `spec/SPEC-v2.md`). A proof's floor can now be a Base block, signed as `commit.slotFloor = {chain: "base", evmChainId: 8453, blockNumber, blockHash, blockTimestamp}`; earlier proofs keep their Ethereum floor (`commit.slotAnchor`) and verify exactly as before. `signedFloorOf(proof)` reads either, and refuses a proof that signs both (ambiguous) or a `slotFloor` that does not name Base mainnet.

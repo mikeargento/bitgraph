@@ -2,6 +2,10 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
+## 0.11.0 (unreleased)
+
+- A BitGraphed file of one tree member (`bitgraph-carrier/4`, verify 1.18.0) is unpacked as the member's committed bytes and its own `bitgraph-export/1`, and audited with `verifyExport` beside the file, the way every tree member travels; never as a bare `proof.json`, whose digest names the tree's root document and no file. The carrier's own verdict line names the member (`tree member: leaf i of n`). Versions 1 to 3 unpack exactly as before.
+
 ## 0.10.0 (2026-10-06): Base floors, enclave v10
 
 - Base floors. A proof that signs a Base block as its floor (`commit.slotFloor`, enclave v10; read through `signedFloorOf`) gets a not-before segment bound with `source: "signed-floor"`, `chain: "base"` and `timeSource` (`"header"` when a header in the bundle checks against the signed block, `"signed"` when none is there and confirming the block needs a Base lookup). Proofs after it inherit the bound by hash link or, weaker, by counter. A floor never gives a not-after. New `BoundEvidence` value `"signed-floor"`. Epoch not-before coverage counts Base-floored proofs; cross-epoch ordering pairs stay anchor-only, so floors never order epochs.

@@ -12,13 +12,15 @@ export const metadata: Metadata = {
 /* The carrier page: what the downloaded file is, the envelope rule, the
    window, what a verifier says about it, and the format for people writing
    readers. The format itself is normative in packages/verify (carrier.ts),
-   from which this page is derived. */
+   from which this page is derived; version 4 (a tree member) is written out
+   in spec/CARRIER-4.md. Words in red are staged for Mike's reading. */
+const staged = { color: "#d93025" } as const;
 export default function CarrierPage() {
   return (
     <article className="prose">
       <h1>The BitGraphed file</h1>
       <p className="lede">
-        The file is its own proof. A BitGraphed file is the committed bytes followed by one structural block that holds the <code>bitgraph/1</code> proof and everything a reader needs to check it with no URL, no operator, and no trust beyond mathematics, the AWS Nitro root and two public block hashes: the floor anchor and its Ethereum header, the closing anchor, the Base block the record existed by, its settlement on Ethereum when known, and the enclave&rsquo;s attestation laid out as evidence anyone can check with openssl. Everything travels in the one file, offline, with nothing resolved from this site. It holds a single-file position, an earlier form made while the floor was an Ethereum anchor; positions made now stand on a Base floor and travel in an export (below).
+        The file is its own proof. A BitGraphed file is the committed bytes followed by one structural block that holds the <code>bitgraph/1</code> proof and everything a reader needs to check it with no URL, no operator, and no trust beyond mathematics, the AWS Nitro root and two public block hashes: the floor anchor and its Ethereum header, the closing anchor, the Base block the record existed by, its settlement on Ethereum when known, and the enclave&rsquo;s attestation laid out as evidence anyone can check with openssl. Everything travels in the one file, offline, with nothing resolved from this site. It holds a single-file position, an earlier form made while the floor was an Ethereum anchor; positions made now stand on a Base floor and travel in an export (below).<span style={staged}> Since <code>bitgraph-carrier/4</code>, one file of a tree travels the same way: the file with its place in the tree and the whole proof inside.</span>
       </p>
 
       <h2 id="envelope">The envelope rule</h2>
@@ -145,8 +147,8 @@ xxd -p sigstructure.bin | tr -d '\\n' | grep -c <user_data>   # 1: user_data is 
       </p>
 
       <h2 id="export">The BitGraphed file and the export</h2>
-      <p>
-        A BitGraphed file is single-file only, and the proof inside it is a single-file position: the committed bytes are the file itself, not a leaf in a tree. It is an earlier format that still verifies and is still offered for single-file positions (<code>bitgraph bitgraphed &lt;path&gt;</code>, or the proof page&rsquo;s download).
+      <p style={staged}>
+        A BitGraphed file of a single-file position (<code>bitgraph-carrier/1</code> to <code>/3</code>) carries committed bytes that are the file itself, and is still offered for them (<code>bitgraph bitgraphed &lt;path&gt;</code>, or the proof page&rsquo;s download). In a <code>tree/1</code> BitGraph the proof names the tree&rsquo;s root document, not any file, so a member&rsquo;s file (<code>bitgraph-carrier/4</code>) also carries the member&rsquo;s place in the tree: the root document and the member&rsquo;s leaf, index, count and path, exactly what that file&rsquo;s own export carries. A reader hashes the bytes before the block, requires them to be the leaf&rsquo;s committed bytes (the file itself when it was kept as is; the file with the commitment placed in it otherwise), walks the path to the root, and requires the root document to hash to the signed digest and to carry the position&rsquo;s commitment. Then everything above applies, on whichever floor the proof signs. A placed member&rsquo;s bytes were finished after the floor block; a member kept as is was recorded after it, and the bytes themselves are not dated. A file kept as is in a kind of file a trailing block would break (text, SVG, JSON, XML, HTML) travels with its export instead, and a member placed in a container is a tar and is named as one. A reader that knows only versions 1 to 3 reports a version 4 block as one it cannot read: a newer block, never a verdict on the file. The proof page offers a member&rsquo;s BitGraphed file once the file is in hand and placed.
       </p>
       <p>
         What BitGraph makes now is a <code>tree/1</code>: one position over one or more files, each a leaf, one file a tree of one. Its evidence travels as an <code>export/1</code> JSON beside the files, with SPEC.md, and holds no copy of any file. The two answer the same questions in the same words, one line per claim, from <code>bitgraph verify &lt;file&gt;</code> for a BitGraphed file and <code>bitgraph verify &lt;file&gt; &lt;export.json&gt;</code> for a tree member. A reader that must stay inside one file takes the BitGraphed file; a reader with several files at one position takes the export.
