@@ -64,7 +64,7 @@ export default function HomePage() {
              24,000 gas at 0.006 gwei, ETH $2,499.85 (2026-10-11 13:52 UTC). 5 billion photos a day / 1,000,000 per
              BitGraph = 5,000 BitGraphs x $0.00036 = $1.80. A projection, and the footnote says so. */
           <div className="home-stat">
-            <p className="home-stat-note"><span style={{ color: "#d93025" }}>Projection: 5 billion photos a day. Works for any&nbsp;file.</span></p>
+            <p className="home-stat-note"><span style={{ color: "#d93025" }}>Projection: 5 billion photos per day. Works for any&nbsp;file.</span></p>
           </div>
         }
       >
