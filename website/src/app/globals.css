@@ -3341,6 +3341,8 @@ footer { border-top: 0 !important; }
 /* The lede and the footnote never run wider than the headline (Mike, 2026-10-11): 640px is the h1's measured text width at 72px. */
 /* One paragraph, full column width, no orphan last word (Mike, 2026-10-11: no "Example:", nothing off to one side). */
 .home .lede.home-lede-stat { max-width: 640px !important; text-wrap: pretty; }
+/* Desks: the one sentence on one line (Mike, 2026-10-11: "one line on desk"). */
+@media (min-width: 900px) { .home .lede.home-lede-stat { max-width: none !important; white-space: nowrap; } }
 .home-stat { margin-top: 28px; max-width: 640px; }
 /* Desktop: the fine print is as narrow as the line above the buttons renders (Mike, 2026-10-11). */
 @media (min-width: 768px) { .home-stat { max-width: 440px; } }

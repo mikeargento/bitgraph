@@ -14,7 +14,7 @@
  * and the sitemap, so none of them can disagree.
  *
  * Every URL predates the rewrite and is preserved. Only labels and grouping
- * changed. /subjects, /api-reference, /ceilings and /exam live outside /docs for
+ * changed. /subjects, /api-reference and /ceilings live outside /docs for
  * historical reasons (cached permanent redirects point at two of them) and
  * mount the previous/next pair themselves. "Floors" (/ledger, Ethereum anchors)
  * and "Ceilings" (/ceilings) became one item, "Base", when floors moved to Base
@@ -54,7 +54,6 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/audit", label: "Audit a bundle" },
       { href: "/docs/try", label: "Make a BitGraph" },
       { href: "/ceilings", label: "Base" },
-      { href: "/exam", label: "The sealed exam" },
     ],
   },
 ];
@@ -85,10 +84,10 @@ export const MENU_GROUPS: MenuGroup[] = [
     feature: true,
     items: [
       // /generate in place of "Make a painting" (Mike, 2026-10-10: "i dont want the slow make a painting", "you were supposed to replace
-      // painting with it"); /painting stays, unlisted.
+      // painting with it"). Since 2026-10-11 (Mike: "remove painting and all the other demos", then "i still want ask jev"), it and
+      // Ask Jev are the demos; /painting and /exam redirect to /generate.
       { href: "/generate", label: "Generate an image", desc: "One click, an image that never existed." },
       { href: "/jev", label: "Ask Jev", desc: "Two questions no one could have seen before." },
-      { href: "/exam", label: "The sealed exam", desc: "An exam sealed in BitGraph, and how to check it." },
       { href: "/docs/try", label: "Make a BitGraph", desc: "Drop in any file and get its proof." },
       { href: "/ceilings", label: "Base", desc: "The Base blocks around each BitGraph." },
     ],

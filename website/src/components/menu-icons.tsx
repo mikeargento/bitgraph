@@ -7,7 +7,6 @@
 const ICON: Record<string, string> = {
   "/generate": "auto_awesome_mosaic", // rectangles, like the images it makes (Mike, 2026-10-10: "should image icon be diff?")
   "/jev": "quiz",
-  "/exam": "assignment_turned_in",
   "/docs/try": "add_box",
   "/docs/overview": "schema",
   "/subjects": "work",

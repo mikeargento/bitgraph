@@ -50,7 +50,6 @@ const cases: Case[] = [
     where: "The paper is derived from the commitment of a freshly allocated position, whose proof names a public Base block bound in when the position opened, and is committed under that position. The answers are recorded later, at a later position. The derivation is specified so anyone can repeat it.",
     adds: "The questions could not have existed before the block their proof names as the floor, so no corpus frozen before it can contain them. The answers provably follow the paper. Vendor, evaluator and buyer verify both from a folder, offline, without revealing the paper to each other.",
     not: "That the template families were unfamiliar to the model, that it worked unaided, or how long it took. The answer sheet has a floor, not a ceiling.",
-    link: { href: "/exam", label: "The sealed exam: six real sittings, verifiable offline" },
   },
   {
     id: "regulated-finance",

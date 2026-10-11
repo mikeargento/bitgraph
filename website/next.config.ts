@@ -19,10 +19,16 @@ const nextConfig: NextConfig = {
       { source: "/overview", destination: "/docs/overview", permanent: true },
       // The image generator became the portrait page on 2026-10-08 and the painting page on 2026-10-09.
       // Every /image link keeps working, ?p=<digest> included (a redirect carries the query).
-      { source: "/image", destination: "/painting", permanent: true },
+      { source: "/image", destination: "/generate", permanent: true },
       // The portrait page became the painting page with bitgraph-art/15 (Mike, 2026-10-09). Temporary (307) while the
       // name settles: browsers remember permanent redirects forever. Make it permanent once it holds.
-      { source: "/portrait", destination: "/painting", permanent: false },
+      { source: "/portrait", destination: "/generate", permanent: false },
+      // The bridge and Ask Jev are the demos (Mike, 2026-10-11: "remove painting and all the other demos and direct the urls to
+      // bridge page", then "i still want ask jev").
+      // /painting?p=<digest> still opens its painting on /generate, whose redraw tries every version. Not permanent, so the
+      // addresses can be reused.
+      { source: "/painting", destination: "/generate", permanent: false },
+      { source: "/exam", destination: "/generate", permanent: false },
       // The hidden Three page moved to /generate (Mike, 2026-10-10: "generate"); not permanent, so the old address can be reused.
       { source: "/three", destination: "/generate", permanent: false },
       // The square bridge page is gone (Mike, 2026-10-11: "you can cut the bridge page that makes square ones"); its ?p= links
