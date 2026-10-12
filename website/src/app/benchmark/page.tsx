@@ -10,7 +10,7 @@ export const metadata: Metadata = {
    the speed ... measure the price, and link to it all"). One real run, BitGraph #40 (it replaced #36, 11.65 s, after the tree went multi-core and container headers were cached), made from this Mac with
    ~/Code/bitgraph-1m.noindex/one-million-base.mts --real; its records are served from /benchmark/2026-10-12/. The fee is
    the ceiling transaction's own receipt (gas used x effective gas price + the L1 data fee) at the Coinbase ETH spot price
-   read right after the run. The billion line is a projection and says so. */
+   read right after the run. The five-billion line (a day of the world's photos) is a projection and says so. */
 
 const RUN = "/benchmark/2026-10-12-40";
 const DIGEST = "WPyiS1eEvGOehhG_lGs1qmpAqW4gzLZY-0ka8d7oIxU";
@@ -68,11 +68,13 @@ export default function BenchmarkPage() {
         ETH.
       </p>
 
-      <h2>A billion files</h2>
+      <h2>Five billion files</h2>
       <p>
-        A BitGraph holds up to one million files, so a billion is 1,000 BitGraphs. Projected from this run, not measured: about
-        <strong> $0.37</strong> in fees (1,000 &times; $0.000374), and about 2.9 hours on this one laptop, one BitGraph after
-        another (1,000 &times; 10.50&nbsp;s). Run side by side on more machines, it takes a fraction of&nbsp;that.
+        About 5 billion photos are taken on Earth every day. A BitGraph holds up to one million files, so a day of them is
+        5,000 BitGraphs. Projected from this run, not measured: about <strong>$1.87</strong> in fees (5,000 &times; $0.000374),
+        and about 14.6 hours on this one laptop, one BitGraph after another (5,000 &times; 10.50&nbsp;s). That is less than a
+        day: one laptop keeps pace with every photo taken on Earth. Run side by side on more machines, it takes a fraction
+        of&nbsp;that.
       </p>
 
       <h2>Check it yourself</h2>
