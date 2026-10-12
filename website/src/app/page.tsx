@@ -43,8 +43,9 @@ export default function HomePage() {
         paddingBottom: "56px",
         display: "flex",
         flexDirection: "column",
-        /* Higher on the page, with the three cards under it (Mike, 2026-10-11: "sit higher ... at least have 3 cards"). */
-        justifyContent: "flex-start",
+        /* The headline and the three cards centred together (Mike, 2026-10-12: "should this whole block of content be
+           centered up vertically?"); on a phone the block is taller than the screen and starts at the top. */
+        justifyContent: "center",
       }}
     >
       {/* The demo is Ask Jev (Mike, 2026-10-11: ChatGPT's "See it work" leads to the Jev demo, "hes right"): a computation
@@ -102,10 +103,10 @@ export default function HomePage() {
           <p>Put the position&rsquo;s commitment into the prompt. The answer provably came after it and can&rsquo;t be&nbsp;backdated.</p>
           <span className="home-card-link">Ask Jev</span>
         </Link>
-        <Link className="home-card" href="/docs/integration">
+        <Link className="home-card" href="/benchmark">
           <h2>High volume</h2>
           <p>Benchmarked at a million files per position, each individually verifiable. Projected: every photo taken on Earth in a day for about $2 in&nbsp;fees.</p>
-          <span className="home-card-link">Integration guide</span>
+          <span className="home-card-link">See the benchmark</span>
         </Link>
       </div>
 
