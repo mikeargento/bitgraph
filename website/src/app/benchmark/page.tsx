@@ -60,6 +60,12 @@ export default function BenchmarkPage() {
         </table>
       </div>
 
+      <h2>Every file has its own place</h2>
+      <p>
+        All one million share one position, but each is a separate member of it: BitGraph #40, member 1 to 1,000,000, with
+        its own fingerprint and its own path to the root. Any one file can be checked alone, without the other&nbsp;999,999.
+      </p>
+
       <h2>The fee, worked out</h2>
       <p>
         The ceiling transaction used 23,940 gas at 0.006075 gwei, which is 0.0000001454 ETH, plus an L1 data fee of 0.0000000007 ETH:
