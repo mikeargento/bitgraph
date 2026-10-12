@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ArtMaker } from "@/components/art-maker";
+import { DemoSteps } from "@/components/demo-steps";
 
 export const metadata: Metadata = {
   title: "Generate an image",
@@ -23,6 +24,13 @@ export default function GeneratePage() {
         <h1 className="jev-title"><span>Generate an image</span></h1>
         <p className="lede jev-lede"><span>One click makes an image that never existed, and BitGraph proves&nbsp;it.</span></p>
       </ArtMaker>
+      <DemoSteps
+        steps={[
+          { title: "A position opens", text: "BitGraph opens a fresh position. Its commitment is unpredictable, so nobody could know it in advance." },
+          { title: "The image is drawn from it", text: "Every setting of the bridge comes from that commitment, so the image could not have existed before the position opened." },
+          { title: "The image is recorded in it", text: "The finished image goes into that same position, between a Base block before and a Base block after." },
+        ]}
+      />
     </div>
   );
 }
