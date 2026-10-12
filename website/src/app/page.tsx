@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArtMaker } from "@/components/art-maker";
 
 /**
  * Home, written as the scene (Mike, 2026-09-20: "sell me this pen"). The order is
@@ -44,21 +43,16 @@ export default function HomePage() {
         paddingBottom: "56px",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
+        /* Higher on the page, with the three cards under it (Mike, 2026-10-11: "sit higher ... at least have 3 cards"). */
+        justifyContent: "flex-start",
       }}
     >
-
-      {/* The demo runs here (Mike, 2026-10-10: the home page runs the Three generator inline). ArtMaker's "home" mode:
-          the headline and the line under it, then two buttons, "Make a BitGraph" (blue: opens a position, draws a 16:9
-          Three, bitgraph-art/17, from its commitment and records it in that position) and "How it works". On the click
-          the headline folds away and the spinner shows, as on /painting; then the piece at the column's width, one
-          paragraph and two buttons, "Make another" and "See the full proof". The sample proof link ("See a real
-          BitGraph") left the button; its page and EXAMPLE_FILES / HOME_EXAMPLE_DIGEST are unchanged, and WarmExample,
-          which warmed that link's page, is no longer rendered here. */}
-      <ArtMaker
-        mode="home"
-        secondary={<Link className="bg-action-link" href="/docs/overview">How it works</Link>}
-      >
+      {/* The demo is Ask Jev (Mike, 2026-10-11: ChatGPT's "See it work" leads to the Jev demo, "hes right"): a computation
+          done inside a BitGraph, the position opened before it ran, which is what the line under the headline says. The
+          bridge maker (ArtMaker "home") ran here from 2026-10-10; /generate still makes bridges. Same hero markup. */}
+      <div className="art art-home">
+        <div className="art-hero">
+          <div className="art-hero-inner">
         {/* The hero (Mike, 2026-10-05): the typing line of 2026-09-30 and the game theory paragraph of
             2026-09-26, left aligned, after a day of trying shorter heroes ("GPS for files.", "The
             position comes first.", "First the position. Then the file."; all in the git history).
@@ -78,11 +72,42 @@ export default function HomePage() {
             (Mike, 10-05). */}
         {/* Mike, 2026-10-11 (what a BitGraph gives, then the spec-style example; counts in the fine print; two balanced paragraphs, no "Example:", Mike: the single run sat off to one side on phones): the stat replaces "BitGraph begins the proof before the bits arrive, so their position cannot be
             chosen afterward." as the line under the headline; its footnote sits under it. */}
-        <p className="lede home-lede-stat">Data infrastructure that sequences the training and serving of AI&nbsp;models.</p>
+        <p className="lede home-lede-stat">The computation uses a position that opens first, so its result can&rsquo;t be&nbsp;backdated.</p>
         {/* The footnote right under the claim it qualifies, before the buttons (Mike, 2026-10-11). Basis: the benchmark on
             branch bench (bench/RESULTS.md): 5 billion photos / 1,000,000 per BitGraph = 5,000 BitGraphs x $0.00036 (one Base
             ceiling write, 24,000 gas at 0.006 gwei, ETH $2,499.85, 2026-10-11 13:52 UTC) = $1.80. */}
-      </ArtMaker>
+          </div>
+        </div>
+        <div className="art-hero art-go-wrap">
+          <div className="art-hero-inner">
+            <div className="actions art-home-actions">
+              <Link className="bg-action-link is-make art-go" href="/jev">See it work</Link>
+              <Link className="bg-action-link" href="/docs/overview">How it works</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Three cards (Mike, 2026-10-11): what a visitor like Steven Mih would use it for, each claim one the mechanism
+          delivers. Training data: recorded as is, its Base ceiling. Model outputs: the position opened first (the Jev demo).
+          Volume: tree/1, up to 1,000,000 leaves per position, one Base write each. */}
+      <div className="home-cards">
+        <Link className="home-card" href="/docs/overview">
+          <h2>Training data</h2>
+          <p>BitGraph a dataset before training begins. The proof shows exactly which bytes existed, by a public&nbsp;block.</p>
+          <span className="home-card-link">How the proof works</span>
+        </Link>
+        <Link className="home-card" href="/jev">
+          <h2>Model outputs</h2>
+          <p>Put the position&rsquo;s commitment into the prompt. The answer provably came after it and can&rsquo;t be&nbsp;backdated.</p>
+          <span className="home-card-link">Ask Jev</span>
+        </Link>
+        <Link className="home-card" href="/docs/integration">
+          <h2>High volume</h2>
+          <p>Benchmarked at a million files per position, each individually verifiable. Projected: every photo taken on Earth in a day for about $2 in&nbsp;fees.</p>
+          <span className="home-card-link">Integration guide</span>
+        </Link>
+      </div>
 
     </div>
   );
