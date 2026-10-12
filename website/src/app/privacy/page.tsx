@@ -12,7 +12,7 @@ export default function PrivacyPage() {
     <div className="frame" style={{ padding: "56px 0 96px" }}>
       <article className="prose">
         <h1>Privacy Policy</h1>
-        <p className="meta">Effective date: August 27, 2026</p>
+        <p className="meta">Effective date: August 27, 2026. Updated October 12, 2026</p>
 
         <h2>1. What we collect</h2>
         <ul>
@@ -49,15 +49,16 @@ export default function PrivacyPage() {
           <li>Amazon Web Services, for infrastructure, in a US region.</li>
           <li>Railway, for the anchoring service.</li>
           <li>Cloudflare, for network routing to the recording environment.</li>
-          <li>Vercel, for hosting this site.</li>
+          <li>Vercel, for hosting this site and counting its page views.</li>
           <li>Resend, for delivering contact form messages.</li>
           <li>Google Workspace, for email.</li>
           <li>Adobe Fonts, for the site&apos;s typeface, loaded by your browser.</li>
           <li>A payment processor, for billing under paid agreements.</li>
         </ul>
         <p>
-          This site runs no analytics scripts and sets no non-essential
-          cookies.
+          This site counts page views with Vercel Web Analytics, which sets no
+          cookies and does not identify you or follow you to other sites. It sets no
+          non-essential cookies.
         </p>
 
         <h2>5. Retention</h2>

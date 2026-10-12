@@ -21,6 +21,7 @@
     "@noble/curves": "^2.0.1",
     "@noble/ed25519": "^3.0.0",
     "@noble/hashes": "^1.8.0",
+    "@vercel/analytics": "^2.0.1",
     "c2pa": "^0.30.17",
     "cbor-x": "^1.6.4",
     "fflate": "^0.8.2",

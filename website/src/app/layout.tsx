@@ -97,6 +97,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { NoOrphans } from "@/components/no-orphans";
 import { FigMarkers } from "@/components/figures/fig";
+// Page views, counted anonymously by Vercel Web Analytics: no cookies (Mike, 2026-10-12; the privacy page says so).
+import { Analytics } from "@vercel/analytics/next";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -146,6 +148,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             the body rule in globals.css. */}
         <main style={{ flex: "1 0 auto", background: "var(--bg)" }}>{children}</main>
         <SiteFooter />
+        <Analytics />
       </body>
     </html>
   );
