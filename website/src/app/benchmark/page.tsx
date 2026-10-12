@@ -79,8 +79,7 @@ export default function BenchmarkPage() {
       <ul>
         <li><Link href={PROOF}>The proof page for BitGraph #36</Link>, with the floor, the ceiling and every check</li>
         <li><a href={`${BASESCAN}/block/${FLOOR_BLOCK}`} {...ext}>The floor block</a> and <a href={`${BASESCAN}/tx/${CEILING_TX}`} {...ext}>the ceiling transaction</a> on Basescan</li>
-        <li><a href={`${RUN}/seed.txt`}>The seed and the rule for every file</a>: regenerate the million files, place the commitment from the proof in each, build the tree, and its root matches the one the proof&nbsp;commits</li>
-        <li>The run&rsquo;s own records: <a href={`${RUN}/proof.json`}>proof</a>, <a href={`${RUN}/root-document.hex`}>root document</a>, <a href={`${RUN}/timings.json`}>timings</a>, <a href={`${RUN}/ceiling.json`}>ceiling</a>, <a href={`${RUN}/receipt.json`}>fee receipt</a></li>
+        <li><a href={`${RUN}/seed.txt`} download>The seed and the rule for every file</a>: regenerate the million files, place the commitment from the proof in each, build the tree, and its root matches the one the proof&nbsp;commits</li>
       </ul>
     </div>
   );
