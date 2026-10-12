@@ -3395,3 +3395,4 @@ footer { border-top: 0 !important; }
    (Mike, 2026-10-12: "shouldnt all the diagrams match width too?"). Home and the demo pages are not article.prose. */
 main article.prose :is(figure, .home-two) { max-width: var(--measure); }
 main .bg-page-nav { max-width: var(--measure); }
+.bench-page .bench-seed { max-width: var(--measure); background: var(--paper); box-shadow: var(--shadow-card); padding: 16px 20px; overflow-x: auto; font-size: 14px; line-height: 1.6; margin: 16px 0 0; }
