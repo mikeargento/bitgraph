@@ -62,8 +62,8 @@ export default function BenchmarkPage() {
 
       <h2>Every file has its own place</h2>
       <p>
-        All one million share one position, but each is a separate member of it: BitGraph #40, member 1 to 1,000,000, with
-        its own fingerprint and its own path to the root. Any one file can be checked alone, without the other&nbsp;999,999.
+        A million files can share one BitGraph position. Each has its own member number, fingerprint, and path linking it to
+        that position. Any file can be verified independently, without needing the&nbsp;others.
       </p>
 
       <h2>The fee, worked out</h2>
