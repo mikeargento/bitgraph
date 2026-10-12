@@ -62,7 +62,7 @@ export default function BenchmarkPage() {
 
       <h2>Every file has its own place</h2>
       <p>
-        A million files can share one BitGraph position. Each has its own member number, fingerprint, and path linking it to
+        Up to one million files can share one BitGraph position. Each has its own member number, fingerprint, and path linking it to
         that position. Any file can be verified independently, without needing the&nbsp;others.
       </p>
 
