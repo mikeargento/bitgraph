@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 /* The benchmark that shows its work (Mike, 2026-10-12: "a batch test that shows its work ... 1 million files ... measure
-   the speed ... measure the price, and link to it all"). One real run, BitGraph #40 (it replaced #36, 11.65 s, after the tree went multi-core and container headers were cached), made from this Mac with
+   the speed ... measure the price, and link to it all"). One real, live run, BitGraph #40 (it replaced #36, 11.65 s, after the tree went multi-core and container headers were cached), made from this Mac with
    ~/Code/bitgraph-1m.noindex/one-million-base.mts --real; its records are served from /benchmark/2026-10-12/. The fee is
    the ceiling transaction's own receipt (gas used x effective gas price + the L1 data fee) at the Coinbase ETH spot price
    read right after the run. The five-billion line (a day of the world's photos) is a projection and says so. */
