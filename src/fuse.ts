@@ -87,6 +87,7 @@ import {
   verifyTreeMember,
   MAX_CONTAINER_ENTRY_BYTES,
 } from "@mikeargento/bitgraph-verify";
+import { buildTreeParallel } from "./tree-parallel.js";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, Located, MerkleTree, Placement, PlacementId, SetManifest, SetMember, SetMemberProof, SetRoot, SlotAllocation, TreeLeaf, TreeMemberEvidence, TreeVerifyResult } from "@mikeargento/bitgraph-verify";
 
 /**
@@ -1344,7 +1345,7 @@ export async function fuseTree(members: readonly FuseTreeMember[], options: Fuse
   report("tree", 0, 1);
   let built: ReturnType<typeof buildTree>;
   try {
-    built = buildTree(leaves);
+    built = await buildTreeParallel(leaves);
   } catch (err) {
     throw new FuseError("bad-input", `the tree could not be built: ${err instanceof Error ? err.message : String(err)}; ${expiring}`);
   }

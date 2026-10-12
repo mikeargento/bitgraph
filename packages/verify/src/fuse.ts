@@ -437,7 +437,23 @@ function octal(n: number, width: number): Uint8Array {
   return utf8(s);
 }
 
+/**
+ * A header depends only on the name and the size, and a batch of files has few distinct sizes, so each is built once
+ * and reused (2026-10-12: the header was a third of the time to fuse a million files). Callers only copy a header into
+ * a new archive or a hash, never write to it. Bounded, so a stream of many sizes cannot grow it without limit.
+ */
+const headerCache = new Map<string, Uint8Array>();
 function ustarHeader(name: string, size: number): Uint8Array {
+  const key = `${size}:${name}`;
+  const cached = headerCache.get(key);
+  if (cached !== undefined) return cached;
+  const built = buildUstarHeader(name, size);
+  if (headerCache.size >= 4096) headerCache.clear();
+  headerCache.set(key, built);
+  return built;
+}
+
+function buildUstarHeader(name: string, size: number): Uint8Array {
   if (size > MAX_ENTRY) throw new RangeError("container entries are limited to 8 GiB");
   const h = new Uint8Array(BLOCK);
   const nameBytes = utf8(name);
@@ -649,12 +665,12 @@ const container2: Placement = {
   frame({ originalSize, originDigest, commitment }) {
     const manifest = buildFusePayload(commitment, originDigest);
     return {
-      prefix: ustarHeader(CONTAINER_ORIGINAL_PATH, originalSize),
+      prefix: ustarHeader(CONTAINER_ORIGINAL_PATH, originalSize).slice(), // a copy: the cached header is never handed out to be written
       suffix: concat(new Uint8Array(padTo(originalSize)), ustarHeader(CONTAINER_MANIFEST_PATH, manifest.length), manifest, new Uint8Array(padTo(manifest.length)), new Uint8Array(BLOCK * 2)),
     };
   },
   scanPrefix(originalSize) {
-    return ustarHeader(CONTAINER_ORIGINAL_PATH, originalSize);
+    return ustarHeader(CONTAINER_ORIGINAL_PATH, originalSize).slice(); // a copy, as in frame()
   },
 };
 

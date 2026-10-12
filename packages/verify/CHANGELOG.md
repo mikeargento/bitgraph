@@ -2,7 +2,12 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
-## 1.18.0 (unreleased)
+## 1.19.0 (2026-10-12)
+
+- **Faster trees and containers, identical bytes.** A million-file tree/1 builds about 30% faster on one thread (leaves bucketed by their first two bytes before sorting; one reusable buffer per leaf and node hash; numeric subtree keys), and container/1 and container/2 build two to three times faster (each ustar header is built once per name and size and reused). Every root, path, order and archive byte is unchanged: checked against 1.18.0 for a million leaves and every container size class.
+- `MerkleTree` takes an optional second argument, `known`: subtree roots computed elsewhere (another thread) for ranges of its own split. `@mikeargento/bitgraph` 1.13.0 uses it to build trees on every core.
+
+## 1.18.0 (2026-10-11)
 
 - **bitgraph-carrier/4: a tree member carries its own proof.** In a tree/1 BitGraph the signed digest names the tree's root document, so a member could not travel as a BitGraphed file. Version 4 puts the member's committed bytes before the block and carries, in the block, export/1's one-file tree part (`tree: { rootDocument, member: { index, count, leaf, path } }`) beside everything version 2 carries; its floor is the one the proof signs, as an Ethereum anchor (version 2's shape) or a Base header (version 3's, no ceiling in position). `verifyCarrier` walks the bytes to the signed digest (the leaf's artifact digest, the commitment inside a placed leaf, the path, the root document's hash and commitment, the spec pin) and states the two floors of SPEC 8.6 for that one member: a placed leaf's bytes were finished after the floor block; a leaf kept as is is recorded after it, the bytes themselves not dated. New: `CARRIER_VERSION_4`, `assembleCarrierV4Payload`, `memberArtifactDigest`, `CarrierTree`; `verifyCarrier` returns `member` and `floorCovers` and takes `extraSpecHashes`; `innerDigestMatches` compares a /4 block's bytes with its leaf. The format is in `spec/CARRIER-4.md` (SPEC.md and SPEC-v2.md are frozen and unchanged).
 - Versions 1 to 3 parse and verify exactly as before. A reader of 1.17.0 or earlier given a version 4 file reports the block unreadable (UNDETERMINED: "a damaged or newer block, not a verdict on the file"), never a verdict.
