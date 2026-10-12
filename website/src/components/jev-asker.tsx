@@ -16,6 +16,7 @@
  * A result is never lost by leaving the page: the address becomes /jev?p=<record id>, which reads the
  * record back from the service.
  */
+import { restartMessage } from "@/lib/restart-message";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToBase64, commitmentForProof, signedFloorOf, verifyProofIntegrity, type BitGraphProof } from "@mikeargento/bitgraph-verify";
@@ -229,7 +230,9 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
     } catch (e) {
       setFailedAt(stepIndex(stageRef.current));
       setStage(null);
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      // The daily restart reaches here through Jev's service as "allocate refused (503): ..."; say it plainly.
+      setError(/restarting|\(503\)/i.test(msg) ? restartMessage() : msg);
     } finally {
       busy.current = false;
     }

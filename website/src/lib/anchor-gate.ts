@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { restartMessage } from "@/lib/restart-message";
 import { listKeysUnderPrefix } from "@/lib/s3";
 
 /** The enclave host: the cloudflared tunnel to the EC2 parent. */
@@ -26,10 +27,10 @@ export const TEE_URL = "https://nitro.occproof.com";
 // Restarting and not-yet-anchored both surface as the same retryable 503
 // (code "tee-restarting"), so one client retry loop covers the whole window.
 
-export const TEE_RESTARTING_BODY = { error: "The camera is restarting", code: "tee-restarting" } as const;
+export const teeRestartingBody = () => ({ error: restartMessage(), code: "tee-restarting" as const });
 
 export const teeRestarting503 = (headers?: Record<string, string>) =>
-  NextResponse.json(TEE_RESTARTING_BODY, { status: 503, ...(headers ? { headers } : {}) });
+  NextResponse.json(teeRestartingBody(), { status: 503, ...(headers ? { headers } : {}) });
 
 let cachedKey: { epochId: string; floor: string | null; at: number } | null = null;
 const anchoredEpochs = new Set<string>();

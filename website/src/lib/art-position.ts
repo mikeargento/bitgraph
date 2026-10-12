@@ -12,6 +12,7 @@
  * single pixel is drawn, the image is never made first, and a position is never swapped for
  * another. Only the PNG's SHA-256 leaves the browser.
  */
+import { restartMessage } from "@/lib/restart-message";
 import { sha256 } from "@noble/hashes/sha256";
 import {
   bytesToBase64, bytesEqual, commitmentForProof, inlineAttribution, signedFloorOf, verifyCarrier, verifyFuse, verifyProofIntegrity,
@@ -83,7 +84,7 @@ function fail(e: unknown, recorded: boolean): ArtError {
   if (e instanceof ArtError) return e;
   const code = e instanceof FuseError ? e.code : null;
   const msg = e instanceof Error ? e.message : String(e);
-  if (code === "tee-restarting") return new ArtError("tee-restarting", "BitGraph's enclave is restarting (it does every day at 23:59 UTC). Try again in a minute.");
+  if (code === "tee-restarting") return new ArtError("tee-restarting", restartMessage());
   if (code === "slot-unavailable") return new ArtError("expired", "The position expired before the image was recorded. Create another opens a new position and draws a new image.");
   if (code === "allocate-failed" || (!recorded && code === "network")) return new ArtError("open-failed", `The position could not be opened: ${msg}`);
   return new ArtError("record-failed", `The image could not be recorded: ${msg}`);

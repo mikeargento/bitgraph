@@ -1,3 +1,4 @@
+import { restartMessage } from "@/lib/restart-message";
 export const BITGRAPH_ENDPOINT = "https://nitro.occproof.com";
 
 export interface ActorIdentity {
@@ -348,7 +349,7 @@ export async function commitDigest(
     // yet. Retryable: nothing was minted. Typed by name so the record flow
     // can hold and retry instead of failing the batch.
     if (resp.status === 503 && (err as { code?: string }).code === "tee-restarting") {
-      const e = new Error(err.error || "The camera is restarting");
+      const e = new Error(err.error || restartMessage());
       e.name = "TeeRestartingError";
       throw e;
     }
@@ -412,7 +413,7 @@ export async function commitBatch(
     // yet. Retryable: nothing was minted. Typed by name so the record flow
     // can hold and retry instead of failing the batch.
     if (resp.status === 503 && (err as { code?: string }).code === "tee-restarting") {
-      const e = new Error(err.error || "The camera is restarting");
+      const e = new Error(err.error || restartMessage());
       e.name = "TeeRestartingError";
       throw e;
     }

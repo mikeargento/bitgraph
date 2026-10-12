@@ -25,6 +25,7 @@
  *     property of ITS strategy, not of the camera.
  */
 
+import { restartMessage } from "@/lib/restart-message";
 import { DropPrompt, Browse } from "@/components/drop-prompt";
 import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_BASE_FLOOR_FILE, floorHeaderFile } from "@/lib/package-layout";
 import { baseFloorOf } from "@/lib/fuse-core";
@@ -1802,7 +1803,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       try {
         return await fn();
       } catch (e) {
-        if (isTeeRestarting(e)) { const held = new Error("The camera is restarting"); held.name = "TeeRestartingError"; throw held; }
+        if (isTeeRestarting(e)) { const held = new Error(restartMessage()); held.name = "TeeRestartingError"; throw held; }
         throw e;
       }
     });
@@ -3365,7 +3366,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 One line, quiet gray, same voice as the drop hints. */}
             {teeRestarting && (
               <div style={{ fontSize: 13, color: "var(--dim)", textAlign: "center", maxWidth: 420 }}>
-                The camera is restarting for its daily key renewal. Your file is
+                BitGraph is restarting for its daily key renewal and will be back online in about a minute. Your file is
                 hashed and held; recording resumes automatically.
               </div>
             )}
