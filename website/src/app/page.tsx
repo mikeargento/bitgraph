@@ -90,18 +90,19 @@ export default function HomePage() {
       </div>
 
       {/* Three cards (Mike, 2026-10-11): what a visitor like Steven Mih would use it for, each claim one the mechanism
-          delivers. Training data: recorded as is, its Base ceiling. Model outputs: the position opened first (the Jev demo).
+          delivers. Each links somewhere the two buttons do not (Mike, 2026-10-14: two of them went where the buttons go):
+          the drop box, the integration guide, the benchmark. Training data: recorded as is, its Base ceiling. Model outputs: the position opened first (the Jev demo).
           Volume: tree/1, up to 1,000,000 leaves per position, one Base write each. */}
       <div className="home-cards">
-        <Link className="home-card" href="/docs/overview">
+        <Link className="home-card" href="/docs/try">
           <h2>Training data</h2>
           <p>BitGraph a dataset before training begins. The proof shows exactly which bytes existed, by a public&nbsp;block.</p>
-          <span className="home-card-link">How the proof works</span>
+          <span className="home-card-link">Make a BitGraph</span>
         </Link>
-        <Link className="home-card" href="/jev">
+        <Link className="home-card" href="/docs/integration">
           <h2>Model outputs</h2>
           <p>Put the position&rsquo;s commitment into the prompt. The answer provably came after it and can&rsquo;t be&nbsp;backdated.</p>
-          <span className="home-card-link">Ask AI</span>
+          <span className="home-card-link">Put it in your records</span>
         </Link>
         <Link className="home-card" href="/benchmark">
           <h2>High volume</h2>
