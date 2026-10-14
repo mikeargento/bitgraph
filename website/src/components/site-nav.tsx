@@ -187,13 +187,9 @@ export function SiteNav() {
             <Chevron />
           </button>
 
-          {/* A square blue + (Mike, 2026-10-14): the quick way to the drop box, /docs/try, at every width. */}
+          {/* A square blue + (Mike, 2026-10-14): the quick way to the drop box, /docs/try, at every width; filled, the bar's one blue (an outline fill stuck on after a tap). Contact left the bar (Mike, 2026-10-14: the footer link is enough). */}
           <Link href="/docs/try" className="nav-cta nav-plus" aria-label="Make a BitGraph" title="Make a BitGraph" aria-current={pathname === "/docs/try" ? "page" : undefined}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-          </Link>
-          {/* Contact (Mike, 2026-10-10), the blue pill on wide screens; on phones it is the button at the foot of the menu sheet (Mike, 2026-10-14). */}
-          <Link href="/contact" className="nav-cta nav-cta-text" aria-current={pathname === "/contact" ? "page" : undefined}>
-            Contact
           </Link>
         </div>
       </div>
@@ -219,10 +215,6 @@ export function SiteNav() {
                 </div>
               );
             })}
-            {/* Contact, the sheet's one button (Mike, 2026-10-14: on phones the bar keeps Menu and +; Contact sits here). */}
-            <Link href="/contact" className="nav-cta nav2-sheet-contact" onClick={() => setOpen(null)}>
-              Contact
-            </Link>
           </div>
         </div>
       )}

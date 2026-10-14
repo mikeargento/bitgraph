@@ -3397,11 +3397,13 @@ main article.prose :is(figure, .home-two) { max-width: var(--measure); }
 main .bg-page-nav { max-width: var(--measure); }
 .bench-page .bench-seed { max-width: var(--measure); background: var(--paper); box-shadow: var(--shadow-card); padding: 16px 20px; overflow-x: auto; font-size: 14px; line-height: 1.6; margin: 16px 0 0; }
 
-/* The + beside Contact (Mike, 2026-10-14): a square the pill's height, the icon centred; the same blue. */
-#site-nav .nav-cta.nav-plus { width: 42px; height: 42px; padding: 0 !important; justify-content: center; gap: 0 !important; flex: none; }
-/* Outline, so Contact stays the one filled action (Mike, 2026-10-14); fills on hover. */
-#site-nav .nav-cta.nav-plus { background: #fff !important; color: var(--btn-primary) !important; border: 1.5px solid var(--btn-primary) !important; box-sizing: border-box; }
-#site-nav .nav-cta.nav-plus:hover { background: var(--btn-primary) !important; color: #fff !important; box-shadow: none; }
-/* Phones: the Contact pill leaves the bar (Menu and + stay) and becomes the button at the foot of the menu sheet. */
-@media (max-width: 960px) { #site-nav .nav-cta.nav-cta-text { display: none; } }
-#site-nav .nav-cta.nav2-sheet-contact { display: flex; justify-content: center; width: 100%; height: 48px !important; margin: 20px 0 0 !important; font-size: 16px !important; box-sizing: border-box; }
+/* The + beside Contact (Mike, 2026-10-14): a square the pill's height, the icon centred; filled, the bar's one blue. */
+#site-nav .nav-cta.nav-plus { width: 42px; height: 42px; padding: 0 !important; justify-content: center; gap: 0 !important; flex: none; -webkit-tap-highlight-color: transparent; }
+/* /contact (Mike, 2026-10-14, after mldangelo.com/contact): the address alone, large, left-aligned, in the middle of the screen. */
+.contact-page { min-height: calc(100svh - 142px); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; text-align: left; padding: 56px 0 96px !important; box-sizing: border-box; } /* left, like the rest of the site (Mike, 2026-10-14); centred in the screen vertically, like home */
+.contact-page h1 { font-size: clamp(34px, 5.4vw, 60px) !important; font-weight: 500 !important; letter-spacing: -0.03em !important; line-height: 1.08 !important; margin: 0 !important; color: var(--ink); } /* the demo pages' h1 */
+.contact-page .contact-mail { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; } /* the h1's type and size, all black, no underline (Mike, 2026-10-14: bigger on phones) */
+.contact-page .contact-mail:hover { color: #0065a4; }
+/* Copy, the compact grey kind with the two-squares icon (Mike's reference, 2026-10-14). */
+.contact-page .contact-copy { display: inline-flex; align-items: center; gap: 8px; margin-top: 28px; padding: 8px 14px; border: 1px solid #dadce0; background: var(--paper, #fff); color: #5f6368; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.contact-page .contact-copy:hover { color: var(--ink); border-color: #bdc1c6; }
