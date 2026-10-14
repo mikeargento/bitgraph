@@ -88,7 +88,7 @@ export default function BenchmarkPage() {
         <li><Link href={PROOF}>The proof page for BitGraph #40</Link>, with the floor, the ceiling and every check</li>
         <li><a href={`${BASESCAN}/block/${FLOOR_BLOCK}`} {...ext}>The floor block</a> and <a href={`${BASESCAN}/tx/${CEILING_TX}`} {...ext}>the ceiling transaction</a> on Basescan</li>
       </ul>
-      {/* The seed on the page, not a download (Mike, 2026-10-12: "its small why not just on page?"). Same text as seed.txt. */}
+      {/* The seed on the page, not a download (Mike, 2026-10-12: "its small why not just on page?"); the same text as seed.txt. */}
       <p>
         The million files themselves were never stored. Each one is made from this seed by the rule below, so anyone can
         regenerate all of them, place the commitment from the proof in each, build the tree, and get the root the proof&nbsp;commits.
