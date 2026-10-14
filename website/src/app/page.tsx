@@ -101,7 +101,7 @@ export default function HomePage() {
         <Link className="home-card" href="/jev">
           <h2>Model outputs</h2>
           <p>Put the position&rsquo;s commitment into the prompt. The answer provably came after it and can&rsquo;t be&nbsp;backdated.</p>
-          <span className="home-card-link">Ask Jev</span>
+          <span className="home-card-link">Ask AI</span>
         </Link>
         <Link className="home-card" href="/benchmark">
           <h2>High volume</h2>

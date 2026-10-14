@@ -3399,6 +3399,9 @@ main .bg-page-nav { max-width: var(--measure); }
 
 /* The + beside Contact (Mike, 2026-10-14): a square the pill's height, the icon centred; the same blue. */
 #site-nav .nav-cta.nav-plus { width: 42px; height: 42px; padding: 0 !important; justify-content: center; gap: 0 !important; flex: none; }
+/* Outline, so Contact stays the one filled action (Mike, 2026-10-14); fills on hover. */
+#site-nav .nav-cta.nav-plus { background: #fff !important; color: var(--btn-primary) !important; border: 1.5px solid var(--btn-primary) !important; box-sizing: border-box; }
+#site-nav .nav-cta.nav-plus:hover { background: var(--btn-primary) !important; color: #fff !important; box-shadow: none; }
 /* Phones: the Contact pill leaves the bar (Menu and + stay) and becomes the button at the foot of the menu sheet. */
 @media (max-width: 960px) { #site-nav .nav-cta.nav-cta-text { display: none; } }
 #site-nav .nav-cta.nav2-sheet-contact { display: flex; justify-content: center; width: 100%; height: 48px !important; margin: 20px 0 0 !important; font-size: 16px !important; box-sizing: border-box; }

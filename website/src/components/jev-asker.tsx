@@ -27,7 +27,7 @@ const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.bitgraph.ing"
 type Stage = "opening" | "asking" | "recording" | "ready";
 const STEPS: Array<{ key: Stage; label: string }> = [
   { key: "opening", label: "Opening position" },
-  { key: "asking", label: "Asking Jev" },
+  { key: "asking", label: "Asking the AI" },
   { key: "recording", label: "Recording answers" },
   { key: "ready", label: "Ready" },
 ];
@@ -262,7 +262,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
       <div className={`art-hero art-go-wrap${running || shown || restoring ? " is-away" : ""}`}>
         <div className="art-hero-inner jev-go-inner">
           <button type="button" className="bg-action-link is-make art-go" onClick={ask} disabled={running} aria-busy={running}>
-            {failedAt >= 0 ? "Try again" : "Ask Jev two new questions"}
+            {failedAt >= 0 ? "Try again" : "Ask the AI two new questions"}
           </button>
         </div>
       </div>
@@ -290,16 +290,16 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
                 <div className="jev-q"><span className="jev-chip jev-q1" aria-hidden>1</span>{q.both.text}</div>
                 {a ? (
                   <div className="jev-a">
-                    <span>Jev: <strong>{yesNo(a.both.yes)}</strong> <span className="jev-sure">({pct(a.both.p)})</span></span>
+                    <span>AI: <strong>{yesNo(a.both.yes)}</strong> <span className="jev-sure">({pct(a.both.p)})</span></span>
                     <span className={`jev-verdict ${right?.both ? "is-right" : "is-wrong"}`}>{right?.both ? "Right" : `Wrong: ${yesNo(t.both)}`}</span>
                   </div>
-                ) : <div className="jev-a"><span>Jev did not answer: {record.jevError}</span></div>}
+                ) : <div className="jev-a"><span>The AI did not answer: {record.jevError}</span></div>}
               </li>
               <li>
                 <div className="jev-q"><span className="jev-chip jev-q2" aria-hidden>2</span>{q.first.text}</div>
                 {a ? (
                   <div className="jev-a">
-                    <span>Jev: <strong>{firstLabel(a.first.choice)}</strong>{a.first.confidence !== null ? <span className="jev-sure"> ({Math.round(a.first.confidence * 100)}% sure)</span> : null}</span>
+                    <span>AI: <strong>{firstLabel(a.first.choice)}</strong>{a.first.confidence !== null ? <span className="jev-sure"> ({Math.round(a.first.confidence * 100)}% sure)</span> : null}</span>
                     <span className={`jev-verdict ${right?.first ? "is-right" : "is-wrong"}`}>{right?.first ? "Right" : `Wrong: ${firstLabel(t.first)}`}</span>
                   </div>
                 ) : null}
@@ -309,8 +309,8 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
 
           {/* Mike, 2026-10-10: the same two-part explanation as the home image (what just happened, then why it matters),
               in place of the one-line caption. */}
-          <p className="art-home-explain"><span>BitGraph began this proof before these questions existed. Your click opened a position, and two questions were drawn from that position&rsquo;s commitment, so no one, Jev included, could have seen them before your click. Jev&rsquo;s answers were then recorded in the same position. No click will ever produce these questions again, the proof checks offline, and the questions can be drawn again from the commitment&nbsp;alone.</span></p>
-          <p className="art-home-explain"><span>This is how to test an AI on questions it could not have trained on: derive them from a commitment that came after a public block, and they cannot appear in any training data frozen before it. Jev is just the&nbsp;example.</span></p>
+          <p className="art-home-explain"><span>BitGraph began this proof before these questions existed. Your click opened a position, and two questions were drawn from that position&rsquo;s commitment, so no one, the AI included, could have seen them before your click. The AI&rsquo;s answers were then recorded in the same position. No click will ever produce these questions again, the proof checks offline, and the questions can be drawn again from the commitment&nbsp;alone.</span></p>
+          <p className="art-home-explain"><span>This is how to test an AI on questions it could not have trained on: derive them from a commitment that came after a public block, and they cannot appear in any training data frozen before it. This AI is just the&nbsp;example.</span></p>
           {/* Two actions only (Mike, 2026-10-10): the proof (which now shows the files) and asking again. */}
           <div className="actions art-actions">
             <a className="bg-action-link is-make" href={proofHref}><span>See the full proof</span></a>
@@ -323,7 +323,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
               <li><span>{floorBlockName(record.floorBlock).replace(/^block/, "Block")}</span><span>the floor</span></li>
               <li><span>Position {n(record.position)} opened, code issued</span><span>after the floor</span></li>
               <li><span>Two questions made from the code</span><span>{QV}</span></li>
-              <li><span>Jev answered</span><span>{record.jev.ms !== null ? `in ${n(record.jev.ms)} ms` : ""}</span></li>
+              <li><span>The AI answered</span><span>{record.jev.ms !== null ? `in ${n(record.jev.ms)} ms` : ""}</span></li>
               <li><span>Recorded as <a href={proofHref}>BitGraph #{n(record.counter)}</a></span><span>{record.files.length} files</span></li>
             </ol>
             <div className="art-detail-parts">
@@ -340,18 +340,18 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
               <p><strong>2. The questions come from the code,</strong> by a public rule with no choice in it. Anyone can redo this with any SHA-256 tool:</p>
               <Working q={q} />
               <h3>What it proves</h3>
-              <p>The questions were made from the position&rsquo;s code, and that code did not exist until the position opened. So no one could have seen these questions, or their answers, before the click. Jev&rsquo;s answers were recorded in that same position.</p>
+              <p>The questions were made from the position&rsquo;s code, and that code did not exist until the position opened. So no one could have seen these questions, or their answers, before the click. The AI&rsquo;s answers were recorded in that same position.</p>
               <h3>How the questions are made</h3>
               <p>The SHA-256 of the code ({QV}) chooses a digit and a letter for the first question and two digits for the second. Anyone can make them again from the code and check the true answers by eye: the marked characters show where each one first appears.</p>
               <h3>What it does not prove</h3>
-              <p>That Jev worked alone, how Jev works, or anything beyond these two answers. The kind of question is public; only these exact questions are new.</p>
+              <p>That the AI worked alone, how it works, or anything beyond these two answers. The kind of question is public; only these exact questions are new.</p>
               <h3>The numbers</h3>
             </div>
             <dl>
               <dt>Code</dt><dd><code className="break">{record.code}</code></dd>
               <dt>Record</dt><dd>BitGraph #{n(record.counter)}, epoch <code>{record.epoch.slice(0, 8)}</code></dd>
               <dt>Position</dt><dd>opened at {n(record.position)}, after {floorBlockName(record.floorBlock)}</dd>
-              <dt>Jev</dt><dd>{record.jev.reported ?? record.jev.model}{record.jev.requestId ? <>, TypeSafe request <code className="break">{record.jev.requestId}</code></> : null}</dd>
+              <dt>AI</dt><dd>{record.jev.reported ?? record.jev.model}{record.jev.requestId ? <>, TypeSafe request <code className="break">{record.jev.requestId}</code></> : null}</dd>
               <dt>Recorded files</dt><dd>{record.files.join(", ")}</dd>
               <dt>Record SHA-256</dt><dd><code className="break">{record.digestB64}</code> (base64)</dd>
             </dl>

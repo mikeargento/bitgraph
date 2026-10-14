@@ -12,14 +12,14 @@ export default function PrivacyPage() {
     <div className="frame" style={{ padding: "56px 0 96px" }}>
       <article className="prose">
         <h1>Privacy Policy</h1>
-        <p className="meta">Effective date: August 27, 2026. Updated October 12, 2026</p>
+        <p className="meta">Effective&nbsp;date: August&nbsp;27,&nbsp;2026.<br className="br-mob" /> Updated October&nbsp;14,&nbsp;2026</p>
 
         <h2>1. What we collect</h2>
         <ul>
           <li>Your email address and what you send us, when you contact us or have a commercial agreement with us.</li>
           <li>Billing details, when a paid agreement exists, handled by our payment processor. We do not store card numbers.</li>
           <li>Service logs: timestamps, request data, and IP addresses, used for security, rate limiting, abuse prevention, and diagnosing failures.</li>
-          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the position and proof metadata the recording environment needs to sign a proof. These come back to you in the proof. BitGraph keeps the Ethereum anchors; proofs made since 8 September 2026 are not stored or indexed by us.</li>
+          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the position and proof metadata the recording environment needs to sign a proof. These come back to you in the proof. BitGraph keeps a public copy of each proof, which holds the fingerprint but never the file. A proof names a public Base block as its floor, which BitGraph only reads; what BitGraph writes to the chain is one Base transaction, the ceiling, over the proofs made since the last one (Ethereum anchors did this before October 7, 2026). Neither holds anything about you or your file beyond the fingerprint.</li>
         </ul>
 
         <h2>2. What we do not collect</h2>
@@ -64,9 +64,9 @@ export default function PrivacyPage() {
         <h2>5. Retention</h2>
         <p>
           Ordinary service data (email, billing, support messages, and logs)
-          is kept only as long as the purposes above need it. Ethereum
-          anchors are retained indefinitely: they are the public floor every
-          later position is measured against. BitGraph also keeps a public copy of each proof it makes, which holds a fingerprint of the file but never its contents, so the site can list proofs and look them up. Copies already kept are under a ten-year retention lock.
+          is kept only as long as the purposes above need it. The ceiling
+          transactions BitGraph writes to Base, and the Ethereum anchors written before October 7, 2026, are permanent by
+          nature: nothing can remove them from the chain. The floor blocks proofs are measured against are the chain's own. BitGraph also keeps a public copy of each proof it makes, which holds a fingerprint of the file but never its contents, so the site can look proofs up. Copies already kept are under a ten-year retention lock.
         </p>
 
         <h2>6. Your rights</h2>
