@@ -165,7 +165,7 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
         const list: Array<{ proof?: unknown }> = Array.isArray(d?.proofs) ? d.proofs : [];
         for (const item of list) {
           const m = item.proof ? await restoreArtImage(item.proof as never, { recordedMs: recordedMsOf(item.proof), onTry: (a) => { if (!cancelled) setPainting(a === ART_ALGORITHM_V15); } }) : null;
-          if (m && !cancelled) { setMade(m); setRestored(!madeHere(urlSafe(m.digestB64))); setShown(true); if (!compact) void buildDownload(m); return; }
+          if (m && !cancelled) { setMade(m); setRestored(!madeHere(urlSafe(m.digestB64))); setShown(true); void buildDownload(m); return; } // the ceiling row under Technical details needs the Base block on /generate too (2026-10-14)
         }
         if (!cancelled) { setError({ message: `That ${cfg.noun} could not be found. Make a new one below.`, recorded: false }); window.history.replaceState(null, "", cfg.path); }
       } catch {
@@ -200,7 +200,7 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
       // The address now opens this image again, so leaving the page loses nothing.
       window.history.replaceState(null, "", `${cfg.path}?p=${urlSafe(r.digestB64)}`);
       rememberMade(urlSafe(r.digestB64));
-      if (!compact) void buildDownload(r); // ready the download and the Base block in the background (home and /generate offer none)
+      void buildDownload(r); // ready the download and the Base block in the background (/generate shows the block under Technical details since 2026-10-14)
       showTimer.current = window.setTimeout(() => setShown(true), Math.max(0, MIN_WAIT_MS - (performance.now() - startedAt.current)));
     } catch (e) {
       setFailedAt(stepIndex(stageRef.current));
@@ -271,7 +271,72 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
   const paints = cfg.algorithm === ART_ALGORITHM_V15;
   const threePlan = made ? made.recipe.v17 ?? made.recipe.v16 ?? null : null;
   const bridgePlan = made ? made.recipe.v19 ?? made.recipe.v18 ?? null : null;
-  const printSvgSha = !compact && made && (threePlan || bridgePlan) ? (() => { const svg = svgFromPngV16(made.png); return svg ? toHex(sha256(svg)) : null; })() : null;
+  const printSvgSha = made && (threePlan || bridgePlan) ? (() => { const svg = svgFromPngV16(made.png); return svg ? toHex(sha256(svg)) : null; })() : null;
+
+  /* Technical details, the /jev pattern (Mike, 2026-10-14: "like how ask jev has technical details"): the same closed
+     block under /generate's result as under the full result, with the redraw check and the generator's source inside. */
+  const techDetails = made ? (
+          <details className="art-details">
+            <summary className="art-details-title">Technical details</summary>
+            <ol className="art-timeline">
+              <li><span>{made.position.floorChain === "base" ? "Base" : "Ethereum"} block {made.position.floorBlock ? n(made.position.floorBlock) : ""}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
+              <li><span>Position {n(made.position.slotCounter)} opened, commitment issued</span><span>after the floor</span></li>
+              <li><span>Image drawn from the commitment</span><span>{bridgePlan ? <span>a bridge, {describeV18(bridgePlan)}, the print SVG inside the file</span> : threePlan ? `three shapes, ${describeV16(threePlan)}, the print SVG inside the file` : made.recipe.v15 ? `painting, ${compositionNameV15(made.recipe.v15)}, ${paletteNameV15(made.recipe.v15)}, 256 bits in its pixels` : made.recipe.v14 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v14.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v14.age)]}, ${HAIR_NAMES_V11[made.recipe.v14.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v14.expr]}, 256 bits in its pixels` : made.recipe.v13 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v13.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v13.age)]}, ${HAIR_NAMES_V11[made.recipe.v13.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v13.expr]}, 256 bits in its pixels` : made.recipe.v12 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v12.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v12.age)]}, ${HAIR_NAMES_V11[made.recipe.v12.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v12.expr]}, 256 bits in its pixels` : made.recipe.v11 ? `ink portrait, ${PALETTE_NAMES_V11[made.recipe.v11.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v11.age)]}, ${HAIR_NAMES_V11[made.recipe.v11.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v11.expr]}, 256 bits in its pixels` : made.recipe.v10 ? `flow field, ${STYLE_NAMES_V10[made.recipe.v10.style]}, ${DENSITY_NAMES_V10[made.recipe.v10.density]}, ${PALETTE_NAMES_V10[made.recipe.v10.palette]}, ${made.recipe.v10.segments.length.toLocaleString("en-US")} segments, 256 bits in its pixels` : made.recipe.v9 ? `five families, ${["strata", "interference", "cut paper", "blocks", "ribbons"][made.recipe.v9.dominant]} leading, ${made.recipe.v9.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v8 ? `${made.recipe.v8.layers.length} shapes, ${made.recipe.v8.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v7 ? `${made.recipe.v7.layers.length} layers, ${made.recipe.v7.loud ? "loud" : "calm"}, 256 bits in its colors` : made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
+              <li><span>Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{counter}</a></span><span>{recordedMs ? utc(recordedMs) : ""}</span></li>
+              <li className={built?.existedBy ? "" : "is-pending"}><span>{built?.existedBy ? `Existed by Base block ${n(built.existedBy.blockNumber)}` : "Base block"}</span><span>{built?.existedBy ? utc(built.existedBy.timestamp * 1000) : building ? "waiting for it" : "not in yet"}</span></li>
+            </ol>
+            <div className="art-detail-parts">
+              <h3>What it proves</h3>
+              <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier. That makes it original: it did not exist anywhere before that moment, and no later click will ever draw it again.</p>
+              <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
+              <h3>How it was drawn</h3>
+              <p>{bridgePlan
+                ? <span>Every bridge is the same suspension bridge built from flat rectangles: thousands of small ones fill its towers, deck and cables, and larger ones fill the sky and the water around it. The colors, the detail, the gaps, the share of bars, the largest sizes and every rectangle&rsquo;s place, size and shape come from the code ({made.manifest.algorithm}); this one drew {settingsTextV18(bridgePlan)}. The recorded file is a PNG, and it carries the print version inside it, an SVG of the same rectangles in whole numbers on a {made.manifest.width} by {made.manifest.height} grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</span>
+                : isThree(made.manifest.algorithm)
+                ? <>Every piece is three flat shapes on a flat ground, squares or rectangles that never touch, in red, yellow, blue and green: the ground is one of the four, and each shape one of the other three. Every size, position, gap and color comes from the code ({made.manifest.algorithm}). The recorded file is a PNG, and it carries the print version inside it, an SVG of the same shapes in whole numbers on {made.manifest.algorithm === ART_ALGORITHM_V17 ? "a 1920 by 1080" : "an 1800 by 1800"} grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</>
+                : made.manifest.algorithm === "bitgraph-art/15"
+                ? <>Every picture is a painting no one painted: an abstract oil painting whose every decision comes from the code ({made.manifest.algorithm}), the painter&rsquo;s choices for the day, the composition, each brush, its load of paint, how it twists, splays and runs dry, and the wet paint it picks up and drags, laid on linen and lit from the top left. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is its painted color or that color one level away in blue, so that its red, green and blue add up to an odd number exactly when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/14" || made.manifest.algorithm === "bitgraph-art/13"
+                ? <>Every picture is a portrait of a person who does not exist: a head built from the code, its bones, features, age, hair, expression, gaze and the light on it all drawn from the code ({made.manifest.algorithm}), and rendered as an engraving, fine lines that follow the form and swell and thin like a burin cut, fading out where the light turns, every outline a smooth curve. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/12"
+                ? <>Every picture is a portrait of a person who does not exist: a head built from the code, its bones, features, age, hair, expression, gaze and the light on it all drawn from the code ({made.manifest.algorithm}), and rendered as an engraving, fine lines that follow the form and swell and thin like a burin cut. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/11"
+                ? <>Every picture is a portrait of a person who does not exist: a head built from the code, its bones, features, age, hair, expression, gaze and the light on it all drawn from the code ({made.manifest.algorithm}), and rendered as an etching, hatched lines that follow the form. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/10"
+                ? <>Every picture is a flow field: hundreds to thousands of flat segments, from hairlines to broad bands, grown along a heading field and never overlapping, packed where a density field is high and absent where it is low, and every heading, width, color and position comes from the code ({made.manifest.algorithm}). The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/9"
+                ? <>Every picture layers the same five families, strata, interference, cut paper, blocks and ribbons, one of them leading, and every shape, color and position comes from the code ({made.manifest.algorithm}). The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/8"
+                ? <>Every shape, pattern, color and mood comes from the code ({made.manifest.algorithm}). The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/7"
+                ? <>Every shape, pattern, color and mood comes from the code ({made.manifest.algorithm}). The code is also written into the picture&rsquo;s colors: a hidden grid of 256 tiles, one bit each, where a tile whose bit is 1 is drawn in colors one shade away from the palette&rsquo;s, too close to see. Nothing in the picture moves to carry it, yet two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/6"
+                ? <>Every shape, pattern, color and mood comes from the code ({made.manifest.algorithm}). The code is woven into the art itself: a hidden grid of 256 tiles, one bit each, where the pattern on top shifts slightly inside its tile so the tile&rsquo;s center lands on the color its bit calls for. That is the faint stitching you can see at the tile edges. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/5"
+                ? <>Every shape, pattern, color and mood comes from the code ({made.manifest.algorithm}): which shapes, where, filled with which line fields, rings, bursts, dots or checks, whether calm or loud. The tick marks around the frame spell the code&rsquo;s 256 bits, one tick per bit, so two different codes can never make the same image, and the code can be read back from the picture alone.</>
+                : made.manifest.algorithm === "bitgraph-art/4"
+                ? <>The picture spells the code. Each of its 256 tiles is one bit: the arcs turn one way for a 0 and the other for a 1, and join into one pattern. So two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>
+                : <>The picture spells the code. Each of its 36 cells carries 7 of the code&rsquo;s 256 bits, the palette and the frame carry the rest, so two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>} Anyone can redraw it and compare, pixel for pixel.</p>
+              {/* The redraw made visible (2026-10-14, an outside reading: "a verifier has to take your word for it"): the check
+                  above already ran (checkArt on make, the digest match on reopen; the image is not shown otherwise), so the
+                  line states it, and links the generator's source. Bridges only: that is the code published at /generate/source. */}
+              {bridgePlan && <p className="art-redraw-check" style={{ color: "#d93025" }}><span className="art-check-mark" aria-hidden="true">&#10003;</span><span>Drawn on this device from the commitment alone, and checked against a second drawing: identical, byte for byte.<a className="art-redraw-link" href="/generate/source">Read the generator&rsquo;s code</a></span></p>}
+              <h3>What it does not prove</h3>
+              <p>Who made it, or anything about the computer it was made on.</p>
+              <h3>The numbers</h3>
+            </div>
+            <dl>
+              <dt>Algorithm</dt><dd><code>{made.manifest.algorithm}</code>, {made.manifest.width} x {made.manifest.height}</dd>
+              <dt>Record</dt><dd>BitGraph #{counter}</dd>
+              <dt>Position</dt><dd>opened at {n(made.position.slotCounter)}, epoch <code>{made.position.epochId.slice(0, 8)}</code>{made.position.floorBlock ? <>, after {made.position.floorChain === "base" ? "Base" : "Ethereum"} block {n(made.position.floorBlock)}</> : null}</dd>
+              <dt>Commitment</dt><dd><code className="break">{made.position.commitment}</code></dd>
+              <dt>Recipe SHA-256</dt><dd><code className="break">{made.manifest.recipeSha256}</code></dd>
+              <dt>Pixels SHA-256</dt><dd><code className="break">{made.manifest.pixelsSha256}</code></dd>
+              {(threePlan || bridgePlan) && printSvgSha && <><dt>Print SVG SHA-256</dt><dd><code className="break">{printSvgSha}</code></dd></>}
+              <dt>Recorded file SHA-256</dt><dd><code className="break">{made.digestB64}</code> (base64)</dd>
+            </dl>
+          </details>
+  ) : null;
 
   return (
     <div className={`art${home ? " art-home" : ""}${shown ? " is-active" : ""}`}>
@@ -338,6 +403,7 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
             <button type="button" className="bg-action-link is-make art-go" onClick={create}>{cfg.again}</button>
             <a className="bg-action-link art-go" href={`/proof/${urlSafe(made.digestB64)}`}>See the full proof</a>
           </div>
+          {techDetails}
         </div>
       )}
 
@@ -367,62 +433,7 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
             <a className="bg-action-link" href={`/proof/${urlSafe(made.digestB64)}`}><span>See the full proof</span></a>
           </div>
 
-          <details className="art-details">
-            <summary className="art-details-title">Technical details</summary>
-            <ol className="art-timeline">
-              <li><span>{made.position.floorChain === "base" ? "Base" : "Ethereum"} block {made.position.floorBlock ? n(made.position.floorBlock) : ""}</span><span>{built?.floorTs ? utc(built.floorTs * 1000) : "the floor"}</span></li>
-              <li><span>Position {n(made.position.slotCounter)} opened, commitment issued</span><span>after the floor</span></li>
-              <li><span>Image drawn from the commitment</span><span>{bridgePlan ? <span>a bridge, {describeV18(bridgePlan)}, the print SVG inside the file</span> : threePlan ? `three shapes, ${describeV16(threePlan)}, the print SVG inside the file` : made.recipe.v15 ? `painting, ${compositionNameV15(made.recipe.v15)}, ${paletteNameV15(made.recipe.v15)}, 256 bits in its pixels` : made.recipe.v14 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v14.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v14.age)]}, ${HAIR_NAMES_V11[made.recipe.v14.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v14.expr]}, 256 bits in its pixels` : made.recipe.v13 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v13.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v13.age)]}, ${HAIR_NAMES_V11[made.recipe.v13.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v13.expr]}, 256 bits in its pixels` : made.recipe.v12 ? `engraved portrait, ${PALETTE_NAMES_V11[made.recipe.v12.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v12.age)]}, ${HAIR_NAMES_V11[made.recipe.v12.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v12.expr]}, 256 bits in its pixels` : made.recipe.v11 ? `ink portrait, ${PALETTE_NAMES_V11[made.recipe.v11.palette]}, ${AGE_BAND_NAMES_V11[ageBandV11(made.recipe.v11.age)]}, ${HAIR_NAMES_V11[made.recipe.v11.hair]}, ${EXPRESSION_NAMES_V11[made.recipe.v11.expr]}, 256 bits in its pixels` : made.recipe.v10 ? `flow field, ${STYLE_NAMES_V10[made.recipe.v10.style]}, ${DENSITY_NAMES_V10[made.recipe.v10.density]}, ${PALETTE_NAMES_V10[made.recipe.v10.palette]}, ${made.recipe.v10.segments.length.toLocaleString("en-US")} segments, 256 bits in its pixels` : made.recipe.v9 ? `five families, ${["strata", "interference", "cut paper", "blocks", "ribbons"][made.recipe.v9.dominant]} leading, ${made.recipe.v9.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v8 ? `${made.recipe.v8.layers.length} shapes, ${made.recipe.v8.loud ? "loud" : "calm"}, 256 bits in its pixels` : made.recipe.v7 ? `${made.recipe.v7.layers.length} layers, ${made.recipe.v7.loud ? "loud" : "calm"}, 256 bits in its colors` : made.recipe.v6 ? `${made.recipe.v6.layers.length} layers, ${made.recipe.v6.loud ? "loud" : "calm"}, 256 woven bits` : made.recipe.v5 ? `${made.recipe.v5.layers.length} layers, ${made.recipe.v5.loud ? "loud" : "calm"}` : made.recipe.grid === 16 ? "256 tiles, one bit each" : `${made.recipe.grid * made.recipe.grid} cells`}</span></li>
-              <li><span>Recorded as <a href={`/proof/${urlSafe(made.digestB64)}`}>BitGraph #{counter}</a></span><span>{recordedMs ? utc(recordedMs) : ""}</span></li>
-              <li className={built?.existedBy ? "" : "is-pending"}><span>{built?.existedBy ? `Existed by Base block ${n(built.existedBy.blockNumber)}` : "Base block"}</span><span>{built?.existedBy ? utc(built.existedBy.timestamp * 1000) : building ? "waiting for it" : "not in yet"}</span></li>
-            </ol>
-            <div className="art-detail-parts">
-              <h3>What it proves</h3>
-              <p>The image was drawn from its position&rsquo;s commitment, and that commitment did not exist until the position opened. So these exact bytes could not have been finished any earlier. That makes it original: it did not exist anywhere before that moment, and no later click will ever draw it again.</p>
-              <p className="art-fine">Precisely: this image was generated from its position commitment and recorded in that position. Under the protocol&rsquo;s unpredictability assumptions, this exact commitment-bearing artifact could not have been completed before the commitment became available.</p>
-              <h3>How it was drawn</h3>
-              <p>{bridgePlan
-                ? <span>Every bridge is the same suspension bridge built from flat rectangles: thousands of small ones fill its towers, deck and cables, and larger ones fill the sky and the water around it. The colors, the detail, the gaps, the share of bars, the largest sizes and every rectangle&rsquo;s place, size and shape come from the code ({made.manifest.algorithm}); this one drew {settingsTextV18(bridgePlan)}. The recorded file is a PNG, and it carries the print version inside it, an SVG of the same rectangles in whole numbers on a {made.manifest.width} by {made.manifest.height} grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</span>
-                : isThree(made.manifest.algorithm)
-                ? <>Every piece is three flat shapes on a flat ground, squares or rectangles that never touch, in red, yellow, blue and green: the ground is one of the four, and each shape one of the other three. Every size, position, gap and color comes from the code ({made.manifest.algorithm}). The recorded file is a PNG, and it carries the print version inside it, an SVG of the same shapes in whole numbers on {made.manifest.algorithm === ART_ALGORITHM_V17 ? "a 1920 by 1080" : "an 1800 by 1800"} grid, so it prints sharp at any size; the proof covers both. The code is written into both files as text, and both are drawn again from the code and compared, byte for byte.</>
-                : made.manifest.algorithm === "bitgraph-art/15"
-                ? <>Every picture is a painting no one painted: an abstract oil painting whose every decision comes from the code ({made.manifest.algorithm}), the painter&rsquo;s choices for the day, the composition, each brush, its load of paint, how it twists, splays and runs dry, and the wet paint it picks up and drags, laid on linen and lit from the top left. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is its painted color or that color one level away in blue, so that its red, green and blue add up to an odd number exactly when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
-                : made.manifest.algorithm === "bitgraph-art/14" || made.manifest.algorithm === "bitgraph-art/13"
-                ? <>Every picture is a portrait of a person who does not exist: a head built from the code, its bones, features, age, hair, expression, gaze and the light on it all drawn from the code ({made.manifest.algorithm}), and rendered as an engraving, fine lines that follow the form and swell and thin like a burin cut, fading out where the light turns, every outline a smooth curve. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
-                : made.manifest.algorithm === "bitgraph-art/12"
-                ? <>Every picture is a portrait of a person who does not exist: a head built from the code, its bones, features, age, hair, expression, gaze and the light on it all drawn from the code ({made.manifest.algorithm}), and rendered as an engraving, fine lines that follow the form and swell and thin like a burin cut. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
-                : made.manifest.algorithm === "bitgraph-art/11"
-                ? <>Every picture is a portrait of a person who does not exist: a head built from the code, its bones, features, age, hair, expression, gaze and the light on it all drawn from the code ({made.manifest.algorithm}), and rendered as an etching, hatched lines that follow the form. The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
-                : made.manifest.algorithm === "bitgraph-art/10"
-                ? <>Every picture is a flow field: hundreds to thousands of flat segments, from hairlines to broad bands, grown along a heading field and never overlapping, packed where a density field is high and absent where it is low, and every heading, width, color and position comes from the code ({made.manifest.algorithm}). The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
-                : made.manifest.algorithm === "bitgraph-art/9"
-                ? <>Every picture layers the same five families, strata, interference, cut paper, blocks and ribbons, one of them leading, and every shape, color and position comes from the code ({made.manifest.algorithm}). The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
-                : made.manifest.algorithm === "bitgraph-art/8"
-                ? <>Every shape, pattern, color and mood comes from the code ({made.manifest.algorithm}). The code is also written into the picture itself: a hidden grid of 256 tiles, one bit each, where one pixel per tile is drawn one shade away from its color when the bit is 1, too slight to see. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
-                : made.manifest.algorithm === "bitgraph-art/7"
-                ? <>Every shape, pattern, color and mood comes from the code ({made.manifest.algorithm}). The code is also written into the picture&rsquo;s colors: a hidden grid of 256 tiles, one bit each, where a tile whose bit is 1 is drawn in colors one shade away from the palette&rsquo;s, too close to see. Nothing in the picture moves to carry it, yet two different codes can never make the same image, and the code can be read back from the picture alone.</>
-                : made.manifest.algorithm === "bitgraph-art/6"
-                ? <>Every shape, pattern, color and mood comes from the code ({made.manifest.algorithm}). The code is woven into the art itself: a hidden grid of 256 tiles, one bit each, where the pattern on top shifts slightly inside its tile so the tile&rsquo;s center lands on the color its bit calls for. That is the faint stitching you can see at the tile edges. So two different codes can never make the same image, and the code can be read back from the picture alone.</>
-                : made.manifest.algorithm === "bitgraph-art/5"
-                ? <>Every shape, pattern, color and mood comes from the code ({made.manifest.algorithm}): which shapes, where, filled with which line fields, rings, bursts, dots or checks, whether calm or loud. The tick marks around the frame spell the code&rsquo;s 256 bits, one tick per bit, so two different codes can never make the same image, and the code can be read back from the picture alone.</>
-                : made.manifest.algorithm === "bitgraph-art/4"
-                ? <>The picture spells the code. Each of its 256 tiles is one bit: the arcs turn one way for a 0 and the other for a 1, and join into one pattern. So two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>
-                : <>The picture spells the code. Each of its 36 cells carries 7 of the code&rsquo;s 256 bits, the palette and the frame carry the rest, so two different codes can never draw the same picture, and the code can be read back from the picture alone ({made.manifest.algorithm}).</>} Anyone can redraw it and compare, pixel for pixel.</p>
-              <h3>What it does not prove</h3>
-              <p>Who made it, or anything about the computer it was made on.</p>
-              <h3>The numbers</h3>
-            </div>
-            <dl>
-              <dt>Algorithm</dt><dd><code>{made.manifest.algorithm}</code>, {made.manifest.width} x {made.manifest.height}</dd>
-              <dt>Record</dt><dd>BitGraph #{counter}</dd>
-              <dt>Position</dt><dd>opened at {n(made.position.slotCounter)}, epoch <code>{made.position.epochId.slice(0, 8)}</code>{made.position.floorBlock ? <>, after {made.position.floorChain === "base" ? "Base" : "Ethereum"} block {n(made.position.floorBlock)}</> : null}</dd>
-              <dt>Commitment</dt><dd><code className="break">{made.position.commitment}</code></dd>
-              <dt>Recipe SHA-256</dt><dd><code className="break">{made.manifest.recipeSha256}</code></dd>
-              <dt>Pixels SHA-256</dt><dd><code className="break">{made.manifest.pixelsSha256}</code></dd>
-              {(threePlan || bridgePlan) && printSvgSha && <><dt>Print SVG SHA-256</dt><dd><code className="break">{printSvgSha}</code></dd></>}
-              <dt>Recorded file SHA-256</dt><dd><code className="break">{made.digestB64}</code> (base64)</dd>
-            </dl>
-          </details>
+          {techDetails}
         </div>
       )}
     </div>

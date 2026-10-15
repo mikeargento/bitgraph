@@ -1986,9 +1986,23 @@ export default function ProofPage() {
               </div>
             </div>
           ) : isInterval ? null : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
-            <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "drawn from the proof" : heldLabel}
-              /* No "Save for print" (Mike, 2026-10-09: a print is a different bit version of the picture, so it would not
-                 match its own proof and would confuse; the recorded file is the one to print). */ />
+            <>
+              <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "drawn from the proof" : heldLabel}
+                /* No "Save for print" (Mike, 2026-10-09: a print is a different bit version of the picture, so it would not
+                   match its own proof and would confuse; the recorded file is the one to print). */ />
+              {/* The redraw made visible (2026-10-14, an outside reading of /generate: "a verifier has to take your word for it").
+                  redrawRecordedArt hands the picture over only when the redrawing's SHA-256 IS the recorded digest, so the
+                  line states what just happened on this device; a bridge links the generator's published source. */}
+              {redrawn && (
+                <p className="pv-redraw-check" style={{ color: "#d93025" }}>
+                  <span className="art-check-mark" aria-hidden="true">&#10003;</span>
+                  <span>
+                    Drawn again from the code on this device, not loaded: its SHA-256 is the recorded digest, byte for byte.
+                    {(redrawnAlgo === ART_ALGORITHM_V18 || redrawnAlgo === ART_ALGORITHM_V19) && <a className="art-redraw-link" href="/generate/source">Read the generator&rsquo;s code</a>}
+                  </span>
+                </p>
+              )}
+            </>
           ) : cachedFile ? (
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
           ) : painting ? (

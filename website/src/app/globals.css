@@ -3408,3 +3408,20 @@ main .bg-page-nav { max-width: var(--measure); }
 /* Copy, the compact grey kind with the two-squares icon (Mike's reference, 2026-10-14). */
 .contact-page .contact-copy { display: inline-flex; align-items: center; gap: 8px; margin-top: 28px; padding: 8px 14px; border: 1px solid #dadce0; background: var(--paper, #fff); color: #5f6368; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
 .contact-page .contact-copy:hover { color: var(--ink); border-color: #bdc1c6; }
+
+/* The redraw line under "How it was drawn" (2026-10-14): a filled square check, the site's blue, then one sentence. */
+.art-detail-parts .art-redraw-check { font-weight: 600; }
+.art-check-mark { display: inline-block; flex: none; width: 18px; height: 18px; line-height: 18px; text-align: center; background: #1a73e8; color: #fff; font-size: 12px; margin-top: 2px; }
+/* The mark in a column of its own, the sentence beside it, the link on a line under the sentence (Mike, 2026-10-14: "this wraps weird"). */
+.art-redraw-check, .pv-redraw-check { display: flex; align-items: flex-start; gap: 8px; }
+.art-redraw-link { display: block; margin-top: 4px; }
+/* /generate/source ends with the last file; no footer under it (Mike, 2026-10-14: "no footer here"). */
+body:has(.source-page) footer { display: none; }
+.source-page { padding-bottom: 96px; }
+/* /generate/source: the four files as they are, each in a card at the site's measure; long lines scroll, never wrap. */
+.source-page { padding-top: 56px; }
+.source-page .source-file h2 { margin: 36px 0 6px !important; font-size: 20px !important; }
+.source-page .source-file h2 code, .source-page .source-file p code { font-size: 0.92em; overflow-wrap: anywhere; }
+.source-page pre { max-width: var(--measure); background: var(--paper); box-shadow: var(--shadow-card); padding: 16px 20px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; white-space: pre; margin: 12px 0 0; }
+.source-page pre code { display: block; white-space: pre !important; } /* the site's inline-code rule (code { white-space: nowrap }) would fold the file into one line; the files keep their line breaks */
+.pv-redraw-check { margin: 12px 0 0; font-size: 14px; font-weight: 600; line-height: 1.5; } /* under a redrawn picture on the proof page (2026-10-14) */
