@@ -320,7 +320,7 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
               {/* The redraw made visible (2026-10-14, an outside reading: "a verifier has to take your word for it"): the check
                   above already ran (checkArt on make, the digest match on reopen; the image is not shown otherwise), so the
                   line states it, and links the generator's source. Bridges only: that is the code published at /generate/source. */}
-              {bridgePlan && <p className="art-redraw-check" style={{ color: "#d93025" }}><span className="art-check-mark" aria-hidden="true">&#10003;</span><span>Drawn on this device from the commitment alone, and checked against a second drawing: identical, byte for byte.<a className="art-redraw-link" href="/generate/source">Read the generator&rsquo;s code</a></span></p>}
+              {bridgePlan && <p className="art-redraw-check"><span className="art-check-mark" aria-hidden="true">&#10003;</span><span>Drawn on this device from the commitment alone, and checked against a second drawing: identical, byte for byte.<a className="art-redraw-link" href="/generate/source">Read the generator&rsquo;s code</a></span></p>}
               <h3>What it does not prove</h3>
               <p>Who made it, or anything about the computer it was made on.</p>
               <h3>The numbers</h3>

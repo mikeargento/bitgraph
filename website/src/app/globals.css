@@ -3415,8 +3415,7 @@ main .bg-page-nav { max-width: var(--measure); }
 /* The mark in a column of its own, the sentence beside it, the link on a line under the sentence (Mike, 2026-10-14: "this wraps weird"). */
 .art-redraw-check, .pv-redraw-check { display: flex; align-items: flex-start; gap: 8px; }
 .art-redraw-link { display: block; margin-top: 4px; }
-/* /generate/source ends with the last file; no footer under it (Mike, 2026-10-14: "no footer here"). */
-body:has(.source-page) footer { display: none; }
+/* /generate/source: air between the last file and the footer (Mike, 2026-10-14: the footer sat right on the last card). */
 .source-page { padding-bottom: 96px; }
 /* /generate/source: the four files as they are, each in a card at the site's measure; long lines scroll, never wrap. */
 .source-page { padding-top: 56px; }

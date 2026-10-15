@@ -32,25 +32,25 @@ export default function GeneratorSourcePage() {
   return (
     <div className="frame prose source-page" style={{ maxWidth: "var(--measure)" }}>
       <h1>The bridge generator</h1>
-      <p className="lede" style={{ color: "#d93025" }}>
+      <p className="lede">
         Every image <Link href="/generate">/generate</Link> makes is a pure function of its position&rsquo;s commitment: 32 bytes the
         enclave issued when the position opened. This is the code that turns those bytes into the picture, read from the
         files the site itself runs.
       </p>
-      <p style={{ color: "#d93025" }}>
+      <p>
         To check a bridge, take the commitment from its proof, draw version 19 from it, and compare with the recorded PNG:
         they match byte for byte, or the proof is false. The site does this itself every time a bridge is made or reopened.
         Every draw in the code is an integer taken from SHA-256 of the commitment; nothing comes from a clock or a random
         number generator, so the same commitment draws the same bridge on any machine.
       </p>
-      <p className="source-license" style={{ color: "#d93025" }}>
+      <p className="source-license">
         &copy; 2026 Michael Argento. All rights reserved. Published so the drawing can be checked; no license is granted to
         copy, change or reuse it.
       </p>
       {sources.map((s) => (
         <section key={s.name} className="source-file">
           <h2><code>{s.name}</code></h2>
-          <p style={{ color: "#d93025" }}>{s.what}. SHA-256 <code>{s.sha256}</code>, {s.text.length.toLocaleString("en-US")} characters.</p>
+          <p>{s.what}. SHA-256 <code>{s.sha256}</code>, {s.text.length.toLocaleString("en-US")} characters.</p>
           <pre><code>{s.text}</code></pre>
         </section>
       ))}

@@ -1994,7 +1994,7 @@ export default function ProofPage() {
                   redrawRecordedArt hands the picture over only when the redrawing's SHA-256 IS the recorded digest, so the
                   line states what just happened on this device; a bridge links the generator's published source. */}
               {redrawn && (
-                <p className="pv-redraw-check" style={{ color: "#d93025" }}>
+                <p className="pv-redraw-check">
                   <span className="art-check-mark" aria-hidden="true">&#10003;</span>
                   <span>
                     Drawn again from the code on this device, not loaded: its SHA-256 is the recorded digest, byte for byte.
