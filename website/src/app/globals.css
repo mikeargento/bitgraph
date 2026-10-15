@@ -3544,3 +3544,19 @@ main .bg-page-nav { max-width: var(--measure); }
 
 /* Full-width bands (blue, then the site's ink) under "Three steps" and the numbers were tried 2026-10-15 and removed the same
    night (Mike: "just remove background"); the page stays white with hairlines between sections. */
+
+/* The demo pages in the home's structure (Mike, 2026-10-15: "should these set up pages just mimic home style?"): the
+   headline block at the top like the home's hero (96 under the bar), its headline between the docs size and the home's,
+   then the home's section pattern (hairline, kicker, "Three steps.", three cards). The two-column and centred layouts
+   above are dormant: DemoSteps no longer renders .demo-steps / .demo-step. */
+.art-page { padding-top: 96px !important; }
+.art-page > .art { min-height: 0 !important; }
+.art-page h1.jev-title { font-size: clamp(36px, 4.4vw, 56px) !important; line-height: 1.08 !important; margin-bottom: 20px !important; }
+@media (max-width: 600px) { .art-page h1.jev-title { font-size: 34px !important; } }
+.art-page .demo-section { margin-top: 42px; } /* 42 + the button row's 6 = 48 to the hairline, as on the home */
+.frame:has(.art-go-wrap.is-away) > .demo-section { display: none; }
+/* The home's card grid and card look, for the demo pages' steps (the home's rules are scoped to .home). */
+.demo-section .home-cards { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 0; }
+@media (min-width: 900px) { .demo-section .home-cards { grid-template-columns: repeat(3, 1fr); gap: 24px; } }
+.demo-section .home-card { display: flex; flex-direction: column; background: var(--paper, #fff); box-shadow: var(--shadow-card); padding: 24px; color: inherit; }
+.demo-section .home-card p { font-size: 15px !important; line-height: 1.5 !important; color: var(--dim); margin: 0 !important; max-width: none !important; }
