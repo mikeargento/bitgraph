@@ -3667,3 +3667,8 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
 /* The nav's bottom stroke in the page's grey (Mike, 2026-10-15): invisible against the grey ground at the top of a page,
    a clean grey line where white cards scroll under it. */
 #site-nav, #site-nav.scrolled { border-bottom: 1px solid #f1f3f4 !important; }
+
+/* No step numbers (Mike, 2026-10-15: "3 steps doesn't have to be numbered. What are we in kindergarten?"): the cards
+   read in order left to right; title, then text. */
+.home-cards.home-steps .home-card { display: block !important; }
+.home-cards.home-steps .home-card h3 { margin: 0 0 8px !important; }

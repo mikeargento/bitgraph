@@ -12,9 +12,8 @@ export function DemoSteps({ steps }: { steps: ReadonlyArray<{ title: string; tex
       <p className="home-kicker">What happens</p>
       <h2>Three steps.</h2>
       <div className="home-cards home-steps">
-        {steps.map((s, i) => (
+        {steps.map((s) => (
           <div key={s.title} className="home-card">
-            <span className="demo-step-n" aria-hidden="true">{i + 1}</span>
             <h3>{s.title}</h3>
             <p>{s.text}{s.link && <> <a href={s.link.href}>{s.link.label}</a>.</>}</p>
           </div>

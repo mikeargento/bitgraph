@@ -62,17 +62,14 @@ export default function HomePage() {
         <h2 id="home-what">Three steps.</h2>
         <div className="home-cards home-steps">
           <div className="home-card">
-            <span className="demo-step-n" aria-hidden="true">1</span>
             <h3>A position opens</h3>
             <p>BitGraph&rsquo;s enclave opens a position and names the latest Base block. The position&rsquo;s commitment is unpredictable: nobody could have known it a second&nbsp;earlier.</p>
           </div>
           <div className="home-card">
-            <span className="demo-step-n" aria-hidden="true">2</span>
             <h3>The work uses it</h3>
             <p>The commitment goes into the prompt, the dataset, the file. Whatever is made with it could not have existed before the&nbsp;BitGraph.</p>
           </div>
           <div className="home-card">
-            <span className="demo-step-n" aria-hidden="true">3</span>
             <h3>The result is recorded in it</h3>
             <p>The finished bytes are committed to the same position, and one Base transaction fixes the record. A block before, a block after, seconds&nbsp;apart.</p>
           </div>
