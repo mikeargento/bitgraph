@@ -3664,3 +3664,6 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
    Dropdown menus keep their own shadow (--shadow-menu); buttons drop the hover shadow. */
 :root { --shadow-card: 0 0 0 1px #dadce0; --shadow-lift: 0 0 0 1px #dadce0; }
 #site-nav .nav-cta:hover, main .btn.is-primary:hover:not(:disabled) { box-shadow: none !important; }
+/* The nav's bottom stroke in the page's grey (Mike, 2026-10-15): invisible against the grey ground at the top of a page,
+   a clean grey line where white cards scroll under it. */
+#site-nav, #site-nav.scrolled { border-bottom: 1px solid #f1f3f4 !important; }
