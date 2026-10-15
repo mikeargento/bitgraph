@@ -85,7 +85,7 @@ export default function HomePage() {
           <div className="home-card"><div className="home-stat">6.35 s</div><p>from the position opening to the proof, for all of them, on a&nbsp;laptop.</p></div>
           <div className="home-card"><div className="home-stat">$0.000374</div><p>in blockchain fees: one Base transaction for the million.</p></div>
         </div>
-        <p className="home-section-link"><Link href="/benchmark">See the benchmark, with every number linked to its public record</Link></p>
+        <p className="home-section-link"><Link href="/benchmark">See the benchmark</Link>{/* short so it never wraps on a phone (Mike, 2026-10-15); was "See the benchmark, with every number linked to its public record", which the benchmark page says itself */}</p>
       </section>
 
 

@@ -3672,3 +3672,8 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
    read in order left to right; title, then text. */
 .home-cards.home-steps .home-card { display: block !important; }
 .home-cards.home-steps .home-card h3 { margin: 0 0 8px !important; }
+/* Card hover (Mike, 2026-10-15: "the squares still lift to shadow on hover. only the link cards should activate and a
+   blue stroke on hover would be more suited"): cards that are not links do nothing on hover; link cards (an <a>) trade
+   the grey hairline for a blue one, and the arrow still nudges. */
+.home .home-card:not(a):hover, .demo-section .home-card:not(a):hover { box-shadow: var(--shadow-card) !important; }
+.home a.home-card:hover, .home a.home-card:focus-visible, main a.home-card:hover, main a.home-card:focus-visible { box-shadow: 0 0 0 1px #1a73e8 !important; }
