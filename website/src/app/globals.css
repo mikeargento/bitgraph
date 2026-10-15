@@ -3447,3 +3447,29 @@ main .bg-page-nav { max-width: var(--measure); }
 .demo-steps .demo-step .demo-step-n { grid-row: 1 / span 2; margin: 1px 0 0; }
 .demo-steps .demo-step h2 { font-size: 17px !important; line-height: 1.4 !important; margin: 0 !important; }
 .demo-steps .demo-step p { font-size: 17px !important; line-height: 1.55 !important; color: var(--dim); max-width: 60ch !important; }
+/* Two columns on desktop (Mike, 2026-10-14: "should 1, 2 and 3 be on the right half, equal to the button and heading?"):
+   the headline, the sentence and the button on the left, the three steps on the right, level with the headline. Only
+   before the click: once the demo runs the steps are hidden and the result takes the whole frame. */
+@media (min-width: 900px) {
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 64px; align-items: start; }
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) > .demo-steps { margin-top: 6px; max-width: none; }
+}
+/* And the two columns centred in the window before the click (Mike, 2026-10-14: "should it be centered vertically on the
+   page?"): a short block on a tall page reads better in the middle, as the home's does; a docs page starts at the top
+   because it runs long. The same height rule as the home (the window less nav and footer). */
+@media (min-width: 900px) {
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) { min-height: calc(100svh - 142px); align-content: center; box-sizing: border-box; }
+}
+/* Four cells (Mike, 2026-10-14: "should all 4 be in cells?"): a 2 x 2 grid on desktop, the headline block top left and
+   (tried after it: one tall card on the left beside the three stacked; "mostly air", dropped the same night)
+   the three steps as cards in the other three cells, numbered. The steps list dissolves into the frame's grid
+   (display: contents) so each step is a grid item. */
+@media (min-width: 900px) {
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) { grid-template-columns: 1fr 1fr; column-gap: 24px; row-gap: 24px; align-items: stretch; }
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) > .demo-steps { display: contents; }
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) > .art { padding-right: 24px; align-self: center; }
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) .demo-step { display: block; background: var(--paper, #fff); box-shadow: var(--shadow-card); padding: 24px; margin: 0; }
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) .demo-step .demo-step-n { display: inline-block; margin: 0 0 14px; }
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) .demo-step h2 { font-size: 18px !important; margin: 0 0 8px !important; }
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) .demo-step p { font-size: 15px !important; max-width: none !important; }
+}
