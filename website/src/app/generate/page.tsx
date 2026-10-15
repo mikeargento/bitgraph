@@ -27,7 +27,7 @@ export default function GeneratePage() {
       <DemoSteps
         steps={[
           { title: "A position opens", text: "BitGraph opens a fresh position. Its commitment is unpredictable, so nobody could know it in advance." },
-          { title: "The image is drawn from it", text: "Every setting of the bridge comes from that commitment, so the image could not have existed before the position opened." },
+          { title: "The image is drawn from it", text: "Every setting of the bridge comes from that commitment, so the image could not have existed before the position opened.", link: { href: "/generate/source", label: "The code that draws it" } },
           { title: "The image is recorded in it", text: "The finished image goes into that same position, between a Base block before and a Base block after." },
         ]}
       />

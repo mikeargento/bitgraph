@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   description: "The code that turns a position commitment into the bridge /generate draws, served so anyone can redraw a recorded image from its proof and compare.",
   robots: { index: false },
 };
+/* The raw files are served at /generate/source/<name> (route.ts beside this page), the same text this page hashes. */
 
 /* The generator, published (an outside reading, 2026-10-14: "the page says the image derives from the commitment, but a
    verifier has to take your word for it"; Mike: "stage it"). The same move as the enclave's source and PCR0: the code
@@ -43,14 +44,20 @@ export default function GeneratorSourcePage() {
         Every draw in the code is an integer taken from SHA-256 of the commitment; nothing comes from a clock or a random
         number generator, so the same commitment draws the same bridge on any machine.
       </p>
+      <p>
+        Two ways to check. From a link, this site supplies both the commitment and the code, so a reader is trusting
+        bitgraph.ing for both. From the file, the reader takes the commitment out of the PNG&rsquo;s own manifest chunk and
+        the code from the raw files below, pinned by their SHA-256: nothing here is taken on faith. The link is the demo;
+        the file is the proof.
+      </p>
       <p className="source-license">
-        &copy; 2026 Michael Argento. All rights reserved. Published so the drawing can be checked; no license is granted to
-        copy, change or reuse it.
+        &copy; 2026 Michael Argento. All rights reserved. The files may be copied and run to check a recorded piece; no
+        other license is granted.
       </p>
       {sources.map((s) => (
         <section key={s.name} className="source-file">
           <h2><code>{s.name}</code></h2>
-          <p>{s.what}. SHA-256 <code>{s.sha256}</code>, {s.text.length.toLocaleString("en-US")} characters.</p>
+          <p>{s.what}. <a href={`/generate/source/${s.name}`}>Raw file</a>, {s.text.length.toLocaleString("en-US")} characters, SHA-256 <code>{s.sha256}</code>.</p>
           <pre><code>{s.text}</code></pre>
         </section>
       ))}

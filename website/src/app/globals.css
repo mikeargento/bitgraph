@@ -3424,3 +3424,17 @@ main .bg-page-nav { max-width: var(--measure); }
 .source-page pre { max-width: var(--measure); background: var(--paper); box-shadow: var(--shadow-card); padding: 16px 20px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; white-space: pre; margin: 12px 0 0; }
 .source-page pre code { display: block; white-space: pre !important; } /* the site's inline-code rule (code { white-space: nowrap }) would fold the file into one line; the files keep their line breaks */
 .pv-redraw-check { margin: 12px 0 0; font-size: 14px; font-weight: 600; line-height: 1.5; } /* under a redrawn picture on the proof page (2026-10-14) */
+/* /jev and /generate open like a docs page (Mike, 2026-10-14: "the text on those h1's are off too. maybe they should be like
+   the docs pages"): the headline 32px bold at -0.02em, the line under it 17px regular at 1.65, the docs measures exactly
+   (measured on /docs/overview). Last in the file so it wins over the demo-page sizes above. */
+.art-page h1.jev-title { font-size: 32px !important; font-weight: 700 !important; letter-spacing: -0.02em !important; line-height: 1.15 !important; margin: 0 0 20px !important; }
+.art-page .lede.jev-lede { font-size: 17px !important; font-weight: 400 !important; line-height: 1.65 !important; margin: 0 0 24px !important; }
+@media (max-width: 600px) { .art-page h1.jev-title { font-size: 28px !important; } .art-page .lede.jev-lede { font-size: 16px !important; } } /* the docs phone sizes (28 / 16, measured) */
+
+/* The demo pages read top-down like a docs page (Mike, 2026-10-14, carte blanche on /jev and /generate): no vertical
+   centring of the block, the headline where every docs headline sits, the button under it, and the three steps
+   right under the button as a numbered row, not a strip parked a screen below. */
+.frame:has(> .demo-steps) { min-height: 0; display: block; }
+.frame > .demo-steps { margin-top: 40px; }
+@media (min-width: 900px) { .frame > .demo-steps { margin-top: 48px; } }
+.demo-step-n { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; background: #1a73e8; color: #fff; font-size: 12px; font-weight: 700; margin-bottom: 14px; }
