@@ -3197,7 +3197,7 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
    be 3 lines"; no, both three-line breaks are bad). The 34px floor wrapped it to "Position / commitment /
    for AI automation." at 320 (302px of text in a 288px column); scaled with the width it fills the line,
    about 37px at 375 and 31px at 320. */
-@media (max-width: 600px) { .home.home-typing h1 { font-size: clamp(30px, 9.6vw, 40px) !important; } } /* the one line as wide as a phone allows: 36px at 375, 40px at 414 and above, never wrapping */
+@media (max-width: 600px) { .home.home-typing h1 { font-size: clamp(24px, 7.6vw, 40px) !important; } } /* one line on every phone (Mike, 2026-10-15: "should it really be 2 lines on mobile?"): "Position commitment." at 700 is 10.2em wide; 7.6vw is 28.5px at 375 (290px of 306), 24.3px at 320; was 9.6vw for the 500-weight line without the period */
 /* And air at the sides (Mike, 2026-10-07: "these texts are tight"): 9vw leaves about 40px each side
    of "Position commitment" (9.8vw left 25 to 28), and the line under it stops at 20em, so a large
    phone sets it in three balanced lines instead of two running nearly edge to edge. */
@@ -3560,3 +3560,8 @@ main .bg-page-nav { max-width: var(--measure); }
 @media (min-width: 900px) { .demo-section .home-cards { grid-template-columns: repeat(3, 1fr); gap: 24px; } }
 .demo-section .home-card { display: flex; flex-direction: column; background: var(--paper, #fff); box-shadow: var(--shadow-card); padding: 24px; color: inherit; }
 .demo-section .home-card p { font-size: 15px !important; line-height: 1.5 !important; color: var(--dim); margin: 0 !important; max-width: none !important; }
+
+/* Room for the headline's optical margin (Mike, 2026-10-15: "the P gets cut off on mobile"): .art-hero-inner clips for the
+   fold animation, so the home's inner is padded 8px on the left and pulled back 8px; the h1's negative margin (7.2px at
+   88px, 3px on phones) stays inside the box. */
+.home .art-hero > .art-hero-inner { padding-left: 8px; margin-left: -8px; }
