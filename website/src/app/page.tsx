@@ -91,22 +91,24 @@ export default function HomePage() {
 
       {/* Three cards (Mike, 2026-10-11): what a visitor like Steven Mih would use it for, each claim one the mechanism
           delivers. Each links somewhere the two buttons do not (Mike, 2026-10-14: two of them went where the buttons go):
-          the drop box, the integration guide, the benchmark. Training data: recorded as is, its Base ceiling. Model outputs: the position opened first (the Jev demo).
+          the drop box, the integration guide, the benchmark. Order and most of the words from an outside review Mike brought
+          2026-10-14 (Model outputs first: the page's thesis); the training-data line is the ordering claim one proof plus a
+          later one delivers, not "chosen before any result was known", which one proof does not. Training data: recorded as is, its Base ceiling. Model outputs: the position opened first (the Jev demo).
           Volume: tree/1, up to 1,000,000 leaves per position, one Base write each. */}
       <div className="home-cards">
-        <Link className="home-card" href="/docs/try">
-          <h2>Training data</h2>
-          <p>BitGraph a dataset before training begins. The proof shows exactly which bytes existed, by a public&nbsp;block.</p>
-          <span className="home-card-link">Make a BitGraph</span>
-        </Link>
         <Link className="home-card" href="/docs/integration">
           <h2>Model outputs</h2>
-          <p>Put the position&rsquo;s commitment into the prompt. The answer provably came after it and can&rsquo;t be&nbsp;backdated.</p>
+          <p>Put the position&rsquo;s commitment into the prompt. The answer could not have existed before the position opened, and the proof travels with the&nbsp;output.</p>
           <span className="home-card-link">Put it in your records</span>
+        </Link>
+        <Link className="home-card" href="/docs/try">
+          <h2>Training data</h2>
+          <p>Record the set before training. The proof fixes exactly which bytes went in, and a result recorded later provably followed&nbsp;it.</p>
+          <span className="home-card-link">Record a dataset</span>
         </Link>
         <Link className="home-card" href="/benchmark">
           <h2>High volume</h2>
-          <p>Benchmarked at a million files per position, each individually verifiable. Projected: every photo taken on Earth in a day for about $2 in&nbsp;fees.</p>
+          <p>Benchmarked at a million files per position, each carrying its own proof. Projected: every photo taken on Earth in a day for about $2 in&nbsp;fees.</p>
           <span className="home-card-link">See the benchmark</span>
         </Link>
       </div>
