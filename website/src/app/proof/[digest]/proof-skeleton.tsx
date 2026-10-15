@@ -7,7 +7,7 @@
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
+    <div style={{ minHeight: "100vh", color: "var(--c-text)" }}>{/* no background of its own: the grey ground shows (2026-10-15) */}
       {children}
     </div>
   );

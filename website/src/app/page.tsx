@@ -41,22 +41,23 @@ export default function HomePage() {
           and the sentence are its children and fold away when a bridge is made, as on 2026-10-10. */}
       <ArtMaker mode="home" secondary={<Link className="bg-action-link" href="/docs/overview">How it works</Link>}>
         <h1>Position commitment.</h1>
-        {/* Mike's line (2026-10-11), the claim this page rests on: a position is what is verified, never the content, never "when". */}
-        <p className="lede home-lede-stat">The computation uses a position that opens first, so its result can&rsquo;t be&nbsp;backdated.</p>
+        {/* The contrast right under the headline (Mike, 2026-10-15: "shouldn't this be right under H1?"); its paragraph sits
+            below the buttons in its own section ("should this be below buttons as its own paragraph? with the eyebrow?"). */}
+        <p className="home-contrast">A timestamp says <em>by when</em>. <br className="br-mob" />A position says <em>after what</em>.</p>
+        {/* "The computation uses a position that opens first, so its result can't be backdated." (Mike's line, 2026-10-11) was
+            cut from the hero 2026-10-15 (Mike: "ok cut"): after the contrast and its paragraph it repeated them. */}
       </ArtMaker>
       </div>
 
-      {/* The point of view. Ceiling = "by" (what a timestamp gives); floor = "after" (what a position gives); order among
-          everything recorded since. No superlative (Chainpoint rule, 2026-09-21). */}
-      <section className="home-section home-pov" aria-labelledby="home-why">
+      <section className="home-section home-why" aria-label="Why it is different">
         <p className="home-kicker">Why it is different</p>
-        <h2 id="home-why">A timestamp says <em>by when</em>. <br className="br-mob" />A position says <em>after what</em>.</h2>
-        <p>A timestamp <em>claims</em> a record existed by a moment. A position commitment <em>proves</em> the record could not have existed before one, and fixes where it sits among everything recorded since. That is the part no clock can give, and it is the part an audit&nbsp;needs.</p>
-              </section>
+        <p className="home-why-body">A timestamp <em>claims</em> a record existed by a moment. A position commitment <em>proves</em> the record could not have existed before one, and fixes where it sits among everything recorded since. That is the part no clock can give, and it is the part an audit&nbsp;needs.</p>
+      </section>
+
 
       {/* 01 / 02 / 03: what happens, the same three steps the demo pages list, said for any computation. Claim discipline:
           floor = a Base block the enclave READS; ceiling = the one Base transaction BitGraph WRITES; "after" and "by", never "when". */}
-      <section className="home-section" aria-labelledby="home-what">
+      <section className="home-section section-grey" aria-labelledby="home-what">
         <p className="home-kicker">What happens</p>
         <h2 id="home-what">Three steps.</h2>
         <div className="home-cards home-steps">
@@ -81,7 +82,7 @@ export default function HomePage() {
       {/* The numbers: BitGraph #40, measured live 2026-10-12 (/benchmark). Measured, never projected, on this page. */}
       <section className="home-section" aria-labelledby="home-numbers">
         <p className="home-kicker">Measured, not projected</p>
-        <h2 id="home-numbers">One million files in one position.</h2>
+        <h2 id="home-numbers">One million files. One position.</h2>
         <div className="home-cards home-stats">
           <div className="home-card"><div className="home-stat">1,000,000</div><p>files in one BitGraph, each with its own place in the tree and its own&nbsp;proof.</p></div>
           <div className="home-card"><div className="home-stat">6.35 s</div><p>from the position opening to the proof, for all of them, on a&nbsp;laptop.</p></div>
@@ -93,7 +94,7 @@ export default function HomePage() {
 
       {/* Who it is for: the three cards of 2026-10-11/14. Blue (one, then all three) was tried 2026-10-14/15 and dropped
           (Mike: "i dont like these blue anymore"); white, like every other card on the page. */}
-      <section className="home-section" aria-labelledby="home-for">
+      <section className="home-section section-grey" aria-labelledby="home-for">
         <p className="home-kicker">Who it is for</p>
         <h2 id="home-for">Anything a machine makes.</h2>
       {/* Three cards (Mike, 2026-10-11): what a visitor like Steven Mih would use it for, each claim one the mechanism

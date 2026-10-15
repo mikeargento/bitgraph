@@ -8,7 +8,7 @@
  */
 export function DemoSteps({ steps }: { steps: ReadonlyArray<{ title: string; text: string; link?: { href: string; label: string } }> }) {
   return (
-    <section className="home-section demo-section" aria-label="What happens">
+    <section className="home-section demo-section section-grey" aria-label="What happens">
       <p className="home-kicker">What happens</p>
       <h2>Three steps.</h2>
       <div className="home-cards home-steps">

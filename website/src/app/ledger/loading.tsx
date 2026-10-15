@@ -15,7 +15,7 @@
 export default function Loading() {
   const bar: React.CSSProperties = { borderRadius: "var(--radius-card)" };
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
+    <div style={{ minHeight: "100vh", color: "var(--c-text)" }}>{/* no background of its own: the grey ground shows (2026-10-15) */}
       <style>{`
         @keyframes rlSkel { 0% { background-position: 100% 0 } 100% { background-position: 0 0 } }
         .rl-skel { background: linear-gradient(90deg, var(--line-2) 25%, var(--line) 37%, var(--line-2) 63%); background-size: 400% 100%; animation: rlSkel 1.4s ease-in-out infinite; }
