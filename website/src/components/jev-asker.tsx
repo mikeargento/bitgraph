@@ -281,38 +281,9 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
       {record && shown && q && t && (
         <div className="art-result">
           {/* What just happened, for someone who has never heard of BitGraph. */}
-
-          <div className="jev-card">
-            <div className="jev-card-label">Position commitment</div>
-            <MarkedCode code={record.code} q={q} />
-            <ol className="jev-qs">
-              <li>
-                <div className="jev-q"><span className="jev-chip jev-q1" aria-hidden>1</span>{q.both.text}</div>
-                {a ? (
-                  <div className="jev-a">
-                    <span>AI: <strong>{yesNo(a.both.yes)}</strong> <span className="jev-sure">({pct(a.both.p)})</span></span>
-                    <span className={`jev-verdict ${right?.both ? "is-right" : "is-wrong"}`}>{right?.both ? "Right" : `Wrong: ${yesNo(t.both)}`}</span>
-                  </div>
-                ) : <div className="jev-a"><span>The AI did not answer: {record.jevError}</span></div>}
-              </li>
-              <li>
-                <div className="jev-q"><span className="jev-chip jev-q2" aria-hidden>2</span>{q.first.text}</div>
-                {a ? (
-                  <div className="jev-a">
-                    <span>AI: <strong>{firstLabel(a.first.choice)}</strong>{a.first.confidence !== null ? <span className="jev-sure"> ({Math.round(a.first.confidence * 100)}% sure)</span> : null}</span>
-                    <span className={`jev-verdict ${right?.first ? "is-right" : "is-wrong"}`}>{right?.first ? "Right" : `Wrong: ${firstLabel(t.first)}`}</span>
-                  </div>
-                ) : null}
-              </li>
-            </ol>
-          </div>
-
-          {/* Mike, 2026-10-10: the same two-part explanation as the home image (what just happened, then why it matters),
-              in place of the one-line caption. */}
-          <p className="art-home-explain"><span>BitGraph began this proof before these questions existed. Your click opened a position, and two questions were drawn from that position&rsquo;s commitment, so no one, the AI included, could have seen them before your click. The AI&rsquo;s answers were then recorded in the same position. No click will ever produce these questions again, the proof checks offline, and the questions can be drawn again from the commitment&nbsp;alone.</span></p>
-          <p className="art-home-explain"><span>This is how to test an AI on questions it could not have trained on: derive them from a commitment that came after a public block, and they cannot appear in any training data frozen before it. This AI is just the&nbsp;example.</span></p>
+          {/* The buttons and Technical details ABOVE the answers (Mike, 2026-10-15: "same for this on ask jev"). */}
           {/* Two actions only (Mike, 2026-10-10): the proof (which now shows the files) and asking again. */}
-          <div className="actions art-actions">
+          <div className="actions art-actions art-actions-top">
             <a className="bg-action-link is-make" href={proofHref}><span>See the full proof</span></a>
             <button type="button" className="bg-action-link" onClick={ask}>Ask two new questions</button>
           </div>
@@ -356,6 +327,36 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
               <dt>Record SHA-256</dt><dd><code className="break">{record.digestB64}</code> (base64)</dd>
             </dl>
           </details>
+
+          <div className="jev-card">
+            <div className="jev-card-label">Position commitment</div>
+            <MarkedCode code={record.code} q={q} />
+            <ol className="jev-qs">
+              <li>
+                <div className="jev-q"><span className="jev-chip jev-q1" aria-hidden>1</span>{q.both.text}</div>
+                {a ? (
+                  <div className="jev-a">
+                    <span>AI: <strong>{yesNo(a.both.yes)}</strong> <span className="jev-sure">({pct(a.both.p)})</span></span>
+                    <span className={`jev-verdict ${right?.both ? "is-right" : "is-wrong"}`}>{right?.both ? "Right" : `Wrong: ${yesNo(t.both)}`}</span>
+                  </div>
+                ) : <div className="jev-a"><span>The AI did not answer: {record.jevError}</span></div>}
+              </li>
+              <li>
+                <div className="jev-q"><span className="jev-chip jev-q2" aria-hidden>2</span>{q.first.text}</div>
+                {a ? (
+                  <div className="jev-a">
+                    <span>AI: <strong>{firstLabel(a.first.choice)}</strong>{a.first.confidence !== null ? <span className="jev-sure"> ({Math.round(a.first.confidence * 100)}% sure)</span> : null}</span>
+                    <span className={`jev-verdict ${right?.first ? "is-right" : "is-wrong"}`}>{right?.first ? "Right" : `Wrong: ${firstLabel(t.first)}`}</span>
+                  </div>
+                ) : null}
+              </li>
+            </ol>
+          </div>
+
+          {/* Mike, 2026-10-10: the same two-part explanation as the home image (what just happened, then why it matters),
+              in place of the one-line caption. */}
+          <p className="art-home-explain"><span>BitGraph began this proof before these questions existed. Your click opened a position, and two questions were drawn from that position&rsquo;s commitment, so no one, the AI included, could have seen them before your click. The AI&rsquo;s answers were then recorded in the same position. No click will ever produce these questions again, the proof checks offline, and the questions can be drawn again from the commitment&nbsp;alone.</span></p>
+          <p className="art-home-explain"><span>This is how to test an AI on questions it could not have trained on: derive them from a commitment that came after a public block, and they cannot appear in any training data frozen before it. This AI is just the&nbsp;example.</span></p>
         </div>
       )}
     </div>

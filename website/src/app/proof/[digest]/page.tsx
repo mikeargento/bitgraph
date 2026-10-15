@@ -1995,7 +1995,6 @@ export default function ProofPage() {
                   line states what just happened on this device; a bridge links the generator's published source. */}
               {redrawn && (
                 <p className="pv-redraw-check">
-                  <span className="art-check-mark" aria-hidden="true">&#10003;</span>
                   <span>
                     Drawn again from the code on this device, not loaded: its SHA-256 is the recorded digest, byte for byte.
                     {(redrawnAlgo === ART_ALGORITHM_V18 || redrawnAlgo === ART_ALGORITHM_V19) && <a className="art-redraw-link" href="/generate/source">Read the generator&rsquo;s code</a>}

@@ -3409,7 +3409,7 @@ main .bg-page-nav { max-width: var(--measure); }
 .contact-page .contact-copy { display: inline-flex; align-items: center; gap: 8px; margin-top: 28px; padding: 8px 14px; border: 1px solid #dadce0; background: var(--paper, #fff); color: #5f6368; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
 .contact-page .contact-copy:hover { color: var(--ink); border-color: #bdc1c6; }
 
-/* The redraw line under "How it was drawn" (2026-10-14): a filled square check, the site's blue, then one sentence. */
+/* The redraw line under "How it was drawn" (2026-10-14): one sentence, the link under it. The blue check square that led it was cut 2026-10-15 (Mike: "are these checkmarks needed?"; no). */
 .art-detail-parts .art-redraw-check { font-weight: 600; }
 .art-check-mark { display: inline-block; flex: none; width: 18px; height: 18px; line-height: 18px; text-align: center; background: #1a73e8; color: #fff; font-size: 12px; margin-top: 2px; }
 /* The mark in a column of its own, the sentence beside it, the link on a line under the sentence (Mike, 2026-10-14: "this wraps weird"). */
@@ -3489,3 +3489,10 @@ main .bg-page-nav { max-width: var(--measure); }
   .demo-steps .demo-step h2 { font-size: 18px !important; margin: 0 0 8px !important; }
   .demo-steps .demo-step p { font-size: 15px !important; max-width: none !important; }
 }
+
+/* /generate's result: buttons and Technical details above the picture (2026-10-15); the details card gets room under it. */
+.art-home-result .art-home-actions-top { margin: 0 0 20px !important; }
+.art-home-result > .art-details { margin-top: 0 !important; margin-bottom: 28px; }
+/* /jev's result: the same order, buttons and Technical details above the answers (2026-10-15). */
+.art-result > .art-actions.art-actions-top { margin: 0 0 20px !important; }
+.art-result > .art-details + .jev-card { margin-top: 28px; }

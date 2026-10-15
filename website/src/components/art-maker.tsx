@@ -320,7 +320,7 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
               {/* The redraw made visible (2026-10-14, an outside reading: "a verifier has to take your word for it"): the check
                   above already ran (checkArt on make, the digest match on reopen; the image is not shown otherwise), so the
                   line states it, and links the generator's source. Bridges only: that is the code published at /generate/source. */}
-              {bridgePlan && <p className="art-redraw-check"><span className="art-check-mark" aria-hidden="true">&#10003;</span><span>Drawn on this device from the commitment alone, and checked against a second drawing: identical, byte for byte.<a className="art-redraw-link" href="/generate/source">Read the generator&rsquo;s code</a></span></p>}
+              {bridgePlan && <p className="art-redraw-check"><span>Drawn on this device from the commitment alone, and checked against a second drawing: identical, byte for byte.<a className="art-redraw-link" href="/generate/source">Read the generator&rsquo;s code</a></span></p>}
               <h3>What it does not prove</h3>
               <p>Who made it, or anything about the computer it was made on.</p>
               <h3>The numbers</h3>
@@ -388,6 +388,13 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
            it, and two buttons. Nothing else: no downloads, no link to copy, no details (the proof page has them all). A
            version 16 square reopened on /generate is held to 640px wide, so it does not run a screen and a half tall. */
         <div className="art-result art-home-result">
+          {/* The buttons and Technical details ABOVE the picture (Mike, 2026-10-15: "this should be above image after its
+              generated"): what to do next is in view without scrolling past a 16:9 image. */}
+          <div className="actions art-home-actions art-home-actions-top">
+            <button type="button" className="bg-action-link is-make art-go" onClick={create}>{cfg.again}</button>
+            <a className="bg-action-link art-go" href={`/proof/${urlSafe(made.digestB64)}`}>See the full proof</a>
+          </div>
+          {techDetails}
           <div className="art-canvas" style={made.manifest.width === made.manifest.height ? { maxWidth: 640 } : undefined}>
             <canvas ref={canvas} width={made.manifest.width} height={made.manifest.height} style={{ aspectRatio: `${made.manifest.width} / ${made.manifest.height}` }} role="img" aria-label={`${threePlan ? `Three shapes, ${describeV16(threePlan)},` : bridgePlan ? `A bridge of rectangles, ${describeV18(bridgePlan)},` : "An image"} drawn from the code ${made.position.commitment}`} />
           </div>
@@ -399,11 +406,6 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
           <p className="art-home-explain"><span>Any computation can carry its commitment the same way. An AI agent writes it into its trace before a task starts, so the finished record could not have been completed earlier and backdated. This image just makes it&nbsp;visible.</span></p>
           {/* Bridge (2026-10-10): every setting of Mike's generator is drawn per click; how this one was drawn. */}
           {/* No visible settings line under a bridge (Mike, 2026-10-11: "this info can be left off"); the settings stay in the files' metadata. */}
-          <div className="actions art-home-actions">
-            <button type="button" className="bg-action-link is-make art-go" onClick={create}>{cfg.again}</button>
-            <a className="bg-action-link art-go" href={`/proof/${urlSafe(made.digestB64)}`}>See the full proof</a>
-          </div>
-          {techDetails}
         </div>
       )}
 
