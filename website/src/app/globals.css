@@ -3677,3 +3677,10 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
    the grey hairline for a blue one, and the arrow still nudges. */
 .home .home-card:not(a):hover, .demo-section .home-card:not(a):hover { box-shadow: var(--shadow-card) !important; }
 .home a.home-card:hover, .home a.home-card:focus-visible, main a.home-card:hover, main a.home-card:focus-visible { box-shadow: 0 0 0 1px #1a73e8 !important; }
+/* Eyebrows: one style everywhere (Mike, 2026-10-15: "make the eyebrows all darker and same color", then "like same size
+   and color"). The docs' .kicker (12px bold, wide tracking, --dim; red/green on status callouts) takes the home's
+   .home-kicker look: 13px semibold, 0.04em, in the body text tone. */
+.home-kicker, .kicker, .prose .kicker, p.kicker,
+.callout.is-limit > .kicker, .callout.is-ok > .kicker, .callout.is-err > .kicker {
+  color: var(--text) !important; font-size: 13px !important; font-weight: 600 !important; letter-spacing: 0.04em !important;
+}
