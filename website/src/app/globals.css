@@ -3565,3 +3565,9 @@ main .bg-page-nav { max-width: var(--measure); }
    fold animation, so the home's inner is padded 8px on the left and pulled back 8px; the h1's negative margin (7.2px at
    88px, 3px on phones) stays inside the box. */
 .home .art-hero > .art-hero-inner { padding-left: 8px; margin-left: -8px; }
+/* The step number beside its title, the text under the title (Mike, 2026-10-15: "couldnt these numbers be nested?"): a
+   two-column grid inside each step card, on the home and the demo pages (both use .home-cards.home-steps). */
+.home-cards.home-steps .home-card { display: grid !important; grid-template-columns: 22px 1fr; column-gap: 12px; row-gap: 6px; align-items: start; align-content: start; } /* align-content: the cards are stretched to one height, and a grid would share the spare space between its rows (card 2's title row grew to 35px) */
+.home-cards.home-steps .home-card .demo-step-n { grid-column: 1; grid-row: 1; margin: 1px 0 0 !important; }
+.home-cards.home-steps .home-card h3 { grid-column: 2; grid-row: 1; margin: 0 !important; }
+.home-cards.home-steps .home-card p { grid-column: 2; grid-row: 2; }
