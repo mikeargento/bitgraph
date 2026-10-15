@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArtMaker } from "@/components/art-maker";
 
 /**
  * Home, written as the scene (Mike, 2026-09-20: "sell me this pen"). The order is
@@ -25,70 +26,76 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   return (
-    <div
-      className="frame home home-typing prose"
-      style={{
-        /* Vertically centred in what is left after the bar and the footer. A min-height, not a
-           fixed one, so a phone can still scroll if the headline wraps further than expected.
-           142px is the measured bar (65) plus footer (77), not a guess. */
-        /* svh, not vh (Mike, 2026-10-04, iPhone: "why does this happen when I pull up"): on a phone
-           100vh is the screen with the browser's toolbars hidden, so the frame overshot the visible
-           screen by the toolbar height and the page scrolled by that much, headline under the bar,
-           appendix and footer coming up from below. 100svh is the screen with the toolbars showing,
-           the one the visitor actually has on arrival. Desktops measure the two the same. */
-        minHeight: "calc(100svh - 142px)",
-        /* The frame ships 56px top and 96px bottom padding; that 40px asymmetry was pushing the
-           centred block upward by exactly 40px. Equalised here rather than in globals. */
-        paddingTop: "56px",
-        paddingBottom: "56px",
-        display: "flex",
-        flexDirection: "column",
-        /* The headline and the three cards centred together (Mike, 2026-10-12: "should this whole block of content be
-           centered up vertically?"); on a phone the block is taller than the screen and starts at the top. */
-        justifyContent: "center",
-      }}
-    >
+    <div className="frame home home-typing prose home-scroll">
+      {/* 2026-10-15 (Mike: "go ballistic and make your best homepage"): the page tells the whole story in order instead of
+          being a doorway. Hero (as before, in its own centred block), then 01/02/03 what happens, the measured numbers, the
+          live generator, who it is for, the point of view, and where to start. Sapien's structure (Mike's example that
+          night), BitGraph's look: no new colours, no imagery, the one blue card is the thesis. The old one-screen frame
+          (minHeight calc(100svh - 142px), centred) became .home-hero. */}
+      <div className="home-hero">
       {/* The demo is Ask Jev (Mike, 2026-10-11: ChatGPT's "See it work" leads to the Jev demo, "hes right"): a computation
           done inside a BitGraph, the position opened before it ran, which is what the line under the headline says. The
           bridge maker (ArtMaker "home") ran here from 2026-10-10; /generate still makes bridges. Same hero markup. */}
-      <div className="art art-home">
-        <div className="art-hero">
-          <div className="art-hero-inner">
-        {/* The hero (Mike, 2026-10-05): the typing line of 2026-09-30 and the game theory paragraph of
-            2026-09-26, left aligned, after a day of trying shorter heroes ("GPS for files.", "The
-            position comes first.", "First the position. Then the file."; all in the git history).
-            Claim discipline holds: a position is what is verified, never the content, never "when". */}
-        {/* "all of computing" (Mike, 2026-10-09: reads as the whole field) was "all computing" (Mike, 2026-10-08: a friend seeing "AI automation" would ask "is this ai?"; computing, not computation, per 09-14) replaced "AI automation" (2026-10-07), which replaced "AI records" (10-05): the larger market by name. The lede says "the bits" (Mike, 2026-10-07, over "the record"): any bits, the brand's reach. */}
-        {/* Static (Mike, 10-05): one "for", the first market. The typing version cycled AI records → AI agent
-            actions → AI evaluations → predictions → sealed bids → chain of custody → any file → any bytes →
-            any bits (components/home-headline.tsx, 694a5646). */}
-        <h1>Position commitment</h1>
-
-        {/* Mike's line (2026-10-05), replacing the Schelling paragraph and then the six-item list; "Other proofs", not "Every other proof" (no absolute: Chainpoint rule, 09-21)
-            ("Signatures, timestamps, append-only logs, write-once storage, notarizations, and
-            blockchain hashes all come after the record...", 8d4968ff). "Arrives", never "exists":
-            first existence is not claimed (an old file can take a new position). Then "Other proofs
-            come after the record. BitGraph begins before it arrives. The proof travels with the
-            record, and nobody has to host it." (2048aed6, 0f1cac1c), distilled to one sentence
-            (Mike, 10-05). */}
-        {/* Mike, 2026-10-11 (what a BitGraph gives, then the spec-style example; counts in the fine print; two balanced paragraphs, no "Example:", Mike: the single run sat off to one side on phones): the stat replaces "BitGraph begins the proof before the bits arrive, so their position cannot be
-            chosen afterward." as the line under the headline; its footnote sits under it. */}
+      {/* The hero IS the demo (2026-10-15, an outside reading: "Merge Make one now into the hero; See it work is already that
+          button"): ArtMaker "home" renders the make button (labelled See it work) and the secondary How it works; the headline
+          and the sentence are its children and fold away when a bridge is made, as on 2026-10-10. */}
+      <ArtMaker mode="home" secondary={<Link className="bg-action-link" href="/docs/overview">How it works</Link>}>
+        <h1>Position commitment.</h1>
+        {/* Mike's line (2026-10-11), the claim this page rests on: a position is what is verified, never the content, never "when". */}
         <p className="lede home-lede-stat">The computation uses a position that opens first, so its result can&rsquo;t be&nbsp;backdated.</p>
-        {/* The footnote right under the claim it qualifies, before the buttons (Mike, 2026-10-11). Basis: the benchmark on
-            branch bench (bench/RESULTS.md): 5 billion photos / 1,000,000 per BitGraph = 5,000 BitGraphs x $0.00036 (one Base
-            ceiling write, 24,000 gas at 0.006 gwei, ETH $2,499.85, 2026-10-11 13:52 UTC) = $1.80. */}
-          </div>
-        </div>
-        <div className="art-hero art-go-wrap">
-          <div className="art-hero-inner">
-            <div className="actions art-home-actions">
-              <Link className="bg-action-link is-make art-go" href="/jev">See it work</Link>
-              <Link className="bg-action-link" href="/docs/overview">How it works</Link>
-            </div>
-          </div>
-        </div>
+      </ArtMaker>
       </div>
 
+      {/* The point of view. Ceiling = "by" (what a timestamp gives); floor = "after" (what a position gives); order among
+          everything recorded since. No superlative (Chainpoint rule, 2026-09-21). */}
+      <section className="home-section home-pov" aria-labelledby="home-why">
+        <p className="home-kicker">Why it is different</p>
+        <h2 id="home-why">A timestamp says <em>by when</em>.<br />A position says <em>after what</em>.</h2>
+        <p>A timestamp <em>claims</em> a record existed by a moment. A position commitment <em>proves</em> the record could not have existed before one, and fixes where it sits among everything recorded since. That is the part no clock can give, and it is the part an audit&nbsp;needs.</p>
+              </section>
+
+      {/* 01 / 02 / 03: what happens, the same three steps the demo pages list, said for any computation. Claim discipline:
+          floor = a Base block the enclave READS; ceiling = the one Base transaction BitGraph WRITES; "after" and "by", never "when". */}
+      <section className="home-section" aria-labelledby="home-what">
+        <p className="home-kicker">What happens</p>
+        <h2 id="home-what">Three steps.</h2>
+        <div className="home-cards home-steps">
+          <div className="home-card">
+            <span className="demo-step-n" aria-hidden="true">1</span>
+            <h3>A position opens</h3>
+            <p>BitGraph&rsquo;s enclave opens a position and names the latest Base block. The position&rsquo;s commitment is unpredictable: nobody could have known it a second&nbsp;earlier.</p>
+          </div>
+          <div className="home-card">
+            <span className="demo-step-n" aria-hidden="true">2</span>
+            <h3>The work uses it</h3>
+            <p>The commitment goes into the prompt, the dataset, the file. Whatever is made with it could not have existed before the&nbsp;BitGraph.</p>
+          </div>
+          <div className="home-card">
+            <span className="demo-step-n" aria-hidden="true">3</span>
+            <h3>The result is recorded in it</h3>
+            <p>The finished bytes are committed to the same position, and one Base transaction fixes the record. A block before, a block after, seconds&nbsp;apart.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* The numbers: BitGraph #40, measured live 2026-10-12 (/benchmark). Measured, never projected, on this page. */}
+      <section className="home-section" aria-labelledby="home-numbers">
+        <p className="home-kicker">Measured, not projected</p>
+        <h2 id="home-numbers">One million files in one position.</h2>
+        <div className="home-cards home-stats">
+          <div className="home-card"><div className="home-stat">1,000,000</div><p>files in one BitGraph, each with its own place in the tree and its own&nbsp;proof.</p></div>
+          <div className="home-card"><div className="home-stat">6.35 s</div><p>from the position opening to the proof, for all of them, on a&nbsp;laptop.</p></div>
+          <div className="home-card"><div className="home-stat">$0.000374</div><p>in blockchain fees: one Base transaction for the million.</p></div>
+        </div>
+        <p className="home-section-link"><Link href="/benchmark">See the benchmark, with every number linked to its public record</Link></p>
+      </section>
+
+
+      {/* Who it is for: the three cards of 2026-10-11/14, the thesis card in the site's blue (Mike, 2026-10-14: "i wonder if
+          those cards were blue if it would add some pop"; one, not three). */}
+      <section className="home-section" aria-labelledby="home-for">
+        <p className="home-kicker">Who it is for</p>
+        <h2 id="home-for">Anything a machine makes.</h2>
       {/* Three cards (Mike, 2026-10-11): what a visitor like Steven Mih would use it for, each claim one the mechanism
           delivers. Each links somewhere the two buttons do not (Mike, 2026-10-14: two of them went where the buttons go):
           the drop box, the integration guide, the benchmark. Order and most of the words from an outside review Mike brought
@@ -96,22 +103,27 @@ export default function HomePage() {
           later one delivers, not "chosen before any result was known", which one proof does not. Training data: recorded as is, its Base ceiling. Model outputs: the position opened first (the Jev demo).
           Volume: tree/1, up to 1,000,000 leaves per position, one Base write each. */}
       <div className="home-cards">
-        <Link className="home-card" href="/docs/integration">
+        <Link className="home-card home-card-blue" href="/docs/integration">
           <h2>AI model outputs</h2>
           <p>Put the position&rsquo;s commitment into the prompt. The answer could not have existed before the position opened, and the proof travels with the&nbsp;output.</p>
           <span className="home-card-link">Put it in your records</span>
         </Link>
-        <Link className="home-card" href="/docs/try">
+        <Link className="home-card home-card-blue" href="/docs/try">
           <h2>Training data</h2>
           <p>Record the set before training. The proof fixes exactly which bytes went in, and a result recorded later provably followed&nbsp;it.</p>
           <span className="home-card-link">Record a dataset</span>
         </Link>
-        <Link className="home-card" href="/benchmark">
-          <h2>High volume</h2>
-          <p>Benchmarked at a million files per position, each carrying its own proof. Projected: every photo taken on Earth in a day for about $2 in&nbsp;fees.</p>
-          <span className="home-card-link">See the benchmark</span>
+        {/* Was "High volume" (benchmark) until 2026-10-15 (Mike: "isnt high volume repeating itself?"; the numbers section above
+            says it). Evaluations: the sealed-exam property, the /jev demo. */}
+        <Link className="home-card home-card-blue" href="/jev">
+          <h2>Evaluations</h2>
+          <p>Derive the test from the commitment, and the questions could not have been in any training set. The answers are recorded in the same&nbsp;position.</p>
+          <span className="home-card-link">Ask AI two questions</span>
         </Link>
       </div>
+      </section>
+
+
 
     </div>
   );
