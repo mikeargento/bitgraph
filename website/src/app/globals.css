@@ -3571,3 +3571,6 @@ main .bg-page-nav { max-width: var(--measure); }
 .home-cards.home-steps .home-card .demo-step-n { grid-column: 1; grid-row: 1; margin: 1px 0 0 !important; }
 .home-cards.home-steps .home-card h3 { grid-column: 2; grid-row: 1; margin: 0 !important; }
 .home-cards.home-steps .home-card p { grid-column: 2; grid-row: 2; }
+/* No hairlines between the home's sections (Mike, 2026-10-15: "does page need horizontal lines?"): the uppercase kicker and
+   the 96px of air mark each section; the lines were doing it twice. The demo pages keep theirs for now. */
+.home-scroll .home-section { border-top: 0; }
