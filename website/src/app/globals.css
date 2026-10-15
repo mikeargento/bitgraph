@@ -3435,14 +3435,15 @@ main .bg-page-nav { max-width: var(--measure); }
    centring of the block, the headline where every docs headline sits, the button under it, and the three steps
    right under the button as a numbered row, not a strip parked a screen below. */
 .frame:has(> .demo-steps) { min-height: 0; display: block; }
-.frame > .demo-steps { margin-top: 40px; }
-@media (min-width: 900px) { .frame > .demo-steps { margin-top: 48px; } }
+.frame > .demo-steps:has(.demo-step) { margin-top: 40px; }
+@media (min-width: 900px) { .frame > .demo-steps:has(.demo-step) { margin-top: 48px; } }
 .demo-step-n { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; background: #1a73e8; color: #fff; font-size: 12px; font-weight: 700; margin-bottom: 14px; }
 /* The demo steps as numbered text, not cards (Mike, 2026-10-14: "doesnt this page look messy to you?"; yes: three
    non-clickable cards across the whole frame under a narrow headline). The three steps sit in the reading column under
-   the button, each a blue number, a bold title and one sentence, the way a docs page would list them. */
-.frame > .demo-steps { display: block; max-width: var(--measure); margin-top: 36px; }
-.demo-steps .home-card { display: grid; grid-template-columns: 22px 1fr; column-gap: 14px; row-gap: 2px; align-items: start; background: transparent; box-shadow: none; padding: 0; margin: 0 0 20px; }
-.demo-steps .home-card .demo-step-n { grid-row: 1 / span 2; margin: 1px 0 0; }
-.demo-steps .home-card h2 { font-size: 17px !important; line-height: 1.4 !important; margin: 0 !important; }
-.demo-steps .home-card p { font-size: 17px !important; line-height: 1.55 !important; color: var(--dim); max-width: 60ch !important; }
+   the button, each a blue number, a bold title and one sentence, the way a docs page would list them. Scoped to the
+   DemoSteps rows (.demo-step): /benchmark's stat cards share .demo-steps and stay cards (they broke the first time). */
+.frame > .demo-steps:has(.demo-step) { display: block; max-width: var(--measure); margin-top: 36px; }
+.demo-steps .demo-step { display: grid; grid-template-columns: 22px 1fr; column-gap: 14px; row-gap: 2px; align-items: start; background: transparent; box-shadow: none; padding: 0; margin: 0 0 20px; }
+.demo-steps .demo-step .demo-step-n { grid-row: 1 / span 2; margin: 1px 0 0; }
+.demo-steps .demo-step h2 { font-size: 17px !important; line-height: 1.4 !important; margin: 0 !important; }
+.demo-steps .demo-step p { font-size: 17px !important; line-height: 1.55 !important; color: var(--dim); max-width: 60ch !important; }
