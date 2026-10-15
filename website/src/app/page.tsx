@@ -62,7 +62,7 @@ export default function HomePage() {
         {/* Static (Mike, 10-05): one "for", the first market. The typing version cycled AI records → AI agent
             actions → AI evaluations → predictions → sealed bids → chain of custody → any file → any bytes →
             any bits (components/home-headline.tsx, 694a5646). */}
-        <h1>Position commitment<br />for&nbsp;automated computing.</h1>
+        <h1>Position commitment</h1>
 
         {/* Mike's line (2026-10-05), replacing the Schelling paragraph and then the six-item list; "Other proofs", not "Every other proof" (no absolute: Chainpoint rule, 09-21)
             ("Signatures, timestamps, append-only logs, write-once storage, notarizations, and

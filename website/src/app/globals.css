@@ -3192,12 +3192,12 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 @media (max-width: 600px) { .art-result .art-explain-one { font-size: 18px !important; } }
 /* Home's headline the size of /jev's and /image's at every width (Mike, 10-06: "i think home would be beeter 60"):
    one scale for the three pages that open with a headline and one button. */
-.home.home-typing h1 { font-size: clamp(34px, 5.4vw, 60px) !important; }
+.home.home-typing h1 { font-size: clamp(40px, 7vw, 88px) !important; } /* one line since 2026-10-14 ("Position commitment", 8.8em wide): 88px from 1257 wide, 7vw below (Mike: "can be bigger now") */
 /* Phones: two lines always, "Position commitment" whole on the first (Mike, 2026-10-07: "should phone h1
    be 3 lines"; no, both three-line breaks are bad). The 34px floor wrapped it to "Position / commitment /
    for AI automation." at 320 (302px of text in a 288px column); scaled with the width it fills the line,
    about 37px at 375 and 31px at 320. */
-@media (max-width: 600px) { .home.home-typing h1 { font-size: 8vw !important; } } /* 8vw (was 9vw): "for automated computing." fits one line on phones (Mike, 2026-10-11) */
+@media (max-width: 600px) { .home.home-typing h1 { font-size: clamp(30px, 9.6vw, 40px) !important; } } /* the one line as wide as a phone allows: 36px at 375, 40px at 414 and above, never wrapping */
 /* And air at the sides (Mike, 2026-10-07: "these texts are tight"): 9vw leaves about 40px each side
    of "Position commitment" (9.8vw left 25 to 28), and the line under it stops at 20em, so a large
    phone sets it in three balanced lines instead of two running nearly edge to edge. */
@@ -3286,8 +3286,8 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .art-page .lede { max-width: var(--measure) !important; } /* 2026-10-07: the demo ledes read at the site's measure, not a 34em cap left from the centred layout */
 .art-page .lede:not(.art-why) { font-weight: 600; } /* 2026-10-07 (Mike: "should lede text be bold"): the hook carries weight, the explanation under it does not */
 .art-page .lede.art-why { font-size: 17px !important; line-height: 1.65 !important; font-weight: 400 !important; } /* 2026-10-07 (Mike): the explanation is ordinary site text, the size every docs paragraph reads at */
-/* 2026-10-07 (Mike: "is H1 big enough now that we are left aligned?" then "better push"): 72 px cap on desktop for the home and the two demos; was 60. */
-@media (min-width: 901px) { .home.home-typing h1, .art-page h1 { font-size: min(7.2vw, 72px) !important; } }
+/* 2026-10-07 (Mike: "is H1 big enough now that we are left aligned?" then "better push"): 72 px cap on desktop for the two demos; was 60. The home left this rule on 2026-10-14 when its headline became one line ("Position commitment", 88px cap, the rule above). */
+@media (min-width: 901px) { .art-page h1 { font-size: min(7.2vw, 72px) !important; } }
 
 /* 2026-10-07 (Mike: "at this width the text doesnt wrap... it should never happen"): between ~820 and 899 wide the
    desktop break was off (it starts at 900) and the lede fit one 94-character line. The home lede keeps its break at
