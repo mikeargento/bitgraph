@@ -262,7 +262,7 @@ export function JevAsker({ children }: { children?: ReactNode } = {}) {
       <div className={`art-hero art-go-wrap${running || shown || restoring ? " is-away" : ""}`}>
         <div className="art-hero-inner jev-go-inner">
           <button type="button" className="bg-action-link is-make art-go" onClick={ask} disabled={running} aria-busy={running}>
-            {failedAt >= 0 ? "Try again" : "Ask the AI two new questions"}
+            {failedAt >= 0 ? "Try again" : "Ask questions"}
           </button>
         </div>
       </div>

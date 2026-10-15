@@ -3,7 +3,7 @@ import { ArtMaker } from "@/components/art-maker";
 import { DemoSteps } from "@/components/demo-steps";
 
 export const metadata: Metadata = {
-  title: "Generate an image",
+  title: "Generative art",
   description: "One click makes an image that never existed, and BitGraph proves it.",
   // Listed (Mike, 2026-10-10): in the menu in place of /painting, in the sitemap, indexed. It was hidden on 2026-10-09.
 };
@@ -21,8 +21,8 @@ export default function GeneratePage() {
       <ArtMaker mode="generate">
         {/* Redone 2026-10-10 (Mike: "we have to redo this landing page"): the menu's name, one sentence, the button. The long
             why-paragraph is gone from here: the same explanation appears under the image once it is made. */}
-        <h1 className="jev-title"><span>Generate an image</span></h1>
-        <p className="lede jev-lede"><span>One click makes an image that never existed, and BitGraph proves&nbsp;it.</span></p>
+        <h1 className="jev-title"><span>Generative art</span></h1>
+        <p className="lede jev-lede"><span>One click makes an image that never existed,<br className="br-desk" /> and BitGraph proves&nbsp;it.</span></p>
       </ArtMaker>
       <DemoSteps
         steps={[

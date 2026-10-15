@@ -86,7 +86,7 @@ export const MENU_GROUPS: MenuGroup[] = [
       // /generate in place of "Make a painting" (Mike, 2026-10-10: "i dont want the slow make a painting", "you were supposed to replace
       // painting with it"). Since 2026-10-11 (Mike: "remove painting and all the other demos", then "i still want ask jev"), it and
       // Ask Jev are the demos; /painting and /exam redirect to /generate.
-      { href: "/generate", label: "Generate an image", desc: "One click, an image that never existed." },
+      { href: "/generate", label: "Generative art", desc: "One click, an image that never existed." },
       { href: "/jev", label: "Ask AI", desc: "Two questions no one could have seen before." },
       { href: "/docs/try", label: "Make a BitGraph", desc: "Drop in any file and get its proof." },
       { href: "/ceilings", label: "Base", desc: "The Base blocks around each BitGraph." },

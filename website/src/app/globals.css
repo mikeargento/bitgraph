@@ -3473,3 +3473,19 @@ main .bg-page-nav { max-width: var(--measure); }
   .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) .demo-step h2 { font-size: 18px !important; margin: 0 0 8px !important; }
   .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) .demo-step p { font-size: 15px !important; max-width: none !important; }
 }
+/* Plain on the left, three stacked on the right (Mike, 2026-10-14: "no cell on left, 3 stacked right"): the headline block
+   spans the three rows with no card around it, its content centred against the stack; the steps stack in column 2. */
+@media (min-width: 900px) {
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) > .art { grid-column: 1; grid-row: 1 / span 3; align-self: center; }
+  .art-page:has(> .demo-steps .demo-step):not(:has(.art-go-wrap.is-away)) .demo-step { grid-column: 2; }
+}
+/* "and BitGraph proves it." on its own line on desktop (Mike, 2026-10-14: "should probably wrap"): a .br-desk in both ledes;
+   phones wrap as they will. */
+/* Phones: the same cards, stacked (Mike, 2026-10-14: "same on mobile right? just stacks?"), not the numbered text rows. */
+@media (max-width: 899px) {
+  .frame > .demo-steps:has(.demo-step) { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 32px; }
+  .demo-steps .demo-step { display: block; background: var(--paper, #fff); box-shadow: var(--shadow-card); padding: 20px; margin: 0; }
+  .demo-steps .demo-step .demo-step-n { display: inline-block; margin: 0 0 12px; }
+  .demo-steps .demo-step h2 { font-size: 18px !important; margin: 0 0 8px !important; }
+  .demo-steps .demo-step p { font-size: 15px !important; max-width: none !important; }
+}

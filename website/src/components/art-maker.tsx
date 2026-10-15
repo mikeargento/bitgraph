@@ -79,7 +79,7 @@ const MIN_WAIT_MS = 1000;
  * Threes): version 19, the bridge at 16:9, the same flow and ending as before.
  */
 export type ArtMakerMode = "painting" | "generate" | "home" | "bridge";
-// The make buttons: /generate (once /three) says "Generate" (Mike, 2026-10-09: "button should be generate since its just for me").
+// The make buttons: /generate (once /three) says "Generate image" (Mike, 2026-10-14; "Generate" from 2026-10-09).
 // 2026-10-10 (Mike: "you were supposed to replace painting with it ... make it 16:9"): /generate is the public demo in place of
 // /painting, makes version 17 (16:9), and ends as home does: the piece, one paragraph, "Make another" and "See the full proof".
 // It still reopens a version 16 square from ?p=<digest> (the redraw tries 17, then 16).
@@ -87,7 +87,7 @@ export type ArtMakerMode = "painting" | "generate" | "home" | "bridge";
 // /bridge made: the redraw tries every version, not only the page's.
 const MODES: Record<ArtMakerMode, { algorithm: string; path: string; noun: string; filePrefix: string; make: string; again: string }> = {
   painting: { algorithm: ART_ALGORITHM, path: "/painting", noun: "painting", filePrefix: "bitgraph-image", make: "Make a BitGraph painting", again: "Make another painting" },
-  generate: { algorithm: ART_ALGORITHM_V19, path: "/generate", noun: "bridge", filePrefix: "bitgraph-bridge", make: "Generate", again: "Make another" },
+  generate: { algorithm: ART_ALGORITHM_V19, path: "/generate", noun: "bridge", filePrefix: "bitgraph-bridge", make: "Generate image", again: "Make another" },
   // Home makes the 16:9 bridge too (Mike, 2026-10-11: "this is the new demo"); its ?p= still reopens every Three it made before.
   home: { algorithm: ART_ALGORITHM_V19, path: "/", noun: "bridge", filePrefix: "bitgraph-bridge", make: "Make a BitGraph", again: "Make another" },
   bridge: { algorithm: ART_ALGORITHM_V18, path: "/bridge", noun: "bridge", filePrefix: "bitgraph-bridge", make: "Generate", again: "Make another" },
