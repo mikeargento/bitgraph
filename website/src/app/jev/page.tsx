@@ -16,7 +16,7 @@ export default function JevPage() {
         {/* Mike, 10-06: "this should be 'ask Jev' h1 ... a smaller description and no win count". No Jev mark
             (10-06: "take it out"): it is TypeSafe's icon, and "Create an image" has none. */}
         <h1 className="jev-title" style={{ marginLeft: "-0.011em" }}>Ask AI two questions</h1>{/* the A's left side bearing at 700, measured */}
-        <p className="lede jev-lede">One click asks an AI questions that never existed,<br className="br-desk" /> and BitGraph proves&nbsp;it.</p>
+        <p className="lede jev-lede">One click asks an AI questions that never existed, and BitGraph proves&nbsp;it.</p>
         {/* The why-paragraph moved under the result (Mike, 2026-10-10), as on /generate: the landing is the title, one sentence, the button. */}
       </JevAsker>
       <DemoSteps

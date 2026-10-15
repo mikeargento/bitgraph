@@ -50,7 +50,7 @@ export default function HomePage() {
           everything recorded since. No superlative (Chainpoint rule, 2026-09-21). */}
       <section className="home-section home-pov" aria-labelledby="home-why">
         <p className="home-kicker">Why it is different</p>
-        <h2 id="home-why">A timestamp says <em>by when</em>.<br />A position says <em>after what</em>.</h2>
+        <h2 id="home-why">A timestamp says <em>by when</em>. <br className="br-mob" />A position says <em>after what</em>.</h2>
         <p>A timestamp <em>claims</em> a record existed by a moment. A position commitment <em>proves</em> the record could not have existed before one, and fixes where it sits among everything recorded since. That is the part no clock can give, and it is the part an audit&nbsp;needs.</p>
               </section>
 

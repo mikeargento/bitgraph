@@ -11,9 +11,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * The real tool on one page. The box comes first and the words follow it
- * (Mike, 2026-09-17: "move box to the top, remove 'try it' and drop this text
- * below. i feel like this would be a better UI"): whoever arrives from the
+ * The real tool on one page. The headline and its one paragraph come first, then
+ * the box, then the facts (Mike, 2026-10-15: "this should be above box"; from
+ * 2026-09-17 the box had led: "move box to the top, remove 'try it' and drop this
+ * text below"): whoever arrives from the
  * green button came to drop files, and the results of a drop appear in the
  * box's place, at the top, where the eye already is. Under it, the facts worth
  * knowing before or after: what stays local, what is sent, what comes back,
@@ -24,12 +25,12 @@ export const metadata: Metadata = {
 export default function TryPage() {
   return (
     <article className="prose">
-      <TryZone />
-
       <h1>Make or check a BitGraph</h1>
       <p className="lede">
         Drop files in the box and this page makes a real BitGraph of them: a position on the public sequence, floored by a Base block, with the proof returned to you. Nothing here is a simulation. The position is permanent, and BitGraph keeps a public copy of each proof that cannot be deleted for ten years, so choose files whose fingerprints you are happy to have in public.
       </p>
+
+      <TryZone />
 
       <dl className="terms">
         <dt>Stays on your machine</dt>

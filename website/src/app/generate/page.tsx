@@ -22,7 +22,7 @@ export default function GeneratePage() {
         {/* Redone 2026-10-10 (Mike: "we have to redo this landing page"): the menu's name, one sentence, the button. The long
             why-paragraph is gone from here: the same explanation appears under the image once it is made. */}
         <h1 className="jev-title" style={{ marginLeft: "-0.048em" }}><span>Generative art</span></h1>{/* the G's left side bearing at 700, measured (Mike, 2026-10-15: "the h1 does not align left properly") */}
-        <p className="lede jev-lede"><span>One click makes an image that never existed,<br className="br-desk" /> and BitGraph proves&nbsp;it.</span></p>
+        <p className="lede jev-lede"><span>One click makes an image that never existed, and BitGraph proves&nbsp;it.</span></p>
       </ArtMaker>
       <DemoSteps
         steps={[
