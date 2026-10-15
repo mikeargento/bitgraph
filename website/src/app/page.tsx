@@ -91,8 +91,8 @@ export default function HomePage() {
       </section>
 
 
-      {/* Who it is for: the three cards of 2026-10-11/14, the thesis card in the site's blue (Mike, 2026-10-14: "i wonder if
-          those cards were blue if it would add some pop"; one, not three). */}
+      {/* Who it is for: the three cards of 2026-10-11/14. Blue (one, then all three) was tried 2026-10-14/15 and dropped
+          (Mike: "i dont like these blue anymore"); white, like every other card on the page. */}
       <section className="home-section" aria-labelledby="home-for">
         <p className="home-kicker">Who it is for</p>
         <h2 id="home-for">Anything a machine makes.</h2>
@@ -103,19 +103,19 @@ export default function HomePage() {
           later one delivers, not "chosen before any result was known", which one proof does not. Training data: recorded as is, its Base ceiling. Model outputs: the position opened first (the Jev demo).
           Volume: tree/1, up to 1,000,000 leaves per position, one Base write each. */}
       <div className="home-cards">
-        <Link className="home-card home-card-blue" href="/docs/integration">
+        <Link className="home-card" href="/docs/integration">
           <h2>AI model outputs</h2>
           <p>Put the position&rsquo;s commitment into the prompt. The answer could not have existed before the position opened, and the proof travels with the&nbsp;output.</p>
           <span className="home-card-link">Put it in your records</span>
         </Link>
-        <Link className="home-card home-card-blue" href="/docs/try">
+        <Link className="home-card" href="/docs/try">
           <h2>Training data</h2>
           <p>Record the set before training. The proof fixes exactly which bytes went in, and a result recorded later provably followed&nbsp;it.</p>
           <span className="home-card-link">Record a dataset</span>
         </Link>
         {/* Was "High volume" (benchmark) until 2026-10-15 (Mike: "isnt high volume repeating itself?"; the numbers section above
             says it). Evaluations: the sealed-exam property, the /jev demo. */}
-        <Link className="home-card home-card-blue" href="/jev">
+        <Link className="home-card" href="/jev">
           <h2>Evaluations</h2>
           <p>Derive the test from the commitment, and the questions could not have been in any training set. The answers are recorded in the same&nbsp;position.</p>
           <span className="home-card-link">Ask AI two questions</span>
