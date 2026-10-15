@@ -3266,7 +3266,7 @@ main .xp-head .xp-chain { margin: 0 0 6px !important; font-size: 13px; font-weig
 .home .actions, .home.home-typing .actions { justify-content: flex-start !important; }
 .home.home-typing h1, .home.home-typing .lede { margin-left: 0 !important; margin-right: auto !important; }
 .home.home-typing h1 { text-wrap: balance; }
-.home.home-typing h1 { margin-left: -0.09em !important; } /* optical alignment (Mike, 2026-10-14: "the line under h1 looks like it starts more to left"): the P's left side bearing is 0.09em (measured 3.6px at 40px, so 8px at 88px), the lede's T sits on the edge; pull the headline out by that much so the ink lines up, at every width */
+.home.home-typing h1 { margin-left: -0.082em !important; } /* re-measured at 700 on 2026-10-15: the P's bearing is 0.082em (0.09 at 500) */ /* optical alignment (Mike, 2026-10-14: "the line under h1 looks like it starts more to left"): the P's left side bearing is 0.09em (measured 3.6px at 40px, so 8px at 88px), the lede's T sits on the edge; pull the headline out by that much so the ink lines up, at every width */
 .art-page { text-align: left !important; }
 .art-page h1, .art-page .lede { margin-left: 0 !important; margin-right: auto !important; }
 .art-page h1.jev-title { justify-content: flex-start !important; }
