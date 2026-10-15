@@ -97,7 +97,7 @@ export default function HomePage() {
           Volume: tree/1, up to 1,000,000 leaves per position, one Base write each. */}
       <div className="home-cards">
         <Link className="home-card" href="/docs/integration">
-          <h2>Model outputs</h2>
+          <h2>AI model outputs</h2>
           <p>Put the position&rsquo;s commitment into the prompt. The answer could not have existed before the position opened, and the proof travels with the&nbsp;output.</p>
           <span className="home-card-link">Put it in your records</span>
         </Link>
