@@ -211,6 +211,13 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
     }
   }, [buildDownload, cfg.algorithm, cfg.path, compact]);
 
+  // /generate?go=1, from the home's "See it work": start at once, as the click on the home did before (2026-10-15).
+  useEffect(() => {
+    if (mode !== "generate") return;
+    if (!new URLSearchParams(window.location.search).has("go")) return;
+    void create();
+  }, [mode, create]);
+
   const download = useCallback(async () => {
     if (!made) return;
     const b = await buildDownload(made);
@@ -350,9 +357,10 @@ export function ArtMaker({ children, mode = "painting", secondary, below }: { ch
           {home ? (
             /* Home: the page's two buttons, the make first and blue (it replaced "See a real BitGraph", Mike, 2026-10-10). */
             <div className="actions art-home-actions">
-              <button type="button" className="bg-action-link is-make art-go" onClick={create} disabled={running} aria-busy={running}>
-                {failedAt >= 0 ? "Try again" : cfg.make}
-              </button>
+              {/* "See it work" goes to /generate and starts there (Mike, 2026-10-15: "should 'see it work' button just fire it
+                  off? or take them to new page"): one click as before, but the result lands on its own page with the three
+                  steps, the home stays whole, and Back returns to it. An old /?p= link still reopens its image here. */}
+              <a className="bg-action-link is-make art-go" href="/generate?go=1">{cfg.make}</a>
               {secondary}
             </div>
           ) : (
