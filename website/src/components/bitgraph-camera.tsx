@@ -2975,7 +2975,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   const waitFill = (pct: number): React.CSSProperties => ({ width: `${pct}%`, height: "100%", background: "var(--accent)", transition: "width 0.15s" });
 
   return (
-    <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
+    /* No ground of its own (2026-10-15, Mike: "design error here"): var(--bg) painted a white slab behind the results
+       heading and between the cards on the grey page; the page's grey shows through, the cards keep their white. */
+    <div style={{ color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
       <style>{`
         /* Drop step: the same column as /folder and /day, to the pixel —
            90% up to 800, 40px under the nav, top-aligned. The centered-hero
