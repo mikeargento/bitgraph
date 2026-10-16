@@ -3684,3 +3684,16 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
 .callout.is-limit > .kicker, .callout.is-ok > .kicker, .callout.is-err > .kicker {
   color: var(--text) !important; font-size: 13px !important; font-weight: 600 !important; letter-spacing: 0.04em !important;
 }
+/* A demo's result starts as high as a docs page's title (Mike, 2026-10-15: "make sure the content begins as high up in
+   the page as possible within design limits"): once the hero has folded away, the 96px hero padding becomes the docs' 56px
+   and the folded hero rows stop holding space, so the buttons sit 56px under the nav like every page's h1. */
+.frame.art-page > .art:has(.art-go-wrap.is-away) { padding-top: 56px !important; }
+.frame.art-page > .art:has(.art-go-wrap.is-away) > .art-hero.is-away { display: none; }
+/* Ask AI's result the full content width like every other page (Mike, 2026-10-15: "and the width?"): it was held to the
+   760px column a landscape image once used; /generate's result already runs the frame. */
+.frame.art-page > .art > .art-result { max-width: none !important; }
+.frame.art-page .art-result > .art-actions.art-actions-top { display: flex !important; flex-wrap: wrap; gap: 12px; }
+.frame.art-page .art-result > .art-actions.art-actions-top > * { width: auto !important; flex: 0 0 auto !important; }
+/* The home's demo the same way (Mike: "will it render that way when you do the demo on home too?"). */
+.home-scroll .home-hero:has(.art-go-wrap.is-away) { padding-top: 56px !important; }
+.home-hero .art:has(.art-go-wrap.is-away) > .art-hero.is-away { display: none; }
