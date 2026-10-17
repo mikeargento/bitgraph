@@ -1,7 +1,7 @@
 {
   "name": "@mikeargento/bitgraph-mcp",
   "version": "0.12.0",
-  "description": "MCP server for BitGraph. Make a BitGraph of files or folders (one tree, one position for all of it, and the export that proves each file), check whether bytes are on record, and fetch proofs from any MCP client.",
+  "description": "MCP server for BitGraph: make and check BitGraphs from an AI agent. Files are hashed locally; only the SHA-256 is sent.",
   "keywords": [
     "bitgraph",
     "mcp",
