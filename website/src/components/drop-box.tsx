@@ -10,9 +10,10 @@
  *   Checker: every file is looked up by its hash. A file that is already a
  *   BitGraph gets its proof verified in this browser against the file's own
  *   bytes, and a link to its proof page.
- *   Maker: files that are not yet BitGraphs can be made into BitGraphs with one
- *   click: one atomic action in the enclave each (a fresh nonce, then the
- *   file's digest). Making one is permanent, so it is never automatic.
+ *   Maker: on /make, files that are not yet BitGraphs are made at once when
+ *   dropped (Mike, 2026-10-17: "dropping bitgraph in should just do it"): one
+ *   atomic action in the enclave each (a fresh nonce, then the file's digest).
+ *   One file lands on its proof page.
  *   Each result shows the enclave's own signed time.
  *
  * A lookup that fails is "could not check", never "not a BitGraph"
@@ -37,6 +38,8 @@ type Row = {
   proof?: Proof;
   valid?: boolean;
   note?: string;
+  /** A proof file was dropped, not the file it proves. */
+  isProofFile?: boolean;
 };
 
 const toUrlSafe = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -52,6 +55,17 @@ function teeTime(proof: Proof): string | null {
   return `${d.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" })}, ${d.toLocaleTimeString("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit", second: "2-digit" })} UTC`;
 }
 const sizeLabel = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+
+/** A dropped file that is itself a BitGraph proof (JSON with the artifact, commit and signer), or null. */
+function proofFileOf(f: File, bytes: Uint8Array): Proof | null {
+  if (bytes.length > 4_000_000 || !/\.json$/i.test(f.name)) return null;
+  try {
+    const o = JSON.parse(new TextDecoder().decode(bytes)) as Proof & { signer?: unknown };
+    return typeof o.version === "string" && o.version.startsWith("bitgraph") && typeof o.artifact?.digestB64 === "string" && o.commit && o.signer ? o : null;
+  } catch {
+    return null;
+  }
+}
 
 async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
   const { proofHash: _h, ...p } = proof as Proof & { proofHash?: unknown };
@@ -73,33 +87,13 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
 
-  const take = useCallback(async (files: File[]) => {
-    const picked = files.slice(0, MAX_FILES);
-    const fresh: Row[] = picked.map((f, i) => ({ key: `${Date.now()}-${i}-${f.name}`, name: f.name, size: f.size, state: "hashing" }));
-    setRows(fresh);
-    await Promise.all(picked.map(async (f, i) => {
-      const key = fresh[i]!.key;
-      try {
-        const bytes = new Uint8Array(await f.arrayBuffer());
-        const digestB64 = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
-        patch(key, { bytes, digestB64, state: "looking" });
-        const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
-        if (!res.ok) { patch(key, { state: "error", note: "Could not check the ledger just now. Try again in a moment." }); return; }
-        const body = (await res.json()) as { proofs?: Array<{ proof: Proof }> };
-        const first = body.proofs?.[0]?.proof;
-        if (!first) { patch(key, { state: "new" }); return; }
-        patch(key, { state: "found", proof: first, valid: await check(first, bytes) });
-      } catch {
-        patch(key, { state: "error", note: "This browser could not read or check that file." });
-      }
-    }));
-  }, []);
-
-  const make = async () => {
-    const todo = rows.filter((r) => r.state === "new" && r.digestB64);
-    if (todo.length === 0) return;
+  /** Bind the given rows (all new) in the enclave; returns the rows as they ended. */
+  const makeRows = async (todo: Row[]): Promise<Row[]> => {
+    if (todo.length === 0) return [];
     setBusy(true);
     for (const r of todo) patch(r.key, { state: "making" });
+    const out: Row[] = [];
+    const end = (r: Row, p: Partial<Row>) => { patch(r.key, p); out.push({ ...r, ...p }); };
     try {
       const res = await fetch("/api/commit", {
         method: "POST",
@@ -108,22 +102,58 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
       });
       if (!res.ok) {
         const note = res.status === 503 ? "The enclave is restarting (it does once a day). Try again in a minute." : "The BitGraph could not be made just now. Nothing was recorded.";
-        for (const r of todo) patch(r.key, { state: "new", note });
-        return;
+        for (const r of todo) end(r, { state: "new", note });
+        return out;
       }
       const raw = (await res.json()) as Proof[] | { proofs?: Proof[] };
       const proofs = Array.isArray(raw) ? raw : raw.proofs ?? [];
       for (const r of todo) {
         const p = proofs.find((x) => x.artifact?.digestB64 === r.digestB64);
-        if (!p || !r.bytes) { patch(r.key, { state: "error", note: "No proof came back for this file. Look it up on the ledger before trying again." }); continue; }
-        patch(r.key, { state: "made", proof: p, valid: await check(p, r.bytes) });
+        if (!p || !r.bytes) { end(r, { state: "error", note: "No proof came back for this file. Look it up on the ledger before trying again." }); continue; }
+        end(r, { state: "made", proof: p, valid: await check(p, r.bytes) });
       }
     } catch {
-      for (const r of todo) patch(r.key, { state: "error", note: "The request did not finish. Look the file up on the ledger before trying again: it may already be recorded." });
+      for (const r of todo) end(r, { state: "error", note: "The request did not finish. Look the file up on the ledger before trying again: it may already be recorded." });
     } finally {
       setBusy(false);
     }
+    return out;
   };
+
+  /* A drop just does it (Mike, 2026-10-17: "dropping bitgraph in should just do it ... and open proof page"):
+     every file is looked up; on /make the new ones are made at once; one file lands on its proof page. A dropped
+     proof file (a .bitgraph.json) opens the proof it belongs to, and is never itself made into a BitGraph. */
+  const take = useCallback(async (files: File[]) => {
+    const picked = files.slice(0, MAX_FILES);
+    const fresh: Row[] = picked.map((f, i) => ({ key: `${Date.now()}-${i}-${f.name}`, name: f.name, size: f.size, state: "hashing" }));
+    setRows(fresh);
+    const ended: Row[] = await Promise.all(picked.map(async (f, i): Promise<Row> => {
+      const row = fresh[i]!;
+      const end = (p: Partial<Row>) => { patch(row.key, p); return { ...row, ...p } as Row; };
+      try {
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const asProof = proofFileOf(f, bytes);
+        if (asProof) return end({ state: "found", proof: asProof, digestB64: asProof.artifact!.digestB64!, isProofFile: true });
+        const digestB64 = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+        patch(row.key, { bytes, digestB64, state: "looking" });
+        const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
+        if (!res.ok) return end({ bytes, digestB64, state: "error", note: "Could not check the ledger just now. Try again in a moment." });
+        const body = (await res.json()) as { proofs?: Array<{ proof: Proof }> };
+        const first = body.proofs?.[0]?.proof;
+        if (!first) return end({ bytes, digestB64, state: "new" });
+        return end({ bytes, digestB64, state: "found", proof: first, valid: await check(first, bytes) });
+      } catch {
+        return end({ state: "error", note: "This browser could not read or check that file." });
+      }
+    }));
+    const made = mode === "make" ? await makeRows(ended.filter((r) => r.state === "new" && r.digestB64)) : [];
+    const final = ended.map((r) => made.find((x) => x.key === r.key) ?? r);
+    if (final.length === 1 && final[0]!.proof && final[0]!.digestB64) {
+      window.location.assign(`/proof/${toUrlSafe(final[0]!.digestB64)}`);
+    }
+  }, [mode]);
+
+  const make = async () => { await makeRows(rows.filter((r) => r.state === "new" && r.digestB64)); };
 
   const download = (r: Row) => {
     if (!r.proof) return;
@@ -173,9 +203,9 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
                 {r.state === "error" && r.note}
                 {(r.state === "found" || r.state === "made") && r.proof && (
                   <>
-                    <span className={r.valid ? "db-ok" : "db-bad"}>
+                    <span className={r.valid || r.isProofFile ? "db-ok" : "db-bad"}>
                       {r.state === "made" ? "Made" : "A BitGraph"}
-                      {r.valid ? ", checked in this browser" : ", but the proof did not check against this file"}
+                      {r.isProofFile ? ": this is its proof file" : r.valid ? ", checked in this browser" : ", but the proof did not check against this file"}
                     </span>
                     {teeTime(r.proof) && <span className="db-size">{teeTime(r.proof)}, enclave time</span>}
                     <a href={`/proof/${toUrlSafe(r.digestB64 ?? "")}`}>Proof</a>

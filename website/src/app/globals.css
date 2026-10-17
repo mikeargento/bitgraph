@@ -4284,3 +4284,18 @@ html:root:root body, html:root:root main, html:root:root main:has(> *), html:roo
    and the number underlines to say the row opens its proof. */
 @media (hover: hover) { html:root:root main .xp-row:hover { background: var(--panel-2) !important; } }
 :root:root .ledger-head .home-kicker { margin: 0 !important; }
+
+/* Code block headers ("Shell" + Copy) in the theme, both modes: the white bar was the light site's. */
+html:root:root .code-block-header { background: var(--code-bg) !important; color: var(--dim) !important; border-color: var(--line) !important; }
+html:root:root .code-block-header .code-copy:not(.mk-code .code-copy) { background: transparent !important; color: var(--dim) !important; border: 1px solid var(--line) !important; border-radius: 0 !important; box-shadow: none !important; }
+html:root:root .code-block-header .code-copy:hover { color: var(--ink) !important; border-color: var(--dim) !important; }
+html:root:root .code-block-header .code-copy svg rect[fill="#fff"] { fill: var(--code-bg) !important; }
+
+/* Folds in the theme, both modes: the light site's #e8eaed hover and pale-blue --tint open head made the title vanish. */
+@media (hover: hover) { html:root:root .pv-fold:not(.is-open):hover { background: var(--panel-2) !important; } }
+html:root:root .pv-fold.is-open > .pv-fold-head { background: var(--panel-2) !important; color: var(--ink) !important; border-radius: 0 !important; }
+html:root:root .pv-fold, html:root:root .pv-fold.is-open > .pv-fold-head { border-radius: 0 !important; }
+
+/* The verdict badge in the theme, both modes (it was the light site's green tint): outlined, ink on the panel. */
+html:root:root .pv-verdict { background: transparent !important; color: var(--ink) !important; border: 1px solid var(--dim) !important; border-radius: 0 !important; }
+html:root:root .pv-verdict-false { border-color: var(--err) !important; color: var(--err) !important; }
