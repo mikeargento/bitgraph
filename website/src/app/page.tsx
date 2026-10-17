@@ -30,13 +30,13 @@ export default function HomePage() {
 
       <section className="home-section" aria-labelledby="home-how">
         <p className="home-kicker">How BitGraph works</p>
-        <h2 id="home-how">One atomic action gives any computation a unique&nbsp;position.</h2>
+        <h2 id="home-how">One atomic&nbsp;action.</h2>
         <div style={{ marginTop: 32 }}><FlowFigure /></div>
-        <p style={{ marginTop: 48 }}>If any step fails, nothing is released and the counter does not&nbsp;move.</p>
       </section>
 
       <section className="home-section home-why" aria-label="What it proves">
         <p className="home-kicker">What it proves</p>
+        <h2 id="home-proves">Gives every computation a unique&nbsp;position.</h2>
         {/* Mike, 2026-10-17. */}
         <p className="home-why-body">
           Inside a hardware enclave, one atomic action counts twice. First, a fresh, unpredictable value takes one position. At the

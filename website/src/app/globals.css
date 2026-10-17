@@ -4391,3 +4391,20 @@ html:root:root:root .pf-flow .pf-f-label { justify-self: center !important; marg
    them"): a hairline across the column, halfway through the 96px gap, above every section but the first. */
 html:root:root .home-section + .home-section { border-top: 1px solid var(--line-2) !important; }
 html:root:root .home-section { border-top-width: 0; }
+
+/* The note inside the enclave, under its two steps (Mike, 2026-10-17): grey, centred across nonce and bind. */
+html:root:root .pf-flow .pf-f-note { color: var(--dim); text-align: center; text-wrap: balance; margin-top: 20px; line-height: 1.5; }
+@media (min-width: 761px) {
+  html:root:root:root .pf-flow.pf-flow { grid-template-rows: 36px auto auto 36px !important; }
+  html:root:root:root .pf-flow .pf-f-enclave { grid-row: 1 / 5 !important; }
+  html:root:root:root .pf-flow .pf-f-note { grid-column: 4 / 7 !important; grid-row: 3 !important; }
+}
+@media (max-width: 760px) {
+  /* content, gap, pad, nonce, arrow, bind, note, pad, arrow, proof */
+  html:root:root:root .pf-flow.pf-flow { grid-template-rows: auto 56px 24px auto 44px auto auto 24px 44px auto !important; }
+  html:root:root:root .pf-flow .pf-f-enclave { grid-row: 3 / 9 !important; }
+  html:root:root:root .pf-flow .pf-f-note { grid-column: 2 !important; grid-row: 7 !important; }
+  html:root:root:root .pf-flow .pf-arrow.pf-f-a3 { grid-row: 9 !important; }
+  html:root:root:root .pf-flow .pf-f-proof { grid-row: 10 !important; }
+}
+html:root:root .home-section.home-why > h2 + .home-why-body { margin-top: 24px !important; }
