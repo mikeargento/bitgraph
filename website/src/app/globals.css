@@ -4347,4 +4347,4 @@ html:root:root:root:root body h1.term-line, html:root:root:root:root body h1.ter
 html:root:root:root body h1.term-line { margin: 0 !important; min-height: 0 !important; padding: 0 !important; }
 /* One line on every phone (Mike, 2026-10-17: "dont let h1 wrap on mobile"): measured, the line is ~16.7x its font
    size wide and the column is 90% of the screen, so 5vw fits with room for Roboto's wider letters; 32px caps desktop. */
-html:root:root:root:root:root body h1.term-line, html:root:root:root:root:root body h1.term-line * { font-size: min(32px, max(16px, 5vw)) !important; white-space: nowrap !important; }
+html:root:root:root:root:root body h1.term-line, html:root:root:root:root:root body h1.term-line * { font-size: min(28px, max(16px, 5vw)) !important; white-space: nowrap !important; }
