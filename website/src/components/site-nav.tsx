@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * The bar, in its own look (2026-10-17): the wordmark, then two outlined buttons, Make (the drop
@@ -32,6 +33,7 @@ export function SiteNav() {
               {l.label}
             </Link>
           ))}
+          <ThemeToggle />
         </nav>
       </div>
     </div>

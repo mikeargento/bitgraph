@@ -105,6 +105,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: the head script below marks <html> data-js before React loads.
     <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable}`}>
       <head>
+        {/* Day or night before the first paint (Mike, 2026-10-17: "a sun and a moon toggle"): a saved choice
+            sets data-theme on <html>; with none, globals.css follows the device. */}
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("bg-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}` }} />
         {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
             700 and italics). PREVIEW 2026-09-16 (Mike: "what about good ol
             acumen"): --font-term in globals.css points at it. */}

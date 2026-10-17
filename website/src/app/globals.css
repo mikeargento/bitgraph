@@ -4160,3 +4160,95 @@ html body .home-kicker.home-kicker { text-transform: uppercase !important; lette
 
 /* The drop box taller (Mike, 2026-10-17: "a tad taller ... drop box ... taller"). */
 :root .db-zone { padding-top: 80px !important; padding-bottom: 80px !important; }
+
+/* ── Day mode (Mike, 2026-10-17: "since its monochrome, make a day mode. not too bright, just light mode"). It
+   follows the device's light or dark setting. The ground is a soft grey, not white; cards sit a step lighter.
+   Measured on #e8e8e6: body #2b2b2b = 11.7:1, headings #1a1a1a = 14.1:1, secondary #636363 = 5.1:1 (AA 4.5).
+   Every dark colour the theme hard-codes is restated here, so nothing dark is left behind. ── */
+@media (prefers-color-scheme: light) {
+  html:root:root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #e8e8e6; --bar: #dfdfdc; --paper: #f0f0ee; --panel: #f0f0ee; --panel-2: #e2e2e0; --code-bg: #dededb;
+    --line: #bdbdba; --line-2: #cfcfcc; --hair: #cfcfcc;
+    --ink: #1a1a1a; --text: #2b2b2b; --dim: #636363; --faint: #8c8c8a;
+    --accent: #1a1a1a; --accent-2: #000000; --btn-primary: #dededb; --btn-primary-hover: #d2d2cf; --btn-primary-text: #1a1a1a;
+    --shadow-card: 0 0 0 1px #c4c4c1; --shadow-lift: 0 0 0 1px #b0b0ad;
+    --err: #b3261e; --ok: #2b2b2b; --warn: #8a5a00; --pf-line: #6e6e6c;
+  }
+  html:root:root:not([data-theme="dark"]), html:root:root:not([data-theme="dark"]) body, html:root:root:not([data-theme="dark"]) main, html:root:root:not([data-theme="dark"]) main:has(> .home-scroll), html:root:root:not([data-theme="dark"]) .section-grey { background: #e8e8e6 !important; color: #2b2b2b; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
+  html:root:root:not([data-theme="dark"]) #site-nav, html:root:root:not([data-theme="dark"]) #site-nav.scrolled { background: #dfdfdc !important; border-bottom-color: #cfcfcc !important; }
+  html:root:root:not([data-theme="dark"]) .home-section { border-top-color: #cfcfcc !important; }
+  html:root:root:not([data-theme="dark"]) :not(pre) > code { background: #dededb !important; border-color: #c4c4c1 !important; color: #1a1a1a !important; }
+  html:root:root:not([data-theme="dark"]) ::selection { background: #c9c9c6; color: #000000; }
+  html:root:root:not([data-theme="dark"]) body main :is(p, li, dd, td) { color: #2b2b2b; }
+  html:root:root:not([data-theme="dark"]) body :is(h1, h2, h3, b, strong, .term-text, .pf-title) { color: #1a1a1a; }
+  html:root:root:not([data-theme="dark"]) a { text-decoration-color: #8c8c8a !important; }
+
+  /* the drop box */
+  html:root:root:not([data-theme="dark"]) .db-zone { background: #f0f0ee !important; border-color: #b0b0ad !important; }
+  html:root:root:not([data-theme="dark"]) .db-zone[data-over="1"], html:root:root:not([data-theme="dark"]) .db-zone:hover { background: #f5f5f3 !important; border-color: #636363 !important; }
+  html:root:root:not([data-theme="dark"]) .db-rows { background: #f0f0ee !important; }
+  html:root:root:not([data-theme="dark"]) .db-ok { color: #1a1a1a !important; }
+
+  /* the drawings */
+  html:root:root:not([data-theme="dark"]) .pf-figure { --pf-line: #6e6e6c; }
+  html:root:root:not([data-theme="dark"]) .pf-grey { background: #f0f0ee !important; border-color: #b0b0ad !important; color: #1a1a1a !important; }
+  html:root:root:not([data-theme="dark"]) .pf-purple { background: #f0f0ee !important; border-color: #8c8c8a !important; color: #1a1a1a !important; }
+  html:root:root:not([data-theme="dark"]) .pf-green { background: #f5f5f3 !important; border-color: #2b2b2b !important; color: #1a1a1a !important; }
+  html:root:root:not([data-theme="dark"]) :is(.pf-green, .pf-purple, .pf-grey) .pf-sub { color: #636363 !important; }
+  html:root:root:not([data-theme="dark"]) :is(.pf-enclave, .pf-f-enclave) { border-color: #8c8c8a !important; }
+
+  /* buttons and the code blocks' copy tab */
+  html:root:root:not([data-theme="dark"]) .bg-action-link.is-make { background: #dededb !important; border-color: #8c8c8a !important; color: #1a1a1a !important; }
+  html:root:root:not([data-theme="dark"]) .bg-action-link:not(.is-make):not(:disabled) { border-color: #b0b0ad !important; color: #1a1a1a !important; background: transparent !important; }
+  @media (hover: hover) {
+    html:root:root:not([data-theme="dark"]) .bg-action-link:not(:disabled):hover { background: #dededb !important; border-color: #636363 !important; color: #000000 !important; }
+  }
+  html:root:root:not([data-theme="dark"]) .mk-code .code-copy { color: #636363 !important; }
+  html:root:root:not([data-theme="dark"]) .mk-code .code-copy:hover, html:root:root:not([data-theme="dark"]) .mk-code .code-copy.is-copied { color: #1a1a1a !important; }
+}
+/* The sun and moon in the bar force a mode (data-theme on <html>); "dark" above keeps the dark theme. */
+  html[data-theme="light"]:root:root {
+    color-scheme: light;
+    --bg: #e8e8e6; --bar: #dfdfdc; --paper: #f0f0ee; --panel: #f0f0ee; --panel-2: #e2e2e0; --code-bg: #dededb;
+    --line: #bdbdba; --line-2: #cfcfcc; --hair: #cfcfcc;
+    --ink: #1a1a1a; --text: #2b2b2b; --dim: #636363; --faint: #8c8c8a;
+    --accent: #1a1a1a; --accent-2: #000000; --btn-primary: #dededb; --btn-primary-hover: #d2d2cf; --btn-primary-text: #1a1a1a;
+    --shadow-card: 0 0 0 1px #c4c4c1; --shadow-lift: 0 0 0 1px #b0b0ad;
+    --err: #b3261e; --ok: #2b2b2b; --warn: #8a5a00; --pf-line: #6e6e6c;
+  }
+  html[data-theme="light"]:root:root, html[data-theme="light"]:root:root body, html[data-theme="light"]:root:root main, html[data-theme="light"]:root:root main:has(> .home-scroll), html[data-theme="light"]:root:root .section-grey { background: #e8e8e6 !important; color: #2b2b2b; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
+  html[data-theme="light"]:root:root #site-nav, html[data-theme="light"]:root:root #site-nav.scrolled { background: #dfdfdc !important; border-bottom-color: #cfcfcc !important; }
+  html[data-theme="light"]:root:root .home-section { border-top-color: #cfcfcc !important; }
+  html[data-theme="light"]:root:root :not(pre) > code { background: #dededb !important; border-color: #c4c4c1 !important; color: #1a1a1a !important; }
+  html[data-theme="light"]:root:root ::selection { background: #c9c9c6; color: #000000; }
+  html[data-theme="light"]:root:root body main :is(p, li, dd, td) { color: #2b2b2b; }
+  html[data-theme="light"]:root:root body :is(h1, h2, h3, b, strong, .term-text, .pf-title) { color: #1a1a1a; }
+  html[data-theme="light"]:root:root a { text-decoration-color: #8c8c8a !important; }
+
+  /* the drop box */
+  html[data-theme="light"]:root:root .db-zone { background: #f0f0ee !important; border-color: #b0b0ad !important; }
+  html[data-theme="light"]:root:root .db-zone[data-over="1"], html[data-theme="light"]:root:root .db-zone:hover { background: #f5f5f3 !important; border-color: #636363 !important; }
+  html[data-theme="light"]:root:root .db-rows { background: #f0f0ee !important; }
+  html[data-theme="light"]:root:root .db-ok { color: #1a1a1a !important; }
+
+  /* the drawings */
+  html[data-theme="light"]:root:root .pf-figure { --pf-line: #6e6e6c; }
+  html[data-theme="light"]:root:root .pf-grey { background: #f0f0ee !important; border-color: #b0b0ad !important; color: #1a1a1a !important; }
+  html[data-theme="light"]:root:root .pf-purple { background: #f0f0ee !important; border-color: #8c8c8a !important; color: #1a1a1a !important; }
+  html[data-theme="light"]:root:root .pf-green { background: #f5f5f3 !important; border-color: #2b2b2b !important; color: #1a1a1a !important; }
+  html[data-theme="light"]:root:root :is(.pf-green, .pf-purple, .pf-grey) .pf-sub { color: #636363 !important; }
+  html[data-theme="light"]:root:root :is(.pf-enclave, .pf-f-enclave) { border-color: #8c8c8a !important; }
+
+  /* buttons and the code blocks' copy tab */
+  html[data-theme="light"]:root:root .bg-action-link.is-make { background: #dededb !important; border-color: #8c8c8a !important; color: #1a1a1a !important; }
+  html[data-theme="light"]:root:root .bg-action-link:not(.is-make):not(:disabled) { border-color: #b0b0ad !important; color: #1a1a1a !important; background: transparent !important; }
+  @media (hover: hover) {
+    html[data-theme="light"]:root:root .bg-action-link:not(:disabled):hover { background: #dededb !important; border-color: #636363 !important; color: #000000 !important; }
+  }
+  html[data-theme="light"]:root:root .mk-code .code-copy { color: #636363 !important; }
+  html[data-theme="light"]:root:root .mk-code .code-copy:hover, html[data-theme="light"]:root:root .mk-code .code-copy.is-copied { color: #1a1a1a !important; }
+
+/* The sun and moon, last in the bar: an icon in the text colour, no box. */
+:root #site-nav .theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-left: 16px; padding: 0; background: none; border: 0; color: var(--dim); cursor: pointer; }
+:root #site-nav .theme-toggle:hover { color: var(--ink); }
