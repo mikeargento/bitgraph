@@ -24,7 +24,7 @@ Inside a hardware enclave, one atomic action counts twice: a fresh, unused value
                  ┌╌╌ Enclave: one atomic action ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
 ┌────────────┐   ┆   ┌───────────────┐     ┌─────────────────┐   ┆   ┌───────────────┐
 │  Content   │ ──┆─▶ │   1: nonce    │ ──▶ │     2: bind     │ ──┆─▶ │     Proof     │
-│  Any bits  │   ┆   │ Unpredictable │     │ Content, signed │   ┆   │ Offline check │
+│  Any bits  │   ┆   │    Unused     │     │ Content, signed │   ┆   │ Offline check │
 └────────────┘   ┆   └───────────────┘     └─────────────────┘   ┆   └───────────────┘
                  └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
 ```
