@@ -293,328 +293,97 @@ function whenBeside(ms: number, ref: number | null): string {
 /* ── The view ─────────────────────────────────────────────────────────────── */
 
 export function ProofView({ m }: { m: ProofViewModel }) {
-  const isAnchor = m.kind === "anchor";
-  const attested = m.attestedMs;
-  const bf = !isAnchor ? m.baseFloor ?? null : null;
-  // A Base floor's time is a bound only when it is no later than the attestation document (floorTimeIsBound).
-  const bfTimeOk = bf !== null && floorTimeIsBound(bf.blockTimestamp, attested).ok;
-  const floorMs = bf ? (bfTimeOk ? bf.blockTimestamp * 1000 : null) : m.floor?.blockTime ? new Date(m.floor.blockTime).getTime() : null;
-  // Whole seconds, floored, so the count agrees with the two clock readings shown beside it.
-  const sinceFloor = attested !== null && floorMs !== null ? Math.max(0, Math.floor((attested - floorMs) / 1000)) : null;
-  const ct = m.ceilingTime;
-  const ctMs = ct?.anchor ? ct.anchor.blockTimestamp * 1000 : null;
-  // After a halt Base refills the missed time with blocks stamped in the past (SPEC 10.4): such a
-  // stamp is no "existed by" time for this record, so the row names the block and withholds the time.
-  const ctStampOk = ctMs === null || baseTimeIsBound(ctMs / 1000, { floorTimestampSec: floorMs !== null ? floorMs / 1000 : null, attestedAtMs: attested }).ok;
-  const settle = ct?.settlement?.l1;
-  const posMined = m.ceilingPos?.blockTime ? new Date(m.ceilingPos.blockTime).getTime() : null;
-  const blockMs = m.anchorBlock?.minedMs ?? null;
-  const sinceBlock = attested !== null && blockMs !== null ? Math.max(0, Math.floor((attested - blockMs) / 1000)) : null;
+  /* Stripped to the primitive (Mike, 2026-10-17: "verdict, the two counts, the signature and enclave, check it
+     anywhere, raw JSON. Keep old proofs readable"). Floors, ceilings, anchors, export packages and the position
+     lists are gone from the page; every old proof still opens, and all of it remains in the raw JSON. */
   const c = m.checks;
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
   const badCount = c.claims.filter((x) => x.result === "FALSE").length;
-  const groups: Array<[string, (id: string) => boolean]> = [
-    ["The bytes", (id) => id.startsWith("bytes.") || id.startsWith("tree.") || id === "proof.fused" || id === "block"],
-    ["The proof", (id) => id === "proof.signature" || id === "proof.hash"],
-    ["The hardware", (id) => id.startsWith("attestation.")],
-    ["The floor", (id) => id.startsWith("floor.") || id === "confirmed.floor"],
-    ["The ceilings", (id) => id.startsWith("ceiling.") || id.startsWith("settlement.") || id === "confirmed.ceiling.time" || id === "confirmed.ceiling.position" || id === "confirmed.settlement"],
-    ["The pins", (id) => id === "pins"],
-  ];
+  const commit = m.proof.commit;
+  const nonceCount = commit.slotCounter ?? null;
+  const contentCount = commit.counter ?? null;
+  const proofFile = `bitgraph-${contentCount ?? safe(m.proof.artifact.digestB64).slice(0, 12)}.json`;
+  const command = `npx @mikeargento/bitgraph-sdk verify <file> --proof ${proofFile}`;
+  const download = () => {
+    const blob = new Blob([JSON.stringify(m.proof, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = proofFile;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
 
   return (
     <div className="pv">
-      <h1 className="sr-only">BitGraph Record</h1>
+      <h1 className="sr-only">BitGraph proof</h1>
 
-      {/* ── 1. The record ── */}
+      {/* ── The BitGraph and its verdict ── */}
       <section className="pv-card">
         <div className="pv-head">
           <div className="pv-head-main">
             <div className="pv-title">
               {m.recordName}
-              {isAnchor && <span className="pv-kind">Ethereum anchor</span>}
+              {m.kind === "anchor" && <span className="pv-kind">Ethereum anchor</span>}
               {m.kind === "interval" && <span className="pv-kind">Interval</span>}
-              {m.set && <span className="pv-kind">{m.set.kind === "tree/1" ? (m.set.count === 1 ? "Tree of one" : `Tree of ${fmtNum(m.set.count)}`) : `Set of ${fmtNum(m.set.count)}`}</span>}
-            </div>
-            {m.epochFull && (
-              <div className="pv-epoch" title={m.epochFull}>epoch <span className="pv-mono">{m.epochFull}</span></div>
-            )}
-            <div className="pv-when">
-              {attested !== null ? (
-                <>
-                  <span className="pv-when-label">Recorded </span>
-                  <TimeChip date={new Date(attested)} withDate />
-                </>
-              ) : m.leadFallback}
             </div>
           </div>
-          {m.anchorsBackHref && (
-            <div className="pv-head-side"><Pill href={m.anchorsBackHref}>All floors</Pill></div>
-          )}
         </div>
 
         {m.filePane}
-
         {m.c2pa?.present && <ContentCredentials c2pa={m.c2pa} />}
 
-        {/* A tree of one whose file is shown above needs no Files list: it would only repeat it. */}
-        {m.set && m.set.kind === "tree/1" && !(m.set.count === 1 && m.set.rows.length === 1) && (
-          <div className="pv-sub">
-            <div className="pv-sub-title">Files</div>
-            {m.set.rows.length === 0 ? (
-              <div className="pv-sub-note">
-                {m.set.count === 1
-                  ? <>One file under this position. Drop the file above to check it: a tree of one needs nothing else.</>
-                  : <>{fmtNum(m.set.count)} files under one position. A file&rsquo;s own export, or its recovery entry, shows whether it is one of them: drop the file with its export above.</>}
-                {/* The root on a line of its own, so a shortened hash never runs into a full stop ("869d….", Mike, 10-06). */}
-                <div className="pv-sub-root">Tree root <span className="pv-mono">{truncateHash(m.set.root ?? "", 16)}</span></div>
+        <div className="pv-sub">
+          {c.state === "running" && <div className="pv-note">Checking the proof in your browser<span className="pv-dots" aria-hidden /></div>}
+          {c.state === "failed" && <div className="pv-note">{c.note ?? "The proof could not be checked just now. That is not a finding about this BitGraph; try again in a moment."}</div>}
+          {c.state === "idle" && <div className="pv-note">The check runs once the proof is in hand.</div>}
+          {c.state === "done" && (
+            <>
+              <div className="pv-checks-summary">
+                <span className={`pv-verdict pv-verdict-${(c.verdict ?? "UNDETERMINED").toLowerCase()}`}>{c.verdict === "TRUE" ? "Holds" : c.verdict === "FALSE" ? "Does not hold" : "Undetermined"}</span>
+                <span className="pv-checks-count">{okCount} checks passed{badCount ? `, ${badCount} failed` : ""}</span>
               </div>
-            ) : m.set.rows.map((r) => (
-              <div key={r.key} className="pv-list-row">
-                <span className="pv-list-num">{r.ordinal} of {fmtNum(m.set!.count)}</span>
-                <span className="pv-list-mid pv-mono">{truncateHash(r.originDigestB64, 12)}</span>
-                <span className="pv-list-dim pv-mono">{r.placement}</span>
-                <span className="pv-list-viewing">Viewing</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {m.set && m.set.kind !== "tree/1" && (
-          <div className="pv-sub">
-            <div className="pv-sub-title">Members</div>
-            {m.set.rows.length === 0 ? (
-              <div className="pv-sub-note">
-                {fmtNum(m.set.count)} members under one position{m.set.root ? <>, set root <span className="pv-mono">{truncateHash(m.set.root, 16)}</span></> : null}. A member&rsquo;s row comes with the member: drop one of the files above.
-              </div>
-            ) : m.set.rows.map((r) => (
-              <div key={r.key} className="pv-list-row">
-                <span className="pv-list-num">{r.ordinal} of {fmtNum(m.set!.count)}</span>
-                <span className="pv-list-mid pv-mono">{truncateHash(r.originDigestB64, 12)}</span>
-                <span className="pv-list-dim pv-mono">{r.placement}</span>
-                {r.viewing ? <span className="pv-list-viewing">Viewing</span> : <a className="pv-list-link" href={r.href}>View <span aria-hidden>&rarr;</span></a>}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* ── 2. Where it sits in time ── */}
-      <section className="pv-card">
-        <div className="pv-section-title">Where it sits in time</div>
-        <div className="pv-moments">
-          {isAnchor && m.anchorBlock && (
-            <Moment label="Ethereum block" title={<>Block {m.anchorBlock.number ? `#${fmtNum(m.anchorBlock.number)}` : "#?"}{m.anchorBlock.minedMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>mined {whenBeside(m.anchorBlock.minedMs, attested)}</span> : null}</>} note="This anchor is a BitGraph of that block's hash. The block existed before it, so everything placed after this anchor came after the block.">
-              {m.anchorBlock.etherscanUrl && <Pill href={m.anchorBlock.etherscanUrl} external>Etherscan</Pill>}
-            </Moment>
-          )}
-
-          {!isAnchor && m.floor && (
-            <Moment
-              label="Floor in time" chain="eth"
-              title={<>Recorded after Ethereum block #{fmtNum(m.floor.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>mined {whenBeside(floorMs, attested)}</span> : null}</>}
-              note={<>Fixed by the enclave when the position opened and signed into the proof; a block hash cannot be known before its block exists.{m.floor.recordedMs !== null ? <> Recorded as anchor #{fmtNum(m.floor.counter)} at {whenBeside(m.floor.recordedMs, attested)}.</> : null}{m.commitAfter ? <> The commit also follows anchor #{fmtNum(m.commitAfter.counter)}, Ethereum block #{fmtNum(m.commitAfter.blockNumber)}{m.commitAfter.blockTime ? <> (mined {whenBeside(new Date(m.commitAfter.blockTime).getTime(), attested)})</> : null}, by the chain of proof hashes: a tighter bound on the commit, not on the bytes.</> : null}{m.floorNote ? <> {m.floorNote}</> : null}</>}
-            >
-              {m.floor.etherscanUrl && <Pill href={m.floor.etherscanUrl} external>Etherscan</Pill>}
-              {m.floor.digestB64 && <Pill href={`/proof/${encodeURIComponent(safe(m.floor.digestB64))}`}>Anchor #{fmtNum(m.floor.counter)}</Pill>}
-            </Moment>
-          )}
-
-          {bf && (
-            <Moment
-              label="Floor in time" chain="base"
-              title={<>Recorded after Base block #{fmtNum(bf.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(floorMs, attested)}</span> : null}</>}
-              note={<>Fixed by the enclave when the position opened and signed into the proof; a block hash cannot exist before its block.{m.floorNote ? <> {m.floorNote}</> : null}</>}
-            >
-              <Pill href={`https://basescan.org/block/${bf.blockNumber}`} external>Basescan</Pill>
-            </Moment>
-          )}
-
-          {!isAnchor && attested !== null && (
-            <Moment
-              label="Recorded"
-              title={<><span className="pv-time-box">{whenBeside(attested, floorMs)}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor block</span> : null}</>}
-              note="The instant of the commit, per the enclave platform's signed clock, carried in the attestation under Details."
-              accent
-            />
-          )}
-
-          {!isAnchor && ct && ct.anchor && ctMs !== null && (
-            <Moment
-              label="Ceiling in time" chain="base"
-              title={<>Existed by Base block #{fmtNum(ct.anchor.blockNumber)}{ctStampOk ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(ctMs, attested)}</span> : null}</>}
-              note={<>
-                A Merkle root over this record&rsquo;s proof hash, in that block.{" "}
-                {!ctStampOk && <>Base stamped that block {whenBeside(ctMs, attested)}, before this record was recorded, as Base does when it refills time after a halt, so that time is not a bound for this record.{" "}</>}
-                {settle && typeof settle.blockNumber === "number"
-                  ? <>Its batch data is on Ethereum: block #{fmtNum(settle.blockNumber)}{typeof settle.blockTimestamp === "number" ? <> ({whenBeside(settle.blockTimestamp * 1000, attested)})</> : null}.</>
-                  : ct.status === "finalized" ? "Final on Ethereum, as BitGraph's Base node last reported."
-                  : ct.status === "safe" ? "Posted to Ethereum, as BitGraph's Base node last reported."
-                  : "Relies on Base's sequencer until it is posted to Ethereum."}
-              </>}
-            >
-              <Pill href={`https://basescan.org/tx/${ct.anchor.txHash}`} external>Basescan</Pill>
-              {settle?.txHash && <Pill href={`https://etherscan.io/tx/${settle.txHash}`} external>Ethereum batch</Pill>}
-            </Moment>
-          )}
-          {!isAnchor && ct && !ct.anchor && (
-            <Moment label="Ceiling in time" chain="base" title={<span className="pv-moment-dim">Queued for the next Base write<span className="pv-dots" aria-hidden /></span>} note="The writer puts a root over new records on Base seconds after each commit. This page keeps asking." />
-          )}
-
-          {!isAnchor && !ct && attested !== null && attested < BASE_CEILING_START_MS && (
-            <Moment label="Ceiling in time" chain="base" title={<span className="pv-moment-dim">None for this record</span>} note="BitGraph began writing records to Base on 2026-09-29 at 22:43 UTC. This record was made before that, so nothing public bounds it in time from above; its ceiling is a position only." />
-          )}
-
-          {!isAnchor && m.ceilingPos && (
-            <Moment
-              label="Ceiling in position" chain="eth"
-              title={<>Committed before anchor #{fmtNum(m.ceilingPos.counter)}{m.ceilingPos.recordedMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>recorded {whenBeside(m.ceilingPos.recordedMs, attested)}</span> : null}</>}
-              note={<>The next anchor in the sequence, carrying Ethereum block #{fmtNum(m.ceilingPos.blockNumber)}{posMined !== null ? <> (mined {whenBeside(posMined, attested)})</> : null}. A bound in position, not a clock time: an anchor is made after the block it carries, and an operator who delayed the block feed could place a record before an anchor and then catch up, so this orders the record but does not date it.</>}
-            >
-              {m.ceilingPos.etherscanUrl && <Pill href={m.ceilingPos.etherscanUrl} external>Etherscan</Pill>}
-              {m.ceilingPos.digestB64 && <Pill href={`/proof/${encodeURIComponent(safe(m.ceilingPos.digestB64))}`}>Anchor #{fmtNum(m.ceilingPos.counter)}</Pill>}
-            </Moment>
-          )}
-          {!isAnchor && !m.ceilingPos && m.ethWait && (
-            <Moment label="Ceiling in position" chain="eth" title={<span className="pv-moment-dim">Waiting for the next anchor<span className="pv-dots" aria-hidden /></span>} note="An anchor lands about every 12 seconds. This page keeps asking." />
-          )}
-          {isAnchor && attested !== null && (
-            <Moment label="Recorded" title={<><span className="pv-time-box">{whenBeside(attested, blockMs)}</span>{sinceBlock !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceBlock} s after the block</span> : null}</>} note="The instant the enclave signed this anchor, per the enclave platform's signed clock: after the block it carries." accent />
+              {c.reading && <Reading text={c.reading} isFalse={c.verdict === "FALSE"} />}
+            </>
           )}
         </div>
       </section>
 
-      {/* ── 3. What holds ── */}
+      {/* ── The two counts ── */}
       <section className="pv-card">
-        <div className="pv-section-title">What holds, and what it rests on</div>
-        {c.state === "running" && <div className="pv-note">Checking the evidence in your browser<span className="pv-dots" aria-hidden /></div>}
-        {c.state === "failed" && <div className="pv-note">{c.note ?? "The evidence could not be assembled just now. That is not a finding about this BitGraph; try again in a moment."}</div>}
-        {c.state === "idle" && <div className="pv-note">The checks run once the proof and its anchors are in hand.</div>}
-        {c.state === "done" && (
-          <>
-            <div className="pv-checks-summary">
-              <span className={`pv-verdict pv-verdict-${(c.verdict ?? "UNDETERMINED").toLowerCase()}`}>{c.verdict === "TRUE" ? "Holds" : c.verdict === "FALSE" ? "Does not hold" : "Undetermined"}</span>
-              <span className="pv-checks-count">{okCount} checks passed{badCount ? `, ${badCount} failed` : ""}{c.bytesInHand ? "" : m.set ? " · the set's root document is not in hand, so the two checks that need its bytes are not run here" : " · the file's own bytes are not in hand, so the two checks that need them are not run here"}</span>
-            </div>
-            {c.reading && <Reading text={c.reading} isFalse={c.verdict === "FALSE"} />}
-            {groups.map(([title, pick]) => {
-              const rows = c.claims.filter((x) => pick(x.id));
-              if (rows.length === 0) return null;
-              return <ChecksGroup key={title} title={title} rows={rows} />;
-            })}
-            {/* The blocks against the chains, asked automatically (no button): one line says how it went. */}
-            {(() => {
-              const online = c.claims.filter((x) => x.level === "confirmed");
-              const bad = online.some((x) => x.result === "FALSE");
-              const unanswered = online.some((x) => x.result === "UNDETERMINED");
-              const state = !c.confirmed || c.confirming ? "asking" : bad ? "mismatch" : unanswered ? "unreached" : "confirmed";
-              // The chains this record involves (a Base floor: Base, and Ethereum only once a settlement is
-              // asked about). An Ethereum floor always names both, as it always has.
-              const withEth = !bf || online.some((x) => x.id === "confirmed.settlement");
-              const chains = withEth ? "Ethereum and Base" : "Base";
-              return (
-                <div className={`pv-confirm pv-confirm-${state}`}>
-                  {state === "asking" && <span>Checking the blocks with {chains}…</span>}
-                  {state === "confirmed" && <span><span aria-hidden>&#10003; </span><span className="pv-wide">Blocks c</span><span className="pv-narrow">C</span>onfirmed with {withEth ? <>Ethereum and&nbsp;Base</> : "Base"}</span>}
-                  {state === "mismatch" && <span>A block does not match what {withEth ? "Ethereum or Base reports" : "Base reports"}</span>}
-                  {state === "unreached" && (
-                    <>
-                      <span>Couldn&rsquo;t reach the public nodes just now. The offline checks still hold.</span>
-                      <button type="button" className="pv-confirm-retry" onClick={m.onConfirm}>Try again</button>
-                    </>
-                  )}
-                  {(state === "confirmed" || state === "mismatch") && <span className="pv-confirm-src">Asked from this browser: {withEth ? <><span className="pv-host">ethereum-rpc.publicnode.com</span> and </> : null}<span className="pv-host">mainnet.base.org</span>.</span>}
-                </div>
-              );
-            })()}
-          </>
+        <div className="pv-section-title">The two counts</div>
+        {nonceCount !== null && (
+          <Row f={{ label: `Count ${fmtNum(nonceCount)}: the nonce, fresh and used once`, value: commit.nonceB64, mono: true }} />
         )}
+        {contentCount !== null && (
+          <Row f={{ label: `Count ${fmtNum(contentCount)}: the content, bound right after it`, value: m.proof.artifact.digestB64, mono: true }} />
+        )}
+        {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
       </section>
 
-      {/* ── 4. Take it with you ── */}
-      <section className="pv-card">
-        <div className="pv-section-title">Take it with you</div>
-        {/* One export, one button (Mike, 2026-10-04: "a master button"), laid out as
-            an assets list, the structure the Positions list below already uses: the
-            export is the first row and the only filled button; the pieces are rows
-            under it with a text link each. Before this, four pills in a row. */}
-        <div className="pv-take">
-          {m.exportAction && (
-            <div className="pv-take-row is-main">
-              <div className="pv-take-text">
-                <div className="pv-take-name">{m.exportName}</div>
-                <div className="pv-take-desc">{m.exportInside}</div>
-              </div>
-              <button type="button" onClick={m.exportAction.onClick} disabled={m.exportAction.busy} className="bg-action-link pv-dl is-primary">
-                <span>{m.exportAction.busy ? m.exportAction.busyLabel : m.exportAction.label}</span>
-              </button>
-            </div>
-          )}
-          {m.pieces.map((d) => (
-            <div key={d.label} className="pv-take-row">
-              <div className="pv-take-text">
-                <div className="pv-take-name">{d.label}</div>
-                {d.desc && <div className="pv-take-desc">{d.desc}</div>}
-              </div>
-              <button type="button" onClick={d.onClick} disabled={d.busy} className="pv-take-link">{d.busy ? d.busyLabel : "Download"} <span aria-hidden>&darr;</span></button>
-            </div>
-          ))}
-          {m.ceilingFileHref && (
-            <div className="pv-take-row">
-              <div className="pv-take-text">
-                <div className="pv-take-name">Ceiling file</div>
-                <div className="pv-take-desc">The Base ceiling: the transaction that carries the root, its block header, and the settlement pointer.</div>
-              </div>
-              <a href={m.ceilingFileHref} download className="pv-take-link">Download <span aria-hidden>&darr;</span></a>
-            </div>
-          )}
-        </div>
-        {m.downloadNotes.length > 0 && (
-          <div className="pv-note">{m.downloadNotes.map((n, i) => <div key={i}>{n}</div>)}</div>
-        )}
-        {m.checkCommand && (
-          <div className="pv-offline">
-            <div className="pv-sub-title">Check it anywhere</div>
-            {m.checkText && <div className="pv-offline-text">{m.checkText}</div>}
-            <div className="code-block pv-code">
-              <div className="code-block-header"><span>Shell</span><CopyCode /></div>
-              <pre><code>{m.checkCommand}</code></pre>
-            </div>
-          </div>
-        )}
-        {m.againNode && <div className="pv-again">{m.againNode}</div>}
-      </section>
-
-      {/* ── 5. Details ── */}
+      {/* ── Signature and enclave ── */}
       <section className="pv-card pv-details">
-        <div className="pv-section-title">Details</div>
-        {m.hashes.length > 0 && (
-          <Fold title="Hashes">{m.hashes.map((f) => <Row key={f.label} f={f} />)}</Fold>
-        )}
-        {m.positions && (
-          <Fold title="Positions" count={m.positions.rows.length}>
-            <div className="pv-sub-note">{m.positions.intro}</div>
-            {m.positions.rows.map((r) => (
-              <div key={r.key} className="pv-list-row pv-list-row-tall">
-                <span className="pv-list-num">BitGraph <span className="pv-mono">#{r.num}</span></span>
-                <span className="pv-list-mid">{r.roleLine}</span>
-                <span className="pv-list-dim pv-mono">{r.timeNode}</span>
-                {r.viewing ? <span className="pv-list-viewing">Viewing</span> : <a className="pv-list-link" href={r.href}>View <span aria-hidden>&rarr;</span></a>}
-              </div>
-            ))}
-          </Fold>
-        )}
-        {m.positionRecord.length > 0 && (
-          <Fold title="Position record">{m.positionRecord.map((f) => <Row key={f.label} f={f} />)}</Fold>
-        )}
-        <Fold title="Commit">{m.commitRows.map((f) => <Row key={f.label} f={f} />)}</Fold>
         <Fold title="Signature">{m.signatureRows.map((f) => <Row key={f.label} f={f} />)}</Fold>
         <Fold title={m.proof.environment?.enforcement === "measured-tee" ? "Hardware enclave" : "Software"}>
           {m.enclaveRows.map((f) => <Row key={f.label} f={f} />)}
           <EnclaveDecoded proof={m.proof} />
         </Fold>
-        {m.intervalRows.length > 0 && <Fold title="Interval">{m.intervalRows.map((f) => <Row key={f.label} f={f} />)}</Fold>}
-        {m.advisoryRows.length > 0 && <Fold title="Advisory timestamp">{m.advisoryRows.map((f) => <Row key={f.label} f={f} />)}</Fold>}
-        {m.noteRows.length > 0 && <Fold title="Submitter's note">{m.noteRows.map((f) => <Row key={f.label} f={f} />)}</Fold>}
+      </section>
+
+      {/* ── Check it anywhere ── */}
+      <section className="pv-card">
+        <div className="pv-section-title">Check it anywhere</div>
+        <div className="pv-offline-text">Download the proof, then check it beside the file on any machine, with no account and nothing of BitGraph&rsquo;s running:</div>
+        <div style={{ margin: "16px 0" }}>
+          <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={download}>Download proof</button>
+        </div>
+        <div className="code-block pv-code">
+          <div className="code-block-header"><span>Shell</span><CopyCode /></div>
+          <pre><code>{command}</code></pre>
+        </div>
+      </section>
+
+      {/* ── Raw JSON ── */}
+      <section className="pv-card pv-details">
         <Fold title="Raw JSON"><RawJson proof={m.proof} /></Fold>
       </section>
     </div>
