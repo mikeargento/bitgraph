@@ -4262,3 +4262,16 @@ html:root:root body, html:root:root main, html:root:root main:has(> *), html:roo
 /* The line under the top line (Mike, 2026-10-17): close under it, in the body colour. */
 :root .home-hero > .term-line:has(+ .hero-sub) { margin-bottom: 0 !important; }
 :root .home-hero > .hero-sub { margin: 12px 0 0; color: var(--text); }
+
+/* Pretty wrapping everywhere (Mike, 2026-10-17: "is pretty text on so it doesnt wrap weird?"): paragraphs avoid a
+   lone last word; headings, the top lines, captions and the boxes' words balance their lines. */
+:root body :is(p, li, dd, td, label, .db-zone-sub, .db-state) { text-wrap: pretty; }
+:root body :is(h1, h2, h3, .term-text, .hero-sub, .home-kicker, figcaption, .pf-caption, .pf-title, .pf-sub, .pf-enclave-label, .db-zone-title) { text-wrap: balance; }
+
+/* Spacing pass (Mike, 2026-10-17: "check spacing"), measured on a production build at 1280 and 375:
+   96px between sections everywhere (a section's last block keeps no bottom margin, so the gap no longer depends
+   on what ends it), 32px from a heading to the drawing or code under it. */
+:root .home-section > :last-child { margin-bottom: 0 !important; }
+:root .home-section > .mk-code:last-child > pre { margin-bottom: 0 !important; }
+:root:root .home-hero { padding-bottom: 24px !important; }
+:root .home-section > h2 + .mk-code { margin-top: 32px !important; }

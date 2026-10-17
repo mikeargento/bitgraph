@@ -44,7 +44,9 @@ Inside a hardware enclave, one atomic action counts twice: a fresh, unused value
               Everything here is bound after A and before B.
 ```
 
-Every BitGraph takes exactly two counts on a monotonic counter, so the count runs straight through: nothing can be slipped in afterward, and anything missing shows as a gap in the count. A question generated from A's revealed value could not have existed before A; bind the answer in B.
+Every BitGraph takes exactly two counts, so the count runs straight through. Nothing can be slipped in afterward, and anything missing shows as a gap.
+
+A question generated from A's revealed value could not have existed before A. Bind the answer in B.
 
 ## Try it
 

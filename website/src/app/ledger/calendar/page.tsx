@@ -36,7 +36,7 @@ export default function LedgerCalendarPage() {
   const todayISO = new Date().toISOString().slice(0, 10);
   const months = buildMonths(todayISO);
   return (
-    <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>
+    <div className="frame" style={{ padding: "96px 0 96px", maxWidth: "var(--measure)" }}>
       <h1 className="bg-page-title" style={{ margin: 0 }}>Calendar</h1>
       <div style={{ color: "var(--dim)", marginTop: 2, marginBottom: 24 }}>
         One ledger page per UTC day. Today&rsquo;s is still open.

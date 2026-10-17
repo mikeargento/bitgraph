@@ -64,7 +64,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
   } catch { failed = true; }
 
   return (
-    <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>
+    <div className="frame" style={{ padding: "96px 0 96px", maxWidth: "var(--measure)" }}>
       <style>{`
         .rl-rows { display: flex; flex-direction: column; }
         .rl-row { display: flex; align-items: center; gap: 14px; }
@@ -90,7 +90,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       </div>
 
       {/* The ledger itself, under the checker: every BitGraph by day. */}
-      <div style={{ height: 72 }} aria-hidden="true" />
+      <div style={{ height: 96 }} aria-hidden="true" />
       <p className="home-kicker">Ledger</p>
       {day && <p style={{ color: "var(--dim)", margin: "0 0 8px" }}>{`${longLabel(day)} (UTC)`}</p>}
       <p style={{ margin: 0 }}>
