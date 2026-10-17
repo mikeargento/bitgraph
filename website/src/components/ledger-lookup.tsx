@@ -74,7 +74,7 @@ export function LedgerLookup() {
           autoComplete="off"
           style={{ flex: "1 1 320px", minWidth: 0, fontFamily: "var(--font-mono)", fontSize: 15, padding: "12px 14px", border: "1px solid var(--line)", borderRadius: 10, background: "var(--paper, #fff)", color: "var(--ink)" }}
         />
-        <button type="submit" className="bg-action" style={{ flex: "none" }}>Find</button>
+        <button type="submit" className="bg-action-link" style={{ flex: "none", margin: 0 }}>Find</button>
       </form>
       <p style={{ margin: "18px 0 0", fontSize: 16 }}>
         Or{" "}

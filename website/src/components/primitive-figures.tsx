@@ -11,6 +11,11 @@
  *   2. The sandwich: BitGraph A, the records, BitGraph B. Everything between
  *      was bound after A and before B, minutes or weeks.
  *
+ * 0. The flow (Mike, 2026-10-17, "a simpler graphic"): content, its SHA-256,
+ *    then the enclave's one action (1: nonce, 2: bind the digest, signed), then
+ *    the proof, checked offline. The digest goes straight to step 2: the nonce
+ *    is drawn without it. This is the home page's one picture.
+ *
  * Drawn in HTML so they stay sharp and reflow: on a phone each row stacks and
  * its arrows turn downward. Styles are the .pf- rules in globals.css.
  */
@@ -77,6 +82,27 @@ export function SandwichFigure() {
       </div>
       <div className="pf-bracket" aria-hidden="true" />
       <figcaption className="pf-caption">Everything here is bound after A and before B: minutes or&nbsp;weeks</figcaption>
+    </figure>
+  );
+}
+
+/** The simple picture: content → digest → [enclave: 1 nonce → 2 bind] → proof, the digest entering at step 2. */
+export function FlowFigure() {
+  return (
+    <figure className="pf-figure pf-flow" aria-label="Any bits are hashed to a SHA-256 digest. Inside the enclave, one atomic action: step 1 draws an unpredictable nonce, step 2 binds the digest and signs it. The result is a proof anyone can check offline.">
+      <div className="pf-box pf-grey pf-f-content"><div className="pf-title">Content</div><div className="pf-sub">Any bits</div></div>
+      <span className="pf-arrow pf-f-a1" aria-hidden="true" />
+      <div className="pf-box pf-grey pf-f-digest"><div className="pf-title">Digest</div><div className="pf-sub">SHA-256</div></div>
+      <div className="pf-f-enclave" aria-hidden="true" />
+      <div className="pf-enclave-label pf-f-label">Enclave: one atomic action</div>
+      <div className="pf-box pf-purple pf-f-nonce"><div className="pf-title">1: nonce</div><div className="pf-sub">Unpredictable</div></div>
+      <span className="pf-arrow pf-f-a2" aria-hidden="true" />
+      <div className="pf-box pf-green pf-f-bind"><div className="pf-title">2: bind</div><div className="pf-sub">Digest, signed</div></div>
+      <span className="pf-arrow pf-f-a3" aria-hidden="true" />
+      <div className="pf-box pf-green pf-f-proof"><div className="pf-title">Proof</div><div className="pf-sub">Offline check</div></div>
+      <span className="pf-f-by1" aria-hidden="true" />
+      <span className="pf-f-by2" aria-hidden="true" />
+      <span className="pf-f-by3" aria-hidden="true" />
     </figure>
   );
 }
