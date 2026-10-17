@@ -15,6 +15,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
  */
 const LINKS: Array<{ href: string; label: string }> = [
   // Check is the ledger: look a file up, or read every BitGraph by day (Mike, 2026-10-17: "check is ledger").
+  { href: "/make", label: "Make" },
   { href: "/ledger", label: "Ledger" },
   { href: "/docs", label: "Docs" },
 ];
@@ -33,10 +34,6 @@ export function SiteNav() {
               {l.label}
             </Link>
           ))}
-          {/* The drop box, as a plus like before (Mike, 2026-10-17: "just a plus button like before?"): no box, no word. */}
-          <Link href="/make" className="nav-plus-plain" aria-label="Make or check a BitGraph" title="Make or check a BitGraph" aria-current={pathname === "/make" ? "page" : undefined}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-          </Link>
           <ThemeToggle />
         </nav>
       </div>

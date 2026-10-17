@@ -84,7 +84,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       {/* Check is the ledger (Mike, 2026-10-17): the drop box here only looks files up and never makes one; the
           one on /make makes (Mike, 2026-10-17: the SHA-256 field went, "dont need this"). */}
       <div>
-        <DropBox mode="check" />
+        <DropBox mode="check" variant="buttons" />
       </div>
 
       {/* The ledger itself, under the checker: every BitGraph by day. */}

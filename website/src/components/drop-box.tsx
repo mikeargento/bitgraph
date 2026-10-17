@@ -158,10 +158,9 @@ async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
 
 /** mode "check" only looks files up and never makes anything (the ledger page); "make" looks them up, then
  *  offers to make the ones that are new (/make). */
-export function DropBox(_props: { mode?: "make" | "check" }) {
-  // One drop box, everywhere (Mike, 2026-10-17: "shouldnt the dropbox do both"): a file on record shows its proof, a
-  // new file is made, proofs are checked. The mode prop is kept for callers and no longer changes anything.
-  const mode = "make" as "make" | "check";
+export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "check"; variant?: "zone" | "buttons" }) {
+  // The drop box on /make makes and checks (Mike, 2026-10-17: "shouldnt the dropbox do both"). The ledger's search
+  // (mode "check", variant "buttons": two Finder buttons, no box) only looks files up and never makes one.
   const [rows, setRows] = useState<Row[]>([]);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -176,6 +175,7 @@ export function DropBox(_props: { mode?: "make" | "check" }) {
   const [batch, setBatch] = useState<{ root: string; total: number; rootFile: string | null; rootProof: Proof | null; rootDigest: string | null; rootState: "looking" | "found" | "missing" | "mismatch" | "absent"; rows: Array<{ name: string; index: number | null }> } | null>(null);
   const [bulk, setBulk] = useState<{ total: number; made: number; found: number; missing: number; failed: number; done: boolean; proofs: Proof[]; ms: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
@@ -254,7 +254,7 @@ export function DropBox(_props: { mode?: "make" | "check" }) {
       const seen = new Set<string>(st.proofs.map((p) => p.artifact?.digestB64 as string));
       for (const d of todo) if (!seen.has(d) && !unknown.has(d)) { fresh.push(d); seen.add(d); }
     }
-    if (fresh.length) {
+    if (mode === "make" && fresh.length) { // the ledger's search only looks up
       const chunks: string[][] = [];
       for (let i = 0; i < fresh.length; i += 50) chunks.push(fresh.slice(i, i + 50));
       await pool(chunks, 3, async (chunk) => {
@@ -440,7 +440,17 @@ export function DropBox(_props: { mode?: "make" | "check" }) {
 
   return (
     <div>
-      <div
+      {variant === "buttons" && (
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => inputRef.current?.click()}>Search by file</button>
+          <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => folderRef.current?.click()}>Search by folder</button>
+          {status && <span className="db-zone-sub" style={{ margin: 0 }}>{status}</span>}
+          <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+          {/* @ts-expect-error webkitdirectory is a non-standard attribute every current browser supports */}
+          <input ref={folderRef} type="file" webkitdirectory="" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? []).filter((f) => !f.name.startsWith("."))); e.target.value = ""; }} />
+        </div>
+      )}
+      {variant === "zone" && <div
         role="button"
         tabIndex={0}
         aria-label={mode === "check" ? "Drop files to check them, or press to choose files" : "Drop files to make BitGraphs, or press to choose files"}
@@ -456,7 +466,7 @@ export function DropBox(_props: { mode?: "make" | "check" }) {
         <div className="db-zone-sub">Each file is hashed in your browser. Only its SHA-256 is sent.</div>
         <div className="db-zone-sub">The file never leaves your machine.</div>
         <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-      </div>
+      </div>}
 
       {pairing && (
         <div className="db-rows">

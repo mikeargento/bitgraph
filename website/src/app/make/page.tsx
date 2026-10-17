@@ -20,7 +20,9 @@ export default function MakePage() {
       <div className="home-hero">
         {/* No visible h1: it repeated the nav (Mike, 2026-10-17: "drop the h1's theyre basically redundant"). */}
         <h1 className="sr-only">Make a BitGraph.</h1>
-        <div>
+        {/* Mike, 2026-10-17: "a little eyebrow now that says make / check a bitgraph". */}
+        <p className="home-kicker">Make / check a BitGraph</p>
+        <div style={{ marginTop: 16 }}>
           <DropBox />
         </div>
       </div>
