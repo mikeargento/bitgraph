@@ -4340,3 +4340,8 @@ html:root:root body :is(pre, code, kbd, samp, .pv-mono, .pv-raw, .rl-hash, .hiw-
 /* No full-bleed hero (2026-10-17 overflow pass): calc(50% - 50vw) counted the scrollbar, so the top block ran a few
    pixels past the page on both sides. It has no ground of its own any more, so it sits in the frame like the rest. */
 html:root:root .home-scroll .home-hero { margin-left: 0 !important; margin-right: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }
+
+/* The top line is the page's h1 (Mike, 2026-10-17: "make this a true h1 now not toooooo big though"): twice the
+   text size on desktop, a little less on phones, bold; the one-size rule above gives way for it alone. */
+html:root:root:root:root body h1.term-line, html:root:root:root:root body h1.term-line * { font-size: clamp(26px, 3vw, 32px) !important; line-height: 1.2 !important; font-weight: 700 !important; letter-spacing: -0.01em !important; }
+html:root:root:root body h1.term-line { margin: 0 !important; min-height: 0 !important; padding: 0 !important; }
