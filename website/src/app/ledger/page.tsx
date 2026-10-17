@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DropBox } from "@/components/drop-box";
+import { TerminalLine } from "@/components/terminal-line";
 import { LedgerLookup } from "@/components/ledger-lookup";
 import { LedgerLive } from "@/components/ledger-live";
 import { LEDGER_FIRST_DAY, countToday, rowsForDay, type LedgerRow } from "@/lib/running-ledger";
@@ -18,7 +19,7 @@ import { LEDGER_FIRST_DAY, countToday, rowsForDay, type LedgerRow } from "@/lib/
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Ledger",
+  title: "Check a BitGraph",
   description: "Every BitGraph, as it is made: its number, its two counts and the enclave's time. Find one by its hash.",
 };
 
@@ -81,24 +82,24 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
         }
       `}</style>
       {!day && !failed && <LedgerLive day={todayUTC} count={liveCount} />}
-      <div className="xp-head">
-        <div>
-          <h1 className="bg-page-title" style={{ margin: 0 }}>Ledger</h1>
-          {day && <p style={{ fontSize: 14, color: "var(--dim)", margin: "2px 0 0" }}>{`${longLabel(day)} (UTC)`}</p>}
-          <p className="lede" style={{ margin: "10px 0 0" }}>
-            Every BitGraph, as it is made: its number, its two counts and the enclave&rsquo;s time. A row never shows what was bound;
-            find a BitGraph by its hash, which only someone holding the file&nbsp;has.
-          </p>
-        </div>
-      </div>
+      <TerminalLine text="Check a BitGraph." />
 
       {/* Check is the ledger (Mike, 2026-10-17): the drop box here only looks files up and never makes one; the
           one on /make makes. A SHA-256 without the file is looked up in the field under it. */}
-      <div style={{ margin: "28px 0 0" }}>
+      <div style={{ margin: "32px 0 0" }}>
         <DropBox mode="check" />
       </div>
       <p style={{ margin: "24px 0 12px" }}>Or find one by its SHA-256:</p>
       <LedgerLookup />
+
+      {/* The ledger itself, under the checker: every BitGraph by day. */}
+      <div style={{ height: 72 }} aria-hidden="true" />
+      <p className="home-kicker">Ledger</p>
+      {day && <p style={{ color: "var(--dim)", margin: "0 0 8px" }}>{`${longLabel(day)} (UTC)`}</p>}
+      <p style={{ margin: 0 }}>
+        Every BitGraph, as it is made: its number, its two counts and the enclave&rsquo;s time. A row never shows what was bound;
+        find a BitGraph by its hash, which only someone holding the file&nbsp;has.
+      </p>
 
       <div style={{ display: "flex", gap: 12, margin: "28px 0 20px", flexWrap: "wrap" }}>
         {/* Calendar first, as on the old Base page (Mike, 2026-10-17: "the calendar and all that jazz we had before"). */}
