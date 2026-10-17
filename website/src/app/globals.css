@@ -3865,7 +3865,7 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
   color-scheme: dark;
 }
 html, body { background: #1e1e1e !important; color: var(--text); }
-html body, html body * { font-family: "source-code-pro", var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace !important; }
+html body, html body * { font-family: "source-code-pro", var(--font-source-code), var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace !important; }
 main, main:has(> .home-scroll), main:has(> .frame.art-page) { background: #1e1e1e !important; }
 .section-grey { background: #1e1e1e !important; }
 .home-section { border-top-color: #333333 !important; }
@@ -4275,3 +4275,6 @@ html:root:root body, html:root:root main, html:root:root main:has(> *), html:roo
 :root .home-section > .mk-code:last-child > pre { margin-bottom: 0 !important; }
 :root:root .home-hero { padding-bottom: 24px !important; }
 :root .home-section > h2 + .mk-code { margin-top: 32px !important; }
+
+/* The face does not depend on the Adobe kit (2026-10-17: source-code-pro was removed from the kit by accident):
+   the site's own self-hosted Source Code Pro (next/font, layout.tsx) is the next name in the stack, the same face. */
