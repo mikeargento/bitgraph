@@ -25,10 +25,8 @@ export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        {/* Mike, 2026-10-17: "position commitment for all of computing ... it shouldnt be written as a headline". */}
-        <TerminalLine text="Position commitment for all of computing." />
-        {/* Single use, in plain words, under the line (Mike, 2026-10-17). */}
-        <p className="hero-sub">Every BitGraph creates and occupies a position that can never be occupied again.</p>
+        {/* Mike, 2026-10-17: the single-use line is the top line; "Position commitment for all of computing." came off the page. */}
+        <TerminalLine text="Every BitGraph creates and occupies a position that can never be occupied again." />
       </div>
 
       <section className="home-section" aria-labelledby="home-how">

@@ -7,10 +7,8 @@
 ---
 
 ```
-Position commitment for all of computing.
-```
-
 Every BitGraph creates and occupies a position that can never be occupied again.
+```
 
 ## How it works
 
