@@ -43,8 +43,9 @@ export default function MakePage() {
 
       <section className="home-section" aria-label="Everything else">
         <p>
-          A blockchain or a timestamp service can prove bits existed by a certain time. A BitGraph proves they were bound after a
-          moment nobody could predict. Add one of those to a BitGraph and you have both&nbsp;ends.
+          Anyone can put a recent block hash into a file, or write a file&rsquo;s hash to a chain; neither needs BitGraph. What only
+          BitGraph gives is the value itself: fresh, used once and never again. So every proof is one of a kind, and no other bits
+          can ever be bound in its&nbsp;place.
         </p>
       </section>
     </div>
