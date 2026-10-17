@@ -4278,3 +4278,8 @@ html:root:root body, html:root:root main, html:root:root main:has(> *), html:roo
 
 /* The face does not depend on the Adobe kit (2026-10-17: source-code-pro was removed from the kit by accident):
    the site's own self-hosted Source Code Pro (next/font, layout.tsx) is the next name in the stack, the same face. */
+
+/* Row hover in the theme's own shade (Mike, 2026-10-17: "ledger text on hover isnt contrast enough on dark mode"):
+   the old light-site #f8f9fa hover turned rows white under light text. Now a step off the ground in either mode,
+   and the number underlines to say the row opens its proof. */
+@media (hover: hover) { html:root:root main .xp-row:hover { background: var(--panel-2) !important; } }
