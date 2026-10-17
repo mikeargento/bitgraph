@@ -19,7 +19,7 @@ export default function MakePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        <TerminalLine text="Make or check a BitGraph" />
+        <TerminalLine text="Make or check a BitGraph." />
         <div style={{ marginTop: 32 }}>
           <DropBox />
         </div>

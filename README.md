@@ -7,7 +7,7 @@
 ---
 
 ```
-Position commitment for all of computing
+Position commitment for all of computing.
 ```
 
 **[Make a BitGraph](https://bitgraph.ing/make)**
