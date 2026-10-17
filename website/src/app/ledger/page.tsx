@@ -9,17 +9,16 @@ import { LEDGER_FIRST_DAY, countToday, rowsForDay, type LedgerRow } from "@/lib/
  * every BitGraph, newest first, one UTC day per page, today live. The Base
  * page's own layout and styles.
  *
- * Private: a row shows the BitGraph's number, its two counts, the enclave's
- * signed time and its proof hash, never the file's SHA-256, so the list cannot
- * open anyone's record. A record is found by its hash in the box at the top,
- * by someone who holds the file (the 2026-10-09 ruling against a browsable
- * gallery stands).
+ * Public (Mike, 2026-10-17: "nobody cares. make it. this is genesis of new BitGraph"): a row shows the
+ * BitGraph's number, its two counts, the SHA-256 it bound and the enclave's signed time, and opens its proof
+ * page. A hash cannot be turned back into the file; a guessable file can be confirmed by someone hashing their
+ * own copy, which Mike accepted. This reverses the 2026-10-09 ruling against a browsable gallery.
  */
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Check a BitGraph",
-  description: "Every BitGraph, as it is made: its number, its two counts and the enclave's time. Find one by its hash.",
+  description: "Every BitGraph, as it is made: its number, its two counts and the SHA-256 it bound. Open any one for its proof.",
 };
 
 function shiftDay(day: string, delta: number): string {
@@ -73,6 +72,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
         .rl-hash { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .rl-when { flex-shrink: 0; font-size: 12.5px; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
         .rl-when-short { display: none; }
+        .rl-link { color: inherit; text-decoration: none !important; }
+        .rl-link:hover .rl-num { text-decoration: underline; }
         @media (max-width: 640px) {
           .rl-hash, .rl-when-long { display: none; }
           .rl-when-short { display: inline; }
@@ -94,8 +95,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       <p className="home-kicker">Ledger</p>
       {day && <p style={{ color: "var(--dim)", margin: "0 0 8px" }}>{`${longLabel(day)} (UTC)`}</p>}
       <p style={{ margin: 0 }}>
-        Every BitGraph, as it is made: its number, its two counts and the enclave&rsquo;s time. A row never shows what was bound;
-        only someone holding the file can find its BitGraph, by dropping it&nbsp;above.
+        Every BitGraph, as it is made, newest first: its number, its two counts and the SHA-256 it bound. Open any row for its
+        proof. A SHA-256 cannot be turned back into the&nbsp;file.
       </p>
 
       <div style={{ display: "flex", gap: 12, margin: "28px 0 20px", flexWrap: "wrap" }}>
@@ -123,10 +124,23 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       ) : (
         <div className="rl-rows">
           {rows.map((r) => (
-            <div key={r.proofHash} className="xp-row xp-row-base rl-row">
+            r.digest ? (
+              <a key={r.proofHash} href={`/proof/${r.digest}`} className="xp-row xp-row-base rl-row rl-link">
               <span className="rl-num">#{fmt(r.counter)}</span>
               <span className="rl-counts">{r.nonceCounter ? `counts ${fmt(r.nonceCounter)}, ${fmt(r.counter)}` : ""}{r.anchor ? " · anchor" : ""}</span>
-              <span className="rl-hash" title="Proof hash">{r.proofHash}</span>
+              <span className="rl-hash" title="SHA-256 of the bound content">{r.digest ?? r.proofHash}</span>
+              {r.recordedMs !== null && (
+                <span className="rl-when">
+                  <span className="rl-when-long">{when(r.recordedMs)}</span>
+                  <span className="rl-when-short">{clock(r.recordedMs)}</span>
+                </span>
+              )}
+            </a>
+            ) : (
+              <div key={r.proofHash} className="xp-row xp-row-base rl-row">
+              <span className="rl-num">#{fmt(r.counter)}</span>
+              <span className="rl-counts">{r.nonceCounter ? `counts ${fmt(r.nonceCounter)}, ${fmt(r.counter)}` : ""}{r.anchor ? " · anchor" : ""}</span>
+              <span className="rl-hash" title="SHA-256 of the bound content">{r.digest ?? r.proofHash}</span>
               {r.recordedMs !== null && (
                 <span className="rl-when">
                   <span className="rl-when-long">{when(r.recordedMs)}</span>
@@ -134,6 +148,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
                 </span>
               )}
             </div>
+            )
           ))}
         </div>
       )}

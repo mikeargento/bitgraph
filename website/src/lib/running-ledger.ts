@@ -34,6 +34,9 @@ export interface LedgerRow {
   recordedMs: number | null;
   /** The proof hash, URL-safe base64, from the ledger key. */
   proofHash: string;
+  /** The bound content's SHA-256, URL-safe base64: the proof page's address. Public since 2026-10-17 (Mike: every
+   *  row links to its proof; a hash cannot be turned back into the file). */
+  digest: string | null;
   /** True for the anchor service's binds (none from enclave v12 on). */
   anchor: boolean;
 }
@@ -70,7 +73,7 @@ async function readRows(epoch: string): Promise<LedgerRow[]> {
     if (!m) return;
     const text = await getObjectText(key);
     if (!text) return;
-    let proof: { commit?: { chainId?: string; counter?: string; slotCounter?: string }; attribution?: { name?: string } };
+    let proof: { commit?: { chainId?: string; counter?: string; slotCounter?: string }; attribution?: { name?: string }; artifact?: { digestB64?: string } };
     try { proof = JSON.parse(text); } catch { return; }
     if (proof.commit?.chainId !== MAIN) return;
     rows.push({
@@ -78,14 +81,15 @@ async function readRows(epoch: string): Promise<LedgerRow[]> {
       nonceCounter: proof.commit?.slotCounter ?? null,
       recordedMs: recordedMsOf(proof),
       proofHash: m[2]!,
+      digest: proof.artifact?.digestB64 ? proof.artifact.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null,
       anchor: proof.attribution?.name === "Ethereum Anchor",
     });
   });
   return rows;
 }
 
-const pastRows = unstable_cache(readRows, ["running-ledger-rows-v1"], { revalidate: 86_400 });
-const liveRows = unstable_cache(readRows, ["running-ledger-live-v1"], { revalidate: 10 });
+const pastRows = unstable_cache(readRows, ["running-ledger-rows-v2"], { revalidate: 86_400 });
+const liveRows = unstable_cache(readRows, ["running-ledger-live-v2"], { revalidate: 10 });
 
 /** The day's BitGraphs on bitgraph:main, newest first. Throws when the ledger cannot be read. */
 export async function rowsForDay(day: string): Promise<LedgerRow[]> {
