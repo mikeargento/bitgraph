@@ -4008,3 +4008,14 @@ main .xp-row.xp-row-base::before, main .xp-row.xp-row-eth::before { display: non
 /* Links inside running text are always underlined (Mike, 2026-10-17: "text links underlined"); the nav and
    buttons keep hover-only. */
 :root:root body main :is(p, li, dd, td, label, figcaption) a:not(.bg-action-link), :root:root body footer a { text-decoration: underline !important; text-decoration-color: #9b9b9b !important; text-underline-offset: 3px; }
+/* Contrast, measured (Mike, 2026-10-17: "a bit rough on eyes"): on #1e1e1e, body #c4c4c4 = 9.6:1 and headings
+   #dcdcdc = 12.2:1 (was 11.3 and 14.2; light text glares above ~12:1), secondary #8f8f8f = 5.2:1 (AA is 4.5),
+   box lines #454545. Light-on-dark antialiasing and a little more line height. */
+:root { --ink: #dcdcdc; --text: #c4c4c4; --dim: #8f8f8f; --faint: #7d7d7d; --line: #454545; --pf-line: #8a8a8a; }
+html body { color: #c4c4c4; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+:root:root body main :is(p, li, dd, td) { line-height: 1.75; color: #c4c4c4; }
+:root:root body :is(h1, h2, h3, b, strong, .term-text, .pf-title) { color: #dcdcdc; }
+.pf-green { border-color: #c4c4c4 !important; color: #dcdcdc !important; }
+.pf-green .pf-sub, .pf-purple .pf-sub, .pf-grey .pf-sub { color: #8f8f8f !important; }
+.pf-purple, .pf-grey { color: #dcdcdc !important; }
+.bg-action-link.is-make, .bg-action-link:not(.is-make):not(:disabled), #site-nav .nav-plus { color: #dcdcdc !important; }
