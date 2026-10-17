@@ -31,7 +31,8 @@ const nextConfig: NextConfig = {
       { source: "/api-reference", destination: docs, permanent: false },
       { source: "/overview", destination: docs, permanent: false },
       { source: "/spec", destination: docs, permanent: false },
-      { source: "/ledger/:path+", destination: "/ledger", permanent: false },
+      // every old ledger address goes to the ledger, except its calendar
+      { source: "/ledger/:path((?!calendar$).+)", destination: "/ledger", permanent: false },
       { source: "/roll", destination: "/ledger", permanent: false },
       { source: "/rolls", destination: "/ledger", permanent: false },
       ...[

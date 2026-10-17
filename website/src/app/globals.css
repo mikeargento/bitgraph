@@ -4131,3 +4131,21 @@ html body .home-kicker.home-kicker { text-transform: uppercase !important; lette
    underline on the site sits clear of the letters' descenders and is a hairline. */
 :root:root:root body * { text-underline-offset: 0.35em !important; text-decoration-thickness: 1px !important; }
 :root:root:root:root body a, :root:root:root:root body button { text-decoration-thickness: 1px !important; text-underline-offset: 0.35em !important; }
+
+/* The top line stands alone now (no button under it), so it keeps no margin: the gap below it is the same as
+   the gap between sections. */
+:root .home-hero > .term-line:last-child { margin-bottom: 0 !important; }
+:root:root .home-hero { padding-bottom: 40px !important; }
+@media (max-width: 760px) {
+  /* Phones: the enclave's label centred in its top line, under the content's arrow (Mike, 2026-10-17). */
+  .pf-flow .pf-f-label { justify-self: center !important; margin-left: 0 !important; }
+}
+
+/* The nav's two buttons, Make and Check: outlined like the old +, the current page's filled in. */
+:root #site-nav .nav-box { border: 1px solid var(--line); padding: 6px 14px; margin-left: 10px; color: var(--ink); text-decoration: none !important; }
+:root #site-nav .nav-box:hover { border-color: var(--dim); }
+:root #site-nav .nav-box[aria-current="page"] { background: var(--panel); border-color: var(--dim); }
+
+/* The ledger calendar in the dark, monochrome look: open days in the ink colour, today outlined, no blue. */
+.bg-month-grid .bg-month-day { color: var(--ink) !important; }
+.bg-month-grid .bg-month-day[aria-label="Today"] { background: none !important; color: var(--ink) !important; outline: 1px solid var(--dim); outline-offset: -4px; border-radius: 0 !important; }

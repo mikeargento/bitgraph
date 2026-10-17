@@ -6,14 +6,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * The bar, in its own look (2026-10-17): the wordmark, the ledger (the site is one page plus it),
- * styled as the old menu's buttons, and the square blue + that goes to the drop
- * box (it went to /docs/try before the site was cut to the primitive). The four
+ * The bar, in its own look (2026-10-17): the wordmark, then two outlined buttons, Make (the drop
+ * box and the API, /make) and Check (the ledger: look a file up, or read every BitGraph by day). The
+ * + that went to the drop box gave way to them (Mike, 2026-10-17: "2 buttons in the top: make and check"). The four
  * dropdown groups and the phone sheet went with the pages they led to; two
  * links fit a phone without a sheet.
  */
 const LINKS: Array<{ href: string; label: string }> = [
-  { href: "/ledger", label: "Ledger" },
+  { href: "/make", label: "Make" },
+  // Check is the ledger: look a file up, or read every BitGraph by day (Mike, 2026-10-17: "check is ledger").
+  { href: "/ledger", label: "Check" },
 ];
 
 export function SiteNav() {
@@ -26,13 +28,10 @@ export function SiteNav() {
         </Link>
         <nav aria-label="Site" className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
           {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="nav-btn" aria-current={pathname === l.href ? "page" : undefined} style={{ textDecoration: "none" }}>
+            <Link key={l.href} href={l.href} className="nav-btn nav-box" aria-current={pathname === l.href || pathname.startsWith(l.href + "/") ? "page" : undefined} style={{ textDecoration: "none" }}>
               {l.label}
             </Link>
           ))}
-          <a href="/make" className="nav-cta nav-plus" aria-label="Make a BitGraph" title="Make a BitGraph">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-          </a>
         </nav>
       </div>
     </div>

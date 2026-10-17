@@ -96,6 +96,10 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       </div>
 
       <div style={{ display: "flex", gap: 12, margin: "28px 0 20px", flexWrap: "wrap" }}>
+        {/* Calendar first, as on the old Base page (Mike, 2026-10-17: "the calendar and all that jazz we had before"). */}
+        <a href="/ledger/calendar" className="bg-action-link" style={{ margin: 0 }}>
+          Calendar <span className="arrow" aria-hidden>&rarr;</span>
+        </a>
         {prev >= LEDGER_FIRST_DAY && (
           <a href={`/ledger?day=${prev}`} className="bg-action-link" style={{ margin: 0 }}>
             <span className="arrow" aria-hidden>&larr;</span> {shortLabel(prev)}
