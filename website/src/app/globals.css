@@ -3925,3 +3925,8 @@ main .xp-row.xp-row-base::before, main .xp-row.xp-row-eth::before { display: non
 .pv-chain-base, .pv-chain-eth { display: none !important; }
 /* Ledger rows wrap on a phone instead of running off the edge. */
 @media (max-width: 640px) { .rl-row { flex-wrap: wrap; row-gap: 2px; } .rl-counts { white-space: normal !important; } }
+/* Links: underlined on hover only; in the nav, the page you are on stays underlined (Mike, 2026-10-17). */
+:root:root body a { text-decoration: none !important; }
+@media (hover: hover) { :root:root body a:hover { text-decoration: underline !important; text-decoration-color: #9b9b9b !important; text-underline-offset: 3px; } }
+:root:root body #site-nav a[aria-current="page"] { text-decoration: underline !important; text-decoration-color: #9b9b9b !important; text-underline-offset: 3px; }
+:root:root body .bg-action-link:hover, :root:root body #site-nav .nav-plus:hover { text-decoration: none !important; }
