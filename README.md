@@ -12,8 +12,6 @@ Give every computation a position.
 
 ## How BitGraph works
 
-**One atomic action.**
-
 ```
                  ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ Secure enclave / TEE ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
 ┌────────────┐   ┆   ┌────────────────────┐     ┌─────────────────┐   ┆   ┌───────────────┐

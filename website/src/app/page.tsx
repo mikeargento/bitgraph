@@ -28,9 +28,8 @@ export default function HomePage() {
         <h1 className="sr-only">Give every computation a position.</h1>
       </div>
 
-      <section className="home-section" aria-labelledby="home-how">
+      <section className="home-section" aria-label="How BitGraph works">
         <p className="home-kicker">How BitGraph works</p>
-        <h2 id="home-how">One atomic&nbsp;action.</h2>
         <div style={{ marginTop: 32 }}><FlowFigure /></div>
       </section>
 
