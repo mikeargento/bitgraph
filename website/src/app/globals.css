@@ -3920,3 +3920,8 @@ a { color: var(--ink) !important; text-decoration: underline; text-decoration-co
 .db-ok { color: #ededed !important; }
 ::selection { background: #4a4a4a; color: #ffffff; }
 :root:root:root body #site-nav a { font-size: 16px !important; }
+/* No chain logos (not flashy; chains are ornaments now). */
+main .xp-row.xp-row-base::before, main .xp-row.xp-row-eth::before { display: none !important; }
+.pv-chain-base, .pv-chain-eth { display: none !important; }
+/* Ledger rows wrap on a phone instead of running off the edge. */
+@media (max-width: 640px) { .rl-row { flex-wrap: wrap; row-gap: 2px; } .rl-counts { white-space: normal !important; } }
