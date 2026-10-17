@@ -19,6 +19,7 @@
  * Drawn in HTML so they stay sharp and reflow: on a phone each row stacks and
  * its arrows turn downward. Styles are the .pf- rules in globals.css.
  */
+import { Fragment, type ReactNode } from "react";
 
 const PAYLOADS: Array<{ title: string; sub: string }> = [
   { title: "Block hash", sub: "Places it in time" },
@@ -60,28 +61,38 @@ export function PrimitiveFigure() {
   );
 }
 
-export function SandwichFigure() {
+interface Step { title: string; sub?: string }
+const RECORDS: Step[] = [{ title: "Record" }, { title: "Record" }, { title: "Record" }];
+
+/** Two BitGraphs as bookends. The home draws the general case; a demo names its own steps (Mike, 2026-10-17). */
+export function SandwichFigure({
+  a = "Opens", b = "Closes", steps = RECORDS, caption = <>Everything here is bound after A and before&nbsp;B.</>,
+  label = "BitGraph A opens, then records, then BitGraph B closes. Everything between is bound after A and before B.",
+}: { a?: string; b?: string; steps?: Step[]; caption?: ReactNode; label?: string } = {}) {
   return (
-    <figure className="pf-figure" aria-label="BitGraph A opens, then records, then BitGraph B closes. Everything between is bound after A and before B.">
+    <figure className="pf-figure" aria-label={label}>
       <div className="pf-row pf-row-sandwich">
         <div className="pf-box pf-purple pf-end">
           <div className="pf-title">BitGraph A</div>
-          <div className="pf-sub">Opens</div>
+          <div className="pf-sub">{a}</div>
         </div>
-        <Arrow />
-        <div className="pf-box pf-grey pf-record"><div className="pf-title pf-plain">Record</div></div>
-        <Arrow />
-        <div className="pf-box pf-grey pf-record"><div className="pf-title pf-plain">Record</div></div>
-        <Arrow />
-        <div className="pf-box pf-grey pf-record"><div className="pf-title pf-plain">Record</div></div>
+        {steps.map((st, i) => (
+          <Fragment key={i}>
+            <Arrow />
+            <div className="pf-box pf-grey pf-record">
+              <div className="pf-title pf-plain">{st.title}</div>
+              {st.sub && <div className="pf-sub">{st.sub}</div>}
+            </div>
+          </Fragment>
+        ))}
         <Arrow />
         <div className="pf-box pf-purple pf-end">
           <div className="pf-title">BitGraph B</div>
-          <div className="pf-sub">Closes</div>
+          <div className="pf-sub">{b}</div>
         </div>
       </div>
       <div className="pf-bracket" aria-hidden="true" />
-      <figcaption className="pf-caption">Everything here is bound after A and before&nbsp;B.</figcaption>
+      <figcaption className="pf-caption">{caption}</figcaption>
     </figure>
   );
 }

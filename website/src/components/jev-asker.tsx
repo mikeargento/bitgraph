@@ -9,6 +9,7 @@
  * reads the nonce, and makes the questions again here. A result survives leaving the page: /jev?p=<B's id>.
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { SandwichFigure } from "@/components/primitive-figures";
 
 const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.bitgraph.ing";
 const QV = "bitgraph-jev-question/1";
@@ -124,6 +125,15 @@ export function JevAsker() {
           One click makes BitGraph A. Its nonce, unseen until A is bound, chooses two questions for Jev, an AI. Jev answers, and
           the record is bound as BitGraph B, after A in the same sequence. Nothing about the questions existed before&nbsp;A.
         </p>
+        <div style={{ marginTop: 32 }}>
+          <SandwichFigure
+            a="The request"
+            steps={[{ title: "Questions", sub: "From A’s nonce" }, { title: "AI answers", sub: "Jev" }]}
+            b="The record"
+            caption={<>The questions could not exist before&nbsp;A; the answers are bound at&nbsp;B.</>}
+            label="BitGraph A, the request. Two questions are made from A's nonce, the AI Jev answers them, and BitGraph B binds the record."
+          />
+        </div>
         <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={state === "running"} onClick={() => void askNow()}>
             {state === "running" ? step : r ? "Ask again" : "Ask AI"}

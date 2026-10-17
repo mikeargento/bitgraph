@@ -4481,3 +4481,9 @@ html:root:root:root body main a:not(.bg-action-link):not(.rl-link):not(.nav-btn)
 @media (hover: hover) { html:root:root:root body main a:not(.bg-action-link):not(.rl-link):not(.nav-btn):not(.pv-pill):hover { text-decoration-color: var(--ink) !important; } }
 /* Ask Jev reads at a comfortable measure (Mike, 2026-10-17: "the text goes all the way accross"): ~68 characters. */
 html:root:root .jev-page .home-section > :is(p, ol, ul, h2) { max-width: 680px !important; }
+
+/* "A unique position is created and occupied in one step." on one line on phones (Mike, 2026-10-17): the size follows
+   the width (the line is about 26.6 x its font size wide), never above 16px; very narrow phones wrap rather than shrink further. */
+@media (max-width: 640px) and (min-width: 340px) {
+  html:root:root #home-how { font-size: min(16px, calc((100vw - 40px) / 26.9)) !important; white-space: nowrap !important; }
+}

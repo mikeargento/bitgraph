@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { makeArtOffThread } from "@/lib/art-offthread";
 import { ART_ALGORITHM_V19 } from "@/lib/commitment-art";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
+import { SandwichFigure } from "@/components/primitive-figures";
 
 const fmt = (n: number | string) => Number(n).toLocaleString("en-US");
 const b64 = (u: Uint8Array) => { let s = ""; for (const x of u) s += String.fromCharCode(x); return btoa(s); };
@@ -112,6 +113,15 @@ export function ArtTwo() {
           One click makes BitGraph A. Its nonce, unseen until A is bound, is the only input to the drawing. The picture is
           bound as BitGraph B, after A in the same sequence. Anyone can draw it again from A&rsquo;s proof and get the same&nbsp;bytes.
         </p>
+        <div style={{ marginTop: 32 }}>
+          <SandwichFigure
+            a="The request"
+            steps={[{ title: "Picture", sub: "Drawn from A’s nonce" }]}
+            b="The picture"
+            caption={<>The picture could not exist before&nbsp;A; its bytes are bound at&nbsp;B.</>}
+            label="BitGraph A, the request. A picture is drawn from A's nonce, and BitGraph B binds the picture."
+          />
+        </div>
         <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={state === "running"} onClick={() => void makeNow()}>
             {state === "running" ? step : made ? "Generate another" : "Generate image"}
@@ -125,8 +135,8 @@ export function ArtTwo() {
           <h2 id="gen-r" className="sr-only">The picture</h2>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={made.url} alt={`Drawn from the nonce of BitGraph #${fmt(a.commit!.counter!)}`} style={{ display: "block", width: "100%", height: "auto" }} />
-          <p className="home-kicker" style={{ marginTop: 24 }}>Drawn from BitGraph A&rsquo;s nonce</p>
-          <pre className="hiw-code jev-code">{urlSafe(a.commit!.nonceB64!)}</pre>
+          <p className="home-kicker" style={{ marginTop: 40 }}>Drawn from BitGraph A&rsquo;s nonce</p>
+          <pre className="hiw-code jev-code" style={{ marginTop: 12, marginBottom: 0 }}>{urlSafe(a.commit!.nonceB64!)}</pre>
           {!b && <p className="db-bad">This picture has no BitGraph B on the ledger.</p>}
           <div style={{ marginTop: 20, display: "flex", gap: 20, flexWrap: "wrap" }}>
             <a href={proofHref(a)}>BitGraph A #{fmt(a.commit!.counter!)}, the request</a>
