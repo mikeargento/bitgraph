@@ -17,6 +17,7 @@ const LINKS: Array<{ href: string; label: string }> = [
   { href: "/make", label: "Make" },
   // Check is the ledger: look a file up, or read every BitGraph by day (Mike, 2026-10-17: "check is ledger").
   { href: "/ledger", label: "Check" },
+  { href: "/docs", label: "Docs" },
 ];
 
 export function SiteNav() {

@@ -4354,3 +4354,15 @@ html:root:root .docs-list { margin: 16px 0 0; padding-left: 1.4em; max-width: va
 html:root:root .docs-list li { margin: 0 0 10px; line-height: 1.7; color: var(--text); }
 html:root:root .docs-list strong { color: var(--ink); }
 html:root:root .docs-page code { background: var(--code-bg); border: 1px solid var(--line); padding: 0 4px; }
+
+/* The h1 as a label chip (Mike, 2026-10-17, from a reference: a filled block, light text, regular weight), in the
+   site's font. Day: near-black chip on the grey ground, as the reference. Night: a step lighter than the ground, so it
+   still reads as a block. One line on phones: chip text ~16.7x its size plus 24px padding fits 90vw at 4.2vw. */
+html:root:root:root:root:root:root body h1.term-line, html:root:root:root:root:root:root body h1.term-line * {
+  font-size: min(16px, 4.4vw) !important; font-weight: 400 !important; letter-spacing: 0.02em !important; line-height: 1.4 !important;
+}
+html:root:root:root body h1.term-line { display: inline-block !important; padding: 4px 12px !important; background: #333333 !important; color: #dcdcdc !important; }
+html:root:root:root body h1.term-line .term-text { color: inherit !important; }
+@media (prefers-color-scheme: light) { html:root:root:root:not([data-theme="dark"]) body h1.term-line { background: #2b2b2b !important; color: #e8e8e6 !important; } }
+html[data-theme="light"]:root:root:root body h1.term-line { background: #2b2b2b !important; color: #e8e8e6 !important; }
+html:root:root:root:root body h1.term-line .term-text { color: inherit !important; }
