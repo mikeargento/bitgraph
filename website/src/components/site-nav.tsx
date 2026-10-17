@@ -6,14 +6,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * The bar, in its own look (2026-10-17): the wordmark, the two pages there are,
+ * The bar, in its own look (2026-10-17): the wordmark, the ledger (the site is one page plus it),
  * styled as the old menu's buttons, and the square blue + that goes to the drop
  * box (it went to /docs/try before the site was cut to the primitive). The four
  * dropdown groups and the phone sheet went with the pages they led to; two
  * links fit a phone without a sheet.
  */
 const LINKS: Array<{ href: string; label: string }> = [
-  { href: "/how-it-works", label: "How it works" },
   { href: "/ledger", label: "Ledger" },
 ];
 

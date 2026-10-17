@@ -1,60 +1,63 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { FlowFigure } from "@/components/primitive-figures";
+import { FlowFigure, SandwichFigure } from "@/components/primitive-figures";
 import { DropBox } from "@/components/drop-box";
 import { TerminalLine } from "@/components/terminal-line";
+import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 
 /**
- * Home (Mike, 2026-10-17): "one tee, 2 steps, one atomic action". The tree is
- * BitGraph; everything already invented elsewhere (chains, timestamps, files
- * that carry their proof) is an ornament people can hang on it themselves, so
- * none of it is on this page. The site's own look, the old home's structure:
- * hero, labelled sections, the grey band, the drop box.
+ * The site is this one page, plus the ledger and the proof pages (Mike, 2026-10-17:
+ * "this can literally be one page if you dont count ledger"). The How it works page
+ * folded in here; every old docs address redirects to it (next.config.ts).
  *
- * ⚠️ Claim discipline: bound AFTER a moment, never "at" it; the claim is about
- * when the bits were bound, never how old the content is. The time shown is the
- * enclave's own signed time.
+ * Order: the line, what it proves, the two steps (the drawing), two BitGraphs make an
+ * interval, make or check one (the drop box), the same for software, and one sentence
+ * on everything else.
+ *
+ * ⚠️ Claim discipline: bound AFTER a moment, never "at" it; the claim is about when the
+ * bits were bound, never how old the content is. The time shown is the enclave's own.
  */
 
 export const metadata: Metadata = {
   title: "BitGraph",
   description:
-    "One enclave, two steps, one atomic action: a fresh value nobody can see or predict, then your file's fingerprint, signed together. Your bits were bound after a moment nobody could predict.",
+    "Position commitment for all of computing: inside a hardware enclave, one atomic action takes a fresh value nobody can see or predict, then your content, signed together.",
 };
 
 export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        {/* Mike, 2026-10-17: "position commitment for all of computing. and it should type it at the top when you arrive
-            and it shouldnt be written as a headline". */}
+        {/* Mike, 2026-10-17: "position commitment for all of computing ... it shouldnt be written as a headline". */}
         <TerminalLine text="position commitment for all of computing" />
         <div className="actions art-home-actions">
           <a className="bg-action-link is-make" href="#make">Make a BitGraph</a>
-          <Link className="bg-action-link" href="/how-it-works">How it works</Link>
         </div>
       </div>
 
       <section className="home-section home-why" aria-label="What it proves">
         <p className="home-kicker">What it proves</p>
         <p className="home-why-body">
-          Inside a hardware enclave, a fresh value nobody can see takes one count, and your file&rsquo;s fingerprint takes the next.
-          Both are signed together, with the enclave&rsquo;s own time. So your bits were bound after a moment nobody could predict,
-          and could not have been bound before&nbsp;it.
+          Inside a hardware enclave, one atomic action counts twice: a fresh value nobody can see takes one count, and your content
+          takes the next. Both are signed together, with the enclave&rsquo;s own time. So your bits were bound after a moment nobody
+          could predict, and could not have been bound before it. It says when they were bound, not how old the content&nbsp;is.
         </p>
       </section>
 
-      <section className="home-section section-grey" aria-labelledby="home-how">
+      <section className="home-section" aria-labelledby="home-how">
         <p className="home-kicker">How it works</p>
         <h2 id="home-how">Two steps, one&nbsp;action.</h2>
-        {/* Mike's own picture (2026-10-17: "why not just use the png i gave you"), full width on wide screens. Its text
-            is about 7 px at phone width, so phones get the same picture drawn in HTML, stacked. */}
-        <div style={{ marginTop: 32 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="flow-img" src="/figures/bitgraph-flow.webp" width={2000} height={559}
-            alt="Any bits are hashed to a SHA-256 digest. Inside the enclave, one atomic action: step 1 draws an unpredictable nonce, step 2 binds the digest and signs it. The result is a proof anyone can check offline." />
-          <div className="flow-html"><FlowFigure /></div>
-        </div>
+        <div style={{ marginTop: 32 }}><FlowFigure /></div>
+        <p style={{ marginTop: 24 }}>If any step fails, nothing is released and the counter does not&nbsp;move.</p>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-between">
+        <p className="home-kicker">Between two</p>
+        <h2 id="home-between">Two BitGraphs make an&nbsp;interval.</h2>
+        <div style={{ marginTop: 32 }}><SandwichFigure /></div>
+        <p style={{ marginTop: 24 }}>
+          Every BitGraph takes exactly two counts, so the counter runs straight through: nothing can be slipped in or held back. A
+          question generated from A&rsquo;s revealed value could not have existed before A; bind the answer in&nbsp;B.
+        </p>
       </section>
 
       {/* The maker and the checker (Mike, 2026-10-17: "wheres the dropbox? there should be a checker and a maker right?"). */}
@@ -64,6 +67,30 @@ export default function HomePage() {
         <div style={{ marginTop: 24 }}>
           <DropBox />
         </div>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-software">
+        <p className="home-kicker">For software</p>
+        <h2 id="home-software">Send a SHA-256, get the&nbsp;proof.</h2>
+        <pre className="hiw-code">{`curl -X POST https://bitgraph.ing/api/commit \\
+  -H 'content-type: application/json' \\
+  -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</pre>
+        <p style={{ marginTop: 20 }}>Every BitGraph is kept. Fetch one by its hash, here or on the <a href="/ledger">ledger</a>:</p>
+        <pre className="hiw-code">{`curl https://bitgraph.ing/api/proofs/<sha-256, base64url>`}</pre>
+        <p style={{ marginTop: 20 }}>For an AI agent:</p>
+        <pre className="hiw-code">{`claude mcp add bitgraph -- npx -y @mikeargento/bitgraph-mcp`}</pre>
+        <p style={{ marginTop: 20 }}>
+          A proof checks offline with <code>@mikeargento/bitgraph-verify</code>. Pin the enclave&rsquo;s measurement, reproducible from the
+          published&nbsp;source:
+        </p>
+        <pre className="hiw-code">{PUBLISHED_PCR0}</pre>
+      </section>
+
+      <section className="home-section" aria-label="Everything else">
+        <p>
+          Writing a proof to a blockchain, a timestamp service, a file that carries its own proof: all of these already exist, and
+          anyone can add them to a BitGraph. BitGraph does the one thing they cannot: the two&nbsp;steps.
+        </p>
       </section>
     </div>
   );

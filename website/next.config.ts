@@ -15,16 +15,16 @@ const nextConfig: NextConfig = {
     },
   },
   async redirects() {
-    // 2026-10-17 (Mike: "turn off and strip away everything on the site that
-    // isnt just this"): the site is the primitive, the proof pages, one page on
-    // how it works, and the ledger. Every retired page redirects; none of these
-    // is permanent, because browsers keep a permanent redirect forever and the
-    // site is still settling. /docs went to /docs/overview PERMANENTLY until
-    // today, so browsers that saw it go there first: the one docs page lives at
-    // /how-it-works and every docs address lands on it, so no cached hop loops.
+    // 2026-10-17 (Mike): the site is one page, plus the ledger and the proof pages
+    // ("this can literally be one page if you dont count ledger"). Every retired page
+    // redirects home; none of these is permanent, because browsers keep a permanent
+    // redirect forever and the site is still settling. /docs went to /docs/overview
+    // PERMANENTLY until today; both now land on /, which redirects nowhere, so no
+    // cached hop loops.
     const home = "/";
-    const docs = "/how-it-works";
+    const docs = home;
     return [
+      { source: "/how-it-works", destination: home, permanent: false },
       { source: "/docs", destination: docs, permanent: false },
       { source: "/docs/:path*", destination: docs, permanent: false },
       { source: "/api-reference", destination: docs, permanent: false },
