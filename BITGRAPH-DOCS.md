@@ -1,3 +1,5 @@
+> **Historical.** This file describes an earlier design (positions allocated before content, Fuse, floors and ceilings). It no longer describes how BitGraph works. The current documentation is at [bitgraph.ing/docs](https://bitgraph.ing/docs): one atomic action in the enclave, a fresh nonce then the content, two consecutive counts.
+
 # BitGraph Documentation
 
 ## What is BitGraph

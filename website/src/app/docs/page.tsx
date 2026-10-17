@@ -114,9 +114,9 @@ export default function DocsPage() {
           that runs it. The implementation has not had an independent security audit.
         </p>
         <p>
-          BitGraph controls availability and publication. Anyone can check that a proof is genuine without trusting BitGraph, but
-          nobody can prove from the proofs alone that BitGraph published every one. A withheld proof shows only as a missing count
-          in the sequence.
+          BitGraph controls availability and publication. Anyone can verify a proof independently, but a proof alone cannot
+          establish that every commitment has been disclosed. A proof withheld from the middle of the published sequence shows as a
+          missing count; the most recent ones, withheld, would not show at all.
         </p>
         <p>
           Privacy: a digest is public once it is bound, and digests are not salted. Nobody can turn a hash back into a file, but anyone who
@@ -148,8 +148,8 @@ export default function DocsPage() {
       <section className="home-section" aria-labelledby="d-check">
         <p className="home-kicker">Check it offline</p>
         <h2 id="d-check">No account, nothing of BitGraph&rsquo;s running.</h2>
-        <p>With the file and its proof (download it from the proof page):</p>
-        <Code>{"npx @mikeargento/bitgraph-sdk verify <file> --proof <proof>.json"}</Code>
+        <p>With the file and its proof (download it from the proof page), pinning the enclave&rsquo;s measurement so nothing else is accepted:</p>
+        <Code>{`npx @mikeargento/bitgraph-sdk verify <file> --proof <proof>.json --pcr0 ${PUBLISHED_PCR0}`}</Code>
         <p style={{ marginTop: 20 }}>What a full check does, in order:</p>
         <ol className="docs-list">
           <li>Hash the file and compare it with <code>artifact.digestB64</code>.</li>
@@ -178,8 +178,10 @@ export default function DocsPage() {
         <p>
           The enclave restarts once a day, at 23:59 UTC. Each run is an epoch: a new Ed25519 key made inside the enclave, a counter starting
           at zero, and an epoch ID that is the base64 SHA-256 of the public key and a fresh boot nonce. The key never leaves the enclave and
-          is gone when the epoch ends, so nobody can sign as a closed epoch. Each epoch&rsquo;s first proof carries a signed link to the
-          previous epoch&rsquo;s last proof, so the days form one line. While the enclave restarts, requests fail closed; nothing is made.
+          is gone when the epoch ends, so nobody can sign as a closed epoch. Each epoch&rsquo;s first proof links, signed, to the preceding
+          epoch&rsquo;s final published proof, so a verifier can follow the declared sequence across restarts. The enclave has no
+          storage of its own: the counter&rsquo;s continuity is kept by the enclave&rsquo;s code within each run, not carried by the
+          hardware from one run to the next. While the enclave restarts, requests fail closed; nothing is made.
         </p>
       </section>
 
