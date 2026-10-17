@@ -352,10 +352,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <section className="pv-card">
         <div className="pv-section-title">Monotonic counter</div>
         {nonceCount !== null && (
-          <Row f={{ label: `${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} />
+          <Row f={{ label: `#${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} />
         )}
         {contentCount !== null && (
-          <Row f={{ label: `${fmtNum(contentCount)}: Content hash`, value: m.proof.artifact.digestB64, mono: true }} />
+          <Row f={{ label: `#${fmtNum(contentCount)}: Content hash`, value: m.proof.artifact.digestB64, mono: true }} />
         )}
         {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
       </section>
