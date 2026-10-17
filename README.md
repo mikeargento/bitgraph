@@ -6,21 +6,53 @@
 
 ---
 
-**Position commitment for all of computing.**
+```
+% position commitment for all of computing
+```
 
-Inside a hardware enclave, one atomic action counts twice on a monotonic counter: a fresh nonce nobody can see or predict takes one count, and your content takes the next. Both are signed together, with the enclave's own time. So your bits were bound after a moment nobody could predict, and could not have been bound before it. It says when they were bound, not how old the content is.
+**[Make a BitGraph](https://bitgraph.ing/#make)**
+
+## What it proves
+
+Inside a hardware enclave, one atomic action counts twice: a fresh value nobody can see takes one count, and your content takes the next. Both are signed together, with the enclave's own time. So your bits were bound after a moment nobody could predict, and could not have been bound before it. It says when they were bound, not how old the content is.
+
+## How it works
+
+**Two steps, one action.**
+
+```
+                 ┌╌╌ Enclave: one atomic action ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
+┌────────────┐   ┆   ┌───────────────┐     ┌─────────────────┐   ┆   ┌───────────────┐
+│  Content   │ ──┆─▶ │   1: nonce    │ ──▶ │     2: bind     │ ──┆─▶ │     Proof     │
+│  Any bits  │   ┆   │ Unpredictable │     │ Content, signed │   ┆   │ Offline check │
+└────────────┘   ┆   └───────────────┘     └─────────────────┘   ┆   └───────────────┘
+                 └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
+```
 
 If any step fails, nothing is released and the counter does not move.
 
-## Two BitGraphs make an interval
+## Between two
 
-Every BitGraph takes exactly two counts, so the count runs straight through: nothing can be slipped in or held back. Anything bound after BitGraph A and before BitGraph B sits between them. A question generated from A's revealed nonce could not have existed before A; bind the answer in B.
+**Two BitGraphs make an interval.**
 
-## Make one
+```
+┌──────────────┐     ┌────────┐     ┌────────┐     ┌────────┐     ┌──────────────┐
+│  BitGraph A  │ ──▶ │ Record │ ──▶ │ Record │ ──▶ │ Record │ ──▶ │  BitGraph B  │
+│ Start moment │     └────────┘     └────────┘     └────────┘     │  End moment  │
+└──────────────┘                                                  └──────────────┘
+       └────────────────────────────────┬────────────────────────────────┘
+          Everything here is bound after A and before B: minutes or weeks
+```
 
-In a browser: the drop box at [bitgraph.ing](https://bitgraph.ing/#make). The file is hashed on your machine; only its SHA-256 is sent.
+Every BitGraph takes exactly two counts on a monotonic counter, so the count runs straight through: nothing can be slipped in or held back. A question generated from A's revealed value could not have existed before A; bind the answer in B.
 
-From software:
+## Try it
+
+**Make or check a BitGraph** in the drop box at [bitgraph.ing](https://bitgraph.ing/#make). The file is hashed in your browser; only its SHA-256 is sent.
+
+## For software
+
+**Send a SHA-256, get the proof.**
 
 ```bash
 curl -X POST https://bitgraph.ing/api/commit \
@@ -28,7 +60,7 @@ curl -X POST https://bitgraph.ing/api/commit \
   -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'
 ```
 
-Every BitGraph is kept. Fetch one by its hash, or look it up on the [ledger](https://bitgraph.ing/ledger):
+Every BitGraph is kept. Fetch one by its hash, here or on the [ledger](https://bitgraph.ing/ledger):
 
 ```bash
 curl https://bitgraph.ing/api/proofs/<sha-256, base64url>
@@ -40,9 +72,9 @@ For an AI agent:
 claude mcp add bitgraph -- npx -y @mikeargento/bitgraph-mcp
 ```
 
-A proof checks offline with [`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify). Pin the enclave's measurement (PCR0), reproducible from this repository: [`PINS.md`](server/commit-service/reproducible-build/PINS.md).
+A proof checks offline with [`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify). Pin the enclave's measurement, reproducible from the published source: [`PINS.md`](server/commit-service/reproducible-build/PINS.md).
 
-## Everything else
+---
 
 Writing a proof to a blockchain, a timestamp service, a file that carries its own proof: all of these already exist, and anyone can add them to a BitGraph. BitGraph does the one thing they cannot: the two steps.
 
