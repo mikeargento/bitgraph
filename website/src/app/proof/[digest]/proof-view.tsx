@@ -376,9 +376,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <div style={{ margin: "16px 0" }}>
           <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={download}>Download proof</button>
         </div>
-        <div className="code-block pv-code">
-          <div className="code-block-header"><span>Shell</span><CopyCode /></div>
-          <pre><code>{command}</code></pre>
+        {/* The same copy tab as /make, so the site's code blocks look alike (Mike, 2026-10-17: "shouldnt the site stay congruent"). */}
+        <div className="code-block mk-code">
+          <pre className="hiw-code">{command}</pre>
+          <CopyCode />
         </div>
       </section>
 

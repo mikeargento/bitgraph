@@ -25,10 +25,9 @@ export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        {/* Mike, 2026-10-17: "Give every computation a position." on top (an invitation, so "every" does not overclaim),
-            the single-use line under it. */}
+        {/* Mike, 2026-10-17: "Give every computation a position." alone on top (an invitation, so "every" does not
+            overclaim); the single-use line under it came off the same night. */}
         <TerminalLine text="Give every computation a position." />
-        <p className="hero-sub">Every BitGraph creates and occupies a position that can never be occupied again.</p>
       </div>
 
       <section className="home-section" aria-labelledby="home-how">
