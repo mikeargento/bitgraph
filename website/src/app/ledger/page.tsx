@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DropBox } from "@/components/drop-box";
 import { LedgerLookup } from "@/components/ledger-lookup";
 import { LedgerLive } from "@/components/ledger-live";
 import { LEDGER_FIRST_DAY, countToday, rowsForDay, type LedgerRow } from "@/lib/running-ledger";
@@ -91,9 +92,13 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
         </div>
       </div>
 
-      <div style={{ margin: "28px 0 8px" }}>
-        <LedgerLookup />
+      {/* Check is the ledger (Mike, 2026-10-17): the drop box here only looks files up and never makes one; the
+          one on /make makes. A SHA-256 without the file is looked up in the field under it. */}
+      <div style={{ margin: "28px 0 0" }}>
+        <DropBox mode="check" />
       </div>
+      <p style={{ margin: "24px 0 12px" }}>Or find one by its SHA-256:</p>
+      <LedgerLookup />
 
       <div style={{ display: "flex", gap: 12, margin: "28px 0 20px", flexWrap: "wrap" }}>
         {/* Calendar first, as on the old Base page (Mike, 2026-10-17: "the calendar and all that jazz we had before"). */}

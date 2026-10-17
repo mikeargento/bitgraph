@@ -12,14 +12,14 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 export const metadata: Metadata = {
   title: "Make a BitGraph",
   description:
-    "Make or check a BitGraph: drop a file (it is hashed in your browser; only its SHA-256 is sent), or send a SHA-256 from software and get the proof.",
+    "Make a BitGraph: drop a file (it is hashed in your browser; only its SHA-256 is sent), or send a SHA-256 from software and get the proof.",
 };
 
 export default function MakePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        <TerminalLine text="Make or check a BitGraph." />
+        <TerminalLine text="Make a BitGraph." />
         <div style={{ marginTop: 32 }}>
           <DropBox />
         </div>

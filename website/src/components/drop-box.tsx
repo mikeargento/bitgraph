@@ -63,7 +63,9 @@ async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
   }
 }
 
-export function DropBox() {
+/** mode "check" only looks files up and never makes anything (the ledger page); "make" looks them up, then
+ *  offers to make the ones that are new (/make). */
+export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -140,7 +142,7 @@ export function DropBox() {
       <div
         role="button"
         tabIndex={0}
-        aria-label="Drop files to check or make BitGraphs, or press to choose files"
+        aria-label={mode === "check" ? "Drop files to check them, or press to choose files" : "Drop files to make BitGraphs, or press to choose files"}
         onClick={() => inputRef.current?.click()}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }}
@@ -149,7 +151,7 @@ export function DropBox() {
         className="db-zone"
         data-over={over ? "1" : undefined}
       >
-        <div className="db-zone-title">Drop files here, or choose them</div>
+        <div className="db-zone-title">{mode === "check" ? "Drop files here to check them, or choose them" : "Drop files here, or choose them"}</div>
         <div className="db-zone-sub">Each file is hashed in your browser. Only its SHA-256 is sent; the file never leaves your machine.</div>
         <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       </div>
@@ -165,7 +167,8 @@ export function DropBox() {
               <div className="db-state">
                 {r.state === "hashing" && "Hashing…"}
                 {r.state === "looking" && "Checking the ledger…"}
-                {r.state === "new" && (r.note ?? "Not a BitGraph yet")}
+                {r.state === "new" && mode === "check" && <>Not a BitGraph. <a href="/make">Make one</a></>}
+                {r.state === "new" && mode === "make" && (r.note ?? "Not a BitGraph yet")}
                 {r.state === "making" && "Binding…"}
                 {r.state === "error" && r.note}
                 {(r.state === "found" || r.state === "made") && r.proof && (
@@ -185,7 +188,7 @@ export function DropBox() {
         </div>
       )}
 
-      {newCount > 0 && (
+      {mode === "make" && newCount > 0 && (
         <div className="db-make">
           <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={busy} onClick={() => void make()}>
             {busy ? "Making…" : `Make ${newCount === 1 ? "a BitGraph" : `${newCount} BitGraphs`}`}

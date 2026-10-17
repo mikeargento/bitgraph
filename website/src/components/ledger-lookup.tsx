@@ -37,7 +37,6 @@ export function LedgerLookup() {
   const router = useRouter();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const go = (digest: string) => router.push(`/proof/${digest}`);
 
@@ -47,19 +46,6 @@ export function LedgerLookup() {
     if (d === null) { setError("That is not a SHA-256: 64 hex characters, or 43 to 44 base64."); return; }
     setError(null);
     go(d);
-  };
-
-  const onFile = async (file: File | undefined) => {
-    if (!file) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
-      go(bytesToB64Url(hash));
-    } catch {
-      setError("This browser could not read that file.");
-      setBusy(false);
-    }
   };
 
   return (
@@ -76,14 +62,6 @@ export function LedgerLookup() {
         />
         <button type="submit" className="bg-action-link" style={{ flex: "none", margin: 0 }}>Find</button>
       </form>
-      <p style={{ margin: "18px 0 0", fontSize: 16 }}>
-        Or{" "}
-        <label style={{ textDecoration: "underline", cursor: "pointer" }}>
-          {busy ? "hashing the file…" : "choose a file"}
-          <input type="file" style={{ display: "none" }} onChange={(e) => void onFile(e.target.files?.[0])} />
-        </label>
-        : it is hashed here, in your browser, and never uploaded.
-      </p>
       {error ? <p role="alert" style={{ margin: "14px 0 0", color: "var(--err)" }}>{error}</p> : null}
     </div>
   );
