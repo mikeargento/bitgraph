@@ -312,7 +312,8 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
         data-over={over ? "1" : undefined}
       >
         <div className="db-zone-title">{status ?? (mode === "check" ? "Drop files here to check them, or choose them" : "Drop files here, or choose them")}</div>
-        <div className="db-zone-sub">Each file is hashed in your browser. Only its SHA-256 is sent; the file never leaves your machine.</div>
+        <div className="db-zone-sub">Each file is hashed in your browser. Only its SHA-256 is sent.</div>
+        <div className="db-zone-sub">The file never leaves your machine.</div>
         <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       </div>
 
