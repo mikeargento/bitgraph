@@ -1,7 +1,7 @@
 {
   "name": "@mikeargento/bitgraph-titles",
   "version": "0.2.0",
-  "description": "BitGraph Titles: possession messages, custody threads, and title abstracts over BitGraph recordings. BitGraph records. Titles convey. Player evaluates.",
+  "description": "BitGraph Titles: transfer and custody messages over BitGraph proofs.",
   "keywords": [
     "bitgraph",
     "titles",

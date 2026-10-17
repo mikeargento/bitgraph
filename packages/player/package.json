@@ -1,7 +1,7 @@
 {
   "name": "@mikeargento/bitgraph-player",
   "version": "0.17.0",
-  "description": "Deterministic evaluation of causal rules over BitGraph proof bundles: a pure function from (rule, verified evidence) to a reproducible verdict.",
+  "description": "Deterministic rules over verified BitGraph proofs: the same rule and the same proofs always give the same verdict.",
   "keywords": [
     "bitgraph",
     "rules",

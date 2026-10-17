@@ -2,7 +2,7 @@
   "name": "@mikeargento/bitgraph",
   "version": "1.14.1",
   "license": "SEE LICENSE IN LICENSE",
-  "description": "Portable proof that these exact bytes filled a position that existed before them.",
+  "description": "Position commitment for all of computing: inside a hardware enclave, one atomic action takes a fresh nonce nobody can predict, then your content, signed together.",
   "keywords": [
     "bitgraph",
     "ai-audit",

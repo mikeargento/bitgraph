@@ -89,8 +89,9 @@ export function SandwichFigure() {
 /** The simple picture: content → [enclave: 1 nonce → 2 bind] → proof, the content entering at step 2 (Mike, 2026-10-17: "simplify ... only keep content"). */
 export function FlowFigure() {
   return (
-    <figure className="pf-figure pf-flow" aria-label="Content goes in. Inside the enclave, one atomic action: step 1 draws an unpredictable nonce, step 2 binds the content and signs it. The result is a proof anyone can check offline.">
+    <figure className="pf-figure pf-flow" aria-label="Content goes into the enclave and runs straight through one atomic action: step 1 draws an unpredictable nonce, step 2 binds the content right after it and signs both. The result is a proof anyone can check offline.">
       <div className="pf-box pf-grey pf-f-content"><div className="pf-title">Content</div><div className="pf-sub">Any bits</div></div>
+      <span className="pf-arrow pf-f-a1" aria-hidden="true" />
       <div className="pf-f-enclave" aria-hidden="true" />
       <div className="pf-enclave-label pf-f-label">Enclave: one atomic action</div>
       <div className="pf-box pf-purple pf-f-nonce"><div className="pf-title">1: nonce</div><div className="pf-sub">Unpredictable</div></div>
@@ -98,9 +99,6 @@ export function FlowFigure() {
       <div className="pf-box pf-green pf-f-bind"><div className="pf-title">2: bind</div><div className="pf-sub">Content, signed</div></div>
       <span className="pf-arrow pf-f-a3" aria-hidden="true" />
       <div className="pf-box pf-green pf-f-proof"><div className="pf-title">Proof</div><div className="pf-sub">Offline check</div></div>
-      <span className="pf-f-by1" aria-hidden="true" />
-      <span className="pf-f-by2" aria-hidden="true" />
-      <span className="pf-f-by3" aria-hidden="true" />
     </figure>
   );
 }

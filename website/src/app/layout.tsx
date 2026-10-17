@@ -73,21 +73,21 @@ export const metadata: Metadata = {
   // Nothing else can hold that position, and it cannot be moved later.")
   // predated the opener and local-first.
   description:
-    "BitGraph allocates an unused position before it receives a file's SHA-256 fingerprint, then binds the fingerprint to that position and consumes it. The proof is a file you keep. It verifies offline.",
+    "Position commitment for all of computing. Inside a hardware enclave, one atomic action takes a fresh nonce nobody can predict, then your content, signed together. The proof checks offline.",
   keywords: [
     "BitGraph", "causal order", "verifiable order", "proof of position",
-    "tamper-evident", "AI agent records", "Base floor",
+    "tamper-evident", "position commitment", "hardware enclave",
   ],
   openGraph: {
     title: "BitGraph",
-    description: "BitGraph allocates an unused position before it receives a file's SHA-256 fingerprint, then binds the fingerprint to that position and consumes it. The proof is a file you keep. It verifies offline.",
+    description: "Position commitment for all of computing. Inside a hardware enclave, one atomic action takes a fresh nonce nobody can predict, then your content, signed together. The proof checks offline.",
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary",
     title: "BitGraph",
-    description: "BitGraph allocates an unused position before it receives a file's SHA-256 fingerprint, then binds the fingerprint to that position and consumes it. The proof is a file you keep. It verifies offline.",
+    description: "Position commitment for all of computing. Inside a hardware enclave, one atomic action takes a fresh nonce nobody can predict, then your content, signed together. The proof checks offline.",
   },
   robots: { index: true, follow: true },
 };

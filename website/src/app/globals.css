@@ -4044,3 +4044,16 @@ html body { color: #c4c4c4; -webkit-font-smoothing: antialiased; -moz-osx-font-s
   .pf-flow .pf-arrow.pf-f-a3 { grid-row: 8 !important; }
   .pf-flow .pf-arrow.pf-f-a2::after, .pf-flow .pf-arrow.pf-f-a3::after { border: 0 solid transparent !important; border-left-width: 5px !important; border-right-width: 5px !important; border-top: 9px solid var(--pf-line) !important; top: auto !important; bottom: 0 !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; }
 }
+
+/* One straight line (Mike, 2026-10-17: "the content looks like it bypasses the nonce ... it is just passing
+   through the nonce that was created inside the tee"): Content -> 1: nonce -> 2: bind -> Proof. The content's
+   arrow crosses the enclave wall to the nonce, as the proof's arrow crosses it on the way out. */
+.pf-flow.pf-flow { grid-template-rows: auto auto 22px !important; }
+.pf-flow .pf-arrow.pf-f-a1 { grid-column: 2 / 4 !important; grid-row: 2 !important; }
+@media (max-width: 760px) {
+  .pf-flow .pf-arrow.pf-f-a1 { grid-column: 2 !important; grid-row: 2 !important; width: 2px !important; height: calc(100% - 16px) !important; align-self: center; justify-self: center; margin: 0 !important; background: linear-gradient(to bottom, var(--pf-line) calc(100% - 9px), transparent 0) !important; }
+  .pf-flow .pf-arrow.pf-f-a1::after { border: 0 solid transparent !important; border-left-width: 5px !important; border-right-width: 5px !important; border-top: 9px solid var(--pf-line) !important; top: auto !important; bottom: 0 !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; }
+}
+@media (max-width: 760px) {
+  .pf-flow.pf-flow { grid-template-rows: auto 44px auto auto 36px auto 14px 40px auto !important; }
+}

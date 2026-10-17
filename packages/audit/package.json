@@ -1,7 +1,7 @@
 {
   "name": "@mikeargento/bitgraph-audit",
   "version": "0.11.0",
-  "description": "Offline audit of BitGraph proof bundles: ingest, tiered verification, causal reconstruction, divergence reporting.",
+  "description": "Offline audit of a folder of BitGraph proofs: each proof checked, the counter order rebuilt, gaps and conflicts reported.",
   "keywords": [
     "bitgraph",
     "audit",
