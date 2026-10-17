@@ -4101,3 +4101,33 @@ html body { color: #c4c4c4; -webkit-font-smoothing: antialiased; -moz-osx-font-s
 .mk-code { display: flex; flex-direction: column; }
 .mk-code .hiw-code { padding-right: 16px; }
 .mk-code .code-copy { position: static; order: -1; align-self: flex-end; margin-bottom: -1px; padding: 2px 12px; border-bottom-color: var(--code-bg) !important; background: var(--code-bg) !important; }
+
+/* Eyebrows in caps (Mike, 2026-10-17: "eyebrows all caps?"): labels, like a man page's NAME and SYNOPSIS;
+   still grey, so the white sentence under each stays the thing you read. */
+html body .home-kicker.home-kicker { text-transform: uppercase !important; letter-spacing: 0.08em !important; }
+
+/* The enclave even on every side (Mike, 2026-10-17: "tee box should be more uniform"): its label sits in the
+   dashed top line, like a form legend, so the space inside is the same above, below and to each side. */
+.pf-flow .pf-f-label { align-self: start !important; justify-self: start !important; transform: translateY(-50%); background: var(--bg, #1e1e1e); padding: 0 10px !important; line-height: 1.5; }
+@media (min-width: 761px) {
+  .pf-flow.pf-flow { grid-template-rows: 36px auto 36px !important; }
+  .pf-flow .pf-f-content, .pf-flow .pf-f-nonce, .pf-flow .pf-f-bind, .pf-flow .pf-f-proof,
+  .pf-flow .pf-arrow.pf-f-a1, .pf-flow .pf-arrow.pf-f-a2, .pf-flow .pf-arrow.pf-f-a3 { grid-row: 2 !important; }
+  .pf-flow .pf-f-enclave { grid-row: 1 / 4 !important; }
+  .pf-flow .pf-f-label { grid-row: 1 !important; margin-left: 26px !important; }
+}
+@media (max-width: 760px) {
+  .pf-flow.pf-flow { grid-template-rows: auto 44px 20px auto 44px auto 20px 44px auto !important; }
+  .pf-flow .pf-f-enclave { grid-row: 3 / 8 !important; }
+  .pf-flow .pf-f-label { grid-row: 3 !important; margin-left: 10px !important; }
+}
+@media (max-width: 760px) {
+  /* the label sits in the border under the content's arrow, so the arrow stops 8px above the label */
+  .pf-flow .pf-arrow.pf-f-a1 { align-self: start !important; margin-top: 8px !important; height: calc(100% - 28px) !important; }
+  .pf-flow.pf-flow { grid-template-rows: auto 52px 20px auto 44px auto 20px 44px auto !important; }
+}
+
+/* Underlines with room (Mike, 2026-10-17: "not have link underlines all up in the texts kitchen"): every
+   underline on the site sits clear of the letters' descenders and is a hairline. */
+:root:root:root body * { text-underline-offset: 0.35em !important; text-decoration-thickness: 1px !important; }
+:root:root:root:root body a, :root:root:root:root body button { text-decoration-thickness: 1px !important; text-underline-offset: 0.35em !important; }
