@@ -20,7 +20,7 @@
  * (project_ledger_read_honesty).
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { verify, createVerificationContext } from "@mikeargento/bitgraph-verify";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
@@ -153,9 +153,12 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
   const [busy, setBusy] = useState(false);
   /** One file at a time shows a single line in the box instead of a row list (Mike, 2026-10-17: it "jumps"). */
   const [status, setStatus] = useState<string | null>(null);
+  /** ?timer on the page's address shows the elapsed time of a big drop, live and final (Mike, 2026-10-17: a speed test). */
+  const [timer, setTimer] = useState(false);
+  useEffect(() => { try { setTimer(new URLSearchParams(window.location.search).has("timer")); } catch { /* no timer */ } }, []);
   /** A big drop (more than MAX_FILES): counts and the proofs, never one row per file. */
   const [batch, setBatch] = useState<{ root: string; total: number; rootFile: string | null; rootProof: Proof | null; rootDigest: string | null; rootState: "looking" | "found" | "missing" | "mismatch" | "absent"; rows: Array<{ name: string; index: number | null }> } | null>(null);
-  const [bulk, setBulk] = useState<{ total: number; made: number; found: number; missing: number; failed: number; done: boolean; proofs: Proof[] } | null>(null);
+  const [bulk, setBulk] = useState<{ total: number; made: number; found: number; missing: number; failed: number; done: boolean; proofs: Proof[]; ms: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -202,8 +205,9 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
   const takeMany = useCallback(async (files: File[]) => {
     setRows([]); setStatus(null);
     const total = files.length;
-    const st = { total, made: 0, found: 0, missing: 0, failed: 0, done: false, proofs: [] as Proof[] };
-    const show = () => setBulk({ ...st, proofs: st.proofs });
+    const t0 = performance.now();
+    const st = { total, made: 0, found: 0, missing: 0, failed: 0, done: false, proofs: [] as Proof[], ms: 0 };
+    const show = () => { st.ms = performance.now() - t0; setBulk({ ...st, proofs: st.proofs }); };
     show();
     const digests: string[] = new Array(total);
     let hashed = 0;
@@ -429,7 +433,7 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
             <div className="db-name"><span>{bulk.total.toLocaleString("en-US")} files</span></div>
             <div className="db-state">
               {mode === "make"
-                ? <>{bulk.made.toLocaleString("en-US")} made{bulk.failed ? `, ${bulk.failed.toLocaleString("en-US")} not made` : ""}{bulk.done ? "" : "…"}</>
+                ? <>{bulk.made.toLocaleString("en-US")} made{bulk.failed ? `, ${bulk.failed.toLocaleString("en-US")} not made` : ""}{bulk.done ? "" : "…"}{timer ? ` in ${(bulk.ms / 1000).toFixed(2)} s${bulk.done && bulk.made ? ` (${(bulk.made / (bulk.ms / 1000)).toFixed(1)} per second)` : ""}` : ""}</>
                 : <>{bulk.found.toLocaleString("en-US")} are BitGraphs, {bulk.missing.toLocaleString("en-US")} are not{bulk.failed ? `, ${bulk.failed.toLocaleString("en-US")} could not be checked` : ""}{bulk.done ? "" : "…"}</>}
             </div>
           </div>
