@@ -55,7 +55,8 @@ export default function HomePage() {
         <h2 id="home-between">Two BitGraphs make an&nbsp;interval.</h2>
         <div style={{ marginTop: 32 }}><SandwichFigure /></div>
         <p style={{ marginTop: 24 }}>
-          Every BitGraph takes exactly two counts, so the counter runs straight through: nothing can be slipped in or held back. A
+          Every BitGraph takes exactly two counts on a monotonic counter, so the count runs straight through: nothing can be slipped
+          in or held back. A
           question generated from A&rsquo;s revealed value could not have existed before A; bind the answer in&nbsp;B.
         </p>
       </section>
