@@ -38,6 +38,9 @@ import { baseTimeIsBound, decodeNitroAttestation, floorTimeIsBound } from "@mike
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { CopyCode } from "@/components/copy-code";
 
+/** The first Base ceiling write (2026-09-29 22:43 UTC). Records made before it have no ceiling in time. */
+const BASE_CEILING_START_MS = Date.UTC(2026, 8, 29, 22, 43);
+
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
 const safe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
@@ -457,11 +460,15 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <Moment label="Ceiling in time" chain="base" title={<span className="pv-moment-dim">Queued for the next Base write<span className="pv-dots" aria-hidden /></span>} note="The writer puts a root over new records on Base seconds after each commit. This page keeps asking." />
           )}
 
+          {!isAnchor && !ct && attested !== null && attested < BASE_CEILING_START_MS && (
+            <Moment label="Ceiling in time" chain="base" title={<span className="pv-moment-dim">None for this record</span>} note="BitGraph began writing records to Base on 2026-09-29 at 22:43 UTC. This record was made before that, so nothing public bounds it in time from above; its ceiling is a position only." />
+          )}
+
           {!isAnchor && m.ceilingPos && (
             <Moment
               label="Ceiling in position" chain="eth"
               title={<>Committed before anchor #{fmtNum(m.ceilingPos.counter)}{m.ceilingPos.recordedMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>recorded {whenBeside(m.ceilingPos.recordedMs, attested)}</span> : null}</>}
-              note={<>The next anchor in the sequence, carrying Ethereum block #{fmtNum(m.ceilingPos.blockNumber)}{posMined !== null ? <> (mined {whenBeside(posMined, attested)})</> : null}. A bound in position, not a clock time: an anchor is made after the block it carries.</>}
+              note={<>The next anchor in the sequence, carrying Ethereum block #{fmtNum(m.ceilingPos.blockNumber)}{posMined !== null ? <> (mined {whenBeside(posMined, attested)})</> : null}. A bound in position, not a clock time: an anchor is made after the block it carries, and an operator who delayed the block feed could place a record before an anchor and then catch up, so this orders the record but does not date it.</>}
             >
               {m.ceilingPos.etherscanUrl && <Pill href={m.ceilingPos.etherscanUrl} external>Etherscan</Pill>}
               {m.ceilingPos.digestB64 && <Pill href={`/proof/${encodeURIComponent(safe(m.ceilingPos.digestB64))}`}>Anchor #{fmtNum(m.ceilingPos.counter)}</Pill>}

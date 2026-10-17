@@ -1225,16 +1225,17 @@ export default function ProofPage() {
       leadNode = <span style={{ whiteSpace: "nowrap" }}>{blockPart}</span>;
     }
   } else if (!isEth && lowerTime && upperTime) {
-    // Mike's ruling (2026-09-16, restated 2026-09-17): the verdict reads
-    // "after <time>, before <time>", each time a block's own mint time, so it
-    // matches the Etherscan page its row links to. The 09-16 redesign printed
-    // the ceiling as an anchor position instead; he reversed that. The anchor's
-    // position still has its own card below.
+    // The floor is a time (the earlier anchor's block). The ceiling here is a
+    // POSITION, the next anchor in the chain, never that block's mint time:
+    // an anchor is made after the block it carries, and an operator who
+    // delays the block feed could make the two blocks read as a window the
+    // record did not sit in. Only Base-era records (from 2026-09-29 22:43 UTC)
+    // have a ceiling in time. (Supersedes the 09-16/17 "after <time>, before
+    // <time>" verdict, per the 2026-10-16 audit.)
     const t1 = new Date(lowerTime);
-    const t2 = new Date(upperTime);
-    const upper = sameUtcDay(t1, t2) ? timeTz(t2) : stampTz(t2);
-    recordedLine = `after ${stampTz(t1)}, before ${stampTz(t2)}`;
-    recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em>, before <Em><span style={{ whiteSpace: "nowrap" }}>{upper}</span></Em></>;
+    const before = upperCounter !== null ? `before anchor #${Number(upperCounter).toLocaleString("en-US")}` : "before the next anchor";
+    recordedLine = `after ${stampTz(t1)}, ${before}`;
+    recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em>, {before}</>;
     recordedDate = longDate(t1);
     leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
   } else if (!isEth && lowerTime) {

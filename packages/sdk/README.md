@@ -1,6 +1,6 @@
 # @mikeargento/bitgraph-sdk
 
-One engine, three sockets. BitGraph gives a file's bytes a causal position in a public sequence, bracketed by public blocks: a Base block bound into the position when it opens, a floor it cannot move under, and a Base write after the commit; a position nothing can be slid beneath. This package is how software plugs in, whatever it is written in.
+One engine, three sockets. BitGraph proves bits were bound after a moment nobody could predict (a fresh hidden random value at one count of an enclave counter, the bits bound at a count after it, signed together), and places that moment between public blocks: a Base block bound into the position when it opens, a floor it cannot move under, and a Base write after the commit; a position nothing can be slid beneath. This package is how software plugs in, whatever it is written in.
 
 - **TypeScript**: `import { BitGraph } from "@mikeargento/bitgraph-sdk"`
 - **Any language that can spawn a process**: `npx bitgraph <verb> --json`
@@ -56,7 +56,7 @@ await bg.complete("photo.bitgraph.jpg");       // fetch the closing anchor and t
 
 An export starts with its Base ceiling and Ethereum settlement pending: the ceiling lands seconds after the commit, the settlement when Base posts its output root to Ethereum. `completeExport` fetches each from the site's public routes and adds it only once it verifies; nothing already inside is replaced.
 
-`verify` needs no network and no server: a BitGraphed file argues for itself, one line per claim, each saying what it rests on (SHA-256, Ed25519, the AWS Nitro root, an Ethereum block, a Base block). The window is stated in the protocol's own units: no earlier than the floor block (a time), existed by the Base block (a time). A BitGraphed file holds an earlier single-file position floored by an Ethereum anchor, so it also states its closing anchor: committed before the anchoring of the later anchor (a position). Offline, the blocks are taken from their headers; `--eth-rpc` and `--base-rpc` confirm them against nodes you name.
+`verify` needs no network and no server: a BitGraphed file argues for itself, one line per claim, each saying what it rests on (SHA-256, Ed25519, the AWS Nitro root, an Ethereum block, a Base block). The window is stated in the protocol's own units: no earlier than the floor block (a time), existed by the Base block (a time; records made before 2026-09-29 22:43 UTC have none). A BitGraphed file holds an earlier single-file position floored by an Ethereum anchor, so it also states its closing anchor: committed before the anchoring of the later anchor (a position). Offline, the blocks are taken from their headers; `--eth-rpc` and `--base-rpc` confirm them against nodes you name.
 
 ## Any language
 

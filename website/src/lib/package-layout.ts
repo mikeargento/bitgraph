@@ -154,7 +154,9 @@ export function packageReadme(i: ReadmeInput): string {
   if (i.carrierPath) item(i.carrierPath, `The BitGraphed file: the committed bytes with the proof, ${packed} and the Base ceiling packed inside one file. It verifies with nothing else beside it.`);
   if (!baseFloor && (i.hasAnchorsBefore || i.hasAnchorsAfter)) item("ethereum-anchors/", "The anchor before (the floor) and the anchor after (the closing anchor), each with its Ethereum block header so the block's time reads offline.");
   if (baseFloor && i.hasBaseFloorHeader && i.floor) item(`${PKG_BASE_FLOOR_DIR}/`, `The floor block's header: Base block ${n(i.floor.block)}, as BitGraph saved it when the enclave fixed the floor, so the block's hash and time check offline against the proof.`);
-  item("base-ceiling/", "The ceiling in time: the Merkle path, the signed Base transaction, the Base block header and the transaction's inclusion proof. A file there whose name ends in -status.json says in words when something was not available.");
+  item("base-ceiling/", i.ceilingInTime
+    ? "The ceiling in time: the Merkle path, the signed Base transaction, the Base block header and the transaction's inclusion proof. A file there whose name ends in -status.json says in words when something was not available."
+    : "Where the ceiling in time would be. Its -status.json says in words why there is none: records made before BitGraph began writing to Base (2026-09-29 22:43 UTC) have none, and a newer record's may not have landed yet.");
   if (i.settlementBlobs && i.settlementBlobs.inPackage.length) item("base-ceiling/blobs/", `The Ethereum blob data that carries the Base batch (${i.settlementBlobs.inPackage.length} file${i.settlementBlobs.inPackage.length === 1 ? "" : "s"}, each named by its versioned hash). Ethereum nodes keep blob data only about 18 days, so these copies are what lets the settlement be checked later.`);
 
   if (i.committedSha256Hex || (i.originalSha256Hex && i.originalPath)) {
@@ -166,7 +168,7 @@ export function packageReadme(i: ReadmeInput): string {
 
   L.push("## Check it yourself", "");
   L.push("Offline, with Node 20 or later, from inside this folder:", "", `    npx @mikeargento/bitgraph-audit@${i.versions.audit} .`, "");
-  L.push("Expected: the committed file matches the proof, the signatures and the attestation hold, the floor and the ceiling verify from the block headers in this folder. Exit code 0.", "");
+  L.push(`Expected: the committed file matches the proof, the signatures and the attestation hold, ${i.ceilingInTime ? "the floor and the ceiling verify" : "the floor verifies"} from the block headers in this folder. Exit code 0.`, "");
   if (i.carrierPath) {
     L.push("Or check the single BitGraphed file, one line per claim, each saying what it rests on:", "", `    npx @mikeargento/bitgraph-sdk@${i.versions.sdk} verify "${i.carrierPath}"`, "");
   }
@@ -179,7 +181,7 @@ export function packageReadme(i: ReadmeInput): string {
   if (i.recordedIso) ev("Recorded", `${utc(i.recordedIso)}, the enclave platform's signed clock.`);
   if (i.ceilingInTime) ev("Ceiling in time", `Base block ${n(i.ceilingInTime.block)}, ${utc(i.ceilingInTime.iso)}. Transaction ${i.ceilingInTime.txHash}${stampNote ? `. Not a time bound for this record: ${stampNote}.` : ""}`);
   // A Base floor has no ceiling in position: no anchors follow it, and order after the record is the next BitGraph in the hash chain.
-  if (i.ceilingInPosition && !baseFloor) ev("Ceiling in position", `The record was committed before anchor #${Number(i.ceilingInPosition.anchorCounter).toLocaleString("en-US")}${i.ceilingInPosition.block ? `, which carries Ethereum block ${n(i.ceilingInPosition.block)} (${utc(i.ceilingInPosition.iso)})` : ""}. This is an order, not a clock time. An anchor is made after the block it carries, so that block's time can be earlier than the recorded time above. Do not read the two Ethereum blocks as a time window; ${stampNote ? "the Base block's own time is withheld here (see above), so the recorded time is the latest time stated" : "the Base block is the upper bound in time"}.`);
+  if (i.ceilingInPosition && !baseFloor) ev("Ceiling in position", `The record was committed before anchor #${Number(i.ceilingInPosition.anchorCounter).toLocaleString("en-US")}${i.ceilingInPosition.block ? `, which carries Ethereum block ${n(i.ceilingInPosition.block)} (${utc(i.ceilingInPosition.iso)})` : ""}. This is an order, not a clock time. An anchor is made after the block it carries, so that block's time can be earlier than the recorded time above. An operator who delayed the block feed could place a record before an anchor and then catch up, so this orders the record but does not date it. Do not read the two Ethereum blocks as a time window; ${!i.ceilingInTime ? "this record has no ceiling in time (it was made before BitGraph began writing to Base, 2026-09-29 22:43 UTC)" : stampNote ? "the Base block's own time is withheld here (see above), so the recorded time is the latest time stated" : "the Base block is the upper bound in time"}.`);
 
   L.push("## What is checked, and what each result rests on", "");
   L.push("These are separate results. A pass on one says nothing about the next.", "");

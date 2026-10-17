@@ -806,7 +806,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "bitgraph", version: SERVER_VERSION },
     instructions:
-      "BitGraph gives a file's bytes a position in an ordered sequence, with a floor: a Base block the enclave fixes when the position opens (Ethereum on earlier proofs); the bytes were placed no earlier than their floor. Making a BitGraph is two steps: bitgraph_open (a position at the boundary, and a recipe per file for its new fused file) then bitgraph_commit (the digest of each new file you built). " +
+      "BitGraph proves bits were bound AFTER a moment nobody could predict: inside a hardware enclave a fresh, hidden random value takes one count of a counter and the bits are bound at a count after it, then both are signed. The claim is about when the bits were bound, not how old the content is. Each proof also names a public Base block that moment came after (the floor; Ethereum on earlier proofs). Making a BitGraph is two steps: bitgraph_open (a position at the boundary, and a recipe per file for its new fused file) then bitgraph_commit (the digest of each new file you built). " +
       "Open every file of a batch in ONE call and commit them in ONE call: they share one position and become one BitGraph, a set, each file a member with its row. A single file is fused on its own. " +
       "File contents never travel: only digests, sizes, a file's first bytes, position records and recipe bytes. New files are virtual; the originals stay unchanged and the proof rebuilds them. " +
       "Positions are permanent, and the proof comes back to you to keep: only make BitGraphs of files the user asked for, and never generate content just to record it. " +

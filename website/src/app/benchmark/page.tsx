@@ -77,7 +77,7 @@ export default function BenchmarkPage() {
       <h2>Five billion files</h2>
       <p>
         About 5 billion photos are taken on Earth every day. A BitGraph holds up to one million files, so a day of them is
-        5,000 BitGraphs. Projected from this run, not measured: about <strong>$1.87</strong> in fees (5,000 &times; $0.000374),
+        5,000 BitGraphs. Projected from this run, not measured: making the BitGraphs costs nothing (each is one action inside the enclave); writing each one to Base on its own would be about <strong>$1.87</strong> in fees (5,000 &times; $0.000374),
         and about 14.6 hours on this one laptop, one BitGraph after another (5,000 &times; 10.50&nbsp;s). That is less than a
         day: one laptop keeps pace with every photo taken on Earth. Run side by side on more machines, it takes a fraction
         of&nbsp;that.

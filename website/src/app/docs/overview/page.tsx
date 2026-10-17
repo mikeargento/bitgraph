@@ -128,7 +128,7 @@ export default function OverviewPage() {
         The floor is the newest Base block, not a confirmed one, so a reorganization of Base near it could orphan the block it names. The block&rsquo;s header still checks out on its own, offline; only the lookup on Base shows whether the block at that number is the one the proof names, and a verifier that finds a different hash there does not accept the floor. Ordering within the sequence is untouched by anything that happens on Base.
       </p>
       <p>
-        <strong>Earlier proofs.</strong> Proofs made before the switch to the Base floor stand on an Ethereum floor instead: an <em>anchor</em>, an ordinary position whose file was the hash of a recent Ethereum block, which the enclave fixed when the position was allocated and signed into the proof as <code>commit.slotAnchor</code>. They verify exactly as they always did.
+        <strong>Earlier proofs.</strong> Proofs made before the switch to the Base floor stand on an Ethereum floor instead: an <em>anchor</em>, an ordinary position whose file was the hash of a recent Ethereum block, which the enclave fixed when the position was allocated and signed into the proof as <code>commit.slotAnchor</code>. They verify exactly as they always did. Records made before the first Base write (2026-09-29 22:43 UTC) have no ceiling in time: their upper bound is a position only, the next anchor, which orders a record but does not date it.
       </p>
 
       <h2 id="epochs">5. Compromise and containment</h2>

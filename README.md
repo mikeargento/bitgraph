@@ -126,7 +126,7 @@ The ceilings also fix history backward, through content. Each proof's hash is ch
 
 Base is not asked to be a good source of randomness, and it is not asked to establish the artifact's position. BitGraph establishes the position. The public blocks tie the positions to the public timeline, so anyone, years later, can check the order and the earliest date each position could have existed.
 
-Proofs made before the switch to the Base floor stand on an Ethereum floor instead: an anchor, an ordinary proof on the same chain whose artifact was the hash of a recent Ethereum block, fixed when the position was allocated and signed in as `commit.slotAnchor`. They verify exactly as before.
+Proofs made before the switch to the Base floor stand on an Ethereum floor instead: an anchor, an ordinary proof on the same chain whose artifact was the hash of a recent Ethereum block, fixed when the position was allocated and signed in as `commit.slotAnchor`. They verify exactly as before. Records made before the first Base write (2026-09-29 22:43 UTC) have no ceiling in time at all: their only upper bound is a position (the next anchor), which orders them but does not date them, because an operator who delayed the block feed could place a record before an anchor and then catch up.
 
 ## Compromise and containment
 
