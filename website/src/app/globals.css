@@ -4434,3 +4434,26 @@ html:root:root:root:root .pf-flow .pf-f-note-ghost { visibility: hidden; margin:
   html:root:root:root:root .pf-flow .pf-arrow.pf-f-a3 { grid-row: 10 !important; }
   html:root:root:root:root .pf-flow .pf-f-proof { grid-row: 11 !important; }
 }
+
+/* Judged (Mike, 2026-10-17: "top is too tall now ... judge and fix"): the steps and their note are one group, centred:
+   the same space from the top border to the steps as from the note to the bottom border. No ghost. */
+html:root:root:root:root:root .pf-flow .pf-f-note-ghost { display: none !important; }
+html:root:root:root:root:root .pf-flow .pf-f-note { margin-top: 16px !important; }
+@media (min-width: 761px) {
+  /* pad, steps, note, pad */
+  html:root:root:root:root:root .pf-flow.pf-flow { grid-template-rows: 36px auto auto 36px !important; }
+  html:root:root:root:root:root .pf-flow .pf-f-enclave { grid-row: 1 / 5 !important; }
+  html:root:root:root:root:root .pf-flow :is(.pf-f-content, .pf-f-nonce, .pf-f-bind, .pf-f-proof, .pf-arrow.pf-f-a1, .pf-arrow.pf-f-a2, .pf-arrow.pf-f-a3) { grid-row: 2 !important; }
+  html:root:root:root:root:root .pf-flow .pf-f-note:not(.pf-f-note-ghost) { grid-row: 3 !important; }
+}
+@media (max-width: 760px) {
+  /* content, gap, pad, nonce, arrow, bind, note, pad, arrow, proof */
+  html:root:root:root:root:root .pf-flow.pf-flow { grid-template-rows: auto 56px 24px auto 44px auto auto 24px 44px auto !important; }
+  html:root:root:root:root:root .pf-flow .pf-f-enclave { grid-row: 3 / 9 !important; }
+  html:root:root:root:root:root .pf-flow .pf-f-nonce { grid-row: 4 !important; }
+  html:root:root:root:root:root .pf-flow .pf-arrow.pf-f-a2 { grid-row: 5 !important; }
+  html:root:root:root:root:root .pf-flow .pf-f-bind { grid-row: 6 !important; }
+  html:root:root:root:root:root .pf-flow .pf-f-note:not(.pf-f-note-ghost) { grid-row: 7 !important; }
+  html:root:root:root:root:root .pf-flow .pf-arrow.pf-f-a3 { grid-row: 9 !important; }
+  html:root:root:root:root:root .pf-flow .pf-f-proof { grid-row: 10 !important; }
+}
