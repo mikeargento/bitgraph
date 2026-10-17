@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1021.0",
-    "@mikeargento/bitgraph": "^1.14.0",
+    "@mikeargento/bitgraph": "^1.14.1",
     "@mikeargento/bitgraph-verify": "^1.20.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "@noble/curves": "^2.0.1",
