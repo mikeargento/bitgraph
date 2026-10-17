@@ -27,9 +27,6 @@ export default function HomePage() {
       <div className="home-hero">
         {/* Mike, 2026-10-17: "position commitment for all of computing ... it shouldnt be written as a headline". */}
         <TerminalLine text="Position commitment for all of computing." />
-        <div className="actions art-home-actions">
-          <a className="bg-action-link is-make" href="/make">Make a BitGraph</a>
-        </div>
       </div>
 
       <section className="home-section" aria-labelledby="home-how">

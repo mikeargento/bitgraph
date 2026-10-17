@@ -10,8 +10,6 @@
 Position commitment for all of computing.
 ```
 
-**[Make a BitGraph](https://bitgraph.ing/make)**
-
 ## How it works
 
 **Two steps, one action.**
