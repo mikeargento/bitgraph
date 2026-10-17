@@ -4019,3 +4019,11 @@ html body { color: #c4c4c4; -webkit-font-smoothing: antialiased; -moz-osx-font-s
 .pf-green .pf-sub, .pf-purple .pf-sub, .pf-grey .pf-sub { color: #8f8f8f !important; }
 .pf-purple, .pf-grey { color: #dcdcdc !important; }
 .bg-action-link.is-make, .bg-action-link:not(.is-make):not(:disabled), #site-nav .nav-plus { color: #dcdcdc !important; }
+/* The digest path runs lower so the arrow into bind has a longer stem (Mike, 2026-10-17: "line down more so arrow
+   has more room to point"): the run at 46-48px, the head's tip still 8px below bind. Wide layout only. */
+@media (min-width: 761px) {
+  .pf-flow { grid-template-rows: auto auto 60px 18px !important; }
+  .pf-f-by1::before { height: 42px !important; }
+  .pf-f-by2::before { top: 46px !important; }
+  .pf-f-by3::before { height: 31px !important; }
+}
