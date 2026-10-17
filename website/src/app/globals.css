@@ -4481,3 +4481,6 @@ html:root:root:root body main a:not(.bg-action-link):not(.rl-link):not(.nav-btn)
 @media (hover: hover) { html:root:root:root body main a:not(.bg-action-link):not(.rl-link):not(.nav-btn):not(.pv-pill):hover { text-decoration-color: var(--ink) !important; } }
 /* Ask Jev reads at a comfortable measure (Mike, 2026-10-17: "the text goes all the way accross"): ~68 characters. */
 html:root:root .jev-page .home-section > :is(p, ol, ul, h2) { max-width: 680px !important; }
+/* Body text wraps normally (Mike, 2026-10-17: "just take that setting off"): Safari's pretty and balance pulled words down
+   and left lines short on phones. Headings keep balance. */
+html:root:root:root body main :is(p, li, figcaption, .pf-caption, .pf-f-note, .home-why-body) { text-wrap: wrap !important; }
