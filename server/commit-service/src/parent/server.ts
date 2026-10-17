@@ -62,6 +62,10 @@ const FUSE_ENABLED = process.env["FUSE_ENABLED"] === "true";
 // ATOMIC_BIND=on / off overrides, for tests. Never a silent fallback: a
 // bind the enclave refuses is an error, not a two-call commit.
 const ATOMIC_BIND_ENV = process.env["ATOMIC_BIND"];
+/** Enclave v12 (its /key says only: "bind"): a BitGraph is made one way, a bind of a digest; held slots and challenges are gone. */
+async function onlyBind(): Promise<boolean> {
+  try { return (await getKeyInfo()).only === "bind"; } catch { return false; }
+}
 async function atomicBind(): Promise<boolean> {
   if (ATOMIC_BIND_ENV === "on") return true;
   if (ATOMIC_BIND_ENV === "off") return false;
@@ -126,6 +130,8 @@ async function allocateWithFloor(chainId: string | undefined) {
  * newest as ahead of its own clock.
  */
 async function bindWithFloor(req: Omit<BindRequest, "type" | "baseFloorHeaderB64">) {
+  // Enclave v12 does one thing: bind a digest. Nothing else is sent to it.
+  if (await onlyBind()) return enclaveClient.send({ type: "bind", digestB64: req.digestB64 });
   if (!baseHead) return enclaveClient.send({ type: "bind", ...req });
   const first = baseHead.forAllocation(Date.now());
   if (first) await baseHead.ensureSaved(first);
@@ -262,9 +268,9 @@ function hasValidApiKey(req: IncomingMessage): boolean {
 
 const enclaveClient: EnclaveClient = new VsockClient();
 
-let cachedKeyResponse: { publicKeyB64: string; measurement: string; enforcement: string; bind?: string } | null = null;
+let cachedKeyResponse: { publicKeyB64: string; measurement: string; enforcement: string; bind?: string; only?: string } | null = null;
 
-async function getKeyInfo(): Promise<{ publicKeyB64: string; measurement: string; enforcement: string; bind?: string }> {
+async function getKeyInfo(): Promise<{ publicKeyB64: string; measurement: string; enforcement: string; bind?: string; only?: string }> {
   if (cachedKeyResponse) return cachedKeyResponse;
   const result = await enclaveClient.send({ type: "key" });
   if (!result.ok || !result.data) {
@@ -399,6 +405,10 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
   // request: the enclave binds one slot to one digest, and a mid-batch
   // failure would burn the held nonce with nothing returned.
   let heldSlotId: string | undefined;
+  if (body.slotId !== undefined && await onlyBind()) {
+    sendJson(res, 410, { error: "Held slots are gone: a BitGraph is made one way, one atomic action in the enclave. Send the digest without a slotId.", code: "bind-only" });
+    return;
+  }
   if (body.slotId !== undefined) {
     if (!FUSE_ENABLED) {
       sendError(res, 400, "client-held slots are not enabled on this service (FUSE_ENABLED)");
@@ -562,9 +572,11 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
 
   // Fire-and-forget: persist to immutable S3 ledger (includes by-digest index)
   void persistToLedger(proofs);
-  // Fire-and-forget: queue each record for its Base ceiling, only when the
-  // caller asked for one (no-op unless CEILING_QUEUE_PATH).
-  if (body.ceiling === true) enqueueCeiling(proofs);
+  // BitGraph writes to no chain (Mike, 2026-10-17: anything else is plumbing
+  // people add on their own). The Base ceiling writer is stopped; a caller
+  // that wants a proof on a chain puts its hash there itself. The old opt-in
+  // (ceiling: true) is honoured only while an older enclave runs.
+  if (body.ceiling === true && !(await onlyBind())) enqueueCeiling(proofs);
 
   sendJson(res, 200, proofs);
 }
@@ -724,6 +736,8 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
     if (method === "POST" && url.pathname === "/commit") {
       await handleCommit(req, res);
+    } else if (method === "POST" && (url.pathname === "/allocate-slot" || url.pathname === "/challenge") && await onlyBind()) {
+      sendJson(res, 410, { error: "Gone: a BitGraph is made one way, POST /commit with a digest (one atomic action in the enclave).", code: "bind-only" });
     } else if (method === "POST" && url.pathname === "/allocate-slot") {
       await handleAllocateSlot(req, res);
     } else if (method === "POST" && url.pathname === "/challenge") {

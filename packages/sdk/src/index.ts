@@ -37,6 +37,9 @@ export type { BuiltCarrier, CompletedCarrier } from "./carrier-build.js";
 export { toUrlSafeB64, fromUrlSafeB64, looksLikeDigest, sha256FileB64, mapConcurrent } from "./encoding.js";
 export type { BitGraphProof, ProofDetailResponse, PositionView, AnchorView, BaseFloorView, BaseCeilingView, SetMemberView, BatchCheckResponse, SearchResponse } from "./types.js";
 export { serve } from "./serve.js";
+// The one way to make a BitGraph (enclave v12): bind each file's digest.
+export { bindFiles, proofPathFor } from "./bind.js";
+export type { BoundFile } from "./bind.js";
 export { lookupRecovered, keepRecoveryEntries, recoveryLine, type RecoveredRow, type RecoveryLookup, type RecoveryWriteResult, type KeptRecovery } from "./recovery.js";
 export {
   recoveryJobsDir, registerRecoveryJob, runRecoveryJob, listRecoveryJobs, flushRecoveryJobs, jobFromOwnerExport, saveRecoveryJob, recoveryJobId, pendingMembersFor, brokenRecoveryJobs, normalizeBaseUrl, siteTag, LockLostError,

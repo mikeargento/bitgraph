@@ -72,20 +72,13 @@ function parseArgv(argv: string[]): Parsed {
 
 const HELP = `bitgraph: make, check and verify BitGraphs from any stack
 
-  record <paths...> [--out DIR] [--exports owner|members|both|none] [--again] [--as-is] [--no-recovery]
-                                       make ONE BitGraph of everything given: one tree, one
-                                       position, any size (streamed), and write its export/1
-                                       into DIR (default .): the owner's (every file's leaf,
-                                       default), one per member, both, or none. --as-is records
-                                       the files as they are: recorded after the floor block,
-                                       the bytes themselves not dated (your choice, never a size's).
-                                       Files already on record are left alone unless --again;
-                                       a file in an earlier tree is found by its sealed recovery
-                                       entry, and each file made here gets one (--no-recovery: keeps none; the check still runs)
+  make <paths...> [--no-write]         make a BitGraph of each file: one atomic action in the
+                                       enclave per file (a fresh nonce, then the file's SHA-256,
+                                       signed with the enclave's time). Each proof is saved
+                                       beside its file as <file>.bitgraph.json (--no-write: not).
+                                       record is the same command.
   check <paths|digests...>             read-only: are these bytes on record?
   proof --digest D | --path P | --number N
-  open                                 hold a position before the work exists
-  seal --token T <path>                seal the task that carries the commitment
   verify <path> [--proof proof.json] [--eth-rpc URL] [--base-rpc URL] [--pcr0 hex,..]
   verify <file> <export.json>          (or --export export.json; or the export alone)
                                        offline judgment, one line per claim; exit 2 on FALSE/corrupt.
@@ -107,7 +100,7 @@ const HELP = `bitgraph: make, check and verify BitGraphs from any stack
 
 Every command takes --json (one JSON document on stdout), --base-url and
 --api-key (or BITGRAPH_API_URL / BITGRAPH_API_KEY). Files are read locally
-and never uploaded. Recording is permanent; record only what was asked for.`;
+and never uploaded. A BitGraph is permanent; make one only of what was asked for.`;
 
 function fail(message: string, code = 1): never {
   process.stderr.write(`${message}\n`);
@@ -152,41 +145,15 @@ async function main(): Promise<void> {
   };
 
   switch (cmd) {
+    case "make":
     case "record": {
-      if (args.length === 0) fail("record needs at least one path");
-      const kindFlag = flags.get("exports");
-      const kind = (typeof kindFlag === "string" ? kindFlag : "owner") as ExportKind;
-      if (!EXPORT_KINDS.includes(kind)) fail(`--exports must be one of ${EXPORT_KINDS.join(", ")}`);
-      const outFlag = flags.get("out");
-      const r = await bg.record(args, { exportDir: typeof outFlag === "string" ? outFlag : ".", exports: kind, ...(flags.get("again") === true ? { again: true } : {}), ...(flags.get("as-is") === true ? { asIs: true } : {}), ...(flags.get("no-recovery") === true ? { recovery: false } : {}) });
-      out(r, () => {
-        const lines: string[] = [];
-        const made = r.made;
-        if (made !== null) lines.push(`recorded · #${made.counter ?? "?"} · tree of ${made.count} · ${made.proofUrl}`);
-        for (const f of r.files) {
-          if (f.outcome === "recorded") lines.push(`  ${f.member} of ${f.memberCount} · ${f.placement === "as-is" ? "as is" : f.placement} · ${f.path}`);
-          else if (f.outcome === "on record") lines.push(`on record · #${f.counter ?? "?"} · ${f.path}\n  ${f.proofUrl}`);
-          else if (f.outcome === "carried") lines.push(`BitGraphed file (proof inside, nothing minted) · ${f.path}${f.carrier ? `\n  ${carrierLine(f.carrier)}` : ""}`);
-          else if (f.outcome === "refused") lines.push(`refused · ${f.path}: ${f.error ?? "?"}`);
-          if (f.c2pa === true) lines.push("  Content Credentials (C2PA) detected");
-        }
-        const written = made?.exports ?? null;
-        if (made !== null && written !== null && (written.owner !== null || written.membersDir !== null)) {
-          if (written.owner !== null) lines.push(`export (every file's leaf and name; keep it with the files): ${written.owner}`);
-          if (written.membersDir !== null) lines.push(`member exports (one per file, each proves that file alone): ${written.membersDir}`);
-          if (written.spec !== null) lines.push(`the rules this proof pins, beside it: ${written.spec}`);
-          const first = written.owner ?? written.members[0]?.path ?? "<export.json>";
-          lines.push(`  the Base ceiling lands seconds after the commit and its Ethereum settlement later; add them with: bitgraph export complete ${JSON.stringify(first)}`);
-          if (made.floor.header === null) lines.push("  the floor block's header was not fetched; export complete adds it too");
-        } else if (made !== null) {
-          lines.push("no export was written (--exports none). A file proves it is in this BitGraph only with its export: --json holds the leaves to build one.");
-        }
-        if (made?.recovery) lines.push(recoveryLine(made.recovery));
-        if (r.backlog !== null && (r.backlog.jobs > 0 || r.backlog.left > 0)) {
-          lines.push(`earlier trees: ${r.backlog.written} pending recovery entr${r.backlog.written === 1 ? "y" : "ies"} written now${r.backlog.left > 0 ? `; ${r.backlog.left} tree${r.backlog.left === 1 ? "" : "s"} still pending (bitgraph recovery list)` : ""}`);
-        }
-        return lines.join("\n");
-      });
+      if (args.length === 0) fail(`${cmd} needs at least one path`);
+      const bound = await bg.bind(args, { write: flags.get("no-write") !== true });
+      out(bound, () =>
+        bound
+          .map((b) => `BitGraph #${b.number ?? "?"} (counts ${b.counts?.join(", ") ?? "?"}) · ${b.path ?? b.digestB64}\n  ${b.wrote !== null ? `proof saved: ${b.wrote}` : "proof not saved (--no-write): keep it from --json"}\n  ${b.proofUrl}`)
+          .join("\n")
+      );
       return;
     }
     case "recovery": {
@@ -258,43 +225,9 @@ async function main(): Promise<void> {
       });
       return;
     }
-    case "open": {
-      const slot = await bg.open();
-      const { seal: _seal, ...wire } = slot;
-      out(wire, () =>
-        [
-          `position #${slot.slotCounter} held${slot.floor ? ` · no earlier than block ${slot.floor.block}` : ""}`,
-          `commitment (put this INSIDE the task): ${slot.commitment}`,
-          `seal within ${SLOT_TTL_SECONDS}s:`,
-          `  bitgraph seal --token ${slot.token} <task-file>`,
-        ].join("\n")
-      );
-      return;
-    }
-    case "seal": {
-      const token = flags.get("token");
-      if (typeof token !== "string") fail("seal needs --token from open");
-      const target = args[0];
-      const digest = flags.get("digest");
-      if (target === undefined && typeof digest !== "string") fail("seal needs a task file path (or --digest)");
-      const sealed = await bg.seal(token, target !== undefined ? target : { digestB64: digest as string });
-      let proofPath: string | null = null;
-      if (target !== undefined) {
-        try {
-          proofPath = await bg.writeProofBeside(target, sealed.proof);
-        } catch {
-          proofPath = null;
-        }
-      }
-      out({ ...sealed, proofPath }, () =>
-        [
-          `sealed · #${sealed.proof.commit?.counter ?? "?"}`,
-          sealed.offsets !== null ? `the commitment sits in the sealed bytes at offset ${sealed.offsets[0]}` : "the bytes were not read here; a verifier looks for the commitment inside them",
-          proofPath !== null ? `proof written whole at ${proofPath}; leave it as written` : "save the proof from --json output, whole and unedited",
-        ].join("\n")
-      );
-      return;
-    }
+    case "open":
+    case "seal":
+      fail("Gone: a BitGraph is made one way, one atomic action in the enclave. Make the task file, then: bitgraph make <task-file>. Two BitGraphs bracket everything made between them.");
     case "verify": {
       let target: string | undefined = args[0];
       let proof: unknown;

@@ -37,6 +37,12 @@ import { ApiError, batchCheck, configFromEnv, getProofDetail, search, type ApiCo
 import { fromUrlSafeB64, looksLikeDigest, mapConcurrent, toUrlSafeB64 } from "./encoding.js";
 import { classifyPath, fuseTreePipeline, type CarrierRow, type ClassifiedPath, type FuseFileFn, type FuseSetFn, type FuseTreeFn, type TreeSummary } from "./pipelines.js";
 import { expandPaths, fileSource, scanFile, sniffC2paBytes, type ScannedFile } from "./scan.js";
+import { bindFiles, type BoundFile } from "./bind.js";
+import { existsSync } from "node:fs";
+
+function existsSyncSafe(p: string): boolean {
+  try { return existsSync(p); } catch { return false; }
+}
 import { carrierWindowView, type CarrierWindowView } from "./carrier-io.js";
 import { beginTask, decodeTaskToken, sealTask, writeProofBeside, SLOT_TTL_SECONDS, type Begun, type SealedTask } from "./task.js";
 import { buildBitGraphedFile, completeBitGraphedFile, type BuiltCarrier, type CompletedCarrier } from "./carrier-build.js";
@@ -500,6 +506,20 @@ export class BitGraph {
     const detail = await getProofDetail(this.config, urlSafeDigest, counter, epoch);
     if (detail.proofs.length === 0) throw new ApiError(404, `not on record: no proof exists for digest ${urlSafeDigest}`);
     return carrierView !== undefined ? { ...detail, carrier: carrierView } : detail;
+  }
+
+  /**
+   * THE way to make a BitGraph (enclave v12): each file is hashed here, and
+   * each digest is bound in one atomic action in the enclave (a fresh nonce,
+   * then the digest at the next count, signed with the enclave's time). With
+   * `write`, each proof is saved beside its file as `<file>.bitgraph.json`.
+   * Inputs that look like digests (base64 SHA-256) are bound as given.
+   */
+  async bind(inputs: string | readonly string[], opts: { write?: boolean } = {}): Promise<BoundFile[]> {
+    const list = typeof inputs === "string" ? [inputs] : [...inputs];
+    const digests = list.filter((x) => looksLikeDigest(x) && !existsSyncSafe(x)).map((d) => fromUrlSafeB64(d));
+    const paths = list.filter((x) => !(looksLikeDigest(x) && !existsSyncSafe(x)));
+    return bindFiles(this.config, { paths, digests }, opts);
   }
 
   /**

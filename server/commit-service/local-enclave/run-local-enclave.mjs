@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Runs the unmodified enclave app.ts locally. See README.md.
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,8 +54,9 @@ if (process.env["HARNESS_ANCHOR_PUBKEY_B64"]) {
 }
 
 writeFileSync(out, code);
-// Enclave v10: app.ts imports its Base floor check from a sibling file.
-writeFileSync(join(outDir, "base-floor.ts"), readFileSync(join(here, "..", "src", "enclave", "base-floor.ts"), "utf8"));
+// Enclave v10 and v11 imported a Base floor check from a sibling file; v12 has none.
+const baseFloorSrc = join(here, "..", "src", "enclave", "base-floor.ts");
+if (existsSync(baseFloorSrc)) writeFileSync(join(outDir, "base-floor.ts"), readFileSync(baseFloorSrc, "utf8"));
 const child = spawn(process.execPath, ["--import", "tsx/esm", out], { stdio: "inherit", env: process.env });
 child.on("exit", (c) => process.exit(c ?? 1));
 // A runner that is killed takes its child with it, so a driver's stop() never

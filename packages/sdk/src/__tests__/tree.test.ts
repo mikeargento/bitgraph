@@ -253,28 +253,6 @@ test("the class: a folder and a file become ONE tree on the real pipeline; each 
   }
 });
 
-test("the pipeline: as is is asked for, never decided by size; the file goes in by its scan digest and is never read again", async () => {
-  const scanned = await scanFile(lone);
-  // The scan's own record of a file that no longer exists at its path: with asIs nothing is read again.
-  const gone: ScannedFile = { ...scanned, path: join(root, "does-not-exist.bin") };
-  const other = await scanFile(join(folder, "alpha.txt"));
-  const placed = await fuseTreePipeline([await scanFile(lone), other], { baseUrl }, {});
-  assert.deepEqual(placed.members.map((m) => m.placement), ["container/2", "container/2"], "no size makes a file as is");
-  const t = await fuseTreePipeline([gone, other], { baseUrl }, { asIs: true });
-  assert.deepEqual(t.members.map((m) => m.placement), ["as-is", "as-is"]);
-  assert.equal(t.members[0]!.artifactDigestB64, scanned.digestB64, "as is: the leaf is the file's own digest");
-  const bg = new BitGraph({ baseUrl });
-  const v = await bg.verify(lone, bg.memberExport({ ...t, proof: t.proof, rootDocument: t.rootDocumentHex, leaves: t.leavesB64, names: ["", ""], counter: null, epoch: null, artifactDigest: "", floor: { ...t.floor, header: null } }, t.members[0]!.leafIndex));
-  assert.equal(claim(v, "bytes.member")?.result, "TRUE");
-  assert.match(claim(v, "floor.content")!.detail, /recorded as is: the bytes carry no commitment/);
-  // The CLI's --as-is says what it did.
-  const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-as-is-"));
-  const cli = await run([cliPath, "record", lone, "--out", out, "--again", "--as-is", "--json"]);
-  assert.equal(cli.code, 0, cli.stderr);
-  const rec = JSON.parse(cli.stdout) as { files: Array<{ placement: string | null; outcome: string }> };
-  assert.deepEqual(rec.files.map((f) => [f.outcome, f.placement]), [["recorded", "as-is"]]);
-});
-
 test("a boundary that returns no floor makes nothing: the tree needs fuse/2", async () => {
   mode.floor = false;
   try {
@@ -282,75 +260,6 @@ test("a boundary that returns no floor makes nothing: the tree needs fuse/2", as
   } finally {
     mode.floor = true;
   }
-});
-
-test("cli: record a folder writes the owner's export; verify <file> <export> states every claim; exit 2 on the stub attestation alone", async () => {
-  const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-out-"));
-  // A folder of its own: the suite's earlier records of the shared folder are on record (found through their recovery entries), and this test wants a fresh tree.
-  const cliFolder = join(root, "photos-cli");
-  await mkdir(join(cliFolder, "sub"), { recursive: true });
-  await writeFile(join(cliFolder, "alpha.txt"), "alpha, a plain text member, for the cli\n");
-  await writeFile(join(cliFolder, "photo.png"), Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("not really a picture, but the bytes say PNG, cli")]));
-  await writeFile(join(cliFolder, "sub", "beta.txt"), "beta, one folder down, for the cli\n");
-  const folder = cliFolder;
-  const rec = await run([cliPath, "record", folder, "--out", out, "--json", "--base-url", baseUrl]);
-  assert.equal(rec.code, 0, rec.stderr);
-  const r = JSON.parse(rec.stdout) as { made: { count: number; counter: string; epoch: string; artifactDigest: string; exports: { owner: string; membersDir: string | null } }; files: Array<{ path: string; member: number }> };
-  assert.equal(r.made.count, 3);
-  assert.equal(r.made.exports.membersDir, null, "the owner's export by default");
-  assert.equal(r.made.exports.owner, join(out, `${exportBaseName(r.made)}.bitgraph.json`), "the site's own name for an owner's export");
-  const owner = await readExportFile(r.made.exports.owner);
-  assert.deepEqual([...owner.tree.names!].sort(), ["alpha.txt", "photo.png", "sub/beta.txt"]);
-  assert.equal(owner.floor?.header, floorHeaderHex);
-  const file = join(folder, "sub", "beta.txt");
-  const v = await run([cliPath, "verify", file, r.made.exports.owner, "--json"]);
-  assert.equal(v.code, 2, "FALSE on the stub attestation");
-  const outcome = JSON.parse(v.stdout) as ExportVerifyResult;
-  assertSound(outcome, PENDING, "cli verify");
-  assert.equal(outcome.member?.index, r.files.find((f) => f.path === file)!.member - 1);
-  // The same through --export, and the export alone (no file: the file's claims are not carried).
-  const flag = await run([cliPath, "verify", file, "--export", r.made.exports.owner, "--json"]);
-  assert.deepEqual((JSON.parse(flag.stdout) as ExportVerifyResult).claims, outcome.claims);
-  const alone = await run([cliPath, "verify", r.made.exports.owner, "--json"]);
-  assert.equal(claim(JSON.parse(alone.stdout) as ExportVerifyResult, "bytes.member")?.result, "NOT_CARRIED");
-  // Human output: the member, the floor, one line per claim.
-  const human = await run([cliPath, "verify", file, r.made.exports.owner]);
-  assert.match(human.stdout, /^FALSE/);
-  assert.match(human.stdout, /file: leaf \d of 3 \(container\/2\)/);
-  assert.match(human.stdout, new RegExp(`floor: after Ethereum block ${FLOOR_NUMBER}`));
-  assert.match(human.stdout, /ok {2}The proof pins a spec this verifier knows/);
-  assert.match(human.stdout, /-- {2}The record is in a Base block: ceiling pending/);
-  // A file that is not in the tree.
-  const stranger = await run([cliPath, "verify", lone, r.made.exports.owner, "--json"]);
-  assert.equal(claim(JSON.parse(stranger.stdout) as ExportVerifyResult, "tree.member")?.result, "NOT_CARRIED");
-});
-
-test("cli: --exports both writes one export per member under the tree's names; export member derives the same from the owner's", async () => {
-  const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-both-"));
-  const rec = await run([cliPath, "record", folder, "--out", out, "--exports", "both", "--again", "--json"]);
-  assert.equal(rec.code, 0, rec.stderr);
-  const r = JSON.parse(rec.stdout) as { made: { exports: { owner: string; membersDir: string; members: Array<{ leafIndex: number; name: string; path: string }> } }; files: Array<{ path: string; member: number; export?: string }> };
-  const { members, membersDir } = r.made.exports;
-  assert.equal(members.length, 3);
-  assert.deepEqual(members.map((m) => m.path.slice(membersDir.length + 1)).sort(), ["alpha.txt.bitgraph.json", "photo.png.bitgraph.json", join("sub", "beta.txt.bitgraph.json")]);
-  for (const f of r.files) {
-    assert.ok(f.export, `${f.path} names its export`);
-    const exp = await readExportFile(f.export!);
-    assert.equal(exp.tree.leaves, undefined, "a member's export lists no other leaf");
-    assertSound(await verifyExport(exp, { bytes: new Uint8Array(await readFile(f.path)) }), PENDING, f.path);
-    // Derived from the owner's export, the member's export is the same document.
-    const owner = await readExportFile(r.made.exports.owner);
-    const derived = memberExportFromOwner(owner, new Uint8Array(await readFile(f.path)))!;
-    assert.deepEqual(derived.export, exp);
-  }
-  const target = join(out, "derived.export.json");
-  const cli = await run([cliPath, "export", "member", r.made.exports.owner, join(folder, "alpha.txt"), "--out", target, "--json"]);
-  assert.equal(cli.code, 0, cli.stderr);
-  assertSound(await verifyExport(await readExportFile(target), { bytes: new Uint8Array(await readFile(join(folder, "alpha.txt"))) }), PENDING, "derived");
-  const notIn = await run([cliPath, "export", "member", r.made.exports.owner, lone]);
-  assert.equal(notIn.code, 1);
-  assert.match(notIn.stderr, /is not in this BitGraph/);
-  assert.deepEqual((await readdir(out)).filter((n) => n.endsWith(".json")).sort(), ["derived.export.json", basename(r.made.exports.owner)].sort(), "the owner's export and the derived one; the members sit in their folder");
 });
 
 test("writing exports never replaces a file: the same tree written twice takes a second name", async () => {
@@ -369,37 +278,6 @@ test("writing exports never replaces a file: the same tree written twice takes a
   await assert.rejects(bg.writeExports(r.made!, dir, "everything" as never), /exports must be one of owner, members, both, none/);
 });
 
-test("cli: export complete adds the floor header once the site has it, leaves the ceiling pending, and says so", async () => {
-  mode.witness = false;
-  const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-complete-"));
-  let owner = "";
-  try {
-    const rec = await run([cliPath, "record", lone, "--out", out, "--again"]);
-    assert.equal(rec.code, 0, rec.stderr);
-    assert.match(rec.stdout, /recorded · #\d+ · tree of 1 · /);
-    assert.match(rec.stdout, /the floor block's header was not fetched; export complete adds it too/);
-    owner = (await readdir(out)).map((n) => join(out, n)).find((p) => p.endsWith(".bitgraph.json"))!;
-    assert.equal((await readExportFile(owner)).floor, null);
-  } finally {
-    mode.witness = true;
-  }
-  const done = await run([cliPath, "export", "complete", owner, "--json"]);
-  assert.equal(done.code, 0, done.stderr);
-  const d = JSON.parse(done.stdout) as { path: string; changed: boolean; floor: string; ceiling: string; settlement: string; notes: string[] };
-  assert.deepEqual({ changed: d.changed, floor: d.floor, ceiling: d.ceiling, settlement: d.settlement }, { changed: true, floor: "present", ceiling: "pending", settlement: "pending" });
-  const after = await readExportFile(owner);
-  assert.equal(after.floor?.header, floorHeaderHex);
-  const v = await verifyExport(after, { bytes: new Uint8Array(await readFile(lone)) });
-  assertSound(v, PENDING, "completed");
-  const again = await run([cliPath, "export", "complete", owner]);
-  assert.match(again.stdout, /nothing new for/);
-  assert.match(again.stdout, /Base ceiling {2}pending/);
-  // Not an export: refused.
-  const bad = await run([cliPath, "export", "complete", lone]);
-  assert.equal(bad.code, 1);
-  assert.match(bad.stderr, /not a bitgraph-export\/1 file/);
-});
-
 test("names: relative to the deepest common folder, and safe as paths", () => {
   assert.deepEqual(relativeNames(["/a/b/c.txt"]), ["c.txt"]);
   assert.deepEqual(relativeNames(["/a/b/c.txt", "/a/b/d/e.txt"]), ["c.txt", join("d", "e.txt")]);
@@ -411,41 +289,6 @@ test("names: relative to the deepest common folder, and safe as paths", () => {
   assert.equal(exportBaseName({ counter: null, artifactDigest: "AbCdEfGhIjKlMn" }), "bitgraph-AbCdEfGhIjKl");
   assert.equal(memberExportFileName("photo.jpg"), "photo.jpg.bitgraph.json");
   assert.equal(parseExport("{}"), null);
-});
-
-test("SPEC.md goes beside the exports only when the site serves the exact text the proof pins, and never over another", async () => {
-  const bg = new BitGraph({ baseUrl });
-  const r = await bg.record([lone], { again: true });
-  const pinned = r.made!.proof.attribution?.message;
-  assert.equal(createHash("sha256").update(SPEC_TEXT).digest("base64"), pinned, "the repository's SPEC.md is the text the proof pins");
-  mode.spec = "pinned";
-  try {
-    const dir = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-spec-"));
-    const first = await bg.writeExports(r.made!, dir);
-    assert.equal(first.spec, join(dir, "SPEC.md"));
-    assert.deepEqual(new Uint8Array(await readFile(first.spec!)), SPEC_TEXT);
-    const second = await bg.writeExports(r.made!, dir);
-    assert.equal(second.spec, first.spec, "the same text already there is used, not written twice");
-    const theirs = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-spec-theirs-"));
-    await writeFile(join(theirs, "SPEC.md"), "someone else's notes\n");
-    const kept = await bg.writeExports(r.made!, theirs);
-    assert.notEqual(kept.spec, join(theirs, "SPEC.md"));
-    assert.equal(await readFile(join(theirs, "SPEC.md"), "utf8"), "someone else's notes\n", "a different SPEC.md is never replaced");
-    assert.deepEqual(new Uint8Array(await readFile(kept.spec!)), SPEC_TEXT);
-    mode.spec = "wrong";
-    const other = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-spec-wrong-"));
-    const refused = await bg.writeExports(r.made!, other);
-    assert.equal(refused.spec, null, "other text is never shipped under the name SPEC.md");
-    assert.deepEqual((await readdir(other)).filter((n) => n.endsWith(".md")), []);
-    // The CLI names it.
-    mode.spec = "pinned";
-    const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-spec-cli-"));
-    const rec = await run([cliPath, "record", lone, "--out", out, "--again"]);
-    assert.equal(rec.code, 0, rec.stderr);
-    assert.ok(rec.stdout.includes(`the rules this proof pins, beside it: ${join(out, "SPEC.md")}`), rec.stdout);
-  } finally {
-    mode.spec = "none";
-  }
 });
 
 test("serve: /record writes the export, /verify reads a file with it, /export-complete fills what the site has", async () => {
@@ -606,25 +449,3 @@ test("recovery: an entry whose leaf names a file's digest but not its bytes is n
   }
 });
 
-test("cli: record says whether the files can find their proof again from their bytes alone", async () => {
-  const dir = join(root, "cli-kept");
-  const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-cli-kept-"));
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, "a.txt"), "cli kept a\n");
-  mode.recovery = "on";
-  try {
-    const first = await run([cliPath, "record", dir, "--out", out]);
-    assert.equal(first.code, 0, first.stderr);
-    assert.match(first.stdout, /^each file finds this proof again from its own bytes \(2 sealed entries kept\)$/m);
-    const again = await run([cliPath, "record", dir, "--out", out]);
-    assert.match(again.stdout, /^on record · #\d+ · /m, "found through its recovery entry");
-    assert.doesNotMatch(again.stdout, /^recorded/m);
-    mode.recovery = "off";
-    const off = await run([cliPath, "record", dir, "--out", out, "--again"]);
-    assert.match(off.stdout, /^not yet recoverable from the files alone: 127\.0\.0\.1:\d+ is not taking recovery writes yet/m);
-    const none = await run([cliPath, "record", dir, "--out", out, "--again", "--no-recovery"]);
-    assert.doesNotMatch(none.stdout, /recoverable|finds this proof again/);
-  } finally {
-    mode.recovery = "on";
-  }
-});

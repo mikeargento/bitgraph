@@ -216,37 +216,6 @@ test("check: a BitGraphed file is judged offline and looked up by its committed 
   assert.ok(text.includes("Content Credentials (C2PA) detected"));
 });
 
-test("record: carrier bytes never mint; the plain file still does", async () => {
-  fusedNames.length = 0;
-  const client = await connectedClient();
-  const result = await client.callTool({ name: "bitgraph_record", arguments: { paths: [completePath, undevPath, plainPath] } });
-  const text = textOf(result);
-  const { summary, results } = structuredOf<{ summary: Record<string, number>; results: Array<Record<string, unknown>> }>(result);
-
-  assert.deepEqual(fusedNames, ["fresh.txt"], "exactly the plain file reached the mint");
-  assert.equal(summary["fused"], 1);
-  assert.equal(summary["on_record"], 1, "the ledger-confirmed carrier reports as on record");
-  assert.equal(summary["carried"], 1, "the foreign carrier reports as carried, nothing minted");
-  assert.equal(summary["not_fused"], 0);
-
-  const onRecord = results.find((r) => r["outcome"] === "on record") as Record<string, unknown>;
-  assert.equal(onRecord["digest"], toUrlSafeB64(innerDigest2));
-  assert.equal((onRecord["carrier"] as { verdict: string }).verdict, "TRUE");
-
-  const carried = results.find((r) => r["outcome"] === "carried") as Record<string, unknown>;
-  assert.equal(carried["digest"], toUrlSafeB64(innerDigest1));
-  assert.ok(text.includes("nothing minted"), "the markdown states the envelope rule");
-});
-
-test("record: a corrupt carrier is refused loudly and never minted", async () => {
-  fusedNames.length = 0;
-  const client = await connectedClient();
-  const result = await client.callTool({ name: "bitgraph_record", arguments: { paths: [corruptPath] } });
-  assert.equal((result as { isError?: boolean }).isError, true);
-  assert.deepEqual(fusedNames, [], "nothing reached the mint");
-  assert.ok(textOf(result).includes("unreadable"), "the reason names the corrupt block");
-});
-
 test("get_proof: a path to a foreign BitGraphed file answers offline from the proof inside", async () => {
   const client = await connectedClient();
   const result = await client.callTool({ name: "bitgraph_get_proof", arguments: { path: undevPath } });
