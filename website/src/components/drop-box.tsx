@@ -23,6 +23,7 @@
 import { useCallback, useRef, useState } from "react";
 import { verify, createVerificationContext } from "@mikeargento/bitgraph-verify";
 import { recordedMsOf } from "@/lib/recorded-time";
+import { cacheArtifactToIDB } from "@/lib/file-cache";
 
 const MAX_FILES = 25;
 
@@ -83,6 +84,8 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** One file at a time shows a single line in the box instead of a row list (Mike, 2026-10-17: it "jumps"). */
+  const [status, setStatus] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
@@ -125,8 +128,10 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
      proof file (a .bitgraph.json) opens the proof it belongs to, and is never itself made into a BitGraph. */
   const take = useCallback(async (files: File[]) => {
     const picked = files.slice(0, MAX_FILES);
+    const single = picked.length === 1;
     const fresh: Row[] = picked.map((f, i) => ({ key: `${Date.now()}-${i}-${f.name}`, name: f.name, size: f.size, state: "hashing" }));
-    setRows(fresh);
+    setRows(single ? [] : fresh);
+    if (single) setStatus("Checking…");
     const ended: Row[] = await Promise.all(picked.map(async (f, i): Promise<Row> => {
       const row = fresh[i]!;
       const end = (p: Partial<Row>) => { patch(row.key, p); return { ...row, ...p } as Row; };
@@ -146,11 +151,22 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
         return end({ state: "error", note: "This browser could not read or check that file." });
       }
     }));
-    const made = mode === "make" ? await makeRows(ended.filter((r) => r.state === "new" && r.digestB64)) : [];
+    const fresh_new = ended.filter((r) => r.state === "new" && r.digestB64);
+    if (single && mode === "make" && fresh_new.length) setStatus("Making the BitGraph…");
+    const made = mode === "make" ? await makeRows(fresh_new) : [];
     const final = ended.map((r) => made.find((x) => x.key === r.key) ?? r);
-    if (final.length === 1 && final[0]!.proof && final[0]!.digestB64) {
-      window.location.assign(`/proof/${toUrlSafe(final[0]!.digestB64)}`);
+    const one = single ? final[0]! : null;
+    if (one && one.proof && one.digestB64) {
+      setStatus("Opening the proof…");
+      // Hand the file to the proof page (the browser-local cache it watches, keyed by the file's SHA-256), so the
+      // page opens with the file already checked against the proof. Never for a dropped proof file: it has no file.
+      if (!one.isProofFile) {
+        try { await Promise.race([cacheArtifactToIDB(picked[0]!, one.digestB64), new Promise((r) => setTimeout(r, 3000))]); } catch { /* the page still opens; the reader can drop the file there */ }
+      }
+      window.location.assign(`/proof/${toUrlSafe(one.digestB64)}`);
+      return;
     }
+    if (single) { setStatus(null); setRows(final); }
   }, [mode]);
 
   const make = async () => { await makeRows(rows.filter((r) => r.state === "new" && r.digestB64)); };
@@ -181,7 +197,7 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
         className="db-zone"
         data-over={over ? "1" : undefined}
       >
-        <div className="db-zone-title">{mode === "check" ? "Drop files here to check them, or choose them" : "Drop files here, or choose them"}</div>
+        <div className="db-zone-title">{status ?? (mode === "check" ? "Drop files here to check them, or choose them" : "Drop files here, or choose them")}</div>
         <div className="db-zone-sub">Each file is hashed in your browser. Only its SHA-256 is sent; the file never leaves your machine.</div>
         <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       </div>
