@@ -20,6 +20,8 @@
    rejected; see project_company_site_2026_08_27. */
 
 const links: Array<{ href: string; label: string }> = [
+  // The source (Mike, 2026-10-17: "theres no github link. maybe the footer").
+  { href: "https://github.com/mikeargento/bitgraph", label: "GitHub" },
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
 ];
