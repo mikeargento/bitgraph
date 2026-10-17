@@ -4479,3 +4479,5 @@ html:root:root .jev-mark { background: var(--ink); color: var(--bg); padding: 0 
    button or a whole ledger row is underlined at rest, in the grey text colour, darkening to the ink on hover. */
 html:root:root:root body main a:not(.bg-action-link):not(.rl-link):not(.nav-btn):not(.pv-pill) { text-decoration: underline !important; text-decoration-color: var(--dim) !important; text-decoration-thickness: 1px !important; text-underline-offset: 0.3em !important; color: var(--ink) !important; }
 @media (hover: hover) { html:root:root:root body main a:not(.bg-action-link):not(.rl-link):not(.nav-btn):not(.pv-pill):hover { text-decoration-color: var(--ink) !important; } }
+/* Ask Jev reads at a comfortable measure (Mike, 2026-10-17: "the text goes all the way accross"): ~68 characters. */
+html:root:root .jev-page .home-section > :is(p, ol, ul, h2) { max-width: 680px !important; }

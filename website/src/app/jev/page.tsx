@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function JevPage() {
   return (
-    <div className="frame home home-typing prose home-scroll">
+    <div className="frame home home-typing prose home-scroll jev-page">
       <div className="home-hero">
         <h1 className="sr-only">Ask Jev.</h1>
       </div>
