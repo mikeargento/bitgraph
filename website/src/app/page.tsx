@@ -18,15 +18,17 @@ import { TerminalLine } from "@/components/terminal-line";
 export const metadata: Metadata = {
   title: "BitGraph",
   description:
-    "Position commitment for all of computing: inside a hardware enclave, one atomic action takes a fresh, unused value nobody can see or predict, then your content, signed together.",
+    "Give every computation a position. Inside a hardware enclave, one atomic action takes a fresh, unused value nobody can see or predict, then your content, signed together.",
 };
 
 export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        {/* Mike, 2026-10-17: the single-use line is the top line; "Position commitment for all of computing." came off the page. */}
-        <TerminalLine text="Every BitGraph creates and occupies a position that can never be occupied again." />
+        {/* Mike, 2026-10-17: "Give every computation a position." on top (an invitation, so "every" does not overclaim),
+            the single-use line under it. */}
+        <TerminalLine text="Give every computation a position." />
+        <p className="hero-sub">Every BitGraph creates and occupies a position that can never be occupied again.</p>
       </div>
 
       <section className="home-section" aria-labelledby="home-how">

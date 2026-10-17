@@ -7,8 +7,10 @@
 ---
 
 ```
-Every BitGraph creates and occupies a position that can never be occupied again.
+Give every computation a position.
 ```
+
+Every BitGraph creates and occupies a position that can never be occupied again.
 
 ## How it works
 

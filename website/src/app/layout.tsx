@@ -73,21 +73,21 @@ export const metadata: Metadata = {
   // Nothing else can hold that position, and it cannot be moved later.")
   // predated the opener and local-first.
   description:
-    "Position commitment for all of computing. Inside a hardware enclave, one atomic action takes a fresh nonce nobody can predict, then your content, signed together. The proof checks offline.",
+    "Give every computation a position. Inside a hardware enclave, one atomic action takes a fresh nonce nobody can predict, then your content, signed together. The proof checks offline.",
   keywords: [
     "BitGraph", "causal order", "verifiable order", "proof of position",
     "tamper-evident", "position commitment", "hardware enclave",
   ],
   openGraph: {
     title: "BitGraph",
-    description: "Position commitment for all of computing. Inside a hardware enclave, one atomic action takes a fresh nonce nobody can predict, then your content, signed together. The proof checks offline.",
+    description: "Give every computation a position. Inside a hardware enclave, one atomic action takes a fresh nonce nobody can predict, then your content, signed together. The proof checks offline.",
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary",
     title: "BitGraph",
-    description: "Position commitment for all of computing. Inside a hardware enclave, one atomic action takes a fresh nonce nobody can predict, then your content, signed together. The proof checks offline.",
+    description: "Give every computation a position. Inside a hardware enclave, one atomic action takes a fresh nonce nobody can predict, then your content, signed together. The proof checks offline.",
   },
   robots: { index: true, follow: true },
 };
