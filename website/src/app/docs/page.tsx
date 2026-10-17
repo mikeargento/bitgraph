@@ -41,7 +41,7 @@ export default function DocsPage() {
 
       <section className="home-section" aria-labelledby="d-what">
         <p className="home-kicker">What a BitGraph is</p>
-        <h2 id="d-what">One atomic action, two counts.</h2>
+        <h2 id="d-what">One atomic action, two monotonic counts.</h2>
         <p>
           A BitGraph is made inside an AWS Nitro hardware enclave, a measured trusted execution environment. The enclave keeps one
           monotonic counter. Each BitGraph takes the next two counts in a single atomic action:
