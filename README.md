@@ -15,7 +15,7 @@ Give every computation a position.
 **One atomic action gives every computation a unique position.**
 
 ```
-                 ┌╌╌ Enclave: one atomic action ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
+                 ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ Secure enclave / TEE ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
 ┌────────────┐   ┆   ┌────────────────────┐     ┌─────────────────┐   ┆   ┌───────────────┐
 │  Content   │ ──┆─▶ │      1: nonce      │ ──▶ │     2: bind     │ ──┆─▶ │     Proof     │
 │  Any bits  │   ┆   │ Unseen until bound │     │ Content, signed │   ┆   │ Offline check │

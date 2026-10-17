@@ -93,7 +93,7 @@ export function FlowFigure() {
       <div className="pf-box pf-grey pf-f-content"><div className="pf-title">Content</div><div className="pf-sub">Any bits</div></div>
       <span className="pf-arrow pf-f-a1" aria-hidden="true" />
       <div className="pf-f-enclave" aria-hidden="true" />
-      <div className="pf-enclave-label pf-f-label">Enclave: one atomic action</div>
+      <div className="pf-enclave-label pf-f-label">Secure enclave / TEE</div>
       <div className="pf-box pf-purple pf-f-nonce"><div className="pf-title">1: nonce</div><div className="pf-sub">Unseen until bound</div></div>
       <span className="pf-arrow pf-f-a2" aria-hidden="true" />
       <div className="pf-box pf-green pf-f-bind"><div className="pf-title">2: bind</div><div className="pf-sub">Content, signed</div></div>
