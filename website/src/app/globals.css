@@ -4027,3 +4027,20 @@ html body { color: #c4c4c4; -webkit-font-smoothing: antialiased; -moz-osx-font-s
   .pf-f-by2::before { top: 46px !important; }
   .pf-f-by3::before { height: 31px !important; }
 }
+
+/* Phones: one straight column (Mike, 2026-10-17: "on phone shouldnt this stack?").
+   Content, down into the enclave; inside, 1: nonce, down to 2: bind; down to the proof. */
+@media (max-width: 760px) {
+  .pf-flow.pf-flow { grid-template-columns: 14px 1fr 14px !important; grid-template-rows: auto 44px auto auto 36px auto 14px 40px auto !important; }
+  .pf-flow .pf-f-content { grid-column: 1 / 4 !important; grid-row: 1 !important; }
+  .pf-flow .pf-f-by1 { grid-column: 2 !important; grid-row: 2 !important; }
+  .pf-flow .pf-f-enclave { grid-column: 1 / 4 !important; grid-row: 3 / 8 !important; }
+  .pf-flow .pf-f-label { grid-column: 1 / 4 !important; grid-row: 3 !important; }
+  .pf-flow .pf-f-nonce { grid-column: 2 !important; grid-row: 4 !important; }
+  .pf-flow .pf-f-bind { grid-column: 2 !important; grid-row: 6 !important; }
+  .pf-flow .pf-f-proof { grid-column: 1 / 4 !important; grid-row: 9 !important; }
+  .pf-flow .pf-arrow.pf-f-a2, .pf-flow .pf-arrow.pf-f-a3 { grid-column: 2 !important; width: 2px !important; height: calc(100% - 16px) !important; align-self: center; justify-self: center; margin: 0 !important; background: linear-gradient(to bottom, var(--pf-line) calc(100% - 9px), transparent 0) !important; }
+  .pf-flow .pf-arrow.pf-f-a2 { grid-row: 5 !important; }
+  .pf-flow .pf-arrow.pf-f-a3 { grid-row: 8 !important; }
+  .pf-flow .pf-arrow.pf-f-a2::after, .pf-flow .pf-arrow.pf-f-a3::after { border: 0 solid transparent !important; border-left-width: 5px !important; border-right-width: 5px !important; border-top: 9px solid var(--pf-line) !important; top: auto !important; bottom: 0 !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; }
+}
