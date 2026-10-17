@@ -4380,3 +4380,14 @@ html:root:root .home-hero:not(:has(> :not(.sr-only))) + .home-section { padding-
 html:root:root .home-section > h2 { max-width: none !important; }
 /* The enclave's label centred in its top line at every width (Mike, 2026-10-17: "should center ... Secure enclave / TEE"). */
 html:root:root:root .pf-flow .pf-f-label { justify-self: center !important; margin-left: 0 !important; }
+
+/* Phone drawing, even (2026-10-17 spacing pass): the enclave 24px inside on every side, so the centred label clears the
+   nonce box by 12px; the content's arrow the same 28px as the others. */
+@media (max-width: 760px) {
+  html:root:root .pf-flow.pf-flow { grid-template-columns: 24px 1fr 24px !important; grid-template-rows: auto 56px 24px auto 44px auto 24px 44px auto !important; }
+}
+
+/* Dividing strokes between sections (Mike, 2026-10-17: "if dividing strokes on pages will help people parse then add
+   them"): a hairline across the column, halfway through the 96px gap, above every section but the first. */
+html:root:root .home-section + .home-section { border-top: 1px solid var(--line-2) !important; }
+html:root:root .home-section { border-top-width: 0; }

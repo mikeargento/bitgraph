@@ -88,7 +88,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       </div>
 
       {/* The ledger itself, under the checker: every BitGraph by day. */}
-      <div style={{ height: 96 }} aria-hidden="true" />
+      {/* The same divider as between sections elsewhere: a hairline halfway through the 96px gap. */}
+      <div style={{ height: 48, borderBottom: "1px solid var(--line-2)", marginBottom: 48 }} aria-hidden="true" />
       {/* LEDGER on the left, the day links and Calendar on the right; no paragraph (Mike, 2026-10-17). */}
       <div className="ledger-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", margin: "0 0 20px" }}>
         <div>
