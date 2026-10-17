@@ -111,7 +111,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
             700 and italics). PREVIEW 2026-09-16 (Mike: "what about good ol
             acumen"): --font-term in globals.css points at it. */}
-        <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
+        {/* The Adobe kit link came out 2026-10-17: the site reads in system-ui, code in its own Source Code Pro. */}
         {/* The site's one face since 2026-10-17 (dark, terminal): source-code-pro, from the Adobe Fonts kit below (Mike added it; code-saver, then adaptive-mono, before). */}
         {/* Google's Material Symbols, only the icons the Menu uses. */}
         <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=${MENU_ICON_NAMES}&display=block`} />

@@ -4329,3 +4329,10 @@ html:root:root .pv-row { grid-template-columns: 1fr !important; gap: 2px !import
 html:root:root .dropbox { aspect-ratio: auto !important; padding: 32px 20px !important; border-style: solid !important; border-color: var(--line) !important; border-radius: 0 !important; }
 /* The verdict is a statement, not a button (Mike, 2026-10-17: "valid proof looks like a button"): bold text, no frame. */
 html:root:root .pv-verdict { border: 0 !important; padding: 0 !important; background: none !important; font-weight: 700; }
+
+/* ── The device's own interface font (Mike, 2026-10-17: system-ui): San Francisco on Apple, Segoe UI on Windows,
+   Roboto on Android. Nothing to download. Code and hashes stay monospace (the site's self-hosted Source Code Pro),
+   because a hash or a command must line up character for character. ── */
+html:root:root body, html:root:root body * { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important; }
+html:root:root body :is(pre, code, kbd, samp, .pv-mono, .pv-raw, .rl-hash, .hiw-code, .pv-code),
+html:root:root body :is(pre, code, kbd, samp, .pv-mono, .pv-raw, .rl-hash, .hiw-code, .pv-code) * { font-family: var(--font-source-code), ui-monospace, SFMono-Regular, Menlo, monospace !important; }
