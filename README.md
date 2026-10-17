@@ -27,7 +27,7 @@ If any step fails, nothing is released and the counter does not move.
 
 ## What it proves
 
-Inside a hardware enclave, one atomic action counts twice: a fresh, unused value nobody can see takes one count, and your content takes the next. Both are signed together, with the enclave's own time. So your bits were bound after a moment nobody could predict, and could not have been bound before it. The value is used once and never again, so every BitGraph is one of a kind. It says when the bits were bound, not how old the content is.
+Inside a hardware enclave, one atomic action counts twice: a fresh, unused value nobody can see takes one count, and your content takes the next. Both are signed together. So your bits were bound after a value nobody could predict, and could not have been bound before it. The value is used once and never again, so every BitGraph is one of a kind. It fixes where the bits sit in the sequence, not how old the content is.
 
 ## Between two
 
