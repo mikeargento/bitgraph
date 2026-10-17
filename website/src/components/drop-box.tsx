@@ -11,8 +11,9 @@
  *   BitGraph gets its proof verified in this browser against the file's own
  *   bytes, and a link to its proof page.
  *   Maker: files that are not yet BitGraphs can be made into BitGraphs with one
- *   click. Each is one bind on bitgraph:main (the nonce at count N, its digest
- *   at N+1). Recordings are permanent, so making is never automatic.
+ *   click: one atomic action in the enclave each (a fresh nonce, then the
+ *   file's digest). Making one is permanent, so it is never automatic.
+ *   Each result shows the enclave's own signed time.
  *
  * A lookup that fails is "could not check", never "not a BitGraph"
  * (project_ledger_read_honesty).
@@ -20,6 +21,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { verify, createVerificationContext } from "@mikeargento/bitgraph-verify";
+import { recordedMsOf } from "@/lib/recorded-time";
 
 const MAX_FILES = 25;
 
@@ -42,6 +44,12 @@ function b64(bytes: Uint8Array): string {
   let s = "";
   for (const x of bytes) s += String.fromCharCode(x);
   return btoa(s);
+}
+function teeTime(proof: Proof): string | null {
+  const ms = recordedMsOf(proof);
+  if (ms === null) return null;
+  const d = new Date(ms);
+  return `${d.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" })}, ${d.toLocaleTimeString("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit", second: "2-digit" })} UTC`;
 }
 const sizeLabel = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 
@@ -164,9 +172,9 @@ export function DropBox() {
                   <>
                     <span className={r.valid ? "db-ok" : "db-bad"}>
                       {r.state === "made" ? "Made" : "A BitGraph"}
-                      {r.proof.commit?.counter ? ` #${Number(r.proof.commit.counter).toLocaleString("en-US")}` : ""}
                       {r.valid ? ", checked in this browser" : ", but the proof did not check against this file"}
                     </span>
+                    {teeTime(r.proof) && <span className="db-size">{teeTime(r.proof)}, enclave time</span>}
                     <a href={`/proof/${toUrlSafe(r.digestB64 ?? "")}`}>Proof</a>
                     <button type="button" className="db-link" onClick={() => download(r)}>Download proof</button>
                   </>
@@ -182,7 +190,7 @@ export function DropBox() {
           <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={busy} onClick={() => void make()}>
             {busy ? "Making…" : `Make ${newCount === 1 ? "a BitGraph" : `${newCount} BitGraphs`}`}
           </button>
-          <span className="db-make-note">Permanent: each file gets its own place in the sequence.</span>
+          <span className="db-make-note">Making a BitGraph is permanent.</span>
         </div>
       )}
     </div>

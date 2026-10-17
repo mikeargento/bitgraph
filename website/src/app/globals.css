@@ -3839,3 +3839,5 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
 .flow-img { display: block; width: 100%; height: auto; }
 .flow-html { display: none; }
 @media (max-width: 760px) { .flow-img { display: none; } .flow-html { display: block; } }
+/* How it works: code blocks in the docs look. */
+.hiw-code { font-family: var(--font-mono); font-size: 14px; line-height: 1.6; background: var(--code-bg, #f6f6f4); border: 1px solid var(--line); padding: 14px 16px; overflow-x: auto; white-space: pre; margin: 16px 0 0; }

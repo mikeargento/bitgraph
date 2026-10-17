@@ -24,3 +24,6 @@ export const PUBLISHED_ENCLAVE_MEASUREMENTS: ReadonlyArray<{ pcr0: string; since
 ];
 
 export const PUBLISHED_PCR0S: readonly string[] = PUBLISHED_ENCLAVE_MEASUREMENTS.map((m) => m.pcr0);
+
+/** The newest published measurement: the one production runs. */
+export const PUBLISHED_PCR0: string = PUBLISHED_ENCLAVE_MEASUREMENTS[PUBLISHED_ENCLAVE_MEASUREMENTS.length - 1]!.pcr0;

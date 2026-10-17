@@ -220,6 +220,30 @@ export async function getCurrentEpoch(): Promise<string | null> {
   return best.epoch;
 }
 
+/**
+ * Every epoch prefix under proofs/ with the write time of its first object
+ * (paginated over all epochs; one LIST each). The running ledger's index of
+ * days: since the 23:59 UTC rotation each epoch is one UTC day.
+ */
+export async function listEpochsWithBirth(): Promise<Array<{ epoch: string; born: number }>> {
+  const s3 = getClient();
+  const bucket = getBucket();
+  const prefixes: string[] = [];
+  let token: string | undefined;
+  do {
+    const pe = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: "proofs/", Delimiter: "/", ContinuationToken: token }));
+    for (const p of pe.CommonPrefixes || []) if (p.Prefix) prefixes.push(p.Prefix);
+    token = pe.NextContinuationToken;
+  } while (token);
+  const out: Array<{ epoch: string; born: number }> = [];
+  await runPool(prefixes, 16, async (pfx) => {
+    const first = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: pfx, MaxKeys: 1 }));
+    const born = first.Contents?.[0]?.LastModified?.getTime();
+    if (born !== undefined) out.push({ epoch: pfx.replace("proofs/", "").replace(/\/$/, ""), born });
+  });
+  return out.sort((a, b) => a.born - b.born);
+}
+
 /** List every key under a prefix, paginated, lexicographically sorted (read-only). */
 export async function listKeysUnderPrefix(prefix: string, maxKeys = 100_000): Promise<string[]> {
   const s3 = getClient();
