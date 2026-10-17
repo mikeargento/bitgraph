@@ -36,6 +36,7 @@ export const PUBLISHED_ENCLAVE_MEASUREMENTS: readonly PublishedMeasurement[] = O
   { version: "v8", since: "2026-09-07", pcr0: "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b" },
   { version: "v9", since: "2026-09-30", pcr0: "934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8" },
   { version: "v10", since: "2026-10-08", pcr0: "5a947cc66095adcceefa9e5ece5d1416dfe08c3470df1bcaa5b2bc5267b0480e6cdc172fe077cd06b0afb07614307973" },
+  { version: "v11", since: "2026-10-17", pcr0: "d9128d67c406a30f988f74ece8b5cced5c9a96491289037f50bddb5f10aac2bc9d1d315dd7bf65428899ccde72b95b86" },
 ].map((m) => Object.freeze(m)));
 
 /** PUBLISHED_ENCLAVE_MEASUREMENTS as the bare PCR0 list a verifier's pins take. */
