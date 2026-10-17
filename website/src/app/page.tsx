@@ -27,6 +27,8 @@ export default function HomePage() {
       <div className="home-hero">
         {/* Mike, 2026-10-17: "position commitment for all of computing ... it shouldnt be written as a headline". */}
         <TerminalLine text="Position commitment for all of computing." />
+        {/* Single use, in plain words, under the line (Mike, 2026-10-17). */}
+        <p className="hero-sub">Every BitGraph occupies a position that can never be occupied again.</p>
       </div>
 
       <section className="home-section" aria-labelledby="home-how">
@@ -42,7 +44,7 @@ export default function HomePage() {
           Inside a hardware enclave, one atomic action counts twice: a fresh, unused value nobody can see takes one count, and your content
           takes the next. Both are signed together. So your bits were bound after a value nobody
           could predict, and could not have been bound before it. The value is used once and never again, so every BitGraph is one of a kind. It fixes where the bits sit in the sequence, not how old
-          the content&nbsp;is.
+          the content is. No blockchain or outside clock is needed, and anyone can check the proof&nbsp;offline.
         </p>
       </section>
 
@@ -52,7 +54,7 @@ export default function HomePage() {
         <div style={{ marginTop: 32 }}><SandwichFigure /></div>
         <p style={{ marginTop: 24 }}>
           Every BitGraph takes exactly two counts on a monotonic counter, so the count runs straight through: nothing can be slipped
-          in or held back. A
+          in afterward, and anything missing shows as a gap in the count. A
           question generated from A&rsquo;s revealed value could not have existed before A; bind the answer in&nbsp;B.
         </p>
       </section>

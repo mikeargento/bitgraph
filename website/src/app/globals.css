@@ -4258,3 +4258,7 @@ html body .home-kicker.home-kicker { text-transform: uppercase !important; lette
    :is(... .frame.art-page), won; the live site showed light text on grey). It reads the theme's --bg, so day
    and night both follow it. */
 html:root:root body, html:root:root main, html:root:root main:has(> *), html:root:root .section-grey { background: var(--bg) !important; }
+
+/* The line under the top line (Mike, 2026-10-17): close under it, in the body colour. */
+:root .home-hero > .term-line:has(+ .hero-sub) { margin-bottom: 0 !important; }
+:root .home-hero > .hero-sub { margin: 12px 0 0; color: var(--text); }

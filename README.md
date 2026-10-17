@@ -10,6 +10,8 @@
 Position commitment for all of computing.
 ```
 
+Every BitGraph occupies a position that can never be occupied again.
+
 ## How it works
 
 **Two steps, one action.**
@@ -27,7 +29,7 @@ If any step fails, nothing is released and the counter does not move.
 
 ## What it proves
 
-Inside a hardware enclave, one atomic action counts twice: a fresh, unused value nobody can see takes one count, and your content takes the next. Both are signed together. So your bits were bound after a value nobody could predict, and could not have been bound before it. The value is used once and never again, so every BitGraph is one of a kind. It fixes where the bits sit in the sequence, not how old the content is.
+Inside a hardware enclave, one atomic action counts twice: a fresh, unused value nobody can see takes one count, and your content takes the next. Both are signed together. So your bits were bound after a value nobody could predict, and could not have been bound before it. The value is used once and never again, so every BitGraph is one of a kind. It fixes where the bits sit in the sequence, not how old the content is. No blockchain or outside clock is needed, and anyone can check the proof offline.
 
 ## Between two
 
@@ -42,7 +44,7 @@ Inside a hardware enclave, one atomic action counts twice: a fresh, unused value
           Everything here is bound after A and before B: minutes or weeks
 ```
 
-Every BitGraph takes exactly two counts on a monotonic counter, so the count runs straight through: nothing can be slipped in or held back. A question generated from A's revealed value could not have existed before A; bind the answer in B.
+Every BitGraph takes exactly two counts on a monotonic counter, so the count runs straight through: nothing can be slipped in afterward, and anything missing shows as a gap in the count. A question generated from A's revealed value could not have existed before A; bind the answer in B.
 
 ## Try it
 
