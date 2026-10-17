@@ -6,8 +6,6 @@
  * MerkleTree then joins them. The root, the order and every path are the verifier's own: a tree smaller than
  * PARALLEL_TREE_MIN, or a runtime without worker threads, takes buildTree itself.
  */
-import { Worker } from "node:worker_threads";
-import { availableParallelism, cpus } from "node:os";
 import { buildTree, sortTreeLeaves, MerkleTree, type BuiltTree, type TreeLeaf } from "@mikeargento/bitgraph-verify";
 
 /** Below this many leaves the workers cost more than they save. */
@@ -19,9 +17,31 @@ function split(n: number): number {
   return k;
 }
 
+// node:worker_threads and node:os load on first use, not at import, through an
+// import() a bundler cannot see into: this module is in the package's main
+// entry, and the website's bundler (Turbopack) both refuses a Node built-in in
+// a browser chunk and folds constant strings, so even import(name) with a
+// constant name was followed. A runtime without them builds on one thread.
+type WorkerThreads = typeof import("node:worker_threads");
+type NodeOs = typeof import("node:os");
+const runtimeImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<unknown>;
+async function nodeParts(): Promise<{ wt: WorkerThreads; os: NodeOs } | null> {
+  try {
+    const wt = (await runtimeImport("node:worker_threads")) as WorkerThreads;
+    const os = (await runtimeImport("node:os")) as NodeOs;
+    return { wt, os };
+  } catch {
+    return null;
+  }
+}
+
 export async function buildTreeParallel(leaves: readonly TreeLeaf[], threads?: number): Promise<BuiltTree> {
+  if (leaves.length < PARALLEL_TREE_MIN) return buildTree(leaves);
+  const parts = await nodeParts();
+  if (parts === null) return buildTree(leaves);
+  const { availableParallelism, cpus } = parts.os;
   const cores = threads ?? Math.min(8, typeof availableParallelism === "function" ? availableParallelism() : cpus().length);
-  if (leaves.length < PARALLEL_TREE_MIN || cores < 2) return buildTree(leaves);
+  if (cores < 2) return buildTree(leaves);
   const sorted = sortTreeLeaves(leaves);
   const n = sorted.length;
 
@@ -59,7 +79,7 @@ export async function buildTreeParallel(leaves: readonly TreeLeaf[], threads?: n
     shares.filter((s) => s.length > 0).map(
       (share) =>
         new Promise<Array<[number, number, Uint8Array]>>((resolve, reject) => {
-          const worker = new Worker(new URL("./tree-worker.js", import.meta.url), { workerData: { leaves: leafBuf, out: outBuf } });
+          const worker = new parts.wt.Worker(new URL("./tree-worker.js", import.meta.url), { workerData: { leaves: leafBuf, out: outBuf } });
           worker.once("message", (r: Array<[number, number, Uint8Array]>) => { resolve(r); void worker.terminate(); });
           worker.once("error", reject);
           worker.postMessage(share);

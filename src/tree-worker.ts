@@ -4,7 +4,9 @@
  * RFC 6962 split), it writes every leaf hash, SHA-256(0x00 || 65-byte leaf), into the shared output and returns the
  * range's subtree root, SHA-256(0x01 || left || right) all the way up. The same hashing as the verifier's MerkleTree.
  */
-import { parentPort, workerData } from "node:worker_threads";
+// The bare name, not "node:...": a bundler's file tracer that reaches this script through tree-parallel's
+// new URL("./tree-worker.js") handles a bare built-in and chokes on the node: form (Turbopack, 2026-10-17).
+import { parentPort, workerData } from "worker_threads";
 import { createHash } from "node:crypto";
 
 const { leaves, out } = workerData as { leaves: SharedArrayBuffer; out: SharedArrayBuffer };
