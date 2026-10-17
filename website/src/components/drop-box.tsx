@@ -60,6 +60,17 @@ function teeTime(proof: Proof): string | null {
 const sizeLabel = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 
 /** A dropped file that is itself a BitGraph proof (JSON with the artifact, commit and signer), or null. */
+/** A dropped list of proofs (the drop box's "Download all" file), or null. Never made into a BitGraph itself. */
+function proofListOf(f: File, bytes: Uint8Array): Proof[] | null {
+  if (!/\.json$/i.test(f.name) || bytes.length > 500_000_000) return null;
+  try {
+    const o = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    if (!Array.isArray(o) || o.length === 0) return null;
+    const ok = (p: unknown) => { const q = p as Proof & { signer?: unknown; version?: unknown }; return typeof q?.version === "string" && q.version.startsWith("bitgraph") && typeof q.artifact?.digestB64 === "string" && !!q.commit && !!q.signer; };
+    return o.every(ok) ? (o as Proof[]) : null;
+  } catch { return null; }
+}
+
 function proofFileOf(f: File, bytes: Uint8Array): Proof | null {
   if (bytes.length > 4_000_000 || !/\.json$/i.test(f.name)) return null;
   try {
@@ -147,7 +158,10 @@ async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
 
 /** mode "check" only looks files up and never makes anything (the ledger page); "make" looks them up, then
  *  offers to make the ones that are new (/make). */
-export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
+export function DropBox(_props: { mode?: "make" | "check" }) {
+  // One drop box, everywhere (Mike, 2026-10-17: "shouldnt the dropbox do both"): a file on record shows its proof, a
+  // new file is made, proofs are checked. The mode prop is kept for callers and no longer changes anything.
+  const mode = "make" as "make" | "check";
   const [rows, setRows] = useState<Row[]>([]);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -157,6 +171,8 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
   const [timer, setTimer] = useState(false);
   useEffect(() => { try { setTimer(new URLSearchParams(window.location.search).has("timer")); } catch { /* no timer */ } }, []);
   /** A big drop (more than MAX_FILES): counts and the proofs, never one row per file. */
+  /** Proof files dropped with originals: each original paired with its proof by hash and checked here. */
+  const [pairing, setPairing] = useState<{ proofs: number; files: number; valid: number; invalid: number; noProof: number; unusedProofs: number; done: boolean } | null>(null);
   const [batch, setBatch] = useState<{ root: string; total: number; rootFile: string | null; rootProof: Proof | null; rootDigest: string | null; rootState: "looking" | "found" | "missing" | "mismatch" | "absent"; rows: Array<{ name: string; index: number | null }> } | null>(null);
   const [bulk, setBulk] = useState<{ total: number; made: number; found: number; missing: number; failed: number; done: boolean; proofs: Proof[]; ms: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -218,21 +234,29 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
     });
     const todo = digests.filter(Boolean);
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    if (mode === "check") {
+    const unknown = new Set<string>(); // a lookup that failed: never made, since it may already be a BitGraph
+    {
       let looked = 0;
       await pool(todo, 12, async (d) => {
         try {
           const res = await fetch(`/api/proofs/${toUrlSafe(d)}`);
           const body = res.ok ? ((await res.json()) as { proofs?: Array<{ proof: Proof }> }) : null;
           const first = body?.proofs?.[0]?.proof;
-          if (!res.ok) st.failed++; else if (first) { st.found++; st.proofs.push(first); } else st.missing++;
-        } catch { st.failed++; }
+          if (!res.ok) { st.failed++; unknown.add(d); } else if (first) { st.found++; st.proofs.push(first); } else st.missing++;
+        } catch { st.failed++; unknown.add(d); }
         looked++;
         if (looked % 100 === 0 || looked === todo.length) { setStatus(`Checked ${looked.toLocaleString("en-US")} of ${todo.length.toLocaleString("en-US")}…`); show(); }
       });
-    } else {
+    }
+    // Then make only the ones not on record yet (the box does both, as it used to).
+    const fresh: string[] = [];
+    {
+      const seen = new Set<string>(st.proofs.map((p) => p.artifact?.digestB64 as string));
+      for (const d of todo) if (!seen.has(d) && !unknown.has(d)) { fresh.push(d); seen.add(d); }
+    }
+    if (fresh.length) {
       const chunks: string[][] = [];
-      for (let i = 0; i < todo.length; i += 50) chunks.push(todo.slice(i, i + 50));
+      for (let i = 0; i < fresh.length; i += 50) chunks.push(fresh.slice(i, i + 50));
       await pool(chunks, 3, async (chunk) => {
         for (let attempt = 0; attempt < 200; attempt++) {
           let res: Response;
@@ -301,8 +325,46 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
     setBatch({ root: tree.root, total: tree.files ?? tree.leaves.length, rootFile: rootFile?.name ?? null, rootProof, rootDigest, rootState, rows });
   }, []);
 
+  /* Proofs dropped as files (a list from "Download all", or single .bitgraph.json files), with or without the originals:
+     each original is paired with its proof by its SHA-256 and checked in this browser. Nothing here is ever made or sent
+     (Mike, 2026-10-17: the grouped JSON "doesnt function as a proof. it wants to read it again"). */
+  const takePairing = useCallback(async (proofs: Map<string, Proof>, originals: File[]) => {
+    setRows([]); setBulk(null); setBatch(null);
+    const st = { proofs: proofs.size, files: originals.length, valid: 0, invalid: 0, noProof: 0, unusedProofs: 0, done: false };
+    const show = () => setPairing({ ...st });
+    show();
+    const used = new Set<string>();
+    let n = 0;
+    await pool(originals, 8, async (f) => {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const d = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+      const p = proofs.get(d);
+      if (!p) st.noProof++;
+      else { used.add(d); if (await check(p, bytes)) st.valid++; else st.invalid++; }
+      n++;
+      if (n % 50 === 0 || n === originals.length) { setStatus(`Checked ${n.toLocaleString("en-US")} of ${originals.length.toLocaleString("en-US")}…`); show(); }
+    });
+    st.unusedProofs = proofs.size - used.size;
+    st.done = true; setStatus(null); show();
+  }, []);
+
   const take = useCallback(async (files: File[]) => {
-    setBatch(null);
+    setBatch(null); setPairing(null);
+    // Proof files in the drop: a list, or more than one single proof. They are paired with the rest, never made.
+    const proofs = new Map<string, Proof>();
+    const proofFiles = new Set<File>();
+    for (const f of files) {
+      if (!/\.json$/i.test(f.name)) continue;
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const list = proofListOf(f, bytes);
+      if (list) { for (const p of list) proofs.set(p.artifact!.digestB64!, p); proofFiles.add(f); continue; }
+      const one = files.length > 1 ? proofFileOf(f, bytes) : null;
+      if (one) { proofs.set(one.artifact!.digestB64!, one); proofFiles.add(f); }
+    }
+    if (proofs.size > 0 && !(files.length === 1 && proofFiles.size === 0)) {
+      await takePairing(proofs, files.filter((f) => !proofFiles.has(f)));
+      return;
+    }
     // A batch's tree in the drop turns this into a batch check, whatever else came with it.
     for (const f of files) {
       if (!/\.json$/i.test(f.name) || f.size < 64) continue;
@@ -360,7 +422,7 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
       return;
     }
     if (single) { setStatus(null); setRows(final); }
-  }, [mode, router, takeMany, takeBatch]);
+  }, [mode, router, takeMany, takeBatch, takePairing]);
 
   const make = async () => { await makeRows(rows.filter((r) => r.state === "new" && r.digestB64)); };
 
@@ -395,6 +457,25 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
         <div className="db-zone-sub">The file never leaves your machine.</div>
         <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       </div>
+
+      {pairing && (
+        <div className="db-rows">
+          <div className="db-row">
+            <div className="db-name"><span>{pairing.proofs.toLocaleString("en-US")} proofs</span>{pairing.files > 0 && <span className="db-size">{pairing.files.toLocaleString("en-US")} files</span>}</div>
+            <div className="db-state">
+              {pairing.files === 0
+                ? <>Proofs only. Drop them with their files to check each one.</>
+                : <>
+                    <span className={pairing.invalid ? "db-bad" : "db-ok"}>{pairing.valid.toLocaleString("en-US")} paired and checked in this browser</span>
+                    {pairing.invalid ? <span className="db-bad">, {pairing.invalid.toLocaleString("en-US")} did not check</span> : null}
+                    {pairing.noProof ? `, ${pairing.noProof.toLocaleString("en-US")} ${pairing.noProof === 1 ? "file" : "files"} with no proof here` : ""}
+                    {pairing.done && pairing.unusedProofs ? `, ${pairing.unusedProofs.toLocaleString("en-US")} ${pairing.unusedProofs === 1 ? "proof" : "proofs"} with no file` : ""}
+                    {pairing.done ? "" : "…"}
+                  </>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {batch && (
         <div className="db-rows">
@@ -433,7 +514,7 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
             <div className="db-name"><span>{bulk.total.toLocaleString("en-US")} files</span></div>
             <div className="db-state">
               {mode === "make"
-                ? <>{bulk.made.toLocaleString("en-US")} made{bulk.failed ? `, ${bulk.failed.toLocaleString("en-US")} not made` : ""}{bulk.done ? "" : "…"}{timer ? ` in ${(bulk.ms / 1000).toFixed(2)} s${bulk.done && bulk.made ? ` (${(bulk.made / (bulk.ms / 1000)).toFixed(1)} per second)` : ""}` : ""}</>
+                ? <>{bulk.found ? `${bulk.found.toLocaleString("en-US")} already BitGraphs, ` : ""}{bulk.made.toLocaleString("en-US")} made{bulk.failed ? `, ${bulk.failed.toLocaleString("en-US")} could not be checked or made` : ""}{bulk.done ? "" : "…"}{timer ? ` in ${(bulk.ms / 1000).toFixed(2)} s${bulk.done && bulk.made ? ` (${(bulk.made / (bulk.ms / 1000)).toFixed(1)} per second)` : ""}` : ""}</>
                 : <>{bulk.found.toLocaleString("en-US")} are BitGraphs, {bulk.missing.toLocaleString("en-US")} are not{bulk.failed ? `, ${bulk.failed.toLocaleString("en-US")} could not be checked` : ""}{bulk.done ? "" : "…"}</>}
             </div>
           </div>
