@@ -4463,3 +4463,7 @@ html:root:root:root:root:root .pf-flow .pf-f-note { margin-top: 16px !important;
 @media (max-width: 760px) { html:root:root:root:root:root:root .pf-flow.pf-flow { grid-template-rows: auto 56px 36px auto 44px auto auto 24px 44px auto !important; } }
 /* No stroke under the bar (Mike, 2026-10-17). */
 html:root:root:root #site-nav, html:root:root:root #site-nav.scrolled { border-bottom: 0 !important; box-shadow: none !important; }
+/* The plus in the bar: an icon in the text colour like the sun/moon, no box (2026-10-17). */
+:root #site-nav .nav-plus-plain { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-left: 12px; color: var(--ink); text-decoration: none !important; }
+:root #site-nav .nav-plus-plain:hover { color: var(--text); }
+:root #site-nav .nav-plus-plain[aria-current="page"] { box-shadow: inset 0 -1px 0 var(--ink); }
