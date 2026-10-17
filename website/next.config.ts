@@ -22,12 +22,11 @@ const nextConfig: NextConfig = {
     // PERMANENTLY until today; both now land on /, which redirects nowhere, so no
     // cached hop loops.
     const home = "/";
-    // the API lives on /make with the drop box now
-    const docs = "/make";
+    // the old docs addresses land on the one /docs page (2026-10-17)
+    const docs = "/docs";
     return [
       { source: "/how-it-works", destination: home, permanent: false },
-      { source: "/docs", destination: docs, permanent: false },
-      { source: "/docs/:path*", destination: docs, permanent: false },
+      { source: "/docs/:path+", destination: docs, permanent: false },
       { source: "/api-reference", destination: docs, permanent: false },
       { source: "/overview", destination: docs, permanent: false },
       { source: "/spec", destination: docs, permanent: false },

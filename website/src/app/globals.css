@@ -4348,3 +4348,9 @@ html:root:root:root body h1.term-line { margin: 0 !important; min-height: 0 !imp
 /* One line on every phone (Mike, 2026-10-17: "dont let h1 wrap on mobile"): measured, the line is ~16.7x its font
    size wide and the column is 90% of the screen, so 5vw fits with room for Roboto's wider letters; 32px caps desktop. */
 html:root:root:root:root:root body h1.term-line, html:root:root:root:root:root body h1.term-line * { font-size: min(28px, max(16px, 5vw)) !important; white-space: nowrap !important; }
+
+/* /docs lists (2026-10-17): the body text, a hanging indent, room between items. */
+html:root:root .docs-list { margin: 16px 0 0; padding-left: 1.4em; max-width: var(--measure); }
+html:root:root .docs-list li { margin: 0 0 10px; line-height: 1.7; color: var(--text); }
+html:root:root .docs-list strong { color: var(--ink); }
+html:root:root .docs-page code { background: var(--code-bg); border: 1px solid var(--line); padding: 0 4px; }
