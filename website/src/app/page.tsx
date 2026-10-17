@@ -30,7 +30,7 @@ export default function HomePage() {
 
       <section className="home-section" aria-labelledby="home-how">
         <p className="home-kicker">How BitGraph works</p>
-        <h2 id="home-how">Two steps, one&nbsp;action.</h2>
+        <h2 id="home-how">One atomic<h2 id="home-how">Two steps, one&nbsp;action.</h2>nbsp;action.</h2>
         <div style={{ marginTop: 32 }}><FlowFigure /></div>
         <p style={{ marginTop: 48 }}>If any step fails, nothing is released and the counter does not&nbsp;move.</p>
       </section>
