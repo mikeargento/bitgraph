@@ -326,6 +326,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               {m.kind === "anchor" && <span className="pv-kind">Ethereum anchor</span>}
               {m.kind === "interval" && <span className="pv-kind">Interval</span>}
             </div>
+            {/* When it was made, by the enclave's own signed clock (Mike, 2026-10-17: "need time and date at top"). */}
+            {m.attestedMs !== null && (
+              <div className="pv-when"><TimeChip date={new Date(m.attestedMs)} withDate /></div>
+            )}
           </div>
         </div>
 
