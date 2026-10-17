@@ -25,7 +25,7 @@ If any step fails, nothing is released and the counter does not move.
 
 ## What it proves
 
-**Gives every computation a unique position.**
+**BitGraph gives every computation a unique position.**
 
 Inside a hardware enclave, one atomic action counts twice. First, a fresh, unpredictable value takes one position. At the very next count, your content's digest is bound to the sequence. Both counts are signed together.
 

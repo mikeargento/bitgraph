@@ -4408,3 +4408,29 @@ html:root:root .pf-flow .pf-f-note { color: var(--dim); text-align: center; text
   html:root:root:root .pf-flow .pf-f-proof { grid-row: 10 !important; }
 }
 html:root:root .home-section.home-why > h2 + .home-why-body { margin-top: 24px !important; }
+
+/* The enclave as tall above its steps as below (Mike, 2026-10-17: "make tee box equally tall on top and bottom"): the
+   ghost note mirrors the real one above the steps, so the two spaces match however the note wraps. */
+html:root:root:root:root .pf-flow .pf-f-note-ghost { visibility: hidden; margin: 0 0 20px !important; }
+@media (min-width: 761px) {
+  /* pad, ghost, steps, note, pad */
+  html:root:root:root:root .pf-flow.pf-flow { grid-template-rows: 36px auto auto auto 36px !important; }
+  html:root:root:root:root .pf-flow .pf-f-enclave { grid-row: 1 / 6 !important; }
+  html:root:root:root:root .pf-flow .pf-f-label { grid-row: 1 !important; }
+  html:root:root:root:root .pf-flow .pf-f-note-ghost { grid-column: 4 / 7 !important; grid-row: 2 !important; }
+  html:root:root:root:root .pf-flow :is(.pf-f-content, .pf-f-nonce, .pf-f-bind, .pf-f-proof, .pf-arrow.pf-f-a1, .pf-arrow.pf-f-a2, .pf-arrow.pf-f-a3) { grid-row: 3 !important; }
+  html:root:root:root:root .pf-flow .pf-f-note:not(.pf-f-note-ghost) { grid-row: 4 !important; }
+}
+@media (max-width: 760px) {
+  /* content, gap, pad, ghost, nonce, arrow, bind, note, pad, arrow, proof */
+  html:root:root:root:root .pf-flow.pf-flow { grid-template-rows: auto 56px 24px auto auto 44px auto auto 24px 44px auto !important; }
+  html:root:root:root:root .pf-flow .pf-f-enclave { grid-row: 3 / 10 !important; }
+  html:root:root:root:root .pf-flow .pf-f-label { grid-row: 3 !important; }
+  html:root:root:root:root .pf-flow .pf-f-note-ghost { grid-column: 2 !important; grid-row: 4 !important; }
+  html:root:root:root:root .pf-flow .pf-f-nonce { grid-row: 5 !important; }
+  html:root:root:root:root .pf-flow .pf-arrow.pf-f-a2 { grid-row: 6 !important; }
+  html:root:root:root:root .pf-flow .pf-f-bind { grid-row: 7 !important; }
+  html:root:root:root:root .pf-flow .pf-f-note:not(.pf-f-note-ghost) { grid-row: 8 !important; }
+  html:root:root:root:root .pf-flow .pf-arrow.pf-f-a3 { grid-row: 10 !important; }
+  html:root:root:root:root .pf-flow .pf-f-proof { grid-row: 11 !important; }
+}

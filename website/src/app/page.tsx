@@ -35,7 +35,7 @@ export default function HomePage() {
 
       <section className="home-section home-why" aria-label="What it proves">
         <p className="home-kicker">What it proves</p>
-        <h2 id="home-proves">Gives every computation a unique&nbsp;position.</h2>
+        <h2 id="home-proves">BitGraph gives every computation a unique&nbsp;position.</h2>
         {/* Mike, 2026-10-17. */}
         <p className="home-why-body">
           Inside a hardware enclave, one atomic action counts twice. First, a fresh, unpredictable value takes one position. At the
