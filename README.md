@@ -12,6 +12,8 @@ Give every computation a position.
 
 ## How BitGraph works
 
+**A unique position is created and occupied in one step.**
+
 ```
                  ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ Secure enclave / TEE ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
 ┌────────────┐   ┆   ┌────────────────────┐     ┌─────────────────┐   ┆   ┌───────────────┐
