@@ -4336,3 +4336,7 @@ html:root:root .pv-verdict { border: 0 !important; padding: 0 !important; backgr
 html:root:root body, html:root:root body * { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important; }
 html:root:root body :is(pre, code, kbd, samp, .pv-mono, .pv-raw, .rl-hash, .hiw-code, .pv-code),
 html:root:root body :is(pre, code, kbd, samp, .pv-mono, .pv-raw, .rl-hash, .hiw-code, .pv-code) * { font-family: var(--font-source-code), ui-monospace, SFMono-Regular, Menlo, monospace !important; }
+
+/* No full-bleed hero (2026-10-17 overflow pass): calc(50% - 50vw) counted the scrollbar, so the top block ran a few
+   pixels past the page on both sides. It has no ground of its own any more, so it sits in the frame like the rest. */
+html:root:root .home-scroll .home-hero { margin-left: 0 !important; margin-right: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }
