@@ -350,7 +350,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
 
       {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
       <section className="pv-card">
-        <div className="pv-section-title">Counter</div>
+        <div className="pv-section-title">Monotonic counter</div>
         {nonceCount !== null && (
           <Row f={{ label: `1: Nonce, count ${fmtNum(nonceCount)}`, value: commit.nonceB64, mono: true }} />
         )}
