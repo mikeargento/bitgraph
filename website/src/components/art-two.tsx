@@ -135,8 +135,8 @@ export function ArtTwo() {
           <h2 id="gen-r" className="sr-only">The picture</h2>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={made.url} alt={`Drawn from the nonce of BitGraph #${fmt(a.commit!.counter!)}`} style={{ display: "block", width: "100%", height: "auto" }} />
-          <p className="home-kicker" style={{ marginTop: 40 }}>Drawn from BitGraph A&rsquo;s nonce</p>
-          <pre className="hiw-code jev-code" style={{ marginTop: 12, marginBottom: 0 }}>{urlSafe(a.commit!.nonceB64!)}</pre>
+          <div style={{ paddingTop: 40 }}><p className="home-kicker">Drawn from BitGraph A&rsquo;s nonce</p></div>
+          <div className="gen-nonce"><pre className="hiw-code jev-code">{urlSafe(a.commit!.nonceB64!)}</pre></div>
           {!b && <p className="db-bad">This picture has no BitGraph B on the ledger.</p>}
           <div style={{ marginTop: 20, display: "flex", gap: 20, flexWrap: "wrap" }}>
             <a href={proofHref(a)}>BitGraph A #{fmt(a.commit!.counter!)}, the request</a>
