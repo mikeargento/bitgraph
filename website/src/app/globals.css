@@ -4375,3 +4375,6 @@ html:root:root .docs-page .home-hero + .home-section { padding-top: 0 !important
 /* A top block that holds only the hidden h1 takes no room: the first section starts where every page's first thing does. */
 html:root:root .home-hero:not(:has(> :not(.sr-only))) { padding-bottom: 0 !important; }
 html:root:root .home-hero:not(:has(> :not(.sr-only))) + .home-section { padding-top: 0 !important; }
+/* Section headings take the column's width (an old 352px cap broke "One atomic action gives every computation a unique
+   position." onto two lines on desktop; Mike, 2026-10-17: "one line though"). Phones still wrap, balanced. */
+html:root:root .home-section > h2 { max-width: none !important; }
