@@ -277,6 +277,7 @@ export async function listKeysAfter(prefix: string, startAfter: string | undefin
       Bucket: bucket,
       Prefix: prefix,
       ...(continuationToken ? { ContinuationToken: continuationToken } : startAfter ? { StartAfter: startAfter } : {}),
+      MaxKeys: Math.min(1000, Math.max(1, max - keys.length)),
     }));
     for (const obj of result.Contents || []) {
       if (obj.Key) keys.push(obj.Key);

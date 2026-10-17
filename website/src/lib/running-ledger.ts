@@ -93,16 +93,36 @@ async function rowsOfKeys(keys: string[]): Promise<LedgerRow[]> {
   return rows.filter((r): r is LedgerRow => r !== null).reverse(); // newest first
 }
 
-/** Every proof key of the day, oldest first: the day's epochs in birth order, each epoch's keys in count order.
- *  A past day is listed once and kept; today is listed fresh. */
-const pastDayKeys = unstable_cache(async (day: string) => {
-  const epochs = await epochsForDay(day);
-  return (await Promise.all(epochs.map((e) => listKeysUnderPrefix(`proofs/${e}/`)))).flat();
-}, ["running-ledger-daykeys-v1"], { revalidate: 86_400 });
-async function dayKeys(day: string): Promise<string[]> {
-  if (day !== new Date().toISOString().slice(0, 10)) return pastDayKeys(day);
-  const epochs = await epochsForDay(day);
-  return (await Promise.all(epochs.map((e) => listKeysUnderPrefix(`proofs/${e}/`)))).flat();
+const pad = (n: number) => String(n).padStart(12, "0");
+const counterOfKey = (k: string) => Number(k.match(/\/(\d{12})-/)?.[1] ?? -1);
+
+/** The highest count with a proof in this epoch, found by binary search on the count-ordered keys (one key per
+ *  probe), so it costs ~20 tiny LISTs however long the day is (Mike, 2026-10-17: "ledger page loads SLOW"). -1 if empty. */
+async function newestCounter(epoch: string): Promise<number> {
+  const prefix = `proofs/${epoch}/`;
+  const anyAfter = async (c: number) => (await listKeysAfter(prefix, `${prefix}${pad(c)}~`, 1)).length > 0;
+  if ((await listKeysAfter(prefix, undefined, 1)).length === 0) return -1;
+  let lo = 0, hi = 1;
+  while (await anyAfter(hi)) { lo = hi; hi *= 2; }
+  while (hi - lo > 1) { const mid = Math.floor((lo + hi) / 2); if (await anyAfter(mid)) lo = mid; else hi = mid; }
+  // lo: a count with keys after it (or 0); hi: none after it. The newest is in (lo, hi].
+  const tail = await listKeysAfter(prefix, `${prefix}${pad(lo)}~`, 4);
+  return tail.length ? Math.max(...tail.map(counterOfKey)) : lo;
+}
+
+/** Up to `limit` keys of one epoch with counts below `before` (exclusive; Infinity = the newest), oldest first. Counts
+ *  advance by two per BitGraph, so 2*limit counts hold about `limit` keys; the window widens if it comes up short. */
+async function keysBelow(epoch: string, before: number, limit: number): Promise<{ keys: string[]; more: boolean }> {
+  const prefix = `proofs/${epoch}/`;
+  const top = Number.isFinite(before) ? before : (await newestCounter(epoch)) + 1;
+  if (top <= 0) return { keys: [], more: false };
+  let span = 2 * limit + 8;
+  for (;;) {
+    const lo = Math.max(0, top - span);
+    const got = (await listKeysAfter(prefix, lo > 0 ? `${prefix}${pad(lo)}~` : undefined, span + 8)).filter((k) => counterOfKey(k) < top);
+    if (got.length >= limit || lo === 0) return { keys: got.slice(-limit), more: lo > 0 || got.length > limit };
+    span *= 4;
+  }
 }
 
 export interface LedgerPage {
@@ -112,13 +132,29 @@ export interface LedgerPage {
   hasOlder: boolean;
 }
 
-/** The newest `limit` BitGraphs of the day, newest first; with `beforeKey`, the `limit` before that key. */
+/** The newest `limit` BitGraphs of the day, newest first; with `beforeKey`, the `limit` before that key. Reads only
+ *  what it shows: the day's epochs from the newest back, never the whole day's listing. */
 export async function ledgerPage(day: string, limit = 200, beforeKey?: string): Promise<LedgerPage> {
-  const keys = await dayKeys(day);
-  const end = beforeKey ? keys.indexOf(beforeKey) : keys.length;
-  const stop = end < 0 ? keys.length : end;
-  const start = Math.max(0, stop - limit);
-  return { rows: await rowsOfKeys(keys.slice(start, stop)), newestKey: keys[keys.length - 1] ?? null, hasOlder: start > 0 };
+  const epochs = await epochsForDay(day);
+  let i = epochs.length - 1;
+  let before = Infinity;
+  if (beforeKey) {
+    const e = beforeKey.split("/")[1];
+    const at = e ? epochs.indexOf(e) : -1;
+    if (at >= 0) { i = at; before = counterOfKey(beforeKey); }
+  }
+  const keys: string[] = [];
+  let more = false;
+  let newestKey: string | null = null;
+  for (; i >= 0 && keys.length < limit; i--) {
+    const r = await keysBelow(epochs[i]!, before, limit - keys.length);
+    if (!beforeKey && newestKey === null && r.keys.length) newestKey = r.keys[r.keys.length - 1]!;
+    keys.unshift(...r.keys);
+    more = r.more || i > 0;
+    before = Infinity;
+    if (r.more) break;
+  }
+  return { rows: await rowsOfKeys(keys), newestKey, hasOlder: more };
 }
 
 /** Today's BitGraphs made after `afterKey`, newest first: the live page's poll. It lists only what follows the key
