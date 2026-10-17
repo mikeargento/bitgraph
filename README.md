@@ -10,7 +10,7 @@
 % position commitment for all of computing
 ```
 
-**[Make a BitGraph](https://bitgraph.ing/#make)**
+**[Make a BitGraph](https://bitgraph.ing/make)**
 
 ## What it proves
 
@@ -48,7 +48,7 @@ Every BitGraph takes exactly two counts on a monotonic counter, so the count run
 
 ## Try it
 
-**Make or check a BitGraph** in the drop box at [bitgraph.ing](https://bitgraph.ing/#make). The file is hashed in your browser; only its SHA-256 is sent.
+**Make or check a BitGraph** in the drop box at [bitgraph.ing](https://bitgraph.ing/make). The file is hashed in your browser; only its SHA-256 is sent.
 
 ## For software
 
@@ -76,7 +76,7 @@ A proof checks offline with [`@mikeargento/bitgraph-verify`](https://www.npmjs.c
 
 ---
 
-Writing a proof to a blockchain, a timestamp service, a file that carries its own proof: all of these already exist, and anyone can add them to a BitGraph. BitGraph does the one thing they cannot: the two steps.
+A blockchain or a timestamp service can prove bits existed by a certain time. A BitGraph proves they were bound after a moment nobody could predict. Add one of those to a BitGraph and you have both ends.
 
 ## What is in this repository
 

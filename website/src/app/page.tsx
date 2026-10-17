@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { FlowFigure, SandwichFigure } from "@/components/primitive-figures";
-import { DropBox } from "@/components/drop-box";
 import { TerminalLine } from "@/components/terminal-line";
-import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 
 /**
  * The site is this one page, plus the ledger and the proof pages (Mike, 2026-10-17:
@@ -10,8 +8,8 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
  * folded in here; every old docs address redirects to it (next.config.ts).
  *
  * Order: the line, what it proves, the two steps (the drawing), two BitGraphs make an
- * interval, make or check one (the drop box), the same for software, and one sentence
- * on everything else.
+ * interval. Making and checking one (the drop box, the API, everything else) is /make
+ * (Mike, 2026-10-17: "everything from Try it down can be its own page").
  *
  * ⚠️ Claim discipline: bound AFTER a moment, never "at" it; the claim is about when the
  * bits were bound, never how old the content is. The time shown is the enclave's own.
@@ -30,7 +28,7 @@ export default function HomePage() {
         {/* Mike, 2026-10-17: "position commitment for all of computing ... it shouldnt be written as a headline". */}
         <TerminalLine text="position commitment for all of computing" />
         <div className="actions art-home-actions">
-          <a className="bg-action-link is-make" href="#make">Make a BitGraph</a>
+          <a className="bg-action-link is-make" href="/make">Make a BitGraph</a>
         </div>
       </div>
 
@@ -61,38 +59,6 @@ export default function HomePage() {
         </p>
       </section>
 
-      {/* The maker and the checker (Mike, 2026-10-17: "wheres the dropbox? there should be a checker and a maker right?"). */}
-      <section className="home-section" id="make" aria-labelledby="home-make">
-        <p className="home-kicker">Try it</p>
-        <h2 id="home-make">Make or check a&nbsp;BitGraph.</h2>
-        <div style={{ marginTop: 24 }}>
-          <DropBox />
-        </div>
-      </section>
-
-      <section className="home-section" aria-labelledby="home-software">
-        <p className="home-kicker">For software</p>
-        <h2 id="home-software">Send a SHA-256, get the&nbsp;proof.</h2>
-        <pre className="hiw-code">{`curl -X POST https://bitgraph.ing/api/commit \\
-  -H 'content-type: application/json' \\
-  -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</pre>
-        <p style={{ marginTop: 20 }}>Every BitGraph is kept. Fetch one by its hash, here or on the <a href="/ledger">ledger</a>:</p>
-        <pre className="hiw-code">{`curl https://bitgraph.ing/api/proofs/<sha-256, base64url>`}</pre>
-        <p style={{ marginTop: 20 }}>For an AI agent:</p>
-        <pre className="hiw-code">{`claude mcp add bitgraph -- npx -y @mikeargento/bitgraph-mcp`}</pre>
-        <p style={{ marginTop: 20 }}>
-          A proof checks offline with <code>@mikeargento/bitgraph-verify</code>. Pin the enclave&rsquo;s measurement, reproducible from the
-          published&nbsp;source:
-        </p>
-        <pre className="hiw-code">{PUBLISHED_PCR0}</pre>
-      </section>
-
-      <section className="home-section" aria-label="Everything else">
-        <p>
-          Writing a proof to a blockchain, a timestamp service, a file that carries its own proof: all of these already exist, and
-          anyone can add them to a BitGraph. BitGraph does the one thing they cannot: the two&nbsp;steps.
-        </p>
-      </section>
     </div>
   );
 }

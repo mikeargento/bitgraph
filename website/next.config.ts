@@ -22,7 +22,8 @@ const nextConfig: NextConfig = {
     // PERMANENTLY until today; both now land on /, which redirects nowhere, so no
     // cached hop loops.
     const home = "/";
-    const docs = home;
+    // the API lives on /make with the drop box now
+    const docs = "/make";
     return [
       { source: "/how-it-works", destination: home, permanent: false },
       { source: "/docs", destination: docs, permanent: false },

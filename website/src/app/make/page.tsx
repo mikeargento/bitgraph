@@ -1,0 +1,52 @@
+import type { Metadata } from "next";
+import { DropBox } from "@/components/drop-box";
+import { TerminalLine } from "@/components/terminal-line";
+import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
+
+/**
+ * Make or check a BitGraph: the drop box, the same for software, and one sentence on everything else.
+ * Split off the home page (Mike, 2026-10-17: "everything from Try it down can be its own page").
+ */
+
+export const metadata: Metadata = {
+  title: "Make a BitGraph",
+  description:
+    "Make or check a BitGraph: drop a file (it is hashed in your browser; only its SHA-256 is sent), or send a SHA-256 from software and get the proof.",
+};
+
+export default function MakePage() {
+  return (
+    <div className="frame home home-typing prose home-scroll">
+      <div className="home-hero">
+        <TerminalLine text="make or check a bitgraph" />
+        <div style={{ marginTop: 32 }}>
+          <DropBox />
+        </div>
+      </div>
+
+      <section className="home-section" aria-labelledby="home-software">
+        <p className="home-kicker">For software</p>
+        <h2 id="home-software">Send a SHA-256, get the&nbsp;proof.</h2>
+        <pre className="hiw-code">{`curl -X POST https://bitgraph.ing/api/commit \\
+  -H 'content-type: application/json' \\
+  -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</pre>
+        <p style={{ marginTop: 20 }}>Every BitGraph is kept. Fetch one by its hash, here or on the <a href="/ledger">ledger</a>:</p>
+        <pre className="hiw-code">{`curl https://bitgraph.ing/api/proofs/<sha-256, base64url>`}</pre>
+        <p style={{ marginTop: 20 }}>For an AI agent:</p>
+        <pre className="hiw-code">{`claude mcp add bitgraph -- npx -y @mikeargento/bitgraph-mcp`}</pre>
+        <p style={{ marginTop: 20 }}>
+          A proof checks offline with <code>@mikeargento/bitgraph-verify</code>. Pin the enclave&rsquo;s measurement, reproducible from the
+          published&nbsp;source:
+        </p>
+        <pre className="hiw-code">{PUBLISHED_PCR0}</pre>
+      </section>
+
+      <section className="home-section" aria-label="Everything else">
+        <p>
+          A blockchain or a timestamp service can prove bits existed by a certain time. A BitGraph proves they were bound after a
+          moment nobody could predict. Add one of those to a BitGraph and you have both&nbsp;ends.
+        </p>
+      </section>
+    </div>
+  );
+}
