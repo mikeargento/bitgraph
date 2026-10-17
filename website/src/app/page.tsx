@@ -28,7 +28,7 @@ export default function HomePage() {
         {/* Mike, 2026-10-17: "position commitment for all of computing ... it shouldnt be written as a headline". */}
         <TerminalLine text="Position commitment for all of computing." />
         {/* Single use, in plain words, under the line (Mike, 2026-10-17). */}
-        <p className="hero-sub">Every BitGraph occupies a position that can never be occupied again.</p>
+        <p className="hero-sub">Every BitGraph creates and occupies a position that can never be occupied again.</p>
       </div>
 
       <section className="home-section" aria-labelledby="home-how">
