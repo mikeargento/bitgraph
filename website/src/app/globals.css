@@ -4005,3 +4005,6 @@ main .xp-row.xp-row-base::before, main .xp-row.xp-row-eth::before { display: non
   .pf-flow { grid-template-columns: 14px 1fr 44px 1fr 14px !important; grid-template-rows: auto 46px auto auto 18px 44px auto !important; }
   .pf-f-label { grid-column: 1 / 3 !important; }
 }
+/* Links inside running text are always underlined (Mike, 2026-10-17: "text links underlined"); the nav and
+   buttons keep hover-only. */
+:root:root body main :is(p, li, dd, td, label, figcaption) a:not(.bg-action-link), :root:root body footer a { text-decoration: underline !important; text-decoration-color: #9b9b9b !important; text-underline-offset: 3px; }
