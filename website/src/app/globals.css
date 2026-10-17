@@ -4252,3 +4252,9 @@ html body .home-kicker.home-kicker { text-transform: uppercase !important; lette
 /* The sun and moon, last in the bar: an icon in the text colour, no box. */
 :root #site-nav .theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-left: 16px; padding: 0; background: none; border: 0; color: var(--dim); cursor: pointer; }
 :root #site-nav .theme-toggle:hover { color: var(--ink); }
+
+/* One ground for the whole site, stronger than every older page-ground rule (incident 2026-10-17: the production
+   minifier merged the dark ground rules and the old #f1f3f4 grey, which had a higher specificity through
+   :is(... .frame.art-page), won; the live site showed light text on grey). It reads the theme's --bg, so day
+   and night both follow it. */
+html:root:root body, html:root:root main, html:root:root main:has(> *), html:root:root .section-grey { background: var(--bg) !important; }
