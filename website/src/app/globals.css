@@ -4150,3 +4150,13 @@ html body .home-kicker.home-kicker { text-transform: uppercase !important; lette
 .bg-month-grid .bg-month-day { color: var(--ink) !important; }
 .bg-month-grid .bg-month-day[aria-label="Today"] { background: none !important; color: var(--ink) !important; outline: 1px solid var(--dim); outline-offset: -4px; border-radius: 0 !important; }
 :root #site-nav .nav-box { padding: 9px 16px !important; }
+
+/* No boxes in the bar (Mike, 2026-10-17: "no boxes on menu at all"): Make and Check are plain words, the
+   current page's underlined (the site's rule for the page you are on), the others underlined on hover. */
+:root #site-nav .nav-box, :root #site-nav .nav-box:hover, :root #site-nav .nav-box[aria-current="page"] { border: 0 !important; background: none !important; padding: 8px 4px !important; margin-left: 20px !important; }
+:root #site-nav .nav-box:hover { text-decoration: underline !important; }
+:root #site-nav .nav-box[aria-current="page"] { text-decoration: underline !important; color: var(--ink) !important; }
+:root:root #site-nav .nav-box { display: inline-block !important; text-decoration-thickness: 1px !important; }
+
+/* The drop box taller (Mike, 2026-10-17: "a tad taller ... drop box ... taller"). */
+:root .db-zone { padding-top: 80px !important; padding-bottom: 80px !important; }
