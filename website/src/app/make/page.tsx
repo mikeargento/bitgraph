@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CopyCode } from "@/components/copy-code";
 import { DropBox } from "@/components/drop-box";
 import { TerminalLine } from "@/components/terminal-line";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
@@ -27,18 +28,18 @@ export default function MakePage() {
       <section className="home-section" aria-labelledby="home-software">
         <p className="home-kicker">For software</p>
         <h2 id="home-software">Send a SHA-256, get the&nbsp;proof.</h2>
-        <pre className="hiw-code">{`curl -X POST https://bitgraph.ing/api/commit \\
+        <div className="code-block mk-code"><pre className="hiw-code">{`curl -X POST https://bitgraph.ing/api/commit \\
   -H 'content-type: application/json' \\
-  -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</pre>
+  -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</pre><CopyCode /></div>
         <p style={{ marginTop: 20 }}>Every BitGraph is kept. Fetch one by its hash, here or on the <a href="/ledger">ledger</a>:</p>
-        <pre className="hiw-code">{`curl https://bitgraph.ing/api/proofs/<sha-256, base64url>`}</pre>
+        <div className="code-block mk-code"><pre className="hiw-code">{`curl https://bitgraph.ing/api/proofs/<sha-256, base64url>`}</pre><CopyCode /></div>
         <p style={{ marginTop: 20 }}>For an AI agent:</p>
-        <pre className="hiw-code">{`claude mcp add bitgraph -- npx -y @mikeargento/bitgraph-mcp`}</pre>
+        <div className="code-block mk-code"><pre className="hiw-code">{`claude mcp add bitgraph -- npx -y @mikeargento/bitgraph-mcp`}</pre><CopyCode /></div>
         <p style={{ marginTop: 20 }}>
           A proof checks offline with <code>@mikeargento/bitgraph-verify</code>. Pin the enclave&rsquo;s measurement, reproducible from the
           published&nbsp;source:
         </p>
-        <pre className="hiw-code">{PUBLISHED_PCR0}</pre>
+        <div className="code-block mk-code"><pre className="hiw-code">{PUBLISHED_PCR0}</pre><CopyCode /></div>
       </section>
 
       <section className="home-section" aria-label="Everything else">

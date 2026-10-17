@@ -4088,3 +4088,16 @@ html body { color: #c4c4c4; -webkit-font-smoothing: antialiased; -moz-osx-font-s
   .pf-flow .pf-f-proof { grid-column: 9 !important; grid-row: 2 !important; }
   .pf-flow .pf-arrow.pf-f-a1, .pf-flow .pf-arrow.pf-f-a2, .pf-flow .pf-arrow.pf-f-a3 { margin: 0 12px !important; }
 }
+
+/* Copy buttons on /make (Mike, 2026-10-17: "add copy buttons for the peeps"): the word "copy" in the code
+   block's top right corner, outlined like the nav's +, "copied" for a moment after a click. */
+.mk-code { position: relative; margin-top: 16px; }
+.mk-code .hiw-code { margin: 0; padding-right: 104px; }
+.mk-code .code-copy { position: absolute; top: 9px; right: 9px; display: inline-flex; align-items: center; gap: 0; padding: 4px 10px; background: #1e1e1e !important; color: var(--dim) !important; border: 1px solid var(--line) !important; border-radius: 0 !important; box-shadow: none !important; cursor: pointer; font-family: inherit; text-transform: lowercase; }
+.mk-code .code-copy svg { display: none; }
+.mk-code .code-copy:hover { color: var(--ink) !important; border-color: var(--dim) !important; }
+.mk-code .code-copy.is-copied { color: var(--ink) !important; }
+/* The button is a tab above the block's top right corner, so it never covers the code when the code scrolls. */
+.mk-code { display: flex; flex-direction: column; }
+.mk-code .hiw-code { padding-right: 16px; }
+.mk-code .code-copy { position: static; order: -1; align-self: flex-end; margin-bottom: -1px; padding: 2px 12px; border-bottom-color: var(--code-bg) !important; background: var(--code-bg) !important; }
