@@ -4071,3 +4071,20 @@ html body { color: #c4c4c4; -webkit-font-smoothing: antialiased; -moz-osx-font-s
   .pf-flow.pf-flow { grid-template-columns: 20px 1fr 20px !important; grid-template-rows: auto 44px auto auto 44px auto 20px 44px auto !important; }
   .pf-flow .pf-f-label { padding: 18px 20px 16px !important; }
 }
+
+/* Desktop spacing, measured (Mike, 2026-10-17: "spacing is jacked"): every arrow the same 72px with 12px
+   clear at each end; the enclave wall sits in the middle of the arrows that cross it, so no head touches it;
+   the enclave is 36px inside on the sides and bottom, its label aligned with the nonce box. */
+@media (min-width: 761px) {
+  .pf-flow.pf-flow { grid-template-columns: 1fr 36px 36px 1.1fr 72px 1.1fr 36px 36px 1fr !important; grid-template-rows: auto auto 36px !important; }
+  .pf-flow .pf-f-content { grid-column: 1 !important; grid-row: 2 !important; }
+  .pf-flow .pf-arrow.pf-f-a1 { grid-column: 2 / 4 !important; grid-row: 2 !important; }
+  .pf-flow .pf-f-enclave { grid-column: 3 / 8 !important; grid-row: 1 / 4 !important; }
+  .pf-flow .pf-f-label { grid-column: 3 / 8 !important; grid-row: 1 !important; padding: 28px 36px 20px !important; }
+  .pf-flow .pf-f-nonce { grid-column: 4 !important; grid-row: 2 !important; }
+  .pf-flow .pf-arrow.pf-f-a2 { grid-column: 5 !important; grid-row: 2 !important; }
+  .pf-flow .pf-f-bind { grid-column: 6 !important; grid-row: 2 !important; }
+  .pf-flow .pf-arrow.pf-f-a3 { grid-column: 7 / 9 !important; grid-row: 2 !important; }
+  .pf-flow .pf-f-proof { grid-column: 9 !important; grid-row: 2 !important; }
+  .pf-flow .pf-arrow.pf-f-a1, .pf-flow .pf-arrow.pf-f-a2, .pf-flow .pf-arrow.pf-f-a3 { margin: 0 12px !important; }
+}
