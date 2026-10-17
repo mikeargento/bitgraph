@@ -43,9 +43,9 @@ export default function MakePage() {
 
       <section className="home-section" aria-label="Everything else">
         <p>
-          Anyone can put a recent block hash into a file, or write a file&rsquo;s hash to a chain; neither needs BitGraph. What only
-          BitGraph gives is the value itself: fresh, used once and never again. So every proof is one of a kind, and no other bits
-          can ever be bound in its&nbsp;place.
+          Anyone can put a recent block hash into a file, or write a file&rsquo;s hash to a chain; neither needs BitGraph, and neither
+          gives the file a position of its own. A BitGraph does: a fresh value, used once and never again, and a place in one
+          unbroken count that no other bits can ever&nbsp;take.
         </p>
       </section>
     </div>
