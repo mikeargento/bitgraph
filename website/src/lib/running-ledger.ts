@@ -98,16 +98,24 @@ const counterOfKey = (k: string) => Number(k.match(/\/(\d{12})-/)?.[1] ?? -1);
 
 /** The highest count with a proof in this epoch, found by binary search on the count-ordered keys (one key per
  *  probe), so it costs ~20 tiny LISTs however long the day is (Mike, 2026-10-17: "ledger page loads SLOW"). -1 if empty. */
+// The last answer per epoch, kept while this server instance is warm: the next search starts there, so a page load
+// usually costs one or two one-key LISTs. Counts only grow within an epoch, so a remembered count is a safe floor.
+const lastNewest = new Map<string, number>();
+
 async function newestCounter(epoch: string): Promise<number> {
   const prefix = `proofs/${epoch}/`;
   const anyAfter = async (c: number) => (await listKeysAfter(prefix, `${prefix}${pad(c)}~`, 1)).length > 0;
-  if ((await listKeysAfter(prefix, undefined, 1)).length === 0) return -1;
-  let lo = 0, hi = 1;
-  while (await anyAfter(hi)) { lo = hi; hi *= 2; }
+  const known = lastNewest.get(epoch);
+  if (known === undefined && (await listKeysAfter(prefix, undefined, 1)).length === 0) return -1;
+  let lo = known ?? 0, step = 1, hi = lo + step;
+  if (known !== undefined && !(await anyAfter(known))) return known;
+  while (await anyAfter(hi)) { lo = hi; step *= 2; hi = lo + step; }
   while (hi - lo > 1) { const mid = Math.floor((lo + hi) / 2); if (await anyAfter(mid)) lo = mid; else hi = mid; }
   // lo: a count with keys after it (or 0); hi: none after it. The newest is in (lo, hi].
   const tail = await listKeysAfter(prefix, `${prefix}${pad(lo)}~`, 4);
-  return tail.length ? Math.max(...tail.map(counterOfKey)) : lo;
+  const newest = tail.length ? Math.max(...tail.map(counterOfKey)) : lo;
+  lastNewest.set(epoch, newest);
+  return newest;
 }
 
 /** Up to `limit` keys of one epoch with counts below `before` (exclusive; Infinity = the newest), oldest first. Counts
