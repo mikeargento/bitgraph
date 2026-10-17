@@ -4368,3 +4368,4 @@ html[data-theme="light"]:root:root:root body h1.term-line { background: #2b2b2b 
 html:root:root:root:root body h1.term-line .term-text { color: inherit !important; }
 /* The wordmark a hair bigger than the text (Mike, 2026-10-17). */
 html:root:root:root:root:root body #site-nav .nav-wordmark { font-size: 18px !important; }
+html:root:root .home-section.home-why > .home-why-body + .home-why-body { margin-top: 16px !important; }

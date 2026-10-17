@@ -27,7 +27,13 @@ If any step fails, nothing is released and the counter does not move.
 
 ## What it proves
 
-Inside a hardware enclave, one atomic action counts twice: a fresh, unused value nobody can see takes one count, and your content takes the next. Both are signed together. So your bits were bound after a value nobody could predict, and could not have been bound before it. The value is used once and never again, so every BitGraph is one of a kind. It fixes where the bits sit in the sequence, not how old the content is. No blockchain or outside clock is needed, and anyone can check the proof offline.
+Inside a hardware enclave, one atomic action counts twice. First, a fresh, unpredictable value takes one position. At the very next count, your content's digest is bound to the sequence. Both counts are signed together.
+
+The proof establishes that your bits were bound after a value nobody could predict, with nothing counted in between.
+
+Every BitGraph occupies a unique position that can never be reused. It proves where your bits were bound in the sequence, not when the content was created.
+
+No blockchain or external clock is required. Anyone can verify the proof offline.
 
 ## Between two
 
