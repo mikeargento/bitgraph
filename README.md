@@ -38,10 +38,10 @@ Inside a hardware enclave, one atomic action counts twice: a fresh, unused value
 ```
 ┌──────────────┐     ┌────────┐     ┌────────┐     ┌────────┐     ┌──────────────┐
 │  BitGraph A  │ ──▶ │ Record │ ──▶ │ Record │ ──▶ │ Record │ ──▶ │  BitGraph B  │
-│ Start moment │     └────────┘     └────────┘     └────────┘     │  End moment  │
+│    Opens     │     └────────┘     └────────┘     └────────┘     │    Closes    │
 └──────────────┘                                                  └──────────────┘
        └────────────────────────────────┬────────────────────────────────┘
-          Everything here is bound after A and before B: minutes or weeks
+              Everything here is bound after A and before B.
 ```
 
 Every BitGraph takes exactly two counts on a monotonic counter, so the count runs straight through: nothing can be slipped in afterward, and anything missing shows as a gap in the count. A question generated from A's revealed value could not have existed before A; bind the answer in B.

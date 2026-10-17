@@ -35,7 +35,7 @@ export default function HomePage() {
         <p className="home-kicker">How it works</p>
         <h2 id="home-how">Two steps, one&nbsp;action.</h2>
         <div style={{ marginTop: 32 }}><FlowFigure /></div>
-        <p style={{ marginTop: 24 }}>If any step fails, nothing is released and the counter does not&nbsp;move.</p>
+        <p style={{ marginTop: 48 }}>If any step fails, nothing is released and the counter does not&nbsp;move.</p>
       </section>
 
       <section className="home-section home-why" aria-label="What it proves">
@@ -52,7 +52,7 @@ export default function HomePage() {
         <p className="home-kicker">Between two</p>
         <h2 id="home-between">Two BitGraphs make an&nbsp;interval.</h2>
         <div style={{ marginTop: 32 }}><SandwichFigure /></div>
-        <p style={{ marginTop: 24 }}>
+        <p style={{ marginTop: 48 }}>
           Every BitGraph takes exactly two counts on a monotonic counter, so the count runs straight through: nothing can be slipped
           in afterward, and anything missing shows as a gap in the count. A
           question generated from A&rsquo;s revealed value could not have existed before A; bind the answer in&nbsp;B.

@@ -9,7 +9,7 @@
  *      is decides what is proven: a block hash, a Merkle root, an action or
  *      record, a prior BitGraph.
  *   2. The sandwich: BitGraph A, the records, BitGraph B. Everything between
- *      was bound after A and before B, minutes or weeks.
+ *      was bound after A and before B (no clock: "opens" and "closes", Mike 2026-10-17).
  *
  * 0. The flow (Mike, 2026-10-17, "a simpler graphic"): content, its SHA-256,
  *    then the enclave's one action (1: nonce, 2: bind the digest, signed), then
@@ -62,11 +62,11 @@ export function PrimitiveFigure() {
 
 export function SandwichFigure() {
   return (
-    <figure className="pf-figure" aria-label="BitGraph A, the start moment, then records, then BitGraph B, the end moment. Everything between is bound after A and before B, minutes or weeks.">
+    <figure className="pf-figure" aria-label="BitGraph A opens, then records, then BitGraph B closes. Everything between is bound after A and before B.">
       <div className="pf-row pf-row-sandwich">
         <div className="pf-box pf-purple pf-end">
           <div className="pf-title">BitGraph A</div>
-          <div className="pf-sub">Start moment</div>
+          <div className="pf-sub">Opens</div>
         </div>
         <Arrow />
         <div className="pf-box pf-grey pf-record"><div className="pf-title pf-plain">Record</div></div>
@@ -77,11 +77,11 @@ export function SandwichFigure() {
         <Arrow />
         <div className="pf-box pf-purple pf-end">
           <div className="pf-title">BitGraph B</div>
-          <div className="pf-sub">End moment</div>
+          <div className="pf-sub">Closes</div>
         </div>
       </div>
       <div className="pf-bracket" aria-hidden="true" />
-      <figcaption className="pf-caption">Everything here is bound after A and before B: minutes or&nbsp;weeks</figcaption>
+      <figcaption className="pf-caption">Everything here is bound after A and before&nbsp;B.</figcaption>
     </figure>
   );
 }
