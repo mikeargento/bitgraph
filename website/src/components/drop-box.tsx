@@ -100,6 +100,41 @@ async function pool<T>(items: T[], n: number, fn: (x: T, i: number) => Promise<v
   }));
 }
 
+/* ── A batch: files under one Merkle root (the tool at ~/Desktop/merkle-tool, RFC 6962, outside BitGraph). Drop a
+   file (or several) with the batch's merkle-tree.json and merkle-root.txt: each file is walked up the tree to the
+   root here, in the browser; the root must match merkle-root.txt; merkle-root.txt is looked up as a BitGraph
+   (Mike, 2026-10-17: "so i drop a file and the merkle txt and the merkle json"). ── */
+type MerkleTree = { format: "rfc6962-sha256"; files: number; root: string; leaves: Array<[string, string]>; levels: string[][] };
+const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+const unhex = (h: string) => new Uint8Array(h.match(/../g)!.map((x) => parseInt(x, 16)));
+async function sha256(...parts: Uint8Array[]): Promise<Uint8Array> {
+  const n = parts.reduce((a, p) => a + p.length, 0), buf = new Uint8Array(n);
+  let o = 0; for (const p of parts) { buf.set(p, o); o += p.length; }
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", buf));
+}
+function treeOf(f: File, bytes: Uint8Array): MerkleTree | null {
+  if (!/\.json$/i.test(f.name) || bytes.length > 200_000_000) return null;
+  try {
+    const o = JSON.parse(new TextDecoder().decode(bytes)) as Partial<MerkleTree>;
+    return o.format === "rfc6962-sha256" && Array.isArray(o.leaves) && Array.isArray(o.levels) && typeof o.root === "string" ? (o as MerkleTree) : null;
+  } catch { return null; }
+}
+/** The root a file's leaf reaches through the tree's levels (pairs of neighbours; an odd last node rises unchanged), or null if the leaf is not in the tree. */
+async function rootFromLeaf(tree: MerkleTree, leafHex: string): Promise<{ root: string; index: number } | null> {
+  const index = tree.leaves.findIndex((l) => l[1] === leafHex);
+  if (index < 0) return null;
+  const rows = [tree.leaves.map((l) => l[1]), ...tree.levels];
+  let i = index;
+  let h: Uint8Array = unhex(leafHex);
+  for (let lv = 0; lv < rows.length - 1; lv++) {
+    const row = rows[lv]!;
+    if (i % 2 === 0) { if (i + 1 < row.length) h = await sha256(new Uint8Array([1]), h, unhex(row[i + 1]!)); }
+    else h = await sha256(new Uint8Array([1]), unhex(row[i - 1]!), h);
+    i = Math.floor(i / 2);
+  }
+  return { root: hex(h), index };
+}
+
 async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
   const { proofHash: _h, ...p } = proof as Proof & { proofHash?: unknown };
   try {
@@ -119,6 +154,7 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
   /** One file at a time shows a single line in the box instead of a row list (Mike, 2026-10-17: it "jumps"). */
   const [status, setStatus] = useState<string | null>(null);
   /** A big drop (more than MAX_FILES): counts and the proofs, never one row per file. */
+  const [batch, setBatch] = useState<{ root: string; total: number; rootFile: string | null; rootProof: Proof | null; rootDigest: string | null; rootState: "looking" | "found" | "missing" | "mismatch" | "absent"; rows: Array<{ name: string; index: number | null }> } | null>(null);
   const [bulk, setBulk] = useState<{ total: number; made: number; found: number; missing: number; failed: number; done: boolean; proofs: Proof[] } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -229,7 +265,46 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
     URL.revokeObjectURL(a.href);
   };
 
+  const takeBatch = useCallback(async (files: File[], tree: MerkleTree, treeFile: File) => {
+    setRows([]); setBulk(null); setStatus("Checking against the batch…");
+    const others = files.filter((f) => f !== treeFile);
+    // merkle-root.txt: the file that was made a BitGraph; it must carry the tree's root.
+    let rootFile: File | null = null, rootText = "";
+    for (const f of others) { if (/\.txt$/i.test(f.name) && f.size < 4096) { const t = await f.text(); if (t.includes(tree.root) && /Merkle root/i.test(t)) { rootFile = f; rootText = t; break; } } }
+    const members = others.filter((f) => f !== rootFile);
+    const rows: Array<{ name: string; index: number | null }> = [];
+    for (const f of members) {
+      const leaf = hex(await sha256(new Uint8Array([0]), new Uint8Array(await f.arrayBuffer())));
+      const r = await rootFromLeaf(tree, leaf);
+      rows.push({ name: f.name, index: r && r.root === tree.root ? r.index : null });
+    }
+    let rootState: "looking" | "found" | "missing" | "mismatch" | "absent" = rootFile ? "looking" : "absent";
+    let rootProof: Proof | null = null, rootDigest: string | null = null;
+    setBatch({ root: tree.root, total: tree.files ?? tree.leaves.length, rootFile: rootFile?.name ?? null, rootProof, rootDigest, rootState, rows });
+    if (rootFile) {
+      if (!rootText.includes(tree.root)) rootState = "mismatch";
+      else {
+        rootDigest = b64(await sha256(new Uint8Array(await rootFile.arrayBuffer())));
+        try {
+          const res = await fetch(`/api/proofs/${toUrlSafe(rootDigest)}`);
+          const body = res.ok ? ((await res.json()) as { proofs?: Array<{ proof: Proof }> }) : null;
+          rootProof = body?.proofs?.[0]?.proof ?? null;
+          rootState = rootProof ? "found" : "missing";
+        } catch { rootState = "missing"; }
+      }
+    }
+    setStatus(null);
+    setBatch({ root: tree.root, total: tree.files ?? tree.leaves.length, rootFile: rootFile?.name ?? null, rootProof, rootDigest, rootState, rows });
+  }, []);
+
   const take = useCallback(async (files: File[]) => {
+    setBatch(null);
+    // A batch's tree in the drop turns this into a batch check, whatever else came with it.
+    for (const f of files) {
+      if (!/\.json$/i.test(f.name) || f.size < 64) continue;
+      const tree = treeOf(f, new Uint8Array(await f.arrayBuffer()));
+      if (tree) { await takeBatch(files, tree, f); return; }
+    }
     if (files.length > MAX_FILES) { await takeMany(files); return; }
     setBulk(null);
     const picked = files.slice(0, MAX_FILES);
@@ -281,7 +356,7 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
       return;
     }
     if (single) { setStatus(null); setRows(final); }
-  }, [mode, router, takeMany]);
+  }, [mode, router, takeMany, takeBatch]);
 
   const make = async () => { await makeRows(rows.filter((r) => r.state === "new" && r.digestB64)); };
 
@@ -316,6 +391,37 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
         <div className="db-zone-sub">The file never leaves your machine.</div>
         <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       </div>
+
+      {batch && (
+        <div className="db-rows">
+          <div className="db-row">
+            <div className="db-name"><span>Batch root</span><span className="db-size">{batch.total.toLocaleString("en-US")} files</span></div>
+            <div className="db-state">
+              {batch.rootState === "absent" && <>Add the batch&rsquo;s merkle-root.txt to check that the root is a BitGraph.</>}
+              {batch.rootState === "mismatch" && <span className="db-bad">merkle-root.txt does not carry this tree&rsquo;s root</span>}
+              {batch.rootState === "looking" && "Checking the ledger…"}
+              {batch.rootState === "missing" && <>{batch.rootFile} is not a BitGraph. <a href="/make">Make one</a></>}
+              {batch.rootState === "found" && batch.rootDigest && (
+                <>
+                  <span className="db-ok">{batch.rootFile} is BitGraph #{Number((batch.rootProof?.commit as { counter?: string } | undefined)?.counter ?? 0).toLocaleString("en-US")}</span>
+                  <a href={`/proof/${toUrlSafe(batch.rootDigest)}`}>Proof</a>
+                </>
+              )}
+            </div>
+          </div>
+          {batch.rows.length === 0 && <div className="db-row"><div className="db-state">Add one or more files from the batch to check them.</div></div>}
+          {batch.rows.map((r) => (
+            <div key={r.name} className="db-row">
+              <div className="db-name"><span>{r.name}</span></div>
+              <div className="db-state">
+                {r.index !== null
+                  ? <span className={batch.rootState === "found" ? "db-ok" : undefined}>In the batch (file {(r.index + 1).toLocaleString("en-US")} of {batch.total.toLocaleString("en-US")}){batch.rootState === "found" ? ", under that BitGraph" : ""}</span>
+                  : <span className="db-bad">Not in this batch</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {bulk && (
         <div className="db-rows">
