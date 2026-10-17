@@ -76,7 +76,9 @@ A proof checks offline with [`@mikeargento/bitgraph-verify`](https://www.npmjs.c
 
 ---
 
-Anyone can put a recent block hash into a file, or write a file's hash to a chain; neither needs BitGraph, and neither gives the file a position of its own. A BitGraph does: a fresh value, used once and never again, and a place in one unbroken count that no other bits can ever take.
+Anyone can put a recent block hash in a file or write a file's hash to a blockchain. Neither requires BitGraph, and neither gives the file a position of its own.
+
+BitGraph does. It binds the file to a fresh, unpredictable value used exactly once, at a unique position in an unbroken sequence. That position can never be reused, reassigned, or occupied by anything else.
 
 ## What is in this repository
 
