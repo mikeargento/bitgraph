@@ -3841,3 +3841,82 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
 @media (max-width: 760px) { .flow-img { display: none; } .flow-html { display: block; } }
 /* How it works: code blocks in the docs look. */
 .hiw-code { font-family: var(--font-mono); font-size: 14px; line-height: 1.6; background: var(--code-bg, #f6f6f4); border: 1px solid var(--line); padding: 14px 16px; overflow-x: auto; white-space: pre; margin: 16px 0 0; }
+
+/* ── The terminal line at the top of home (components/terminal-line.tsx), 2026-10-17 ── */
+.term-line { font-family: var(--font-mono); font-size: clamp(17px, 2.1vw, 22px); line-height: 1.5; color: var(--ink); margin: 0 0 32px; min-height: 1.5em; }
+.term-prompt { color: var(--dim); margin-right: 0.6em; }
+.term-cursor { display: inline-block; width: 0.6em; height: 1.1em; margin-left: 0.1em; vertical-align: -0.2em; background: var(--ink); animation: term-blink 1.1s steps(1) infinite; }
+#site-nav .nav-btn { white-space: nowrap; }
+@media (max-width: 420px) { #site-nav .nav-btn { padding-left: 8px !important; padding-right: 8px !important; } }
+@keyframes term-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .term-cursor { animation: none; } }
+
+/* ══ DARK, TERMINAL (Mike, 2026-10-17: "terminal beeeoch", "go dark", "monospace text everywhere") ══
+   Terminal grey ground, light code text, one terminal green for actions and for what binds. Last in the
+   file so it wins over every earlier token block. */
+:root {
+  --bg: #1e1e1e; --bar: #181818; --paper: #262626; --panel: #262626; --panel-2: #2e2e2e; --code-bg: #2a2a2a;
+  --line: #3a3a3a; --line-2: #333333; --hair: #333333;
+  --ink: #ededed; --text: #d4d4d4; --dim: #9b9b9b; --faint: #7a7a7a;
+  --accent: #6ee787; --accent-2: #a6f0b0;
+  --btn-primary: #6ee787; --btn-primary-hover: #8ff09f; --btn-primary-text: #0f1a12;
+  --shadow-card: 0 0 0 1px #3a3a3a; --shadow-lift: 0 0 0 1px #4a4a4a;
+  --err: #ff7b72; --ok: #6ee787; --warn: #e3b341;
+  color-scheme: dark;
+}
+html, body { background: #1e1e1e !important; color: var(--text); }
+html body, html body * { font-family: "IBM Plex Mono", var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace !important; }
+main, main:has(> .home-scroll), main:has(> .frame.art-page) { background: #1e1e1e !important; }
+.section-grey { background: #1e1e1e !important; }
+.home-section { border-top-color: #333333 !important; }
+#site-nav, #site-nav.scrolled { background: #181818 !important; border-bottom: 1px solid #2e2e2e !important; }
+:is(.home-card, .pv, .table-scroll, table, dl.terms, .facts, .doors, figure, .art-details, .try-zone, [class*="card"], .bench-seed, .callout) :not(pre) > code, :not(pre) > code { background: #2a2a2a !important; border-color: #3a3a3a !important; color: var(--ink) !important; }
+.bg-action-link:not(.is-make) { background: transparent !important; border: 1px solid #4a4a4a !important; color: var(--accent) !important; }
+a { color: var(--accent); }
+::selection { background: #2f5a3a; color: #ffffff; }
+/* The drop box and the ledger on the dark ground. */
+.db-zone { background: #222222 !important; border-color: #4a4a4a !important; }
+.db-zone[data-over="1"], .db-zone:hover { background: #1d2620 !important; border-color: #6ee787 !important; }
+.db-ok { color: #6ee787 !important; }
+.db-rows { background: #222222 !important; }
+/* The drawings in the terminal palette (the boards on the Claude Design canvas). */
+.pf-figure { --pf-line: #8a8a8a; }
+.pf-purple { background: #262626 !important; border-color: #cfcfcf !important; color: #f2f2f2 !important; }
+.pf-purple .pf-sub { color: #a8a8a8 !important; }
+.pf-green { background: #1d2620 !important; border-color: #6ee787 !important; color: #c8f7cf !important; }
+.pf-green .pf-sub { color: #8fdc98 !important; }
+.pf-grey { background: #262626 !important; border-color: #555555 !important; color: #e6e6e6 !important; }
+.pf-grey .pf-sub { color: #9b9b9b !important; }
+.pf-enclave, .pf-f-enclave { border-color: #6a6a6a !important; }
+.pf-box { border-radius: 6px; }
+/* Arrowheads stop on a box's edge instead of running into it. */
+.pf-fan > .pf-box::after { transform: translate(-50%, -1px) rotate(45deg) !important; }
+/* Home shows the drawn picture at every width now: the image was drawn on a light ground. */
+.flow-img { display: none !important; }
+.flow-html { display: block !important; }
+/* Narrow phones: the mono nav fits on one row. */
+@media (max-width: 480px) { #site-nav .nav-btn { padding-left: 6px !important; padding-right: 6px !important; } #site-nav .bg-nav-links { gap: 0 !important; } }
+.bg-action-link:not(.is-make):not(:disabled) { border-color: #4a4a4a !important; }
+@media (hover: hover) { .bg-action-link:not(.is-make):not(:disabled):hover { border-color: #6ee787 !important; background: rgba(110, 231, 135, 0.08) !important; } }
+/* One size, like a terminal (Mike, 2026-10-17: "all one size"): every piece of text at 16px; headings are told
+   apart by weight alone. */
+:root:root:root body, :root:root:root body * { font-size: 16px !important; letter-spacing: 0 !important; }
+:root:root:root body :is(h1, h2, h3, .bg-page-title, .home-kicker) { line-height: 1.6 !important; }
+html body .home-kicker { text-transform: none !important; color: var(--dim) !important; }
+/* Monochrome, quiet (Mike, 2026-10-17: "not green", "not flashy"): no accent colour anywhere. */
+:root { --accent: #ededed; --accent-2: #ffffff; --btn-primary: #2e2e2e; --btn-primary-hover: #3a3a3a; --btn-primary-text: #ededed; --ok: #d4d4d4; }
+a { color: var(--ink) !important; text-decoration: underline; text-decoration-color: #6a6a6a; text-underline-offset: 3px; }
+#site-nav a, .bg-action-link { text-decoration: none !important; }
+#site-nav a[aria-current="page"] { color: var(--ink) !important; text-decoration: underline !important; text-decoration-color: #6a6a6a !important; }
+.bg-action-link.is-make { background: #2e2e2e !important; border: 1px solid #6a6a6a !important; color: #ededed !important; }
+@media (hover: hover) { .bg-action-link.is-make:hover:not(:disabled) { background: #3a3a3a !important; border-color: #9b9b9b !important; color: #ffffff !important; } }
+.bg-action-link:not(.is-make):not(:disabled) { border-color: #4a4a4a !important; color: #ededed !important; }
+@media (hover: hover) { .bg-action-link:not(.is-make):not(:disabled):hover { border-color: #9b9b9b !important; background: #2a2a2a !important; } }
+#site-nav .nav-plus, #site-nav .nav-cta { background: #2e2e2e !important; color: #ededed !important; border: 1px solid #6a6a6a !important; }
+.pf-green { background: #2a2a2a !important; border-color: #ededed !important; color: #ffffff !important; }
+.pf-green .pf-sub { color: #b8b8b8 !important; }
+.pf-purple { border-color: #8a8a8a !important; border-style: dashed !important; }
+.db-zone[data-over="1"], .db-zone:hover { background: #262626 !important; border-color: #9b9b9b !important; }
+.db-ok { color: #ededed !important; }
+::selection { background: #4a4a4a; color: #ffffff; }
+:root:root:root body #site-nav a { font-size: 16px !important; }

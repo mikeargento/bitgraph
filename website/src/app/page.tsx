@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FlowFigure } from "@/components/primitive-figures";
 import { DropBox } from "@/components/drop-box";
+import { TerminalLine } from "@/components/terminal-line";
 
 /**
  * Home (Mike, 2026-10-17): "one tee, 2 steps, one atomic action". The tree is
@@ -25,9 +26,9 @@ export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        {/* Mike, 2026-10-17: "Position commitments for computing" (after "Bound after a moment nobody could predict." and
-            "One enclave. Two steps. One atomic action." were both cut the same night). */}
-        <h1>Position commitments for&nbsp;computing.</h1>
+        {/* Mike, 2026-10-17: "position commitment for all of computing. and it should type it at the top when you arrive
+            and it shouldnt be written as a headline". */}
+        <TerminalLine text="position commitment for all of computing" />
         <div className="actions art-home-actions">
           <a className="bg-action-link is-make" href="#make">Make a BitGraph</a>
           <Link className="bg-action-link" href="/how-it-works">How it works</Link>

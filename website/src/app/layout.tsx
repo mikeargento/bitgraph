@@ -109,6 +109,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             700 and italics). PREVIEW 2026-09-16 (Mike: "what about good ol
             acumen"): --font-term in globals.css points at it. */}
         <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
+        {/* The site's one face since 2026-10-17 (dark, terminal): IBM Plex Mono, as on the Claude Design boards. */}
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" />
         {/* Google's Material Symbols, only the icons the Menu uses. */}
         <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=${MENU_ICON_NAMES}&display=block`} />
         {/* Runs during parse, before the browser restores scroll. On a reload
