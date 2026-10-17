@@ -25,6 +25,11 @@ interface Asked {
   jevError: string | null; right: { both: boolean; first: boolean } | null; jev: { model: string; reported: string | null };
 }
 
+/** A proof page that also shows the file itself: ?files= is the record's download, which the proof page reads from
+ *  live.bitgraph.ing (an approved host) and shows only if a file in it has the proof's signed digest. */
+const proofLink = (id: string, recordId: string) =>
+  `/proof/${id}?files=${encodeURIComponent(`${LIVE}/api/result/${recordId}/download`)}`;
+
 /** The questions, made from the code exactly as the service makes them (questions.ts). */
 async function questionsFor(code: string): Promise<Questions> {
   const te = new TextEncoder();
@@ -113,7 +118,7 @@ export function JevAsker() {
   return (
     <>
       <section className="home-section" aria-labelledby="jev-h">
-        <p className="home-kicker">Ask Jev</p>
+        <p className="home-kicker">Ask AI</p>
         <h2 id="jev-h">Two questions that could not exist before you&nbsp;click.</h2>
         <p style={{ marginTop: 24 }}>
           One click makes BitGraph A. Its nonce, unseen until A is bound, chooses two questions for Jev, an AI. Jev answers, and
@@ -121,7 +126,7 @@ export function JevAsker() {
         </p>
         <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={state === "running"} onClick={() => void askNow()}>
-            {state === "running" ? step : r ? "Ask again" : "Ask Jev"}
+            {state === "running" ? step : r ? "Ask again" : "Ask AI"}
           </button>
           {state === "error" && <span className="db-bad">{error}</span>}
         </div>
@@ -152,8 +157,8 @@ export function JevAsker() {
             {derived === "unavailable" && "A’s proof could not be read just now to remake the questions here; the links below still open both proofs."}
           </p>
           <div style={{ marginTop: 20, display: "flex", gap: 20, flexWrap: "wrap" }}>
-            <a href={`/proof/${r.a.id}`}>BitGraph A #{fmt(r.a.counter)}, the request</a>
-            <a href={`/proof/${r.id}`}>BitGraph B #{fmt(r.b.counter)}, the record</a>
+            <a href={proofLink(r.a.id, r.id)}>BitGraph A #{fmt(r.a.counter)}, the request</a>
+            <a href={proofLink(r.id, r.id)}>BitGraph B #{fmt(r.b.counter)}, the record</a>
             <a href={`${LIVE}/api/result/${r.id}/download`}>Download both files and proofs</a>
           </div>
         </section>
