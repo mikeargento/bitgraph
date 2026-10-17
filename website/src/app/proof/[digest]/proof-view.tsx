@@ -343,7 +343,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {c.state === "done" && (
             <>
               <div className="pv-checks-summary">
-                <span className={`pv-verdict pv-verdict-${(c.verdict ?? "UNDETERMINED").toLowerCase()}`}>{c.verdict === "TRUE" ? "Valid proof" : c.verdict === "FALSE" ? "Not a valid proof" : "Undetermined"}</span>
+                <span className={`pv-verdict pv-verdict-${(c.verdict ?? "UNDETERMINED").toLowerCase()}`}>{c.verdict === "TRUE" ? "\u2713 Valid proof" : c.verdict === "FALSE" ? "\u2717 Not a valid proof" : "Undetermined"}</span>
                 <span className="pv-checks-count">{okCount} checks passed{badCount ? `, ${badCount} failed` : ""}</span>
               </div>
               {/* The verifier's reading talks floors and blocks; the verdict and the count are enough here (raw JSON has the rest). */}
