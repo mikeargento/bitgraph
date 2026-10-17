@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <div className="frame" style={{ padding: "56px 0 96px" }}>
+    <div className="frame" style={{ padding: "96px 0 96px" }}>
       <article className="prose">
         <h1>Privacy Policy</h1>
         <p className="meta">Effective&nbsp;date: August&nbsp;27,&nbsp;2026.<br className="br-mob" /> Updated October&nbsp;14,&nbsp;2026</p>

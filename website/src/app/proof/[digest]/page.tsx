@@ -1040,7 +1040,7 @@ export default function ProofPage() {
    */
   if (error || !proof) return (
     <Shell>
-      <div style={{ padding: "80px 20px", textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
+      <div style={{ padding: "96px 20px 80px", textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
         {retired ? (
           <>
             <div style={{ fontSize: 16, color: "var(--ink)", marginBottom: 12, fontWeight: 700 }}>
@@ -1946,7 +1946,7 @@ export default function ProofPage() {
         </>
       )}
 
-      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
+      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "96px 0 96px", animation: "fadeIn .3s ease-out" }}>
         <ProofView m={(() => {
           const kind: ProofViewModel["kind"] = isEth ? "anchor" : isInterval ? "interval" : "file";
           const stdB64 = (x: string | null | undefined) => (typeof x === "string" ? x : "");

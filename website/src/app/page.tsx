@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { FlowFigure, SandwichFigure } from "@/components/primitive-figures";
-import { TerminalLine } from "@/components/terminal-line";
 
 /**
  * The site is this one page, plus the ledger and the proof pages (Mike, 2026-10-17:
@@ -25,9 +24,8 @@ export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        {/* Mike, 2026-10-17: "Give every computation a position." alone on top (an invitation, so "every" does not
-            overclaim); the single-use line under it came off the same night. */}
-        <TerminalLine text="Give every computation a position." />
+        {/* No visible h1 on any page (Mike, 2026-10-17: "drop the h1's ... on home too"); the tagline stays for screen readers, search and link previews. */}
+        <h1 className="sr-only">Give every computation a position.</h1>
       </div>
 
       <section className="home-section" aria-labelledby="home-how">

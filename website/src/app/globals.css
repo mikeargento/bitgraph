@@ -4372,3 +4372,6 @@ html:root:root .home-section.home-why > .home-why-body + .home-why-body { margin
 /* /docs has no visible top line now: its first section starts where the other pages' first thing does. */
 html:root:root .docs-page .home-hero { padding-bottom: 0 !important; }
 html:root:root .docs-page .home-hero + .home-section { padding-top: 0 !important; }
+/* A top block that holds only the hidden h1 takes no room: the first section starts where every page's first thing does. */
+html:root:root .home-hero:not(:has(> :not(.sr-only))) { padding-bottom: 0 !important; }
+html:root:root .home-hero:not(:has(> :not(.sr-only))) + .home-section { padding-top: 0 !important; }
