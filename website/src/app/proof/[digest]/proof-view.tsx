@@ -706,7 +706,6 @@ function ContentCredentials({ c2pa }: { c2pa: C2PAReadResult }) {
       <div className="pv-sub-title">Content Credentials (C2PA)</div>
       {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
       {openai && <div className="pv-sub-note"><a className="pv-link" href="https://help.openai.com/en/articles/8912793" target="_blank" rel="noopener">Verify with OpenAI &#8599;</a></div>}
-      <div className="pv-sub-note">Read from the file&rsquo;s own bytes: a description the file carries, not something BitGraph checked.</div>
     </div>
   );
 }
