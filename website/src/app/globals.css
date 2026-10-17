@@ -3865,7 +3865,7 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
   color-scheme: dark;
 }
 html, body { background: #1e1e1e !important; color: var(--text); }
-html body, html body * { font-family: "code-saver", var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace !important; }
+html body, html body * { font-family: "adaptive-mono", var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace !important; }
 main, main:has(> .home-scroll), main:has(> .frame.art-page) { background: #1e1e1e !important; }
 .section-grey { background: #1e1e1e !important; }
 .home-section { border-top-color: #333333 !important; }
