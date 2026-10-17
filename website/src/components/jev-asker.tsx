@@ -1,364 +1,163 @@
 "use client";
 
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
+
 /**
- * Ask Jev (Mike, 2026-10-06: "the click a button is a better demo", "build it with both questions",
- * "make the image demo and the jev demo be similar in design"). The /image page's structure and
- * classes exactly: the headline and one button; on the click only the steps, in the middle of the
- * screen; then the result fades in under one plain paragraph, with two actions (the proof, ask again) and the
- * technical details closed.
- *
- * The work is done by live.bitgraph.ing (repo ~/Code/bitgraph-live): it opens a BitGraph position
- * itself, makes the two questions from that position's code, asks Jev, records the exchange in that
- * position, and streams each step as a JSON line. This page only shows it. The questions are made
- * from the code again here (questionsFor) and the true answers worked out here too, so what the page
- * shows does not rest on the service's word.
- *
- * A result is never lost by leaving the page: the address becomes /jev?p=<record id>, which reads the
- * record back from the service.
+ * Ask Jev on two BitGraphs. live.bitgraph.ing (repo ~/Code/bitgraph-live, branch jev-two-bitgraphs) binds A (the
+ * request), makes two questions from A's nonce, asks Jev, and binds B (the record), streaming each step. This page
+ * shows it, and does not take the service's word for the questions: it fetches A's proof from bitgraph.ing itself,
+ * reads the nonce, and makes the questions again here. A result survives leaving the page: /jev?p=<B's id>.
  */
-import { restartMessage } from "@/lib/restart-message";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { sha256 } from "@noble/hashes/sha256";
-import { bytesToBase64, commitmentForProof, signedFloorOf, verifyProofIntegrity, type BitGraphProof } from "@mikeargento/bitgraph-verify";
-import { rememberMade, madeHere } from "@/lib/made-here";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.bitgraph.ing";
-
-type Stage = "opening" | "asking" | "recording" | "ready";
-const STEPS: Array<{ key: Stage; label: string }> = [
-  { key: "opening", label: "Opening position" },
-  { key: "asking", label: "Asking the AI" },
-  { key: "recording", label: "Recording answers" },
-  { key: "ready", label: "Ready" },
-];
-const stepIndex = (s: Stage | null) => (s === null ? -1 : STEPS.findIndex((x) => x.key === s));
-const n = (x: number | string) => Number(x).toLocaleString("en-US");
-/** The spinner stays at least this long (Mike, 10-06: "it goes so fast on jev questions its barely there"):
- *  shorter reads as a flicker, not as speed. A slower run shows its result the moment it is recorded. */
-const MIN_WAIT_MS = 1000;
-
-/* ── The questions, made again here from the code (bitgraph-jev-question/1) ─────────────────── */
 const QV = "bitgraph-jev-question/1";
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const fmt = (n: number | string) => Number(n).toLocaleString("en-US");
+const urlSafe = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
 interface Questions { version: string; code: string; both: { digit: string; letter: string; text: string }; first: { a: string; b: string; text: string } }
-function questionsFor(code: string): Questions {
+interface Side { id: string; counter: string; nonceCounter: string }
+interface Asked {
+  id: string; a: Side; b: Side; code: string; questions: Questions;
+  truth: { both: boolean; first: string; at: { digit: number; letter: number; a: number; b: number } };
+  answers: { both: { p: number; yes: boolean }; first: { choice: string; confidence: number | null } } | null;
+  jevError: string | null; right: { both: boolean; first: boolean } | null; jev: { model: string; reported: string | null };
+}
+
+/** The questions, made from the code exactly as the service makes them (questions.ts). */
+async function questionsFor(code: string): Promise<Questions> {
   const te = new TextEncoder();
-  const input = new Uint8Array([...te.encode(QV), 0, ...te.encode(code)]);
-  const h = sha256(input);
+  const h = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array([...te.encode(QV), 0, ...te.encode(code)])));
   const digit = String(h[0]! % 10), letter = LETTERS[h[1]! % 52]!;
   const a = String(h[2]! % 10);
   let b = String(h[3]! % 10);
   if (b === a) b = String((Number(a) + 1) % 10);
   return { version: QV, code, both: { digit, letter, text: `Does the code contain both the digit ${digit} and the letter ${letter}?` }, first: { a, b, text: `Reading left to right, which comes first: the digit ${a} or the digit ${b}?` } };
 }
-function truthOf(q: Questions) {
-  const at = { digit: q.code.indexOf(q.both.digit), letter: q.code.indexOf(q.both.letter), a: q.code.indexOf(q.first.a), b: q.code.indexOf(q.first.b) };
-  const first = at.a < 0 && at.b < 0 ? "neither" : at.b < 0 || (at.a >= 0 && at.a < at.b) ? q.first.a : q.first.b;
-  return { both: at.digit >= 0 && at.letter >= 0, first, at };
+
+/** The code, with the first place each asked character appears marked. */
+function MarkedCode({ r }: { r: Asked }) {
+  const marks = new Set([r.truth.at.digit, r.truth.at.letter, r.truth.at.a, r.truth.at.b].filter((i) => i >= 0));
+  const out: ReactNode[] = [];
+  for (let i = 0; i < r.code.length; i++) out.push(marks.has(i) ? <mark key={i} className="jev-mark">{r.code[i]}</mark> : r.code[i]);
+  return <pre className="hiw-code jev-code">{out}</pre>;
 }
 
-interface Answers { both: { p: number; yes: boolean }; first: { choice: string; confidence: number | null } }
-interface JevRecord {
-  id: string; digestB64: string; counter: string; epoch: string; position: string; floorBlock: number; code: string;
-  /** The floor block's chain, when the service says: "base" since enclave v10. Else the proof check names it. */
-  floorChain?: "ethereum" | "base";
-  answers: Answers | null; jevError: string | null;
-  jev: { model: string; reported: string | null; requestId: string | null; ms: number | null };
-  verified: string; recordedAt: string; files: string[];
-}
-
-/** The code with the four asked characters marked where they first appear. */
-function MarkedCode({ code, q }: { code: string; q: Questions }) {
-  const t = truthOf(q);
-  const marks = new Map<number, string>();
-  if (t.at.digit >= 0) marks.set(t.at.digit, "jev-q1");
-  if (t.at.letter >= 0) marks.set(t.at.letter, "jev-q1");
-  if (t.at.a >= 0) marks.set(t.at.a, marks.has(t.at.a) ? "jev-q1 jev-q2" : "jev-q2");
-  if (t.at.b >= 0) marks.set(t.at.b, marks.has(t.at.b) ? "jev-q1 jev-q2" : "jev-q2");
-  return (
-    <code className="jev-code" aria-label={`Position commitment: ${code}`}>
-      {[...code].map((ch, i) => (marks.has(i) ? <mark key={i} className={marks.get(i)}>{ch}</mark> : <span key={i}>{ch}</span>))}
-    </code>
-  );
-}
-
-const hex2 = (b: number) => b.toString(16).padStart(2, "0");
-const toB64Url = (b: Uint8Array) => bytesToBase64(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-
-/**
- * The code is checked against the proof, read from bitgraph.ing (not from the Jev service): the proof's
- * signature and attestation, then the code recomputed from the position record the enclave signed when
- * the position opened and the floor block bound into it (a Base block since enclave v10, Ethereum before). A code that matches could not have been
- * computed before that position opened, so neither could the questions made from it.
- */
-type CodeCheck =
-  | { status: "checking" }
-  | { status: "ok"; counter: string; position: string; floorBlock: number | null; floorChain: "ethereum" | "base" | null }
-  | { status: "mismatch"; recomputed: string }
-  | { status: "unavailable"; reason: string };
-
-async function checkCode(id: string, counter: string, code: string): Promise<CodeCheck> {
-  try {
-    const r = await fetch(`/api/proofs/digest/${id}`);
-    if (!r.ok) return { status: "unavailable", reason: `bitgraph.ing answered ${r.status}` };
-    const d = await r.json();
-    const list: Array<{ proof?: BitGraphProof }> = Array.isArray(d?.proofs) ? d.proofs : [];
-    const proof = list.find((x) => String(x.proof?.commit?.counter) === String(counter))?.proof ?? list[0]?.proof;
-    if (!proof || !proof.slotAllocation) return { status: "unavailable", reason: "the proof was not found on the ledger yet" };
-    const integrity = await verifyProofIntegrity({ proof });
-    if (!integrity.valid) return { status: "unavailable", reason: `the proof does not verify: ${integrity.reason ?? "unknown"}` };
-    const recomputed = toB64Url(commitmentForProof(proof, proof.slotAllocation));
-    if (recomputed !== code) return { status: "mismatch", recomputed };
-    let floor: ReturnType<typeof signedFloorOf> = null;
-    try { floor = signedFloorOf(proof); } catch { floor = null; }
-    return { status: "ok", counter: String(proof.commit.counter), position: String(proof.slotAllocation.counter), floorBlock: floor?.blockNumber ?? null, floorChain: floor?.chain ?? null };
-  } catch (e) {
-    return { status: "unavailable", reason: e instanceof Error ? e.message : String(e) };
-  }
-}
-
-/** The working, byte by byte: SHA-256 of the code to the characters asked. */
-function Working({ q }: { q: Questions }) {
-  const h = sha256(new Uint8Array([...new TextEncoder().encode(QV), 0, ...new TextEncoder().encode(q.code)]));
-  const b2raw = h[3]! % 10, bumped = String(b2raw) === q.first.a;
-  return (
-    <div className="jev-working">
-      <p>SHA-256 of <code>{QV}</code>, a zero byte, and the code:</p>
-      <p><code className="break">{Array.from(h, hex2).join(" ")}</code></p>
-      <ul>
-        <li>byte 1 <code>{hex2(h[0]!)}</code> = {h[0]}, and {h[0]} mod 10 = <strong>{q.both.digit}</strong>: the digit {q.both.digit}</li>
-        <li>byte 2 <code>{hex2(h[1]!)}</code> = {h[1]}, and {h[1]} mod 52 = {h[1]! % 52}: letter {h[1]! % 52 + 1} of A to Z then a to z, <strong>{q.both.letter}</strong></li>
-        <li>byte 3 <code>{hex2(h[2]!)}</code> = {h[2]}, and {h[2]} mod 10 = <strong>{q.first.a}</strong>: the digit {q.first.a}</li>
-        <li>byte 4 <code>{hex2(h[3]!)}</code> = {h[3]}, and {h[3]} mod 10 = {b2raw}{bumped ? <>, the same as byte 3&rsquo;s, so one more: <strong>{q.first.b}</strong></> : <>: the digit <strong>{q.first.b}</strong></>}</li>
-      </ul>
-    </div>
-  );
-}
-
-const pct = (p: number) => `${Math.round(Math.max(p, 1 - p) * 100)}% sure`;
-
-export function JevAsker({ children }: { children?: ReactNode } = {}) {
-  const [stage, setStage] = useState<Stage | null>(null);
-  const [failedAt, setFailedAt] = useState(-1);
-  const [code, setCode] = useState<string | null>(null);
-  const [record, setRecord] = useState<JevRecord | null>(null);
-  const [shown, setShown] = useState(false);
-  const [restored, setRestored] = useState(false);
-  const [restoring, setRestoring] = useState(false);
+export function JevAsker() {
+  const [state, setState] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [step, setStep] = useState<string>("");
+  const [r, setR] = useState<Asked | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [codeCheck, setCodeCheck] = useState<CodeCheck | null>(null);
-  const busy = useRef(false);
-  const stageRef = useRef<Stage | null>(null);
-  const showTimer = useRef(0);
-  const startedAt = useRef(0);
+  const [derived, setDerived] = useState<"checking" | "match" | "mismatch" | "unavailable" | null>(null);
 
-  useEffect(() => () => window.clearTimeout(showTimer.current), []);
+  /** The check that does not rest on the service: A's proof from bitgraph.ing, its nonce, the questions made here. */
+  const checkQuestions = useCallback(async (rec: Asked) => {
+    setDerived("checking");
+    try {
+      const res = await fetch(`/api/proofs/${rec.a.id}`);
+      const body = res.ok ? ((await res.json()) as { proofs?: Array<{ proof: { commit?: { nonceB64?: string } } }> }) : null;
+      const nonce = body?.proofs?.[0]?.proof?.commit?.nonceB64;
+      if (!nonce) { setDerived("unavailable"); return; }
+      const code = urlSafe(nonce);
+      const q = await questionsFor(code);
+      setDerived(code === rec.code && q.both.text === rec.questions.both.text && q.first.text === rec.questions.first.text ? "match" : "mismatch");
+    } catch { setDerived("unavailable"); }
+  }, []);
 
-  // Coming back: /jev?p=<record id> reads the record back from the service.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("p");
     if (!p || !/^[A-Za-z0-9_-]{43}$/.test(p)) return;
-    let cancelled = false;
-    setRestoring(true);
-    fetch(`${LIVE}/api/result/${p}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((r: JevRecord | null) => {
-        if (cancelled) return;
-        if (r && r.code) { setRecord(r); setCode(r.code); setRestored(!madeHere(r.id)); setShown(true); }
-        else { setError("That answer could not be found. Ask two new questions below."); window.history.replaceState(null, "", "/jev"); }
-      })
-      .catch(() => { if (!cancelled) setError("That answer could not be opened right now. Try reloading the page."); })
-      .finally(() => { if (!cancelled) setRestoring(false); });
-    return () => { cancelled = true; };
-  }, []);
+    void (async () => {
+      try {
+        const res = await fetch(`${LIVE}/api/result/${p}`);
+        if (!res.ok) return;
+        const rec = (await res.json()) as Asked;
+        setR(rec); setState("done"); void checkQuestions(rec);
+      } catch { /* the page still asks */ }
+    })();
+  }, [checkQuestions]);
 
-  // Once a result is on screen: the code against its proof, read from bitgraph.ing itself.
-  useEffect(() => {
-    if (!record || !shown) { setCodeCheck(null); return; }
-    let cancelled = false;
-    setCodeCheck({ status: "checking" });
-    const run = async (tries: number) => {
-      const c = await checkCode(record.id, record.counter, record.code);
-      if (cancelled) return;
-      // A fresh record can take a moment to reach the ledger's lookup.
-      if (c.status === "unavailable" && tries > 0) { setTimeout(() => void run(tries - 1), 1500); return; }
-      setCodeCheck(c);
-    };
-    void run(4);
-    return () => { cancelled = true; };
-  }, [record, shown]);
-
-  const ask = useCallback(async () => {
-    if (busy.current) return;
-    busy.current = true;
-    window.clearTimeout(showTimer.current);
-    startedAt.current = performance.now();
-    window.history.replaceState(null, "", "/jev");
-    setError(null); setRecord(null); setCode(null); setShown(false); setRestored(false); setFailedAt(-1);
-    const go = (s: Stage) => { stageRef.current = s; setStage(s); };
-    go("opening");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  const askNow = async () => {
+    setState("running"); setError(null); setR(null); setDerived(null); setStep("Making BitGraph A…");
     try {
       const res = await fetch(`${LIVE}/api/ask`, { method: "POST" });
-      if (!res.ok || !res.body) {
-        const j = await res.json().catch(() => null);
-        throw new Error(j?.error ?? `the service answered ${res.status}`);
-      }
+      if (!res.ok || !res.body) { const j = await res.json().catch(() => null); throw new Error(j?.error ?? `The service answered ${res.status}`); }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
-      let buf = "", done: JevRecord | null = null;
+      let buf = "", rec: Asked | null = null;
       for (;;) {
-        const { value, done: end } = await reader.read();
-        if (value) buf += dec.decode(value, { stream: true });
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
         let nl: number;
         while ((nl = buf.indexOf("\n")) >= 0) {
           const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
           if (!line.trim()) continue;
-          const m = JSON.parse(line);
-          if (m.stage === "opened") { setCode(m.code); go("asking"); }
-          else if (m.stage === "answered") go("recording");
-          else if (m.stage === "recorded") { done = m.record; go("ready"); }
-          else if (m.stage === "failed") throw new Error(m.error);
+          const s = JSON.parse(line) as { stage: string; record?: Asked; error?: string };
+          if (s.stage === "a") setStep("Asking Jev…");
+          else if (s.stage === "answered") setStep("Making BitGraph B…");
+          else if (s.stage === "recorded" && s.record) rec = s.record;
+          else if (s.stage === "failed") throw new Error(s.error ?? "it did not finish");
         }
-        if (end) break;
       }
-      if (!done) throw new Error("the service stopped before the answers were recorded");
-      setRecord(done);
-      window.history.replaceState(null, "", `/jev?p=${done.id}`);
-      rememberMade(done.id);
-      showTimer.current = window.setTimeout(() => setShown(true), Math.max(0, MIN_WAIT_MS - (performance.now() - startedAt.current)));
+      if (!rec) throw new Error("it did not finish");
+      setR(rec); setState("done");
+      window.history.replaceState(null, "", `/jev?p=${rec.id}`);
+      void checkQuestions(rec);
     } catch (e) {
-      setFailedAt(stepIndex(stageRef.current));
-      setStage(null);
-      const msg = e instanceof Error ? e.message : String(e);
-      // The daily restart reaches here through Jev's service as "allocate refused (503): ..."; say it plainly.
-      setError(/restarting|\(503\)/i.test(msg) ? restartMessage() : msg);
-    } finally {
-      busy.current = false;
+      setError((e as Error).message); setState("error");
     }
-  }, []);
-
-  const running = stage !== null && !shown && failedAt < 0;
-  const q = code ? questionsFor(code) : null;
-  const t = q ? truthOf(q) : null;
-  const a = record?.answers ?? null;
-  // The floor block's own chain: the record's word, else the checked proof's; unnamed until one of them says.
-  const floorChain = record?.floorChain ?? (codeCheck?.status === "ok" ? codeCheck.floorChain : null) ?? null;
-  const floorBlockName = (num: number) => `${floorChain === "base" ? "Base block" : floorChain === "ethereum" ? "Ethereum block" : "block"} ${n(num)}`;
-  const right = a && t ? { both: a.both.yes === t.both, first: a.first.choice === t.first } : null;
-  /* The proof page shows the four files only from the service's own download (?files=, generic: any host's
-     bundle, shown only when it rebuilds the signed proof). The proof page names no service. */
-  const proofHref = record ? `/proof/${record.id}?files=${encodeURIComponent(`${LIVE}/api/result/${record.id}/download`)}` : "#";
-  const yesNo = (b: boolean) => (b ? "Yes" : "No");
-  const firstLabel = (c: string) => (c === "neither" ? "Neither" : `The ${c}`);
+  };
 
   return (
-    <div className={`art${shown ? " is-active" : ""}`}>
-      {children && (
-        <div className={`art-hero${stage !== null || failedAt >= 0 || shown || restoring ? " is-away" : ""}`}>
-          <div className="art-hero-inner">{children}</div>
-        </div>
-      )}
-      <div className={`art-hero art-go-wrap${running || shown || restoring ? " is-away" : ""}`}>
-        <div className="art-hero-inner jev-go-inner">
-          <button type="button" className="bg-action-link is-make art-go" onClick={ask} disabled={running} aria-busy={running}>
-            {failedAt >= 0 ? "Try again" : "Ask questions"}
+    <>
+      <section className="home-section" aria-labelledby="jev-h">
+        <p className="home-kicker">Ask Jev</p>
+        <h2 id="jev-h">Two questions that could not exist before you&nbsp;click.</h2>
+        <p style={{ marginTop: 24 }}>
+          One click makes BitGraph A. Its nonce, unseen until A is bound, chooses two questions for Jev, an AI. Jev answers, and
+          the record is bound as BitGraph B, after A in the same sequence. Nothing about the questions existed before&nbsp;A.
+        </p>
+        <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={state === "running"} onClick={() => void askNow()}>
+            {state === "running" ? step : r ? "Ask again" : "Ask Jev"}
           </button>
+          {state === "error" && <span className="db-bad">{error}</span>}
         </div>
-      </div>
+      </section>
 
-      {/* While it runs, the site's own spinner (Mike, 10-06: "the green checks are dumb and make it seem like
-          its taking longer ... use normal spinner we have on site"): the proof page's fresh-recording wait. */}
-      {running && (
-        <div className="art-wait" role="status" aria-label="BitGraphing">
-          <div className="bg-spinner art-spinner" />
-          <div className="art-wait-label">BitGraphing&hellip;</div>
-        </div>
-      )}
-      {restoring && <p className="art-restoring" role="status">Opening the answer&hellip;</p>}
-      {error && <div className="art-error" role="alert"><p>{error}</p></div>}
-
-      {record && shown && q && t && (
-        <div className="art-result">
-          {/* What just happened, for someone who has never heard of BitGraph. */}
-          {/* The buttons and Technical details ABOVE the answers (Mike, 2026-10-15: "same for this on ask jev"). */}
-          {/* Two actions only (Mike, 2026-10-10): the proof (which now shows the files) and asking again. */}
-          <div className="actions art-actions art-actions-top">
-            <a className="bg-action-link is-make" href={proofHref}><span>See the full proof</span></a>
-            <button type="button" className="bg-action-link" onClick={ask}>Ask two new questions</button>
+      {r && (
+        <section className="home-section" aria-labelledby="jev-r">
+          <p className="home-kicker">The code: BitGraph A&rsquo;s nonce</p>
+          <h2 id="jev-r" className="sr-only">Result</h2>
+          <div style={{ marginTop: 16 }}><MarkedCode r={r} /></div>
+          <ol className="docs-list" style={{ marginTop: 24 }}>
+            <li>
+              <strong>{r.questions.both.text}</strong><br />
+              Jev: {r.answers ? `${r.answers.both.yes ? "yes" : "no"} (${Math.round(r.answers.both.p * 100)}%)` : "no answer"}. True answer: {r.truth.both ? "yes" : "no"}.{" "}
+              {r.right && <span className={r.right.both ? "db-ok" : "db-bad"}>{r.right.both ? "Right." : "Wrong."}</span>}
+            </li>
+            <li>
+              <strong>{r.questions.first.text}</strong><br />
+              Jev: {r.answers ? r.answers.first.choice : "no answer"}. True answer: {r.truth.first}.{" "}
+              {r.right && <span className={r.right.first ? "db-ok" : "db-bad"}>{r.right.first ? "Right." : "Wrong."}</span>}
+            </li>
+          </ol>
+          {r.jevError && <p className="db-bad">Jev did not answer ({r.jevError}); the record says so.</p>}
+          <p style={{ marginTop: 16 }}>
+            {derived === "checking" && "Making the questions again in your browser from A’s proof on bitgraph.ing…"}
+            {derived === "match" && "✓ Made again in your browser from A’s nonce, read from A’s proof on bitgraph.ing: the same code, the same two questions."}
+            {derived === "mismatch" && <span className="db-bad">The questions do not match A&rsquo;s nonce on bitgraph.ing.</span>}
+            {derived === "unavailable" && "A’s proof could not be read just now to remake the questions here; the links below still open both proofs."}
+          </p>
+          <div style={{ marginTop: 20, display: "flex", gap: 20, flexWrap: "wrap" }}>
+            <a href={`/proof/${r.a.id}`}>BitGraph A #{fmt(r.a.counter)}, the request</a>
+            <a href={`/proof/${r.id}`}>BitGraph B #{fmt(r.b.counter)}, the record</a>
+            <a href={`${LIVE}/api/result/${r.id}/download`}>Download both files and proofs</a>
           </div>
-
-          <details className="art-details">
-            <summary className="art-details-title">Technical details</summary>
-            <ol className="art-timeline">
-              <li><span>{floorBlockName(record.floorBlock).replace(/^block/, "Block")}</span><span>the floor</span></li>
-              <li><span>Position {n(record.position)} opened, code issued</span><span>after the floor</span></li>
-              <li><span>Two questions made from the code</span><span>{QV}</span></li>
-              <li><span>The AI answered</span><span>{record.jev.ms !== null ? `in ${n(record.jev.ms)} ms` : ""}</span></li>
-              <li><span>Recorded as <a href={proofHref}>BitGraph #{n(record.counter)}</a></span><span>{record.files.length} files</span></li>
-            </ol>
-            <div className="art-detail-parts">
-              {/* Mike, 10-06: "how will people know the QUESTION is truly random?", "that has to be proven AFTER
-                  position opens or this is dumb". */}
-              <h3>How these questions were chosen</h3>
-              <p><strong>1. The code comes from the position.</strong> It is worked out from the record BitGraph&rsquo;s enclave signed when the position opened, together with the hash of {floorChain === "base" ? "a Base block" : floorChain === "ethereum" ? "an Ethereum block" : "the floor block"} bound into it, so it could not be computed before the position opened. Checked here, in your browser, from the proof on bitgraph.ing:</p>
-              <p className={`jev-check is-${codeCheck?.status ?? "checking"}`}>
-                {codeCheck === null || codeCheck.status === "checking" ? "Checking the proof\u2026"
-                  : codeCheck.status === "ok" ? <>BitGraph #{n(codeCheck.counter)}: signature and attestation valid; the code recomputed from position {n(codeCheck.position)}{codeCheck.floorBlock !== null ? <> and {codeCheck.floorChain === "base" ? "Base" : "Ethereum"} block {n(codeCheck.floorBlock)}</> : null} matches the code above.</>
-                  : codeCheck.status === "mismatch" ? <>The code recomputed from the proof does not match: <code className="break">{codeCheck.recomputed}</code>.</>
-                  : <>The proof could not be checked just now ({codeCheck.reason}). The full proof page checks it too.</>}
-              </p>
-              <p><strong>2. The questions come from the code,</strong> by a public rule with no choice in it. Anyone can redo this with any SHA-256 tool:</p>
-              <Working q={q} />
-              <h3>What it proves</h3>
-              <p>The questions were made from the position&rsquo;s code, and that code did not exist until the position opened. So no one could have seen these questions, or their answers, before the click. The AI&rsquo;s answers were recorded in that same position.</p>
-              <h3>How the questions are made</h3>
-              <p>The SHA-256 of the code ({QV}) chooses a digit and a letter for the first question and two digits for the second. Anyone can make them again from the code and check the true answers by eye: the marked characters show where each one first appears.</p>
-              <h3>What it does not prove</h3>
-              <p>That the AI worked alone, how it works, or anything beyond these two answers. The kind of question is public; only these exact questions are new.</p>
-              <h3>The numbers</h3>
-            </div>
-            <dl>
-              <dt>Code</dt><dd><code className="break">{record.code}</code></dd>
-              <dt>Record</dt><dd>BitGraph #{n(record.counter)}, epoch <code>{record.epoch.slice(0, 8)}</code></dd>
-              <dt>Position</dt><dd>opened at {n(record.position)}, after {floorBlockName(record.floorBlock)}</dd>
-              <dt>AI</dt><dd>{record.jev.reported ?? record.jev.model}{record.jev.requestId ? <>, TypeSafe request <code className="break">{record.jev.requestId}</code></> : null}</dd>
-              <dt>Recorded files</dt><dd>{record.files.join(", ")}</dd>
-              <dt>Record SHA-256</dt><dd><code className="break">{record.digestB64}</code> (base64)</dd>
-            </dl>
-          </details>
-
-          <div className="jev-card">
-            <div className="jev-card-label">Position commitment</div>
-            <MarkedCode code={record.code} q={q} />
-            <ol className="jev-qs">
-              <li>
-                <div className="jev-q"><span className="jev-chip jev-q1" aria-hidden>1</span>{q.both.text}</div>
-                {a ? (
-                  <div className="jev-a">
-                    <span>AI: <strong>{yesNo(a.both.yes)}</strong> <span className="jev-sure">({pct(a.both.p)})</span></span>
-                    <span className={`jev-verdict ${right?.both ? "is-right" : "is-wrong"}`}>{right?.both ? "Right" : `Wrong: ${yesNo(t.both)}`}</span>
-                  </div>
-                ) : <div className="jev-a"><span>The AI did not answer: {record.jevError}</span></div>}
-              </li>
-              <li>
-                <div className="jev-q"><span className="jev-chip jev-q2" aria-hidden>2</span>{q.first.text}</div>
-                {a ? (
-                  <div className="jev-a">
-                    <span>AI: <strong>{firstLabel(a.first.choice)}</strong>{a.first.confidence !== null ? <span className="jev-sure"> ({Math.round(a.first.confidence * 100)}% sure)</span> : null}</span>
-                    <span className={`jev-verdict ${right?.first ? "is-right" : "is-wrong"}`}>{right?.first ? "Right" : `Wrong: ${firstLabel(t.first)}`}</span>
-                  </div>
-                ) : null}
-              </li>
-            </ol>
-          </div>
-
-          {/* Mike, 2026-10-10: the same two-part explanation as the home image (what just happened, then why it matters),
-              in place of the one-line caption. */}
-          <p className="art-home-explain"><span>BitGraph began this proof before these questions existed. Your click opened a position, and two questions were drawn from that position&rsquo;s commitment, so no one, the AI included, could have seen them before your click. The AI&rsquo;s answers were then recorded in the same position. No click will ever produce these questions again, the proof checks offline, and the questions can be drawn again from the commitment&nbsp;alone.</span></p>
-          <p className="art-home-explain"><span>This is how to test an AI on questions it could not have trained on: derive them from a commitment that came after a public block, and they cannot appear in any training data frozen before it. This AI is just the&nbsp;example.</span></p>
-        </div>
+        </section>
       )}
-    </div>
+    </>
   );
 }

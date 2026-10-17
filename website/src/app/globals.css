@@ -4470,3 +4470,7 @@ html:root:root:root #site-nav, html:root:root:root #site-nav.scrolled { border-b
 /* The plus boxed, as it used to be (Mike, 2026-10-17: "but boxed like it used to be"): a small outlined square. */
 html:root:root #site-nav .nav-plus-plain { width: 34px; height: 34px; border: 1px solid var(--line); background: var(--panel); box-shadow: none !important; }
 html:root:root #site-nav .nav-plus-plain:hover, html:root:root #site-nav .nav-plus-plain[aria-current="page"] { border-color: var(--dim); color: var(--ink); }
+
+/* Ask Jev (2026-10-17): the code with the asked characters marked; the code wraps on phones. */
+html:root:root .jev-code { white-space: pre-wrap !important; word-break: break-all; }
+html:root:root .jev-mark { background: var(--ink); color: var(--bg); padding: 0 1px; }
