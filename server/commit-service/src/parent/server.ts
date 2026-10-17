@@ -364,6 +364,13 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
     chainId?: string;
     /** Client-held slot from POST /allocate-slot (BitGraph Fuse). */
     slotId?: unknown;
+    /**
+     * Opt in to the Base write (Mike, 2026-10-17: "we can opt in to those"):
+     * true queues these records for a Base transaction, a public "by when".
+     * Absent or false: no Base write. A BitGraph itself has no fee; the write
+     * is the one paid, optional step.
+     */
+    ceiling?: unknown;
   };
 
   try {
@@ -555,8 +562,9 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
 
   // Fire-and-forget: persist to immutable S3 ledger (includes by-digest index)
   void persistToLedger(proofs);
-  // Fire-and-forget: queue each record for its Base ceiling (no-op unless CEILING_QUEUE_PATH).
-  enqueueCeiling(proofs);
+  // Fire-and-forget: queue each record for its Base ceiling, only when the
+  // caller asked for one (no-op unless CEILING_QUEUE_PATH).
+  if (body.ceiling === true) enqueueCeiling(proofs);
 
   sendJson(res, 200, proofs);
 }
