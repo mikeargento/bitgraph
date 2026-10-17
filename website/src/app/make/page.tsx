@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { CopyCode } from "@/components/copy-code";
 import { DropBox } from "@/components/drop-box";
-import { TerminalLine } from "@/components/terminal-line";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 
 /**
@@ -19,8 +18,9 @@ export default function MakePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        <TerminalLine text="Make a BitGraph." />
-        <div style={{ marginTop: 32 }}>
+        {/* No visible h1: it repeated the nav (Mike, 2026-10-17: "drop the h1's theyre basically redundant"). */}
+        <h1 className="sr-only">Make a BitGraph.</h1>
+        <div>
           <DropBox />
         </div>
       </div>

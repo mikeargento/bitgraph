@@ -4369,3 +4369,6 @@ html:root:root:root:root body h1.term-line .term-text { color: inherit !importan
 /* The wordmark a hair bigger than the text (Mike, 2026-10-17). */
 html:root:root:root:root:root body #site-nav .nav-wordmark { font-size: 18px !important; }
 html:root:root .home-section.home-why > .home-why-body + .home-why-body { margin-top: 16px !important; }
+/* /docs has no visible top line now: its first section starts where the other pages' first thing does. */
+html:root:root .docs-page .home-hero { padding-bottom: 0 !important; }
+html:root:root .docs-page .home-hero + .home-section { padding-top: 0 !important; }

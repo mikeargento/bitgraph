@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { CopyCode } from "@/components/copy-code";
-import { TerminalLine } from "@/components/terminal-line";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 
 /**
@@ -36,7 +35,8 @@ export default function DocsPage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page">
       <div className="home-hero">
-        <TerminalLine text="How BitGraph works." />
+        {/* No visible h1: it repeated the nav (Mike, 2026-10-17: "drop the h1's theyre basically redundant"). */}
+        <h1 className="sr-only">How BitGraph works.</h1>
       </div>
 
       <section className="home-section" aria-labelledby="d-what">

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { DropBox } from "@/components/drop-box";
-import { TerminalLine } from "@/components/terminal-line";
 import { LedgerRows } from "@/components/ledger-rows";
 import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-ledger";
 
@@ -79,11 +78,12 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
           .rl-num { min-width: 0; }
         }
       `}</style>
-      <TerminalLine text="Check a BitGraph." />
+      {/* No visible h1: it repeated the nav (Mike, 2026-10-17: "drop the h1's theyre basically redundant"). */}
+        <h1 className="sr-only">Check a BitGraph.</h1>
 
       {/* Check is the ledger (Mike, 2026-10-17): the drop box here only looks files up and never makes one; the
           one on /make makes (Mike, 2026-10-17: the SHA-256 field went, "dont need this"). */}
-      <div style={{ margin: "32px 0 0" }}>
+      <div>
         <DropBox mode="check" />
       </div>
 

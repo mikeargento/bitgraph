@@ -10,7 +10,7 @@
 Give every computation a position.
 ```
 
-## How it works
+## How BitGraph works
 
 **Two steps, one action.**
 
