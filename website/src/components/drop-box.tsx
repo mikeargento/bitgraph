@@ -24,6 +24,8 @@ import { useCallback, useRef, useState } from "react";
 import { verify, createVerificationContext } from "@mikeargento/bitgraph-verify";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
+import { setFreshProof } from "@/lib/fresh-proof";
+import { useRouter } from "next/navigation";
 
 const MAX_FILES = 25;
 
@@ -87,6 +89,7 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
   /** One file at a time shows a single line in the box instead of a row list (Mike, 2026-10-17: it "jumps"). */
   const [status, setStatus] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
 
@@ -163,11 +166,20 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
       if (!one.isProofFile) {
         try { await Promise.race([cacheArtifactToIDB(picked[0]!, one.digestB64), new Promise((r) => setTimeout(r, 3000))]); } catch { /* the page still opens; the reader can drop the file there */ }
       }
-      window.location.assign(`/proof/${toUrlSafe(one.digestB64)}`);
+      // A BitGraph made just now opens with the circle check (?fresh=1, the signal the proof page and the old drop
+      // flow use), pinned to its own counter and epoch so the page shows this binding.
+      const commit = one.proof?.commit as { counter?: string; epochId?: string } | undefined;
+      const epoch = commit?.epochId ? toUrlSafe(commit.epochId) : "";
+      const sel = commit?.counter ? `?counter=${encodeURIComponent(commit.counter)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
+      const fresh = one.state === "made" ? `${sel ? `${sel}&` : "?"}fresh=1` : sel;
+      // Seed the proof page with the proof in hand (lib/fresh-proof, as the old drop flow did): it paints at once,
+      // and a BitGraph made a second ago does not wait on the ledger's index.
+      if (!one.isProofFile) setFreshProof(toUrlSafe(one.digestB64), { proofs: [{ proof: one.proof }], positions: commit?.counter ? [{ counter: commit.counter, epoch: epoch || null, lowerTime: null, upperTime: null }] : [], causalWindow: null, anchorBlock: null });
+      router.push(`/proof/${toUrlSafe(one.digestB64)}${fresh}`);
       return;
     }
     if (single) { setStatus(null); setRows(final); }
-  }, [mode]);
+  }, [mode, router]);
 
   const make = async () => { await makeRows(rows.filter((r) => r.state === "new" && r.digestB64)); };
 

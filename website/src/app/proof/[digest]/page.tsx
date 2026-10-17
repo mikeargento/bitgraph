@@ -655,7 +655,7 @@ export default function ProofPage() {
     if (flashArmed && !loading && proof) {
       setFlashArmed(false);
       setJustCreated(true);
-      const t = setTimeout(() => setJustCreated(false), 1600);
+      const t = setTimeout(() => setJustCreated(false), 950); // 0.9 s now (Mike, 2026-10-17: "speed up the animation"); was 1.5 s
       return () => clearTimeout(t);
     }
   }, [flashArmed, loading, proof]);
@@ -1929,10 +1929,10 @@ export default function ProofPage() {
         @keyframes fidPop { 0%{transform:translate(-50%,-50%) scale(.6);opacity:0} 45%{opacity:1} 62%{transform:translate(-50%,-50%) scale(1.07)} 100%{transform:translate(-50%,-50%) scale(1);opacity:1} }
         @keyframes fidFade { to { opacity:0 } }
         @keyframes fidDraw { to { stroke-dashoffset:0 } }
-        .fid-scrim { position:fixed; inset:0; z-index:9998; pointer-events:none; background:rgba(20,20,19,.55); animation:fidScrim 1.5s ease-out forwards; }
-        .fid-badge { position:fixed; top:44%; left:50%; z-index:9999; pointer-events:none; width:104px; height:104px; animation:fidPop .5s cubic-bezier(.2,.8,.3,1) forwards, fidFade .35s ease-out 1.15s forwards; }
-        .fid-ring { fill:none; stroke:var(--accent); stroke-width:6; stroke-linecap:round; stroke-dasharray:295; stroke-dashoffset:295; animation:fidDraw .5s ease-out .05s forwards; }
-        .fid-check { fill:none; stroke:var(--accent); stroke-width:7; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:fidDraw .3s ease-out .46s forwards; }
+        .fid-scrim { position:fixed; inset:0; z-index:9998; pointer-events:none; background:rgba(20,20,19,.55); animation:fidScrim .9s ease-out forwards; }
+        .fid-badge { position:fixed; top:44%; left:50%; z-index:9999; pointer-events:none; width:104px; height:104px; animation:fidPop .3s cubic-bezier(.2,.8,.3,1) forwards, fidFade .22s ease-out .68s forwards; }
+        .fid-ring { fill:none; stroke:var(--accent); stroke-width:6; stroke-linecap:round; stroke-dasharray:295; stroke-dashoffset:295; animation:fidDraw .3s ease-out .03s forwards; }
+        .fid-check { fill:none; stroke:var(--accent); stroke-width:7; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:fidDraw .18s ease-out .28s forwards; }
         @media (prefers-reduced-motion: reduce) { .fid-badge, .fid-scrim, .fid-ring, .fid-check { animation-duration:.01ms !important; animation-delay:0s !important; } }
       `}</style>
 
