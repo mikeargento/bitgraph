@@ -16,16 +16,17 @@
  */
 
 import { unstable_cache } from "next/cache";
-import { getCurrentEpoch, getObjectText, listEpochsWithBirth, listKeysUnderPrefix, runPool } from "@/lib/s3";
+import { getCurrentEpoch, getObjectText, listEpochsWithBirth, listKeysAfter, listKeysUnderPrefix, runPool } from "@/lib/s3";
 import { recordedMsOf } from "@/lib/recorded-time";
 
 /** Enclave v11's first epoch (2026-10-17 02:22 UTC): the ledger starts here. */
 export const LEDGER_START_MS = Date.UTC(2026, 9, 17, 2, 22);
 export const LEDGER_FIRST_DAY = "2026-10-17";
 const MAIN = "bitgraph:main";
-const MAX_ROWS = 1000;
 
 export interface LedgerRow {
+  /** The ledger key (proofs/<epoch>/<count>-<proofHash>.json): where the row sits in the day. */
+  key: string;
   /** The payload's count: the BitGraph's number. */
   counter: string;
   /** The nonce's count, one before. */
@@ -65,45 +66,72 @@ export async function epochsForDay(day: string): Promise<string[]> {
   return out;
 }
 
-async function readRows(epoch: string): Promise<LedgerRow[]> {
-  const keys = (await listKeysUnderPrefix(`proofs/${epoch}/`)).slice(-MAX_ROWS * 2);
-  const rows: LedgerRow[] = [];
-  await runPool(keys, 16, async (key) => {
-    const m = key.match(/\/(\d{12})-([A-Za-z0-9_-]{43})\.json$/);
-    if (!m) return;
-    const text = await getObjectText(key);
-    if (!text) return;
-    let proof: { commit?: { chainId?: string; counter?: string; slotCounter?: string }; attribution?: { name?: string }; artifact?: { digestB64?: string } };
-    try { proof = JSON.parse(text); } catch { return; }
-    if (proof.commit?.chainId !== MAIN) return;
-    rows.push({
-      counter: String(Number(m[1])),
-      nonceCounter: proof.commit?.slotCounter ?? null,
-      recordedMs: recordedMsOf(proof),
-      proofHash: m[2]!,
-      digest: proof.artifact?.digestB64 ? proof.artifact.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null,
-      anchor: proof.attribution?.name === "Ethereum Anchor",
-    });
-  });
-  return rows;
+/** One proof's row, read once and kept: a proof never changes, so its row is cached for good. Null when the key is
+ *  not a bitgraph:main proof. */
+const rowOfKey = unstable_cache(async (key: string): Promise<LedgerRow | null> => {
+  const m = key.match(/\/(\d{12})-([A-Za-z0-9_-]{43})\.json$/);
+  if (!m) return null;
+  const text = await getObjectText(key);
+  if (!text) return null;
+  let proof: { commit?: { chainId?: string; counter?: string; slotCounter?: string }; attribution?: { name?: string }; artifact?: { digestB64?: string } };
+  try { proof = JSON.parse(text); } catch { return null; }
+  if (proof.commit?.chainId !== MAIN) return null;
+  return {
+    key,
+    counter: String(Number(m[1])),
+    nonceCounter: proof.commit?.slotCounter ?? null,
+    recordedMs: recordedMsOf(proof),
+    proofHash: m[2]!,
+    digest: proof.artifact?.digestB64 ? proof.artifact.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null,
+    anchor: proof.attribution?.name === "Ethereum Anchor",
+  };
+}, ["running-ledger-row-v3"], { revalidate: false });
+
+async function rowsOfKeys(keys: string[]): Promise<LedgerRow[]> {
+  const rows: Array<LedgerRow | null> = new Array(keys.length).fill(null);
+  await runPool(keys.map((k, i) => ({ k, i })), 24, async ({ k, i }) => { rows[i] = await rowOfKey(k); });
+  return rows.filter((r): r is LedgerRow => r !== null).reverse(); // newest first
 }
 
-const pastRows = unstable_cache(readRows, ["running-ledger-rows-v2"], { revalidate: 86_400 });
-const liveRows = unstable_cache(readRows, ["running-ledger-live-v2"], { revalidate: 10 });
-
-/** The day's BitGraphs on bitgraph:main, newest first. Throws when the ledger cannot be read. */
-export async function rowsForDay(day: string): Promise<LedgerRow[]> {
-  const today = new Date().toISOString().slice(0, 10);
+/** Every proof key of the day, oldest first: the day's epochs in birth order, each epoch's keys in count order.
+ *  A past day is listed once and kept; today is listed fresh. */
+const pastDayKeys = unstable_cache(async (day: string) => {
   const epochs = await epochsForDay(day);
-  const lists = await Promise.all(epochs.map((e) => (day === today ? liveRows(e) : pastRows(e))));
-  return lists.flat().sort((a, b) => (b.recordedMs ?? 0) - (a.recordedMs ?? 0) || Number(b.counter) - Number(a.counter)).slice(0, MAX_ROWS);
+  return (await Promise.all(epochs.map((e) => listKeysUnderPrefix(`proofs/${e}/`)))).flat();
+}, ["running-ledger-daykeys-v1"], { revalidate: 86_400 });
+async function dayKeys(day: string): Promise<string[]> {
+  if (day !== new Date().toISOString().slice(0, 10)) return pastDayKeys(day);
+  const epochs = await epochsForDay(day);
+  return (await Promise.all(epochs.map((e) => listKeysUnderPrefix(`proofs/${e}/`)))).flat();
 }
 
-/** How many BitGraphs today has so far: the live page's cheap poll. */
-export async function countToday(): Promise<{ day: string; count: number }> {
+export interface LedgerPage {
+  rows: LedgerRow[];
+  /** The newest key of the day so far (the live poll asks for rows after it), and whether older rows remain. */
+  newestKey: string | null;
+  hasOlder: boolean;
+}
+
+/** The newest `limit` BitGraphs of the day, newest first; with `beforeKey`, the `limit` before that key. */
+export async function ledgerPage(day: string, limit = 200, beforeKey?: string): Promise<LedgerPage> {
+  const keys = await dayKeys(day);
+  const end = beforeKey ? keys.indexOf(beforeKey) : keys.length;
+  const stop = end < 0 ? keys.length : end;
+  const start = Math.max(0, stop - limit);
+  return { rows: await rowsOfKeys(keys.slice(start, stop)), newestKey: keys[keys.length - 1] ?? null, hasOlder: start > 0 };
+}
+
+/** Today's BitGraphs made after `afterKey`, newest first: the live page's poll. It lists only what follows the key
+ *  (its own epoch from that key on, and any newer epoch of the day), so it costs the same however long the day is. */
+export async function rowsAfter(afterKey: string | null, limit = 1000): Promise<{ rows: LedgerRow[]; newestKey: string | null }> {
   const day = new Date().toISOString().slice(0, 10);
   const epochs = await epochsForDay(day);
-  let count = 0;
-  for (const e of epochs) count += (await listKeysUnderPrefix(`proofs/${e}/`)).length;
-  return { day, count };
+  const afterEpoch = afterKey?.split("/")[1] ?? null;
+  const from = afterEpoch ? epochs.indexOf(afterEpoch) : -1;
+  const keys: string[] = [];
+  for (let i = Math.max(0, from); i < epochs.length && keys.length < limit; i++) {
+    const e = epochs[i]!;
+    keys.push(...(await listKeysAfter(`proofs/${e}/`, e === afterEpoch ? afterKey ?? undefined : undefined, limit - keys.length)));
+  }
+  return { rows: await rowsOfKeys(keys), newestKey: keys[keys.length - 1] ?? afterKey };
 }

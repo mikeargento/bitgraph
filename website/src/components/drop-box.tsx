@@ -70,6 +70,36 @@ function proofFileOf(f: File, bytes: Uint8Array): Proof | null {
   }
 }
 
+/** Every file in a drop, folders opened all the way down (Mike, 2026-10-17: a folder of 10,000 files). */
+async function filesOfDrop(dt: DataTransfer): Promise<File[]> {
+  const entries = Array.from(dt.items ?? []).map((i) => (i.kind === "file" ? i.webkitGetAsEntry?.() : null)).filter(Boolean) as FileSystemEntry[];
+  if (entries.length === 0 || entries.every((e) => e.isFile)) return Array.from(dt.files);
+  const out: File[] = [];
+  const walk = async (e: FileSystemEntry): Promise<void> => {
+    if (e.isFile) {
+      out.push(await new Promise<File>((res, rej) => (e as FileSystemFileEntry).file(res, rej)));
+    } else if (e.isDirectory) {
+      const reader = (e as FileSystemDirectoryEntry).createReader();
+      // readEntries returns at most ~100 entries a call: read until it returns none.
+      for (;;) {
+        const batch = await new Promise<FileSystemEntry[]>((res, rej) => reader.readEntries(res, rej));
+        if (batch.length === 0) break;
+        for (const c of batch) if (!c.name.startsWith(".")) await walk(c);
+      }
+    }
+  };
+  for (const e of entries) await walk(e);
+  return out;
+}
+
+/** Run `fn` over `items` with at most `n` at once. */
+async function pool<T>(items: T[], n: number, fn: (x: T, i: number) => Promise<void>): Promise<void> {
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    for (;;) { const i = next++; if (i >= items.length) return; await fn(items[i]!, i); }
+  }));
+}
+
 async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
   const { proofHash: _h, ...p } = proof as Proof & { proofHash?: unknown };
   try {
@@ -88,6 +118,8 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
   const [busy, setBusy] = useState(false);
   /** One file at a time shows a single line in the box instead of a row list (Mike, 2026-10-17: it "jumps"). */
   const [status, setStatus] = useState<string | null>(null);
+  /** A big drop (more than MAX_FILES): counts and the proofs, never one row per file. */
+  const [bulk, setBulk] = useState<{ total: number; made: number; found: number; missing: number; failed: number; done: boolean; proofs: Proof[] } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -129,7 +161,77 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
   /* A drop just does it (Mike, 2026-10-17: "dropping bitgraph in should just do it ... and open proof page"):
      every file is looked up; on /make the new ones are made at once; one file lands on its proof page. A dropped
      proof file (a .bitgraph.json) opens the proof it belongs to, and is never itself made into a BitGraph. */
+  /* A big drop: hash everything here, then bind in batches of 50 (make) or look each up (check). Rate limits are
+     waited out, never treated as failures; the enclave's daily restart (503) is waited out too. */
+  const takeMany = useCallback(async (files: File[]) => {
+    setRows([]); setStatus(null);
+    const total = files.length;
+    const st = { total, made: 0, found: 0, missing: 0, failed: 0, done: false, proofs: [] as Proof[] };
+    const show = () => setBulk({ ...st, proofs: st.proofs });
+    show();
+    const digests: string[] = new Array(total);
+    let hashed = 0;
+    await pool(files, 8, async (f, i) => {
+      try { digests[i] = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", await f.arrayBuffer()))); } catch { st.failed++; }
+      hashed++;
+      if (hashed % 250 === 0 || hashed === total) setStatus(`Hashed ${hashed.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}…`);
+    });
+    const todo = digests.filter(Boolean);
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    if (mode === "check") {
+      let looked = 0;
+      await pool(todo, 12, async (d) => {
+        try {
+          const res = await fetch(`/api/proofs/${toUrlSafe(d)}`);
+          const body = res.ok ? ((await res.json()) as { proofs?: Array<{ proof: Proof }> }) : null;
+          const first = body?.proofs?.[0]?.proof;
+          if (!res.ok) st.failed++; else if (first) { st.found++; st.proofs.push(first); } else st.missing++;
+        } catch { st.failed++; }
+        looked++;
+        if (looked % 100 === 0 || looked === todo.length) { setStatus(`Checked ${looked.toLocaleString("en-US")} of ${todo.length.toLocaleString("en-US")}…`); show(); }
+      });
+    } else {
+      const chunks: string[][] = [];
+      for (let i = 0; i < todo.length; i += 50) chunks.push(todo.slice(i, i + 50));
+      await pool(chunks, 3, async (chunk) => {
+        for (let attempt = 0; attempt < 200; attempt++) {
+          let res: Response;
+          try {
+            res = await fetch("/api/commit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ digests: chunk.map((d) => ({ digestB64: d, hashAlg: "sha256" })), chainId: "bitgraph:main" }) });
+          } catch { await wait(5000); continue; }
+          if (res.status === 429 || res.status === 503) {
+            const after = Number(res.headers.get("retry-after")) || (res.status === 503 ? 30 : 15);
+            setStatus(res.status === 429 ? `Rate limit reached: waiting ${after} s, then continuing (made ${st.made.toLocaleString("en-US")} of ${total.toLocaleString("en-US")})…` : `The enclave is restarting: waiting ${after} s (made ${st.made.toLocaleString("en-US")} of ${total.toLocaleString("en-US")})…`);
+            await wait(after * 1000);
+            continue;
+          }
+          if (!res.ok) { st.failed += chunk.length; show(); return; }
+          const raw = (await res.json()) as Proof[] | { proofs?: Proof[] };
+          const proofs = Array.isArray(raw) ? raw : raw.proofs ?? [];
+          st.made += proofs.length; st.failed += Math.max(0, chunk.length - proofs.length);
+          st.proofs.push(...proofs);
+          setStatus(`Made ${st.made.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}…`); show();
+          return;
+        }
+        st.failed += chunk.length; show();
+      });
+    }
+    st.done = true; setStatus(null); show();
+  }, [mode]);
+
+  const downloadAll = () => {
+    if (!bulk) return;
+    const blob = new Blob([JSON.stringify(bulk.proofs, null, 1)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `bitgraphs-${bulk.proofs.length}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
   const take = useCallback(async (files: File[]) => {
+    if (files.length > MAX_FILES) { await takeMany(files); return; }
+    setBulk(null);
     const picked = files.slice(0, MAX_FILES);
     const single = picked.length === 1;
     const fresh: Row[] = picked.map((f, i) => ({ key: `${Date.now()}-${i}-${f.name}`, name: f.name, size: f.size, state: "hashing" }));
@@ -179,7 +281,7 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
       return;
     }
     if (single) { setStatus(null); setRows(final); }
-  }, [mode, router]);
+  }, [mode, router, takeMany]);
 
   const make = async () => { await makeRows(rows.filter((r) => r.state === "new" && r.digestB64)); };
 
@@ -205,7 +307,7 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }}
         onDragLeave={() => setOver(false)}
-        onDrop={(e) => { e.preventDefault(); setOver(false); void take(Array.from(e.dataTransfer.files)); }}
+        onDrop={(e) => { e.preventDefault(); setOver(false); const dt = e.dataTransfer; void filesOfDrop(dt).then((fs) => take(fs)); }}
         className="db-zone"
         data-over={over ? "1" : undefined}
       >
@@ -213,6 +315,27 @@ export function DropBox({ mode = "make" }: { mode?: "make" | "check" }) {
         <div className="db-zone-sub">Each file is hashed in your browser. Only its SHA-256 is sent; the file never leaves your machine.</div>
         <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       </div>
+
+      {bulk && (
+        <div className="db-rows">
+          <div className="db-row">
+            <div className="db-name"><span>{bulk.total.toLocaleString("en-US")} files</span></div>
+            <div className="db-state">
+              {mode === "make"
+                ? <>{bulk.made.toLocaleString("en-US")} made{bulk.failed ? `, ${bulk.failed.toLocaleString("en-US")} not made` : ""}{bulk.done ? "" : "…"}</>
+                : <>{bulk.found.toLocaleString("en-US")} are BitGraphs, {bulk.missing.toLocaleString("en-US")} are not{bulk.failed ? `, ${bulk.failed.toLocaleString("en-US")} could not be checked` : ""}{bulk.done ? "" : "…"}</>}
+            </div>
+          </div>
+          {bulk.done && bulk.proofs.length > 0 && (
+            <div className="db-row">
+              <div className="db-state">
+                <button type="button" className="db-link" onClick={downloadAll}>Download all {bulk.proofs.length.toLocaleString("en-US")} proofs</button>
+                <a href="/ledger">See them on the ledger</a>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {rows.length > 0 && (
         <div className="db-rows">

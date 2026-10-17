@@ -265,6 +265,28 @@ export async function listKeysUnderPrefix(prefix: string, maxKeys = 100_000): Pr
   return keys.sort(); // counter-padded keys sort lexicographically = causal order
 }
 
+/** Keys under `prefix` that sort after `startAfter`, in order, up to `max`: the running ledger's "what is new" read
+ *  (one LIST page per 1,000 keys, however long the day already is). */
+export async function listKeysAfter(prefix: string, startAfter: string | undefined, max = 1000): Promise<string[]> {
+  const s3 = getClient();
+  const bucket = getBucket();
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+  do {
+    const result = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      ...(continuationToken ? { ContinuationToken: continuationToken } : startAfter ? { StartAfter: startAfter } : {}),
+    }));
+    for (const obj of result.Contents || []) {
+      if (obj.Key) keys.push(obj.Key);
+      if (keys.length >= max) return keys;
+    }
+    continuationToken = result.NextContinuationToken;
+  } while (continuationToken);
+  return keys;
+}
+
 /**
  * Every recorded digest (URL-safe base64) that starts with `prefix`, up to `limit`, from the by-digest index:
  * one LIST with a delimiter, so a digest's per-position entries count once. The short-link resolver's only

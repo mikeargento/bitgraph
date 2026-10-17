@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { DropBox } from "@/components/drop-box";
 import { TerminalLine } from "@/components/terminal-line";
-import { LedgerLive } from "@/components/ledger-live";
-import { LEDGER_FIRST_DAY, countToday, rowsForDay, type LedgerRow } from "@/lib/running-ledger";
+import { LedgerRows } from "@/components/ledger-rows";
+import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-ledger";
 
 /**
  * The running ledger (Mike, 2026-10-17: "a running ledger like the base one"):
@@ -54,12 +54,10 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
   const shown = day ?? todayUTC;
   const prev = shiftDay(shown, -1);
   const next = day ? shiftDay(day, 1) : null;
-  let rows: LedgerRow[] = [];
+  let page: LedgerPage | null = null;
   let failed = false;
-  let liveCount = 0;
   try {
-    rows = await rowsForDay(shown);
-    if (!day) liveCount = (await countToday()).count;
+    page = await ledgerPage(shown);
   } catch { failed = true; }
 
   return (
@@ -81,7 +79,6 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
           .rl-num { min-width: 0; }
         }
       `}</style>
-      {!day && !failed && <LedgerLive day={todayUTC} count={liveCount} />}
       <TerminalLine text="Check a BitGraph." />
 
       {/* Check is the ledger (Mike, 2026-10-17): the drop box here only looks files up and never makes one; the
@@ -114,40 +111,10 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
         </div>
       </div>
 
-      {failed ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--faint)", fontSize: 14 }}>The ledger could not be read. Try again in a moment.</div>
-      ) : rows.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--faint)", fontSize: 14 }}>No BitGraphs on this day yet.</div>
+      {failed || !page ? (
+        <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>The ledger could not be read. Try again in a moment.</div>
       ) : (
-        <div className="rl-rows">
-          {rows.map((r) => (
-            r.digest ? (
-              <a key={r.proofHash} href={`/proof/${r.digest}`} className="xp-row xp-row-base rl-row rl-link">
-              <span className="rl-num">#{fmt(r.counter)}</span>
-              <span className="rl-counts">{r.nonceCounter ? `counts ${fmt(r.nonceCounter)}, ${fmt(r.counter)}` : ""}{r.anchor ? " · anchor" : ""}</span>
-              <span className="rl-hash" title="SHA-256 of the bound content">{r.digest ?? r.proofHash}</span>
-              {r.recordedMs !== null && (
-                <span className="rl-when">
-                  <span className="rl-when-long">{when(r.recordedMs)}</span>
-                  <span className="rl-when-short">{clock(r.recordedMs)}</span>
-                </span>
-              )}
-            </a>
-            ) : (
-              <div key={r.proofHash} className="xp-row xp-row-base rl-row">
-              <span className="rl-num">#{fmt(r.counter)}</span>
-              <span className="rl-counts">{r.nonceCounter ? `counts ${fmt(r.nonceCounter)}, ${fmt(r.counter)}` : ""}{r.anchor ? " · anchor" : ""}</span>
-              <span className="rl-hash" title="SHA-256 of the bound content">{r.digest ?? r.proofHash}</span>
-              {r.recordedMs !== null && (
-                <span className="rl-when">
-                  <span className="rl-when-long">{when(r.recordedMs)}</span>
-                  <span className="rl-when-short">{clock(r.recordedMs)}</span>
-                </span>
-              )}
-            </div>
-            )
-          ))}
-        </div>
+        <LedgerRows key={shown} day={shown} live={!day} initial={page.rows} newestKey={page.newestKey} hasOlder={page.hasOlder} />
       )}
     </div>
   );
