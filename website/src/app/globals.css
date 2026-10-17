@@ -4299,3 +4299,18 @@ html:root:root .pv-fold, html:root:root .pv-fold.is-open > .pv-fold-head { borde
 /* The verdict badge in the theme, both modes (it was the light site's green tint): outlined, ink on the panel. */
 html:root:root .pv-verdict { background: transparent !important; color: var(--ink) !important; border: 1px solid var(--dim) !important; border-radius: 0 !important; }
 html:root:root .pv-verdict-false { border-color: var(--err) !important; color: var(--err) !important; }
+
+/* Hover highlights in the theme (Mike, 2026-10-17: "hovers still bad"): --tint was the light site's pale blue, so a
+   hovered proof row, check row or calendar day went pale under light text. Now a faint neutral step in each mode. */
+html:root:root { --tint: rgba(255, 255, 255, 0.06); }
+@media (prefers-color-scheme: light) { html:root:root:not([data-theme="dark"]) { --tint: rgba(0, 0, 0, 0.05); } }
+html[data-theme="light"]:root:root { --tint: rgba(0, 0, 0, 0.05); }
+@media (hover: hover) { html:root:root .pv-row:hover::before, html:root:root .pv-claim-head:hover::before { background: var(--tint) !important; } }
+html:root:root .pv-row:hover .pv-row-value, html:root:root .pv-row:hover .pv-row-label { color: inherit; }
+
+/* Long values smaller on desktop (Mike, 2026-10-17: "make these values a little smaller so they fit on desk"):
+   a 96-character PCR fits on one line; labels and everything else stay at the one size. */
+@media (min-width: 900px) {
+  html:root:root:root:root body .pv-row-value.pv-mono, html:root:root:root:root body .pv-row-value.pv-mono * { font-size: 12px !important; letter-spacing: 0 !important; }
+  html:root:root .pv-row { grid-template-columns: minmax(140px, 190px) 1fr !important; }
+}

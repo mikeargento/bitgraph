@@ -348,14 +348,14 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         </div>
       </section>
 
-      {/* ── The two counts ── */}
+      {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
       <section className="pv-card">
-        <div className="pv-section-title">The two counts</div>
+        <div className="pv-section-title">Counter</div>
         {nonceCount !== null && (
-          <Row f={{ label: `Count ${fmtNum(nonceCount)}: the nonce, fresh and used once`, value: commit.nonceB64, mono: true }} />
+          <Row f={{ label: `1: Nonce, count ${fmtNum(nonceCount)}`, value: commit.nonceB64, mono: true }} />
         )}
         {contentCount !== null && (
-          <Row f={{ label: `Count ${fmtNum(contentCount)}: the content, bound right after it`, value: m.proof.artifact.digestB64, mono: true }} />
+          <Row f={{ label: `2: Content hash, count ${fmtNum(contentCount)}`, value: m.proof.artifact.digestB64, mono: true }} />
         )}
         {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
       </section>
