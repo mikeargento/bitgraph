@@ -7,8 +7,8 @@ import { TerminalLine } from "@/components/terminal-line";
  * "this can literally be one page if you dont count ledger"). The How it works page
  * folded in here; every old docs address redirects to it (next.config.ts).
  *
- * Order: the line, what it proves, the two steps (the drawing), two BitGraphs make an
- * interval. Making and checking one (the drop box, the API, everything else) is /make
+ * Order: the line, the two steps (the drawing), what it proves, two BitGraphs make an
+ * interval (Mike, 2026-10-17: the drawing before the paragraph). Making and checking one (the drop box, the API, everything else) is /make
  * (Mike, 2026-10-17: "everything from Try it down can be its own page").
  *
  * ⚠️ Claim discipline: bound AFTER a moment, never "at" it; the claim is about when the
@@ -32,6 +32,13 @@ export default function HomePage() {
         </div>
       </div>
 
+      <section className="home-section" aria-labelledby="home-how">
+        <p className="home-kicker">How it works</p>
+        <h2 id="home-how">Two steps, one&nbsp;action.</h2>
+        <div style={{ marginTop: 32 }}><FlowFigure /></div>
+        <p style={{ marginTop: 24 }}>If any step fails, nothing is released and the counter does not&nbsp;move.</p>
+      </section>
+
       <section className="home-section home-why" aria-label="What it proves">
         <p className="home-kicker">What it proves</p>
         <p className="home-why-body">
@@ -40,13 +47,6 @@ export default function HomePage() {
           could predict, and could not have been bound before it. The value is used once and never again, so every BitGraph is one of a kind. It says when the bits were bound, not how old
           the content&nbsp;is.
         </p>
-      </section>
-
-      <section className="home-section" aria-labelledby="home-how">
-        <p className="home-kicker">How it works</p>
-        <h2 id="home-how">Two steps, one&nbsp;action.</h2>
-        <div style={{ marginTop: 32 }}><FlowFigure /></div>
-        <p style={{ marginTop: 24 }}>If any step fails, nothing is released and the counter does not&nbsp;move.</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-between">
