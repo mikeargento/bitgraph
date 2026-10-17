@@ -4057,3 +4057,17 @@ html body { color: #c4c4c4; -webkit-font-smoothing: antialiased; -moz-osx-font-s
 @media (max-width: 760px) {
   .pf-flow.pf-flow { grid-template-rows: auto 44px auto auto 36px auto 14px 40px auto !important; }
 }
+
+/* Dashes mean the enclave and nothing else (Mike, 2026-10-17: "the only dotted lines should be denoting the
+   tee"): the nonce, BitGraph A and B, and the drop box target are solid. */
+.pf-purple { border-style: solid !important; }
+:root .db-zone { border-style: solid !important; }
+
+/* Spacing, one rhythm (Mike, 2026-10-17: "fix spacing"): every section the same 56px above and below; in
+   the stacked figure every arrow the same 44px and the enclave the same 20px inside on every side. */
+:root .home-hero { padding-bottom: 56px !important; }
+:root .home-section { padding-top: 56px !important; padding-bottom: 56px !important; }
+@media (max-width: 760px) {
+  .pf-flow.pf-flow { grid-template-columns: 20px 1fr 20px !important; grid-template-rows: auto 44px auto auto 44px auto 20px 44px auto !important; }
+  .pf-flow .pf-f-label { padding: 18px 20px 16px !important; }
+}
