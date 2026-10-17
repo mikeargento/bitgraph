@@ -15,12 +15,12 @@ Give every computation a position.
 **Two steps, one action.**
 
 ```
-                 ┌╌╌ Enclave: one atomic action ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
-┌────────────┐   ┆   ┌───────────────┐     ┌─────────────────┐   ┆   ┌───────────────┐
-│  Content   │ ──┆─▶ │   1: nonce    │ ──▶ │     2: bind     │ ──┆─▶ │     Proof     │
-│  Any bits  │   ┆   │    Unused     │     │ Content, signed │   ┆   │ Offline check │
-└────────────┘   ┆   └───────────────┘     └─────────────────┘   ┆   └───────────────┘
-                 └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
+                 ┌╌╌ Enclave: one atomic action ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
+┌────────────┐   ┆   ┌────────────────────┐     ┌─────────────────┐   ┆   ┌───────────────┐
+│  Content   │ ──┆─▶ │      1: nonce      │ ──▶ │     2: bind     │ ──┆─▶ │     Proof     │
+│  Any bits  │   ┆   │ Unseen until bound │     │ Content, signed │   ┆   │ Offline check │
+└────────────┘   ┆   └────────────────────┘     └─────────────────┘   ┆   └───────────────┘
+                 └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
 ```
 
 If any step fails, nothing is released and the counter does not move.
