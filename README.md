@@ -12,7 +12,7 @@ Give every computation a position.
 
 ## How BitGraph works
 
-**One atomic action gives every computation a unique position.**
+**One atomic action gives any computation a unique position.**
 
 ```
                  ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ Secure enclave / TEE ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
