@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = (await teeRes.json()) as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown; floor?: unknown };
-    if (!isSlotRecord(data.slot) || data.slotId !== data.slot.nonceB64 || data.chainId !== FUSE_CHAIN) {
+    if (!isSlotRecord(data.slot) || data.slotId !== data.slot.nonceB64 || data.chainId !== data.slot.chainId) {
       return NextResponse.json({ error: "Unexpected allocation response from the boundary" }, { status: 502 });
     }
 

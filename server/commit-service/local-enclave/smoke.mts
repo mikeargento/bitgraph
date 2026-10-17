@@ -16,11 +16,11 @@ try {
   ok("ordinary /commit is 200", c1.status === 200, c1.json);
   ok("ordinary proof carries slotAllocation", Array.isArray(c1.json) && !!c1.json[0]?.slotAllocation);
 
-  // 2. Allocation with no body defaults to the anchored chain.
+  // 2. Allocation with no body defaults to the Fuse chain (enclave v11: bitgraph:main takes only binds).
   const a1 = await post(`${U}/allocate-slot`, undefined);
   ok("/allocate-slot with no body is 200", a1.status === 200, a1.json);
-  ok("default chain is bitgraph:main", a1.json?.chainId === "bitgraph:main", a1.json);
-  ok("slot record carries chainId", a1.json?.slot?.chainId === "bitgraph:main", a1.json?.slot);
+  ok("default chain is bitgraph:fuse", a1.json?.chainId === "bitgraph:fuse", a1.json);
+  ok("slot record carries chainId", a1.json?.slot?.chainId === "bitgraph:fuse", a1.json?.slot);
   ok("slotId is the slot nonce", a1.json?.slotId === a1.json?.slot?.nonceB64);
 
   // 3. Explicit chainId is honoured; bad shapes refused.

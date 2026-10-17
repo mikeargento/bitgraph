@@ -5,6 +5,8 @@
 // commit as commit.slotFloor. No Ethereum anchor is needed on the anchored chain.
 // Run: node --import tsx/esm base-floor-v10.mts
 import { startStack, post, randomDigestB64, ANCHORED_CHAIN } from "./lib.mts";
+// Enclave v11: held slots live on bitgraph:fuse (same Base floor rule); bitgraph:main takes only binds.
+const FUSE_CHAIN = "bitgraph:fuse";
 import { VsockClient } from "../src/parent/vsock-client.ts";
 import { encodeBaseHeaderRlp } from "../src/parent/base-head.ts";
 import { getPublicKeyAsync, signAsync, utils } from "@noble/ed25519";
@@ -33,11 +35,11 @@ const headerB64 = (b: ReturnType<typeof base.head>) => Buffer.from(encodeBaseHea
 const direct = (body: Record<string, unknown>) => enclave.send({ type: "allocateSlot", ...body } as never);
 
 try {
-  // 1. With no Ethereum anchor at all, the anchored chain allocates and the floor is the Base head.
-  const s1 = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
+  // 1. With no Ethereum anchor at all, the Fuse chain allocates and the floor is the Base head.
+  const s1 = await post(`${U}/allocate-slot`, { chainId: FUSE_CHAIN });
   const head1 = base.head();
   const f1 = s1.json?.floor;
-  ok("allocation on the anchored chain succeeds with no Ethereum anchor", s1.status === 200, s1.json);
+  ok("allocation on the Fuse chain succeeds with no Ethereum anchor", s1.status === 200, s1.json);
   ok("it returns a Base floor naming its chain", f1?.chain === "base" && f1?.evmChainId === 8453, f1);
   ok("the floor is a block the stand-in Base produced, hash and number from its header",
     typeof f1?.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(f1.blockHash) && f1.blockNumber <= parseInt(head1.number, 16) && f1.blockNumber >= parseInt(head1.number, 16) - 2, { f1, head: head1.number });
@@ -47,7 +49,7 @@ try {
   await sleep(2300);
   const c1 = await post(`${U}/commit`, { digests: [{ digestB64: randomDigestB64(), hashAlg: "sha256" }], slotId: s1.json.slotId });
   const p1 = proofOf(c1);
-  ok("the held slot commits on the anchored chain", c1.status === 200, c1.json);
+  ok("the held slot commits on the Fuse chain", c1.status === 200, c1.json);
   ok("commit.slotFloor equals the floor returned at allocation", JSON.stringify(p1?.commit?.slotFloor) === JSON.stringify(f1), { returned: f1, signed: p1?.commit?.slotFloor });
   ok("the proof carries no slotAnchor", !("slotAnchor" in (p1?.commit ?? {})), p1?.commit);
   ok("the slot record itself is unchanged (no floor in it)", !("floor" in (p1?.slotAllocation ?? {})) && !("baseFloor" in (p1?.slotAllocation ?? {})), p1?.slotAllocation);
@@ -60,15 +62,17 @@ try {
 
   // 4. A public caller cannot choose the floor: a header in the request body is ignored.
   const stale = base.head();
-  const injected = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN, baseFloorHeaderB64: "AAAA", floor: { blockNumber: 1 } });
+  const injected = await post(`${U}/allocate-slot`, { chainId: FUSE_CHAIN, baseFloorHeaderB64: "AAAA", floor: { blockNumber: 1 } });
   ok("a header sent by a public caller is ignored; the floor is the parent's", injected.status === 200 && injected.json?.floor?.blockNumber >= parseInt(stale.number, 16) - 2, injected.json);
 
   // 5. Direct to the enclave: the negative cases.
   const good = base.head();
   const okDirect = await direct({ chainId: "harness:direct", baseFloorHeaderB64: headerB64(good) });
   ok("a real header is accepted on another chain", okDirect.ok && (okDirect.data as any)?.floor?.blockHash === good.hash, okDirect);
-  const noHeaderMain = await direct({ chainId: ANCHORED_CHAIN });
-  ok("no header on the anchored chain is refused", !noHeaderMain.ok && /no-base-floor/.test(noHeaderMain.error ?? ""), noHeaderMain);
+  const noHeaderMain = await direct({ chainId: FUSE_CHAIN });
+  ok("no header on the Fuse chain is refused", !noHeaderMain.ok && /no-base-floor/.test(noHeaderMain.error ?? ""), noHeaderMain);
+  const heldOnMain = await direct({ chainId: ANCHORED_CHAIN, baseFloorHeaderB64: headerB64(base.head()) });
+  ok("v11: a held slot on bitgraph:main is refused (binds only)", !heldOnMain.ok && /main-binds-only/.test(heldOnMain.error ?? ""), heldOnMain);
   const noHeaderOther = await direct({ chainId: "harness:unfloored" });
   ok("no header on another chain is allowed, with no floor", noHeaderOther.ok && !("floor" in ((noHeaderOther.data as object) ?? {})), noHeaderOther);
   const garbage = await direct({ chainId: "harness:direct", baseFloorHeaderB64: Buffer.from("not a header").toString("base64") });
@@ -104,7 +108,7 @@ try {
   // 6. Through the parent: a Base node that stamps ahead stops allocations; it resumes when that ends.
   base.skew(60);
   await sleep(2600);
-  const skewed = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
+  const skewed = await post(`${U}/allocate-slot`, { chainId: FUSE_CHAIN });
   // The parent never sends a header stamped after its clock; it falls back to the previous
   // good one, or has none to send. Either way no floor is ever stamped in the future.
   ok("when Base's newest block is stamped ahead, no allocation gets a future floor (an older one, or a refusal)",
@@ -112,11 +116,11 @@ try {
   base.skew(0);
   // Wait until Base's newest block is stamped normally again, and the parent has read it.
   for (let i = 0; i < 40; i++) {
-    const t = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
+    const t = await post(`${U}/allocate-slot`, { chainId: FUSE_CHAIN });
     if (t.status === 200) break;
     await sleep(500);
   }
-  const recovered = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
+  const recovered = await post(`${U}/allocate-slot`, { chainId: FUSE_CHAIN });
   ok("once Base's newest block is stamped normally again, allocation resumes on its own", recovered.status === 200, recovered.json);
 
   // 6b. Anchors in v10: a valid claim still commits (and is signed as commit.anchor);
@@ -143,20 +147,20 @@ try {
   const afterAnchor = await post(`${U}/commit`, { digests: [{ digestB64: randomDigestB64(), hashAlg: "sha256" }], chainId: ANCHORED_CHAIN });
   const pa = proofOf(afterAnchor);
   ok("a record after the anchor carries its Base floor and no Ethereum slotAnchor (one floor per proof)", afterAnchor.status === 200 && pa?.commit?.slotFloor?.chain === "base" && !("slotAnchor" in (pa?.commit ?? {})), pa?.commit);
-  const allocAfter = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
+  const allocAfter = await post(`${U}/allocate-slot`, { chainId: FUSE_CHAIN });
   ok("an allocation after the anchor returns the Base floor and no anchor", allocAfter.status === 200 && allocAfter.json?.floor?.chain === "base" && !("anchor" in (allocAfter.json ?? {})), allocAfter.json);
 
   // 7. A halt: the floor ages, nothing pauses.
   base.halt();
   await sleep(600);
-  const h1 = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
+  const h1 = await post(`${U}/allocate-slot`, { chainId: FUSE_CHAIN });
   await sleep(2500);
-  const h2 = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
+  const h2 = await post(`${U}/allocate-slot`, { chainId: FUSE_CHAIN });
   ok("during a halt allocation still succeeds", h1.status === 200 && h2.status === 200, { h1: h1.json, h2: h2.json });
   ok("and the floor stays on the last block (it ages)", h1.json?.floor?.blockNumber === h2.json?.floor?.blockNumber, { a: h1.json?.floor, b: h2.json?.floor });
   base.resume();
   await sleep(800);
-  const h3 = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
+  const h3 = await post(`${U}/allocate-slot`, { chainId: FUSE_CHAIN });
   ok("after the halt the floor moves on", h3.status === 200 && h3.json?.floor?.blockNumber > h2.json?.floor?.blockNumber, { before: h2.json?.floor, after: h3.json?.floor });
 } finally {
   stack.stop();

@@ -415,7 +415,7 @@ async function allocateHosted(): Promise<{ slot: SlotAllocation; floor: FloorMar
     );
   }
   const a = alloc.json as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown; floor?: unknown } | null;
-  if (a === null || !isSlotRecord(a.slot) || a.slotId !== a.slot.nonceB64 || a.chainId !== FUSE_CHAIN) {
+  if (a === null || !isSlotRecord(a.slot) || a.slotId !== a.slot.nonceB64 || a.chainId !== a.slot.chainId) {
     throw new HostedFuseError("allocate-failed", "the allocation response is not a position record", alloc.status);
   }
   const base = isBaseFloorMark(a.floor) ? a.floor : null;
@@ -587,7 +587,7 @@ export async function commitHosted(state: OpenState, artifactDigestB64: string):
     digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
-    chainId: FUSE_CHAIN,
+    chainId: slot.chainId,
     attribution: markerFor(fuseAttribution(placement, originDigest), floorOfState(state)),
     ...floorFields(floorOfState(state)),
   });
@@ -700,7 +700,7 @@ export async function commitHostedSet(entries: readonly SetEntry[]): Promise<Com
     digests: [{ digestB64: built.digestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
-    chainId: FUSE_CHAIN,
+    chainId: slot.chainId,
     attribution: markerFor(fuseAttribution(SET_PLACEMENT_ID), floor),
     metadata: { [SET_METADATA_KEY]: built.manifestObject },
     ...floorFields(floor),
@@ -797,7 +797,7 @@ export async function commitHostedTree(entries: readonly SetEntry[]): Promise<Co
     digests: [{ digestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
-    chainId: FUSE_CHAIN,
+    chainId: slot.chainId,
     attribution: treeAttribution(specHash),
     metadata: { [TREE_METADATA_KEY]: hex },
     ...floorFields(floor),
@@ -1003,7 +1003,7 @@ export async function commitHostedTask(state: TaskState, artifactDigestB64: stri
     digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
-    chainId: FUSE_CHAIN,
+    chainId: slot.chainId,
     attribution: markerFor(inlineAttribution(), floorOfState(state)),
     ...floorFields(floorOfState(state)),
   });

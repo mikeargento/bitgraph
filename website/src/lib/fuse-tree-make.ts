@@ -231,8 +231,8 @@ async function allocate(t: Bound): Promise<{ slot: SlotAllocation; floor: FloorM
   if (r.status === 503 && codeOf(r.json) === "tee-restarting") throw new FuseError("tee-restarting", messageOf(r.json, "the boundary is restarting"), 503);
   if (r.status !== 200) throw new FuseError("allocate-failed", messageOf(r.json, `allocation failed (${r.status})`), r.status);
   const j = r.json as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown; floor?: unknown } | null;
-  if (j === null || !isSlotRecord(j.slot) || j.slotId !== j.slot.nonceB64 || j.chainId !== FUSE_CHAIN) {
-    throw new FuseError("allocate-failed", "the allocation response is not a position record on bitgraph:main", r.status);
+  if (j === null || !isSlotRecord(j.slot) || j.slotId !== j.slot.nonceB64 || j.chainId !== j.slot.chainId) {
+    throw new FuseError("allocate-failed", `the allocation response is not a position record on ${FUSE_CHAIN}`, r.status);
   }
   const base = isBaseFloorMark(j.floor) ? j.floor : null;
   const eth = isAnchorMark(j.anchor) ? j.anchor : null;
@@ -336,7 +336,7 @@ export async function commitInPosition(
     digests: [{ digestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
-    chainId: FUSE_CHAIN,
+    chainId: slot.chainId,
     attribution,
     ...floorField(floor),
   };
@@ -473,7 +473,7 @@ export async function makeTree(inputs: readonly TreeInput[], opts: MakeTreeOptio
     digests: [{ digestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
-    chainId: FUSE_CHAIN,
+    chainId: slot.chainId,
     attribution,
     metadata: { [TREE_METADATA_KEY]: hex },
     // The floor the commitment bound: the route checks an Ethereum anchor against its ledger before the

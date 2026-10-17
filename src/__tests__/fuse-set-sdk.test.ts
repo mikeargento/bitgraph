@@ -498,9 +498,9 @@ describe("fuseSet(): the boundary", () => {
     assert.equal(allocates(c.calls).length, 1);
   });
 
-  test("18. a slot off the anchored chain is refused; nothing is built or committed", async () => {
+  test("18. a slot off a floored chain is refused; nothing is built or committed", async () => {
     const { calls, transport } = honest(key, { ...slot, chainId: "global" });
-    await assert.rejects(fuseSet(two(), { transport }), (e: FuseError) => e.code === "allocate-failed" && /anchored chain/.test(e.message));
+    await assert.rejects(fuseSet(two(), { transport }), (e: FuseError) => e.code === "allocate-failed" && /floored chain/.test(e.message));
     assert.equal(commits(calls).length, 0);
   });
 });

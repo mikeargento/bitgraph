@@ -25,7 +25,8 @@
  *   two counts per BitGraph, no gaps, so a stretch from A to B accounts for
  *   every count in between.
  *
- * Origin slot protocol (2-RTT), kept as an optional feature (Fuse):
+ * Origin slot protocol (2-RTT), kept as an optional feature (Fuse), on its
+ * own chain (bitgraph:fuse) so the main chain stays gapless:
  *   1. allocateSlot() → TEE generates hardware nonce, signs slot record,
  *      and hands the nonce out as the slotId.
  *   2. commit(slotId, digest) → TEE consumes slot, binds artifact hash.
@@ -197,6 +198,11 @@ const ANCHOR_SERVICE_PUBLIC_KEY_B64 = "L/zyqG3111Y0hEyKF6NIKI4amSvSBBQxGMjdjLa25
 // floorless proof on it: see the gate in handleCommit. Every other chain is
 // unanchored by design and unaffected.
 const ANCHORED_CHAIN_ID = "bitgraph:main";
+// Enclave v11: bitgraph:main takes ONLY binds, so its counter runs straight
+// through, two counts per BitGraph, no gaps. A held slot (Fuse, trees) is
+// allocated on its own chain, which keeps the Base floor rule.
+const FUSE_CHAIN_ID = "bitgraph:fuse";
+const FLOORED_CHAIN_IDS = new Set([ANCHORED_CHAIN_ID, FUSE_CHAIN_ID]);
 const ANCHOR_ATTRIBUTION_NAME = "Ethereum Anchor";
 const ANCHOR_MESSAGE_PREFIX = "bitgraph-anchor/1";
 const anchorServicePublicKey = new Uint8Array(Buffer.from(ANCHOR_SERVICE_PUBLIC_KEY_B64, "base64"));
@@ -395,12 +401,20 @@ async function handleAllocateSlot(
   // first anchor). Other chains take a floor when one is offered.
   const chain = getChain(chainId);
   const resolvedChainIdForFloor = chainId ?? DEFAULT_CHAIN;
+  // v11: a held slot on the main chain would hand its nonce out and leave a
+  // gap if it expired. bind() is the only way onto bitgraph:main.
+  if (!internal && resolvedChainIdForFloor === ANCHORED_CHAIN_ID) {
+    throw new Error(
+      `main-binds-only: ${ANCHORED_CHAIN_ID} takes only binds (nonce and payload in one action). ` +
+        `Allocate a held slot on ${FUSE_CHAIN_ID}, or bind.`,
+    );
+  }
   let baseFloor: BaseFloor | undefined;
   if (baseFloorHeaderB64 !== undefined) {
     baseFloor = checkBaseFloorHeader(baseFloorHeaderB64, chain.latestBaseFloor, Date.now());
-  } else if (resolvedChainIdForFloor === ANCHORED_CHAIN_ID) {
+  } else if (FLOORED_CHAIN_IDS.has(resolvedChainIdForFloor)) {
     throw new Error(
-      `no-base-floor: an allocation on ${ANCHORED_CHAIN_ID} must carry the newest Base block header, ` +
+      `no-base-floor: an allocation on ${resolvedChainIdForFloor} must carry the newest Base block header, ` +
         "and none was sent. The parent has no Base header yet; try again in a few seconds.",
     );
   }

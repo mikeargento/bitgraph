@@ -11,7 +11,7 @@ import { encodeBaseHeaderRlp } from "../src/parent/base-head.ts";
 import { verify, createVerificationContext, verifyStretch, verifyBetween, computeChainHash } from "../../../packages/verify/dist/index.js";
 
 const enclavePort = 59500 + Math.floor(Math.random() * 400);
-const stack = await startStack({ quiet: true, enclavePort, parentEnv: { ATOMIC_BIND: "on", FUSE_ENABLED: "true" } });
+const stack = await startStack({ quiet: true, enclavePort, parentEnv: { FUSE_ENABLED: "true" } });
 const U = stack.parentUrl;
 const base = stack.base!;
 const enclave = new VsockClient({ host: "127.0.0.1", port: enclavePort });
@@ -85,19 +85,29 @@ try {
   const holed = verifyStretch([A, R2, B].map(strip));
   ok("leaving a record out shows the unaccounted counts", !holed.ok && holed.reasons.some((r) => /unaccounted/.test(r)), holed);
 
-  // 6. Fuse is still there, as an option: a held slot commits on the old path,
-  //    is not atomic, and breaks a stretch it lands inside.
+  // 6. Fuse is still there, as an option, on its own chain: a held slot is
+  //    allocated on bitgraph:fuse and commits on the old path, not atomic.
+  //    bitgraph:main refuses held slots, so Fuse activity takes no counts
+  //    there: main stays one unbroken run of binds.
+  const heldOnMain = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
+  ok("a held slot on bitgraph:main is refused (binds only)", heldOnMain.status !== 200 && /main-binds-only/.test(JSON.stringify(heldOnMain.json)), heldOnMain.json);
   const before = await commit();
-  const slot = await post(`${U}/allocate-slot`, { chainId: ANCHORED_CHAIN });
-  ok("Fuse: /allocate-slot still hands out a slot", slot.status === 200 && typeof slot.json?.slotId === "string", slot.json);
+  const slot = await post(`${U}/allocate-slot`, {});
+  ok("Fuse: /allocate-slot hands out a slot on bitgraph:fuse by default", slot.status === 200 && slot.json?.chainId === "bitgraph:fuse" && slot.json?.slot?.chainId === "bitgraph:fuse", slot.json);
+  ok("Fuse: the slot carries its Base floor", slot.json?.floor?.chain === "base", slot.json);
   const fused = proofOf(await post(`${U}/commit`, { digests: [{ digestB64: randomDigestB64(), hashAlg: "sha256" }], slotId: slot.json.slotId }));
   ok("Fuse: the held slot commits", !!fused?.commit, fused);
   ok("Fuse: its proof is not atomic", fused?.commit?.atomic === undefined, fused?.commit);
+  ok("Fuse: its proof is on bitgraph:fuse with a Base floor", fused?.commit?.chainId === "bitgraph:fuse" && fused?.commit?.slotFloor?.chain === "base", fused?.commit);
   const vf = await verify({ proof: strip(fused), context: createVerificationContext() });
   ok("Fuse: its proof is still VALID", vf.valid === true, vf);
+  const expired = await post(`${U}/allocate-slot`, {});
+  ok("Fuse: a slot left unused is fine (it can only gap bitgraph:fuse)", expired.status === 200);
   const after = await commit();
+  const around = verifyStretch([before, after].map(strip));
+  ok("main stays unbroken across Fuse activity: the binds before and after are consecutive", around.ok, around);
   const mixed = verifyStretch([before, fused, after].map(strip));
-  ok("a stretch with a two-call proof inside is not unbroken, and says why", !mixed.ok && mixed.reasons.some((r) => /not a bind/.test(r)), mixed);
+  ok("a two-call proof cannot be passed off inside a main stretch", !mixed.ok && mixed.reasons.some((r) => /not a bind/.test(r)), mixed);
 
   // 7. The enclave's own lock: 24 binds on separate raw connections at once,
   //    no parent queue in front. Each must be atomic, and the run unbroken.

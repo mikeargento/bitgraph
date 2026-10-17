@@ -4,8 +4,14 @@
  * directly.
  */
 
-/** Every Fuse slot is allocated on the anchored chain, or it has no floor. */
-export const FUSE_CHAIN = "bitgraph:main";
+/**
+ * Where new Fuse slots are allocated. Enclave v11 keeps bitgraph:main for
+ * binds only (nonce and payload in one action, no gaps), so held slots have
+ * their own chain, with the same Base floor rule.
+ */
+export const FUSE_CHAIN = "bitgraph:fuse";
+/** Chains a Fuse slot record may name: bitgraph:fuse from v11, bitgraph:main before it. */
+export const FUSE_SLOT_CHAINS: readonly string[] = [FUSE_CHAIN, "bitgraph:main"];
 
 /**
  * The signed attribution name every fused proof carries (spec 6.5): the
@@ -100,7 +106,7 @@ export function isSlotRecord(x: unknown): x is SlotRecord {
     typeof s.counter === "string" && DECIMAL.test(s.counter) &&
     typeof s.epochId === "string" && B64_32.test(s.epochId) &&
     typeof s.publicKeyB64 === "string" && B64_32.test(s.publicKeyB64) &&
-    s.chainId === FUSE_CHAIN &&
+    typeof s.chainId === "string" && FUSE_SLOT_CHAINS.includes(s.chainId) &&
     typeof s.signatureB64 === "string" && B64_64.test(s.signatureB64)
   );
 }

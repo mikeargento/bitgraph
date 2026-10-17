@@ -40,7 +40,7 @@ async function anchorAt(n: number) {
 }
 
 async function makeTree(files: Array<{ name: string; bytes: Uint8Array; code: number }>) {
-  const a = await post(`${U}/allocate-slot`, { chainId: CHAIN });
+  const a = await post(`${U}/allocate-slot`, { chainId: "bitgraph:fuse" });
   if (a.status !== 200) throw new Error("allocate: " + JSON.stringify(a.json));
   // Enclave v10: the allocation returns a Base floor, so the tree is fuse/3 and pins SPEC v2.
   const { slotId, slot, floor: anchor } = a.json as { slotId: string; slot: F.SlotAllocation; floor?: { chain: "base"; evmChainId: 8453; blockNumber: number; blockHash: string; blockTimestamp: number } };

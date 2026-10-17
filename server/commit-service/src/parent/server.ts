@@ -14,12 +14,12 @@
  *   GET  /health          — { ok: true }
  *
  * BitGraph Causal Commit Model:
- *   With ATOMIC_BIND=on (enclave v11), POST /commit without a slotId is ONE
+ *   Against enclave v11 (its /key says bind: "atomic"), POST /commit without a slotId is ONE
  *   enclave call per digest, "bind": the nonce at count N and the digest at
  *   N+1 in one atomic action, so the nonce never leaves the enclave and the
  *   parent never sees it. A slotId on /commit (Fuse) still takes the 2-RTT path.
  *
- *   Without ATOMIC_BIND the parent internally handles the 2-RTT protocol (allocateSlot → commit)
+ *   Against an older enclave the parent internally handles the 2-RTT protocol (allocateSlot → commit)
  *   so clients can still use the single POST /commit API. POST /allocate-slot
  *   hands out a client-held slot for the two-phase form (allocate first, then
  *   commit under that exact slot). It is metered, because a bare allocation
@@ -57,9 +57,16 @@ const ALLOW_DEBUG_MODE = process.env["ALLOW_DEBUG_MODE"] === "true";
 // enclave is unchanged either way (its commitDigest already takes a slotId).
 const FUSE_ENABLED = process.env["FUSE_ENABLED"] === "true";
 // Enclave v11: POST /commit binds each digest in ONE enclave call (nonce at N,
-// digest at N+1). Off until the v11 enclave is live: a v10 enclave answers
-// "Unknown action: bind", and the parent never falls back silently.
-const ATOMIC_BIND = process.env["ATOMIC_BIND"] === "on";
+// digest at N+1). On when the enclave's /key says bind: "atomic" (v11, which
+// also refuses held slots on bitgraph:main, so it must be on there).
+// ATOMIC_BIND=on / off overrides, for tests. Never a silent fallback: a
+// bind the enclave refuses is an error, not a two-call commit.
+const ATOMIC_BIND_ENV = process.env["ATOMIC_BIND"];
+async function atomicBind(): Promise<boolean> {
+  if (ATOMIC_BIND_ENV === "on") return true;
+  if (ATOMIC_BIND_ENV === "off") return false;
+  return (await getKeyInfo()).bind === "atomic";
+}
 /** The slotId returned by /allocate-slot is the slot's 32-byte nonce in standard base64. */
 const SLOT_ID_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
 
@@ -129,7 +136,6 @@ async function bindWithFloor(req: Omit<BindRequest, "type" | "baseFloorHeaderB64
   await baseHead.ensureSaved(older);
   return enclaveClient.send({ type: "bind", ...req, baseFloorHeaderB64: older.headerB64 });
 }
-if (ATOMIC_BIND) console.log("[parent] atomic bind on: POST /commit binds each digest in one enclave call");
 
 if (LEDGER_BUCKET) {
   console.log(`[parent] S3 ledger enabled: ${LEDGER_BUCKET}`);
@@ -256,9 +262,9 @@ function hasValidApiKey(req: IncomingMessage): boolean {
 
 const enclaveClient: EnclaveClient = new VsockClient();
 
-let cachedKeyResponse: { publicKeyB64: string; measurement: string; enforcement: string } | null = null;
+let cachedKeyResponse: { publicKeyB64: string; measurement: string; enforcement: string; bind?: string } | null = null;
 
-async function getKeyInfo(): Promise<{ publicKeyB64: string; measurement: string; enforcement: string }> {
+async function getKeyInfo(): Promise<{ publicKeyB64: string; measurement: string; enforcement: string; bind?: string }> {
   if (cachedKeyResponse) return cachedKeyResponse;
   const result = await enclaveClient.send({ type: "key" });
   if (!result.ok || !result.data) {
@@ -464,7 +470,7 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
     }
 
     let commitResult;
-    if (ATOMIC_BIND && heldSlotId === undefined) {
+    if (heldSlotId === undefined && await atomicBind()) {
       // Enclave v11: one call, nonce at N and this digest at N+1. No slotId
       // ever exists outside the enclave.
       commitResult = await bindWithFloor({
@@ -607,7 +613,9 @@ async function handleChallenge(_req: IncomingMessage, res: ServerResponse): Prom
 
 /** Chain identifiers are short printable ASCII, e.g. "bitgraph:main". */
 const CHAIN_ID_PATTERN = /^[\x21-\x7e]{1,128}$/;
-const DEFAULT_ALLOCATION_CHAIN = "bitgraph:main";
+// Enclave v11: held slots (Fuse, trees) live on their own chain; bitgraph:main
+// takes only binds and the enclave refuses a held slot there.
+const DEFAULT_ALLOCATION_CHAIN = "bitgraph:fuse";
 
 async function handleAllocateSlot(req: IncomingMessage, res: ServerResponse): Promise<void> {
   // Pre-allocates a causal slot (nonce-first) that the caller holds and later
@@ -739,6 +747,10 @@ server.listen(PORT, async () => {
   const rl = rateLimitConfig();
   console.log(`[parent] /commit rate limit: ${rl.perIpCapacity} digests/IP burst, +${rl.perIpRefillPerMin}/min refill, ${rl.globalPerDay}/day global`);
   console.log(`[parent] fuse: client-held slots on /commit are ${FUSE_ENABLED ? "ENABLED" : "disabled"} (FUSE_ENABLED)`);
+  atomicBind().then(
+    (on) => console.log(`[parent] POST /commit ${on ? "binds each digest in ONE enclave call (enclave v11)" : "allocates then commits (two calls)"}`),
+    () => {},
+  );
   const al = allocationLimiter.config();
   console.log(`[parent] /allocate-slot limit: ${al.perIpCapacity} slots/IP burst, +${al.perIpRefillPerMin}/min refill, ${al.globalPerWindow} per ${al.windowMs / 1000}s global`);
 

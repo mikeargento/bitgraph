@@ -134,9 +134,9 @@ describe("fuse(): the four beats", () => {
     assert.throws(() => builderFor("nope/1" as never), (e: FuseError) => e.code === "bad-placement");
   });
 
-  test("a slot off the anchored chain is refused", async () => {
+  test("a slot off a floored chain is refused", async () => {
     const proof = proofOf("trailer.proof.json");
     const { transport } = fakeTransport({ ...proof.slotAllocation!, chainId: "global" }, () => ({ status: 200, json: { proof } }));
-    await assert.rejects(fuse(builderFor("trailer/1", bytes("original.txt")), { placement: "trailer/1", original: bytes("original.txt"), transport }), (e: FuseError) => e.code === "allocate-failed" && /anchored chain/.test(e.message));
+    await assert.rejects(fuse(builderFor("trailer/1", bytes("original.txt")), { placement: "trailer/1", original: bytes("original.txt"), transport }), (e: FuseError) => e.code === "allocate-failed" && /floored chain/.test(e.message));
   });
 });

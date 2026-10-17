@@ -402,7 +402,8 @@ async function allocateSlot(t: BoundTransport): Promise<{ slot: SlotAllocation; 
   const slotId = (alloc.json as { slotId?: unknown } | null)?.slotId;
   const slot = (alloc.json as { slot?: unknown } | null)?.slot;
   if (!isSlotRecord(slot) || slotId !== slot.nonceB64) throw new FuseError("allocate-failed", "the allocation response is not a slot record", alloc.status);
-  if (slot.chainId !== "bitgraph:main") throw new FuseError("allocate-failed", "the slot is not on the anchored chain; a fused floor needs bitgraph:main");
+  // bitgraph:fuse from enclave v11 (bitgraph:main takes only binds there); bitgraph:main before it.
+  if (slot.chainId !== "bitgraph:fuse" && slot.chainId !== "bitgraph:main") throw new FuseError("allocate-failed", "the slot is not on a floored chain; a fused floor needs bitgraph:fuse (or bitgraph:main before enclave v11)");
   const anchorRaw = (alloc.json as { anchor?: unknown } | null)?.anchor;
   const floorRaw = (alloc.json as { floor?: unknown } | null)?.floor;
   const eth = isAnchorMark(anchorRaw) ? anchorRaw : null;
@@ -516,7 +517,7 @@ export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<
     digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
-    chainId: "bitgraph:main",
+    chainId: slot.chainId,
     attribution,
     // fuse/2: the boundary checks the bound floor against its ledger before spending the slot.
     // fuse/3: the bound Base floor, so the boundary can check it is the one it handed out.
@@ -912,7 +913,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
-    chainId: "bitgraph:main",
+    chainId: slot.chainId,
     attribution: fuseAttribution(setKind === "set/1" ? SET_PLACEMENT_ID_LOCAL : SET2_PLACEMENT_ID, undefined, version),
     metadata: { [SET_METADATA_KEY]: manifest },
     ...(version === 2 ? { anchor } : version === 3 ? { floor: anchor } : {}),
@@ -1360,7 +1361,7 @@ export async function fuseTree(members: readonly FuseTreeMember[], options: Fuse
     digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
-    chainId: "bitgraph:main",
+    chainId: slot.chainId,
     attribution: treeAttribution(specHash),
     metadata: { [TREE_METADATA_KEY]: bytesToHex(rootDocument) },
     // fuse/2: the boundary checks the bound floor against its ledger before spending the slot.

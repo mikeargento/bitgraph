@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
 
     const slot = body.slot;
     if (!isSlotRecord(slot)) {
-      return NextResponse.json({ error: "body.slot must be the position record returned by /api/fuse/allocate (chain bitgraph:main)" }, { status: 400 });
+      return NextResponse.json({ error: "body.slot must be the position record returned by /api/fuse/allocate (chain bitgraph:fuse)" }, { status: 400 });
     }
     if (body.slotId !== slot.nonceB64) {
       return NextResponse.json({ error: "body.slotId must equal body.slot.nonceB64" }, { status: 400 });
@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
     const forward: Record<string, unknown> = {
       digests: [{ digestB64, hashAlg: "sha256" }],
       slotId: slot.nonceB64,
-      chainId: FUSE_CHAIN,
+      chainId: slot.chainId,
       attribution,
     };
     if (body.agency !== undefined) forward.agency = body.agency;

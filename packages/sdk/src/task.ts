@@ -24,7 +24,8 @@ import { ApiError, type ApiConfig } from "./api.js";
 import { toUrlSafeB64 } from "./encoding.js";
 
 export const SLOT_TTL_SECONDS = 120;
-const CHAIN = "bitgraph:main";
+/** Where held slots live: bitgraph:fuse from enclave v11 (bitgraph:main takes only binds there), bitgraph:main before it. */
+const SLOT_CHAINS: readonly string[] = ["bitgraph:fuse", "bitgraph:main"];
 const B64_32 = /^[A-Za-z0-9+/]{43}=$/;
 const B64_64 = /^[A-Za-z0-9+/]{86}==$/;
 
@@ -80,7 +81,7 @@ function isSlotRecord(x: unknown): x is SlotAllocation {
   if (x === null || typeof x !== "object" || Array.isArray(x)) return false;
   const s = x as Record<string, unknown>;
   return s.version === "bitgraph/slot/1" && typeof s.nonceB64 === "string" && B64_32.test(s.nonceB64) && typeof s.counter === "string" && /^(0|[1-9][0-9]*)$/.test(s.counter)
-    && typeof s.epochId === "string" && typeof s.publicKeyB64 === "string" && typeof s.signatureB64 === "string" && B64_64.test(s.signatureB64) && s.chainId === CHAIN;
+    && typeof s.epochId === "string" && typeof s.publicKeyB64 === "string" && typeof s.signatureB64 === "string" && B64_64.test(s.signatureB64) && typeof s.chainId === "string" && SLOT_CHAINS.includes(s.chainId);
 }
 
 export function encodeTaskToken(state: TaskState): string {
@@ -132,7 +133,7 @@ export async function beginTask(config: ApiConfig): Promise<Begun> {
   const r = await post(config, "/api/fuse/allocate", {}, 20_000);
   if (r.status !== 200) throw new ApiError(r.status, messageOf(r.json, `allocation refused (${r.status})`), r.retryAfterSec);
   const slot = (r.json as { slot?: unknown } | null)?.slot;
-  if (!isSlotRecord(slot)) throw new ApiError(502, "the allocation response is not a slot record on bitgraph:main");
+  if (!isSlotRecord(slot)) throw new ApiError(502, "the allocation response is not a slot record");
   const anchorRaw = (r.json as { anchor?: unknown } | null)?.anchor;
   const floorRaw = (r.json as { floor?: unknown } | null)?.floor;
   const anchor = isAnchorMark(anchorRaw) ? anchorRaw : undefined;
@@ -180,7 +181,7 @@ export async function sealTask(config: ApiConfig, state: TaskState, task: { path
     throw new ApiError(400, `the task bytes do not contain the commitment string ${toUrlSafeB64(bytesToBase64(commitment))}; put it in before sealing. Nothing was committed and the position is still held.`);
   }
   const attribution = inlineAttribution(version);
-  const r = await post(config, "/api/fuse/commit", { digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }], slotId: slot.nonceB64, slot, chainId: CHAIN, attribution, ...(version === 2 ? { anchor: state.anchor } : version === 3 ? { floor: state.floor } : {}) }, 40_000);
+  const r = await post(config, "/api/fuse/commit", { digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }], slotId: slot.nonceB64, slot, chainId: slot.chainId, attribution, ...(version === 2 ? { anchor: state.anchor } : version === 3 ? { floor: state.floor } : {}) }, 40_000);
   let proof: BitGraphProof | null = null;
   if (r.status === 200) proof = ((r.json as { proof?: BitGraphProof } | null)?.proof ?? null);
   else if (r.status === 409 || r.status === 503) proof = await recover(config, artifactDigestB64, slot);
