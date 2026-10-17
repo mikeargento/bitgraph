@@ -25,8 +25,9 @@ export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        <h1>Bound after a moment nobody could&nbsp;predict.</h1>
-        <p className="home-contrast">One enclave. Two steps. <br className="br-mob" />One atomic&nbsp;action.</p>
+        {/* Mike, 2026-10-17: "Position commitments for computing" (after "Bound after a moment nobody could predict." and
+            "One enclave. Two steps. One atomic action." were both cut the same night). */}
+        <h1>Position commitments for&nbsp;computing.</h1>
         <div className="actions art-home-actions">
           <a className="bg-action-link is-make" href="#make">Make a BitGraph</a>
           <Link className="bg-action-link" href="/how-it-works">How it works</Link>
