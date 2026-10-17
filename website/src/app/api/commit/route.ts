@@ -32,6 +32,10 @@ const teeRestarting503 = () => teeRestarting503Bare(VERSION_HEADER);
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    // A caller that names no chain binds on bitgraph:main, the sequence that runs
+    // straight through (enclave v11). Left to the enclave, it would land on its
+    // legacy default chain, outside that sequence.
+    if (body && typeof body === "object" && !Array.isArray(body) && body.chainId === undefined) body.chainId = "bitgraph:main";
 
     // Snapshot what the legacy by-digest key holds BEFORE committing. The EC2
     // parent overwrites that key fire-and-forget as soon as the TEE responds,

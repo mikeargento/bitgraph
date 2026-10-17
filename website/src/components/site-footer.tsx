@@ -22,7 +22,6 @@
 const links: Array<{ href: string; label: string }> = [
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
-  { href: "/contact", label: "Contact" },
 ];
 
 const linkStyle: React.CSSProperties = { color: "var(--accent)", textDecoration: "none" };

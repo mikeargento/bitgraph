@@ -3697,3 +3697,63 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
 /* The home's demo the same way (Mike: "will it render that way when you do the demo on home too?"). */
 .home-scroll .home-hero:has(.art-go-wrap.is-away) { padding-top: 56px !important; }
 .home-hero .art:has(.art-go-wrap.is-away) > .art-hero.is-away { display: none; }
+
+/* ── The two pictures (components/primitive-figures.tsx), 2026-10-17 ─────────
+   Colours from Mike's diagrams: purple = a BitGraph moment / the nonce, green =
+   the payload, warm grey = what the payload can be / the records. On a phone
+   every row stacks and its arrows point down. */
+.pf-figure { margin: 0; --pf-line: #8a8984; --pf-gap: 24px; }
+.pf-box { border-radius: 14px; border: 1.5px solid; padding: 18px 16px; text-align: center; box-sizing: border-box; position: relative; }
+.pf-title { font-size: clamp(17px, 2.1vw, 24px); font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
+.pf-sub { font-size: clamp(14px, 1.6vw, 18px); margin-top: 6px; line-height: 1.3; }
+.pf-plain { font-weight: 500; }
+.pf-purple { background: #eeedfe; border-color: #7f77dd; color: #3c3489; }
+.pf-purple .pf-sub { color: #534ab7; }
+.pf-green { background: #e1f5ee; border-color: #1d9e75; color: #085041; }
+.pf-green .pf-sub { color: #0f6e56; }
+.pf-grey { background: #f1efe8; border-color: #8a8984; color: #2c2c2a; }
+.pf-grey .pf-sub { color: #5f5e5a; }
+.pf-row { display: flex; align-items: center; }
+.pf-arrow { flex: none; position: relative; width: 56px; height: 2px; background: var(--pf-line); margin: 0 6px; }
+.pf-arrow::after { content: ""; position: absolute; right: 0; top: 50%; width: 9px; height: 9px; border-top: 2px solid var(--pf-line); border-right: 2px solid var(--pf-line); transform: translate(1px, -50%) rotate(45deg); }
+
+/* Picture 1: the enclave, then the fan of payloads. */
+.pf-enclave { border: 2px dashed #9c9b96; border-radius: 26px; padding: 26px 40px 40px; }
+.pf-enclave-label { font-size: clamp(17px, 2.1vw, 24px); font-weight: 600; color: var(--ink); margin-bottom: 26px; }
+.pf-row-two > .pf-box { flex: 1 1 0; }
+.pf-row-two > .pf-arrow { width: 72px; }
+/* The stem from the payload down to the fan's bar: through the enclave's bottom padding and its border, then the gap. */
+.pf-row-two > .pf-green::after { content: ""; position: absolute; left: 50%; top: 100%; width: 2px; height: calc(40px + 2px + 24px); background: var(--pf-line); transform: translateX(-1px); }
+.pf-fan { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--pf-gap); padding-top: 72px; position: relative; }
+/* The bar runs from the first card's centre to the last's. */
+.pf-fan::before { content: ""; position: absolute; top: 24px; height: 2px; background: var(--pf-line); left: calc((100% - 3 * var(--pf-gap)) / 8); right: calc((100% - 3 * var(--pf-gap)) / 8); }
+.pf-fan > .pf-box::before { content: ""; position: absolute; left: 50%; bottom: 100%; width: 2px; height: 48px; background: var(--pf-line); transform: translateX(-1px); }
+.pf-fan > .pf-box::after { content: ""; position: absolute; left: 50%; bottom: 100%; width: 9px; height: 9px; border-right: 2px solid var(--pf-line); border-bottom: 2px solid var(--pf-line); transform: translate(-50%, 1px) rotate(45deg); }
+/* The stem must land on the bar: the enclave and the fan share a width, the payload's centre sits right of the bar's middle. */
+.pf-figure > .pf-fan { margin-top: 0; }
+
+/* Picture 2: the sandwich. */
+.pf-row-sandwich > .pf-end { flex: 1.45 1 0; }
+.pf-row-sandwich > .pf-record { flex: 1 1 0; padding: 22px 10px; }
+.pf-row-sandwich > .pf-arrow { width: 40px; margin: 0 4px; }
+.pf-bracket { height: 30px; margin: 22px 11.5% 0; border: 2px solid var(--pf-line); border-top: 0; }
+.pf-caption { text-align: center; margin-top: 18px; font-size: clamp(15px, 1.8vw, 20px); color: var(--ink); }
+
+@media (max-width: 760px) {
+  .pf-figure { --pf-gap: 12px; }
+  .pf-enclave { padding: 18px 16px 18px; border-radius: 20px; }
+  .pf-enclave-label { margin-bottom: 16px; }
+  .pf-row { flex-direction: column; align-items: stretch; }
+  .pf-row > .pf-arrow, .pf-row-two > .pf-arrow, .pf-row-sandwich > .pf-arrow { width: 2px; height: 26px; margin: 6px auto; }
+  .pf-arrow::after { right: auto; top: auto; bottom: 0; left: 50%; transform: translate(-50%, 1px) rotate(135deg); }
+  .pf-row-two > .pf-green::after { height: calc(18px + 2px + 22px); }
+  .pf-fan { grid-template-columns: 1fr 1fr; padding-top: 22px; }
+  .pf-fan::before, .pf-fan > .pf-box::before, .pf-fan > .pf-box::after { display: none; }
+  .pf-row-two > .pf-green::after { display: none; }
+  /* One arrow down from the enclave to the payloads. */
+  .pf-fan { padding-top: 44px; margin-top: 0; }
+  .pf-fan::before { display: block; left: 50%; right: auto; top: 6px; width: 2px; height: 28px; transform: translateX(-1px); }
+  .pf-fan::after { content: ""; position: absolute; left: 50%; top: 24px; width: 9px; height: 9px; border-right: 2px solid var(--pf-line); border-bottom: 2px solid var(--pf-line); transform: translate(-50%, 0) rotate(45deg); }
+  .pf-bracket { display: none; }
+  .pf-row-sandwich > .pf-record { padding: 14px 10px; }
+}

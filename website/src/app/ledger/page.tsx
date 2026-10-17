@@ -1,203 +1,31 @@
-import { DocsPageNav } from "@/components/docs-page-nav";
-import { Explorer } from "@/components/explorer";
-import { ledgerFeed, type LedgerFeedBody } from "@/lib/ledger-feed";
+import type { Metadata } from "next";
+import { LedgerLookup } from "@/components/ledger-lookup";
 
-/* ── BitGraph Ledger, now the history of the Ethereum anchors and nothing else
-   (2026-09-09; the feed itself stopped carrying recordings 2026-10-09). It once
-   listed every recording in causal order, newest first, with search.
+/**
+ * The ledger (Mike, 2026-10-17): every BitGraph is kept, and anyone can fetch a
+ * proof whenever they want, by its hash. Private because the hash is the
+ * lookup: nothing here lists records (the 2026-10-09 ruling against a browsable
+ * ledger stands). Every proof is written to a compliance-locked store when it is
+ * made; the same lookup is GET /api/proofs/<digest>.
+ */
 
-   Day days: since the 23:59 UTC rotation (2026-07-30) each epoch is one UTC
-   calendar day, so past days are browsed as sealed days — /day?day=YYYY-MM-DD
-   — navigated by quiet prev/next links, never a picker. Days are named by
-   DATE, deliberately not by an epoch ordinal: epochs carry no numbers and
-   relate only through anchors. Before the rotation an epoch spanned many days;
-   the ledger feed slices those by anchor time, so one mechanism covers both. ── */
-
-// The ledger's first day (BitGraph cutover). No day exists before it.
-const EARLIEST_DAY = "2026-05-15";
-
-function shiftDay(day: string, delta: number): string {
-  const [y, m, d] = day.split("-").map((x) => parseInt(x, 10));
-  return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10);
-}
-
-// "July 30" / "July 30, 2026" — always UTC: epochs are UTC calendar days.
-function shortLabel(day: string): string {
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "long", day: "numeric" });
-}
-// "Sep 29" — the phone-width variant; September-class month names are what
-// would otherwise wrap the one-stratum nav line at 375px.
-function tinyLabel(day: string): string {
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
-}
-function longLabel(day: string): string {
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric" });
-}
-
-function parseDay(raw: string | undefined, todayUTC: string): string | null {
-  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-  const [y, m, d] = raw.split("-").map((x) => parseInt(x, 10));
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  if (isNaN(dt.getTime()) || dt.toISOString().slice(0, 10) !== raw) return null;
-  if (raw >= todayUTC || raw < EARLIEST_DAY) return null; // today IS the live Ledger
-  return raw;
-}
-
-/* The first page, read at request time so it ships inside the HTML.
-
-   Without this the rows could not start loading until the document, the JS
-   bundle and hydration had all landed, and only then did the browser open the
-   feed request: a waterfall where nothing overlapped. Measured on production,
-   the feed alone was 84-156ms on a warm edge and 3.8s cold, all of it stacked
-   after ~400ms of hydration.
-
-   Bounded, because moving the read here also moves it in front of the HTML.
-   A warm read beats the budget easily and the day arrives complete; a cold one
-   is abandoned and the page renders exactly as it used to, with the client
-   fetching and its own retry loop taking over. So this can make the page
-   faster but never slower to first paint, and it is never the reason a day
-   looks empty: on timeout or error the seed is simply absent, which the
-   Explorer reads as "go and fetch", not as "there is nothing here". */
-const SSR_BUDGET_MS = 1200;
-
-async function firstPage(day: string | null): Promise<LedgerFeedBody | null> {
-  try {
-    const result = await Promise.race([
-      // Anchors only, so nothing but anchors ships inside the HTML either. Until
-      // 2026-10-09 this asked for every row and the client hid the recordings,
-      // which left their digests in the page source (Mike: "We don't want that ledger.").
-      ledgerFeed({ day }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), SSR_BUDGET_MS)),
-    ]);
-    return result && result.status === 200 ? result.body : null;
-  } catch {
-    return null;
-  }
-}
-
-const linkStyle: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
-  color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap",
+export const metadata: Metadata = {
+  title: "Ledger",
+  description: "Every BitGraph is kept. Find one by its hash: paste a SHA-256 or choose a file, hashed in your browser.",
 };
 
-export default async function LedgerPage({ searchParams }: { searchParams: Promise<{ day?: string }> }) {
-  const { day: rawDay } = await searchParams;
-  const todayUTC = new Date().toISOString().slice(0, 10);
-  const day = parseDay(rawDay, todayUTC);
-
-  const prev = day ? shiftDay(day, -1) : shiftDay(todayUTC, -1);
-  const next = day ? shiftDay(day, 1) : null;
-
-  const initial = await firstPage(day);
-
+export default function LedgerPage() {
   return (
-    <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>{/* the 1040px column every record page reads at (Mike, 10-06: "floors and ceilings are the only contents that load wide now") */}
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
-        /* The nav line is one stratum and must never wrap: on phones the day
-           labels shorten ("Sep 29", "Today") so "All days" keeps its words. */
-        .bg-day-short { display: none; }
-        @media (max-width: 600px) {
-          .bg-day-long { display: none; }
-          .bg-day-short { display: inline; }
-        }
-      `}</style>
-      <div style={{ animation: "fadeIn .3s ease-out" }}>
-        <Explorer
-          anchorsOnly
-          day={day ?? undefined}
-          initial={initial}
-          // The shelf: the month-grid index of every day's day, sitting with
-          // the anchors toggle so both read as properties of the ledger itself.
-          // Text only (calendar glyph tried and ditched); the nav line stays
-          // one unwrapped stratum because day labels shorten on phones.
-          aside={
-            /* "Calendar", the app's word for the same view (Mike, 2026-09-09:
-               "All days → should be calendar right?"). An Export link stood
-               beside it for one push (a day's anchors as JSON, /api/anchors/
-               export) and Mike cut it the same evening: an anchor's proof page
-               is the anchor as a file, and nobody is matching whole days yet. */
-            <a href="/ledger/archive" className="bg-action-link" style={{ margin: 0 }}>
-              Calendar <span className="arrow" aria-hidden>&rarr;</span>
-            </a>
-          }
-          title={
-            <div className="xp-head">
-              <p className="xp-chain">Ethereum</p>
-              <div className="xp-head-text">
-              {/* .bg-page-title: the one page-title size, site-wide. */}
-              {/* Ethereum anchors, and only them (Mike, 2026-09-09). The
-                  bucket keeps only anchors; this is the system's wall clock,
-                  shown so anyone can match a position's block against
-                  Etherscan and take the day's anchors away as a file. */}
-              {/* "Floors" and "Ceilings", side by side in the nav (Mike, 2026-09-29).
-                  The lede keeps saying Ethereum, so the pair never reads as one chain. */}
-              <h1 className="bg-page-title" style={{ margin: 0 }}>Ethereum anchors</h1>
-              {/* No line under the live title: the rows say what they are
-                  (Mike, 2026-09-09: "it doesnt need to say this"). A past day
-                  keeps its date, which is the one thing the rows cannot say. */}
-              {day && (
-                <p style={{ fontSize: 14, fontWeight: 400, color: "var(--dim)", margin: "2px 0 0" }}>
-                  {`${longLabel(day)} (UTC)`}
-                </p>
-              )}
-              {/* Floors moved to Base with enclave v10 (Mike, 2026-10-06): this page left the
-                  menu and stays as the history of the Ethereum anchors. */}
-              <p style={{ margin: "10px 0 0", fontSize: 14, color: "var(--dim)" }}>
-                Floors moved to Base with enclave v10. Each new BitGraph&rsquo;s floor and ceiling are on the <a href="/ceilings">Base page</a>. This page is the history of the Ethereum anchors.
-              </p>
-              {/* How to read the rows. The title is rendered by the Explorer,
-                  so the one place between it and the rows is this slot. */}
-              <p className="lede" style={{ margin: "10px 0 0" }}>
-                Each row is an anchor: a position whose file is the hash of the Ethereum block it names, with the block linked to Etherscan and the time read from the block itself, in UTC. These were the floors of the positions made that day, before enclave v10.
-              </p>
-              </div>
-            </div>
-          }
-          // The day-flip stepper — back before forward, sitting together on
-          // the nav line's left like ‹ › on a pager. Dated labels everywhere
-          // ("← July 30", not "yesterday") so live and day pages read alike;
-          // "Today" closes the loop from the most recent sealed day.
-          subnav={
-            day ? (
-              <>
-                {prev >= EARLIEST_DAY && (
-                  <a href={`/ledger?day=${prev}`} className="bg-action-link" style={{ margin: 0 }}>
-                    <span className="arrow" aria-hidden>&larr;</span>{" "}
-                    <span className="bg-day-long">{shortLabel(prev)}</span>
-                    <span className="bg-day-short">{tinyLabel(prev)}</span>
-                  </a>
-                )}
-                {next && (next >= todayUTC ? (
-                  <a href="/ledger" className="bg-action-link" style={{ margin: 0 }}>
-                    <span className="bg-day-long">Today</span>
-                    <span className="bg-day-short">Today</span>
-                    {" "}<span className="arrow" aria-hidden>&rarr;</span>
-                  </a>
-                ) : (
-                  <a href={`/ledger?day=${next}`} className="bg-action-link" style={{ margin: 0 }}>
-                    <span className="bg-day-long">{shortLabel(next)}</span>
-                    <span className="bg-day-short">{tinyLabel(next)}</span>
-                    {" "}<span className="arrow" aria-hidden>&rarr;</span>
-                  </a>
-                ))}
-              </>
-            ) : (
-              prev >= EARLIEST_DAY && (
-                <a href={`/ledger?day=${prev}`} className="bg-action-link" style={{ margin: 0 }}>
-                  <span className="arrow" aria-hidden>&larr;</span>{" "}
-                  <span className="bg-day-long">{shortLabel(prev)}</span>
-                  <span className="bg-day-short">{tinyLabel(prev)}</span>
-                </a>
-              )
-            )
-          }
-        />
-        {/* The anchor lookup (drop a proof.json, get its two anchors) lives on the
-            calendar page: this list scrolls without end, so nothing below it is
-            ever reached (Mike, 2026-09-17). */}
-      </div>
-    <DocsPageNav current="/ledger" />
+    <div className="frame" style={{ paddingTop: 56, paddingBottom: 96 }}>
+      <h1 style={{ fontSize: "clamp(32px, 4.6vw, 52px)", fontWeight: 700, lineHeight: 1.1, letterSpacing: "-0.02em", margin: 0 }}>Ledger</h1>
+      <p style={{ fontSize: "clamp(17px, 1.9vw, 20px)", lineHeight: 1.55, margin: "18px 0 36px", maxWidth: 720 }}>
+        Every BitGraph is kept, and its proof can be fetched whenever you want. The hash is the lookup, so the ledger is private:
+        nothing here lists records, and a BitGraph is found only by someone who holds its bits or their&nbsp;SHA-256.
+      </p>
+      <LedgerLookup />
+      <p style={{ marginTop: 40, fontSize: 15, maxWidth: 720 }}>
+        The same lookup, for software: <code>GET https://bitgraph.ing/api/proofs/&lt;sha-256, base64url&gt;</code>
+      </p>
     </div>
   );
 }
