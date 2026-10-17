@@ -4149,3 +4149,4 @@ html body .home-kicker.home-kicker { text-transform: uppercase !important; lette
 /* The ledger calendar in the dark, monochrome look: open days in the ink colour, today outlined, no blue. */
 .bg-month-grid .bg-month-day { color: var(--ink) !important; }
 .bg-month-grid .bg-month-day[aria-label="Today"] { background: none !important; color: var(--ink) !important; outline: 1px solid var(--dim); outline-offset: -4px; border-radius: 0 !important; }
+:root #site-nav .nav-box { padding: 9px 16px !important; }
