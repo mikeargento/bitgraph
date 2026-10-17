@@ -92,29 +92,26 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
 
       {/* The ledger itself, under the checker: every BitGraph by day. */}
       <div style={{ height: 96 }} aria-hidden="true" />
-      <p className="home-kicker">Ledger</p>
-      {day && <p style={{ color: "var(--dim)", margin: "0 0 8px" }}>{`${longLabel(day)} (UTC)`}</p>}
-      <p style={{ margin: 0 }}>
-        Every BitGraph, as it is made, newest first: its number, its two counts and the SHA-256 it bound. Open any row for its
-        proof. A SHA-256 cannot be turned back into the&nbsp;file.
-      </p>
-
-      <div style={{ display: "flex", gap: 12, margin: "28px 0 20px", flexWrap: "wrap" }}>
-        {/* Calendar first, as on the old Base page (Mike, 2026-10-17: "the calendar and all that jazz we had before"). */}
-        <a href="/ledger/calendar" className="bg-action-link" style={{ margin: 0 }}>
-          Calendar <span className="arrow" aria-hidden>&rarr;</span>
-        </a>
-        {prev >= LEDGER_FIRST_DAY && (
-          <a href={`/ledger?day=${prev}`} className="bg-action-link" style={{ margin: 0 }}>
-            <span className="arrow" aria-hidden>&larr;</span> {shortLabel(prev)}
-          </a>
-        )}
-        {next && (
-          <a href={next >= todayUTC ? "/ledger" : `/ledger?day=${next}`} className="bg-action-link" style={{ margin: 0 }}>
-            {next >= todayUTC ? "Today" : shortLabel(next)} <span className="arrow" aria-hidden>&rarr;</span>
-          </a>
-        )}
-        {day && next && next < todayUTC && <a href="/ledger" className="bg-action-link" style={{ margin: 0 }}>Today</a>}
+      {/* LEDGER on the left, the day links and Calendar on the right; no paragraph (Mike, 2026-10-17). */}
+      <div className="ledger-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", margin: "0 0 20px" }}>
+        <div>
+          <p className="home-kicker" style={{ margin: 0 }}>Ledger</p>
+          {day && <p style={{ color: "var(--dim)", margin: "4px 0 0" }}>{`${longLabel(day)} (UTC)`}</p>}
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {prev >= LEDGER_FIRST_DAY && (
+            <a href={`/ledger?day=${prev}`} className="bg-action-link" style={{ margin: 0 }}>
+              <span className="arrow" aria-hidden>&larr;</span> {shortLabel(prev)}
+            </a>
+          )}
+          {next && (
+            <a href={next >= todayUTC ? "/ledger" : `/ledger?day=${next}`} className="bg-action-link" style={{ margin: 0 }}>
+              {next >= todayUTC ? "Today" : shortLabel(next)} <span className="arrow" aria-hidden>&rarr;</span>
+            </a>
+          )}
+          {day && next && next < todayUTC && <a href="/ledger" className="bg-action-link" style={{ margin: 0 }}>Today</a>}
+          <a href="/ledger/calendar" className="bg-action-link" style={{ margin: 0 }}>Calendar</a>
+        </div>
       </div>
 
       {failed ? (

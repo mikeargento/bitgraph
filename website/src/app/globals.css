@@ -4283,3 +4283,4 @@ html:root:root body, html:root:root main, html:root:root main:has(> *), html:roo
    the old light-site #f8f9fa hover turned rows white under light text. Now a step off the ground in either mode,
    and the number underlines to say the row opens its proof. */
 @media (hover: hover) { html:root:root main .xp-row:hover { background: var(--panel-2) !important; } }
+:root:root .ledger-head .home-kicker { margin: 0 !important; }
