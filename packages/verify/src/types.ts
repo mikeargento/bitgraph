@@ -155,6 +155,16 @@ export interface BitGraphProof {
     slotHashB64?: string;
 
     /**
+     * Enclave v11 (bind). SIGNED. Present and true when the nonce and the
+     * payload were taken in ONE atomic action inside the boundary: the nonce
+     * at slotCounter, the payload at counter = slotCounter + 1, nothing
+     * between them, and the nonce never left the enclave before it was bound.
+     * Absent on two-call proofs (allocate, then commit), whose nonce was
+     * handed out first and whose counts may have other work between them.
+     */
+    atomic?: true;
+
+    /**
      * Enclave v7 (2026-09-06). Present on Ethereum anchor proofs only: the
      * block this proof anchors, written by the enclave after it verified the
      * anchor service's signature over the claim. SIGNED. A proof whose
@@ -556,6 +566,12 @@ export interface VerificationPolicy {
    * not just TEE-enforced signing with freshness.
    */
   requireSlot?: boolean;
+
+  /**
+   * Require a bind (enclave v11): commit.atomic is true, so the nonce and
+   * the payload were one action, the payload at the very next count.
+   */
+  requireAtomic?: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -50,6 +50,24 @@ export interface AllocateSlotRequest {
   baseFloorHeaderB64?: string;
 }
 
+/**
+ * Enclave v11: THE primitive. One atomic action: a fresh nonce at count N,
+ * this digest at N+1, signed and released together. The nonce never leaves
+ * the enclave before it is bound.
+ */
+export interface BindRequest {
+  type: "bind";
+  digestB64: string;
+  chainId?: string;
+  /** The newest Base block header (raw RLP, base64), fixed as the floor. */
+  baseFloorHeaderB64?: string;
+  metadata?: Record<string, unknown>;
+  agency?: AgencyEnvelope;
+  attribution?: { name?: string; title?: string; message?: string };
+  policy?: PolicyBinding;
+  anchor?: AnchorClaimRequest;
+}
+
 export interface KeyRequest {
   type: "key";
 }
@@ -79,6 +97,7 @@ export type EnclaveRequest =
   | CommitRequest
   | CommitDigestRequest
   | AllocateSlotRequest
+  | BindRequest
   | KeyRequest
   | ChallengeRequest
   | InitRequest;

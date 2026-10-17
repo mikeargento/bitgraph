@@ -331,6 +331,19 @@ async function runChecks(
       return slotError;
     }
   }
+  // A bind (enclave v11) claims two counts in one action: the nonce at N,
+  // the payload at N+1. The claim is signed; the counters must say the same.
+  if (proof.commit.atomic !== undefined) {
+    if (proof.commit.atomic !== true) return "commit.atomic must be true when present";
+    if (proof.slotAllocation === undefined) return "commit.atomic requires slotAllocation (the nonce's own record)";
+    try {
+      if (BigInt(proof.commit.counter ?? "-1") !== BigInt(proof.slotAllocation.counter) + 1n) {
+        return `commit.atomic: the payload count (${proof.commit.counter}) must be the nonce count (${proof.slotAllocation.counter}) plus one`;
+      }
+    } catch {
+      return "commit.atomic: could not parse the nonce or payload counter as an integer";
+    }
+  }
 
   // ------------------------------------------------------------------
   // 4d. Epoch link verification (cross-epoch lineage)
@@ -622,6 +635,10 @@ function checkPolicy(proof: BitGraphProof, policy: VerificationPolicy): string |
     }
     // Slot verification itself is handled in step 4c (before policy checks),
     // so by this point the slot has already been validated if present.
+  }
+
+  if (policy.requireAtomic === true && proof.commit.atomic !== true) {
+    return "policy requires a bind (commit.atomic: the nonce and the payload in one action) but proof has none";
   }
 
   return null;

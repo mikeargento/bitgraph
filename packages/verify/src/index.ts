@@ -39,6 +39,10 @@ export { computeProofHash, computeChainHash, buildSignedBody, computeSignedBodyH
 
 export { canonicalize, canonicalizeToString, constantTimeEqual } from "./canonical.js";
 
+// The sandwich (enclave v11 binds): an unbroken stretch from A to B.
+export { verifyStretch, verifyBetween } from "./stretch.js";
+export type { StretchResult } from "./stretch.js";
+
 // BitGraph Fuse (profile bitgraph-fuse/1): construction, parsing, verification.
 export {
   FUSE_PROFILE,

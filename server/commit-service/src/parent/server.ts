@@ -14,7 +14,12 @@
  *   GET  /health          — { ok: true }
  *
  * BitGraph Causal Commit Model:
- *   The parent internally handles the 2-RTT protocol (allocateSlot → commit)
+ *   With ATOMIC_BIND=on (enclave v11), POST /commit without a slotId is ONE
+ *   enclave call per digest, "bind": the nonce at count N and the digest at
+ *   N+1 in one atomic action, so the nonce never leaves the enclave and the
+ *   parent never sees it. A slotId on /commit (Fuse) still takes the 2-RTT path.
+ *
+ *   Without ATOMIC_BIND the parent internally handles the 2-RTT protocol (allocateSlot → commit)
  *   so clients can still use the single POST /commit API. POST /allocate-slot
  *   hands out a client-held slot for the two-phase form (allocate first, then
  *   commit under that exact slot). It is metered, because a bare allocation
@@ -27,7 +32,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { verify } from "bitgraph";
 import type { BitGraphProof, VerificationPolicy, AgencyEnvelope, PolicyBinding } from "bitgraph";
-import { VsockClient, type EnclaveClient, type AnchorClaimRequest } from "./vsock-client.js";
+import { VsockClient, type EnclaveClient, type AnchorClaimRequest, type BindRequest } from "./vsock-client.js";
 import { requestTimestamp } from "./tsa-client.js";
 import { getClientIp, tryConsumeDigests, rateLimitConfig, allocationLimiter } from "./rate-limit.js";
 import { createAuthPolicy, describeAuthPolicy, type AuthPolicy } from "./auth.js";
@@ -51,6 +56,10 @@ const ALLOW_DEBUG_MODE = process.env["ALLOW_DEBUG_MODE"] === "true";
 // POST /allocate-slot instead of allocating its own. Off by default; the
 // enclave is unchanged either way (its commitDigest already takes a slotId).
 const FUSE_ENABLED = process.env["FUSE_ENABLED"] === "true";
+// Enclave v11: POST /commit binds each digest in ONE enclave call (nonce at N,
+// digest at N+1). Off until the v11 enclave is live: a v10 enclave answers
+// "Unknown action: bind", and the parent never falls back silently.
+const ATOMIC_BIND = process.env["ATOMIC_BIND"] === "on";
 /** The slotId returned by /allocate-slot is the slot's 32-byte nonce in standard base64. */
 const SLOT_ID_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
 
@@ -103,6 +112,25 @@ async function allocateWithFloor(chainId: string | undefined) {
   await baseHead.ensureSaved(older);
   return enclaveClient.send({ type: "allocateSlot", chainId, baseFloorHeaderB64: older.headerB64 });
 }
+/**
+ * Bind one digest (enclave v11), with the Base floor when it is on, the same
+ * way allocateWithFloor fixes it: the newest header at or before this clock,
+ * saved first; once more with the previous header if the enclave refuses the
+ * newest as ahead of its own clock.
+ */
+async function bindWithFloor(req: Omit<BindRequest, "type" | "baseFloorHeaderB64">) {
+  if (!baseHead) return enclaveClient.send({ type: "bind", ...req });
+  const first = baseHead.forAllocation(Date.now());
+  if (first) await baseHead.ensureSaved(first);
+  const r = await enclaveClient.send({ type: "bind", ...req, ...(first ? { baseFloorHeaderB64: first.headerB64 } : {}) });
+  if (r.ok || !/ahead of the enclave clock/.test(r.error ?? "")) return r;
+  const older = baseHead.forAllocation(Date.now(), true);
+  if (!older) return r;
+  await baseHead.ensureSaved(older);
+  return enclaveClient.send({ type: "bind", ...req, baseFloorHeaderB64: older.headerB64 });
+}
+if (ATOMIC_BIND) console.log("[parent] atomic bind on: POST /commit binds each digest in one enclave call");
+
 if (LEDGER_BUCKET) {
   console.log(`[parent] S3 ledger enabled: ${LEDGER_BUCKET}`);
 } else {
@@ -418,22 +446,6 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
   for (let i = 0; i < body.digests.length; i++) {
     const d = body.digests[i]!;
 
-    // Step 1: the slot. Either the caller's held slot (its chain was bound at
-    // allocation; body.chainId is not consulted) or a fresh one allocated
-    // here, nonce-first, on the requested chain.
-    let slotId: string;
-    if (heldSlotId !== undefined) {
-      slotId = heldSlotId;
-    } else {
-      const slotResult = await allocateWithFloor(body.chainId);
-      if (!slotResult.ok || !slotResult.data) {
-        sendError(res, 500, slotResult.error ?? "slot allocation failed");
-        return;
-      }
-      slotId = (slotResult.data as { slotId: string }).slotId;
-    }
-
-    // Step 2: Commit the digest with the allocated slot
     // For batch commits with agency, number each digest from the request's
     // offset into the run (the client's batchIndex), never from 0.
     let agencyForDigest: AgencyEnvelope | undefined;
@@ -451,16 +463,47 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
       }
     }
 
-    const commitResult = await enclaveClient.send({
-      type: "commitDigest",
-      slotId,
-      digestB64: d.digestB64,
-      agency: agencyForDigest,
-      attribution: body.attribution,
-      policy: body.policy,
-      metadata: body.metadata,
-      anchor: body.anchor,
-    });
+    let commitResult;
+    if (ATOMIC_BIND && heldSlotId === undefined) {
+      // Enclave v11: one call, nonce at N and this digest at N+1. No slotId
+      // ever exists outside the enclave.
+      commitResult = await bindWithFloor({
+        digestB64: d.digestB64,
+        ...(body.chainId !== undefined ? { chainId: body.chainId } : {}),
+        ...(agencyForDigest !== undefined ? { agency: agencyForDigest } : {}),
+        ...(body.attribution !== undefined ? { attribution: body.attribution } : {}),
+        ...(body.policy !== undefined ? { policy: body.policy } : {}),
+        ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
+        ...(body.anchor !== undefined ? { anchor: body.anchor } : {}),
+      });
+    } else {
+      // Step 1: the slot. Either the caller's held slot (its chain was bound at
+      // allocation; body.chainId is not consulted) or a fresh one allocated
+      // here, nonce-first, on the requested chain.
+      let slotId: string;
+      if (heldSlotId !== undefined) {
+        slotId = heldSlotId;
+      } else {
+        const slotResult = await allocateWithFloor(body.chainId);
+        if (!slotResult.ok || !slotResult.data) {
+          sendError(res, 500, slotResult.error ?? "slot allocation failed");
+          return;
+        }
+        slotId = (slotResult.data as { slotId: string }).slotId;
+      }
+
+      // Step 2: Commit the digest with the allocated slot
+      commitResult = await enclaveClient.send({
+        type: "commitDigest",
+        slotId,
+        digestB64: d.digestB64,
+        agency: agencyForDigest,
+        attribution: body.attribution,
+        policy: body.policy,
+        metadata: body.metadata,
+        anchor: body.anchor,
+      });
+    }
 
     // Enclave v8's floor gate: the anchored chain has no anchor yet this epoch,
     // so a proof made now would carry no floor and the enclave refuses to sign

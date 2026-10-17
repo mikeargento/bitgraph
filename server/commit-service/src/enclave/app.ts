@@ -13,16 +13,27 @@
  *   3. Compute epochId = SHA-256(publicKeyB64 + ":" + bootNonceB64)
  *   4. Listen on vsock port 5000 for length-prefixed JSON requests
  *
- * Origin slot protocol (2-RTT):
- *   1. allocateSlot() → TEE generates hardware nonce, signs slot record
- *      The slot is a controlled origin opportunity. It exists first.
- *   2. commit(slotId, digest) → TEE consumes slot, binds artifact hash
- *      The commit is the moment something becomes causally real.
+ * THE PRIMITIVE: bind (enclave v11), one atomic action, two counts:
+ *   count N    a fresh nonce from the hardware RNG. Nobody outside sees it.
+ *   count N+1  the payload (a 32-byte digest: a file hash, a Merkle root, a
+ *              block hash, a previous BitGraph; the enclave does not care).
+ *   Signed and released together, or nothing is released and the counter
+ *   does not move. The nonce never leaves the enclave before it is bound,
+ *   and nothing can come between N and N+1. The proof says so in its signed
+ *   body (commit.atomic: true, commit.counter = commit.slotCounter + 1).
+ *   When every proof on a chain is a bind, the counter runs straight through:
+ *   two counts per BitGraph, no gaps, so a stretch from A to B accounts for
+ *   every count in between.
  *
- *   Slot → Commit → Next Slot → Next Commit
+ * Origin slot protocol (2-RTT), kept as an optional feature (Fuse):
+ *   1. allocateSlot() → TEE generates hardware nonce, signs slot record,
+ *      and hands the nonce out as the slotId.
+ *   2. commit(slotId, digest) → TEE consumes slot, binds artifact hash.
+ *   Other work can take counts between 1 and 2, and an unconsumed slot
+ *   leaves a gap. The proof carries no commit.atomic.
  *
- *   Each commit depends on entropy generated AFTER the previous commit.
- *   This creates forward-only existence — no reordering, no backfilling.
+ * Every request runs under one lock (see the listener), so each action is
+ * atomic inside the boundary, not only because the parent queues requests.
  *
  * Ethereum front anchors:
  *   External service commits unpredictable Ethereum block hashes into
@@ -369,10 +380,12 @@ function cleanExpiredSlots(): void {
 async function handleAllocateSlot(
   chainId?: string,
   baseFloorHeaderB64?: unknown,
+  /** Set by handleBind: the slot lives only inside one locked call, so the pending-slot pool does not apply. */
+  internal = false,
 ): Promise<{ slotId: string; slot: SlotAllocation; chainId: string; anchor?: AnchorMark; floor?: BaseFloor }> {
   cleanExpiredSlots();
 
-  if (pendingSlots.size >= MAX_PENDING_SLOTS) {
+  if (!internal && pendingSlots.size >= MAX_PENDING_SLOTS) {
     throw new Error("Too many pending slots — try again later");
   }
 
@@ -633,6 +646,8 @@ async function handleCommit(req: {
   policy?: PolicyBinding;
   /** Anchor service claim; authenticated by verifyAnchorClaim (enclave v7). */
   anchor?: AnchorClaim;
+  /** Set only by handleBind (enclave v11): the slot was drawn in this same locked call. */
+  atomic?: boolean;
 }): Promise<BitGraphProof> {
   // ── Slot consumption — BitGraph causal gate ──
   // The slot MUST exist before any artifact can be committed.
@@ -765,6 +780,15 @@ async function handleCommit(req: {
     slotHashB64,                     // signed binding to exact slot record
     epochId,
   };
+
+  // Enclave v11: a bind is the nonce at N and the payload at N+1, in one call.
+  // The enclave signs that claim only when the counters say exactly that.
+  if (req.atomic) {
+    if (chain.counter !== BigInt(slotRecord.counter) + 1n) {
+      throw new Error(`bind: payload count ${chain.counter} does not follow nonce count ${slotRecord.counter}`);
+    }
+    commitFields.atomic = true;
+  }
 
   // Proof chaining: include prevB64 from THIS chain's last proof
   if (chain.lastProofHashB64 !== undefined) {
@@ -911,6 +935,60 @@ async function handleCommit(req: {
   }
 
   return proof;
+}
+
+// ---------------------------------------------------------------------------
+// Bind (enclave v11) — THE primitive: nonce at N, payload at N+1, one action
+// ---------------------------------------------------------------------------
+
+/**
+ * One atomic action inside the boundary: draw a fresh nonce (count N), bind
+ * the payload digest at the very next count (N+1), sign, release.
+ *
+ * The nonce never leaves the enclave until it is inside the signed proof.
+ * The slot record and the commit record keep their existing shapes, so every
+ * published verifier reads a bind as VALID; the signed commit.atomic says the
+ * two counts were one action.
+ *
+ * If any step fails, nothing is released and the chain is restored exactly as
+ * it was: the counter does not move, so a failed bind leaves no gap.
+ */
+async function handleBind(req: {
+  chainId?: string;
+  baseFloorHeaderB64?: unknown;
+  digestB64: string;
+  metadata?: Record<string, unknown>;
+  agency?: AgencyEnvelope;
+  attribution?: { name?: string; title?: string; message?: string };
+  policy?: PolicyBinding;
+  anchor?: AnchorClaim;
+}): Promise<BitGraphProof> {
+  // Checked before anything is drawn or counted.
+  if (typeof req.digestB64 !== "string" || Buffer.from(req.digestB64, "base64").length !== 32) {
+    throw new Error("bind requires digestB64, a 32-byte SHA-256 digest in base64");
+  }
+
+  const chain = getChain(req.chainId);
+  const before: ChainState = { ...chain };
+  let slotId: string | undefined;
+  try {
+    const alloc = await handleAllocateSlot(req.chainId, req.baseFloorHeaderB64, true);
+    slotId = alloc.slotId;
+    return await handleCommit({
+      slotId,
+      digestB64: req.digestB64,
+      metadata: req.metadata,
+      agency: req.agency,
+      attribution: req.attribution,
+      policy: req.policy,
+      anchor: req.anchor,
+      atomic: true,
+    });
+  } catch (err) {
+    Object.assign(chain, before);
+    if (slotId !== undefined) pendingSlots.delete(slotId);
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1084,7 +1162,24 @@ async function handleRequest(req: Record<string, unknown>): Promise<unknown> {
         // every allocation and refuses one on the anchored chain without it, so a
         // caller need not wait for an Ethereum anchor before committing.
         floor: "base",
+        // v11: this enclave has the atomic bind action.
+        bind: "atomic",
       };
+    }
+    case "bind": {
+      // THE primitive (enclave v11): nonce at N, payload at N+1, one action.
+      const r = req as Record<string, unknown>;
+      const proof = await handleBind({
+        chainId: r["chainId"] as string | undefined,
+        baseFloorHeaderB64: r["baseFloorHeaderB64"],
+        digestB64: r["digestB64"] as string,
+        metadata: r["metadata"] as Record<string, unknown> | undefined,
+        agency: r["agency"] as AgencyEnvelope | undefined,
+        attribution: r["attribution"] as { name?: string; title?: string; message?: string } | undefined,
+        policy: r["policy"] as PolicyBinding | undefined,
+        anchor: r["anchor"] as AnchorClaim | undefined,
+      });
+      return { proof };
     }
     case "commitDigest": {
       // One slot → one artifact → one proof (BitGraph causal unit)
@@ -1144,6 +1239,18 @@ async function handleRequest(req: Record<string, unknown>): Promise<unknown> {
 
 const VSOCK_PORT = 5000;
 
+// One request at a time, inside the boundary. Handlers await (NSM, signing),
+// and Node runs other connections' handlers during an await, so without this
+// two commits could read the same prevB64 or take interleaved counts. The
+// parent also queues its requests; this makes atomicity the enclave's own
+// property rather than the parent's.
+let enclaveLock: Promise<unknown> = Promise.resolve();
+function runExclusive<T>(fn: () => Promise<T>): Promise<T> {
+  const run = enclaveLock.then(fn, fn);
+  enclaveLock = run.catch(() => {});
+  return run;
+}
+
 // allowHalfOpen: keep writable side open even when readable side ends
 // (socat half-closes the connection after sending the request)
 const server = createServer({ allowHalfOpen: true }, (socket: Socket) => {
@@ -1164,8 +1271,8 @@ const server = createServer({ allowHalfOpen: true }, (socket: Socket) => {
     // Reset buffer (we consumed the message)
     buffer = "";
 
-    // Process asynchronously and write response before closing
-    handleRequest(request)
+    // Process under the enclave lock and write response before closing.
+    runExclusive(() => handleRequest(request))
       .then((response) => {
         const json = JSON.stringify(response);
         socket.end(json);
