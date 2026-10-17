@@ -109,7 +109,7 @@ export function FlowFigure() {
       <span className="pf-arrow pf-f-a2" aria-hidden="true" />
       <div className="pf-box pf-green pf-f-bind"><div className="pf-title">2: bind</div><div className="pf-sub">Content, signed</div></div>
       {/* Inside the enclave, under its two steps (Mike, 2026-10-17: "maybe this text should be inside tee box"). */}
-      <div className="pf-f-note">One atomic action.<br />If any step fails, nothing is released and the counter does not&nbsp;move.</div>
+      <div className="pf-f-note">One atomic action. If any step fails, nothing is released and the counter does not move.</div>
       <span className="pf-arrow pf-f-a3" aria-hidden="true" />
       <div className="pf-box pf-green pf-f-proof"><div className="pf-title">Proof</div><div className="pf-sub">Offline check</div></div>
     </figure>

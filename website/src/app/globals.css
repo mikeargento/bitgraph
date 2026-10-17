@@ -4483,4 +4483,6 @@ html:root:root:root body main a:not(.bg-action-link):not(.rl-link):not(.nav-btn)
 html:root:root .jev-page .home-section > :is(p, ol, ul, h2) { max-width: 680px !important; }
 /* Body text wraps normally (Mike, 2026-10-17: "just take that setting off"): Safari's pretty and balance pulled words down
    and left lines short on phones. Headings keep balance. */
-html:root:root:root body main :is(p, li, figcaption, .pf-caption, .pf-f-note, .home-why-body) { text-wrap: wrap !important; }
+html:root:root:root body main :is(p, li, figcaption, .pf-caption, .home-why-body) { text-wrap: wrap !important; }
+/* The TEE note keeps its even lines (Mike, 2026-10-17: "add text pretty back to just that one spot"). */
+html:root:root:root body main .pf-flow .pf-f-note { text-wrap: balance !important; }
