@@ -20,7 +20,7 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 export const metadata: Metadata = {
   title: "BitGraph",
   description:
-    "Position commitment for all of computing: inside a hardware enclave, one atomic action takes a fresh value nobody can see or predict, then your content, signed together.",
+    "Position commitment for all of computing: inside a hardware enclave, one atomic action takes a fresh, unused value nobody can see or predict, then your content, signed together.",
 };
 
 export default function HomePage() {
@@ -37,7 +37,7 @@ export default function HomePage() {
       <section className="home-section home-why" aria-label="What it proves">
         <p className="home-kicker">What it proves</p>
         <p className="home-why-body">
-          Inside a hardware enclave, one atomic action counts twice: a fresh value nobody can see takes one count, and your content
+          Inside a hardware enclave, one atomic action counts twice: a fresh, unused value nobody can see takes one count, and your content
           takes the next. Both are signed together, with the enclave&rsquo;s own time. So your bits were bound after a moment nobody
           could predict, and could not have been bound before it. It says when they were bound, not how old the content&nbsp;is.
         </p>

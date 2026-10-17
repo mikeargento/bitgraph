@@ -2,7 +2,7 @@
 
 Offline, deterministic verification of [BitGraph](https://bitgraph.ing) proofs.
 
-A BitGraph is made inside a hardware enclave in one atomic action: a fresh nonce nobody can see or predict takes one count on a monotonic counter, the content's SHA-256 takes the next, and both are signed together. This package checks that proof offline: the signature, the enclave's attestation and measurement, and the two counts.
+A BitGraph is made inside a hardware enclave in one atomic action: a fresh, unused nonce nobody can see or predict takes one count on a monotonic counter, the content's SHA-256 takes the next, and both are signed together. This package checks that proof offline: the signature, the enclave's attestation and measurement, and the two counts.
 
 Verification of BitGraph proofs is permissionless by design. This package is MIT-licensed so that anyone, including parties adverse to the proof's issuer, can verify a proof without asking permission, online or offline, forever.
 
