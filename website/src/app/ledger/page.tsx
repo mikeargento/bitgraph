@@ -16,7 +16,7 @@ import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-led
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Ledger",
+  title: "Proofs",
   description: "Every BitGraph, as it is made: its number, its two counts and the SHA-256 it bound. Open any one for its proof.",
 };
 
@@ -79,7 +79,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
         }
       `}</style>
       {/* No visible h1: it repeated the nav (Mike, 2026-10-17: "drop the h1's theyre basically redundant"). */}
-        <h1 className="sr-only">Ledger.</h1>
+        <h1 className="sr-only">Proofs.</h1>
 
       {/* Check is the ledger (Mike, 2026-10-17): the drop box here only looks files up and never makes one; the
           one on /make makes (Mike, 2026-10-17: the SHA-256 field went, "dont need this"). */}

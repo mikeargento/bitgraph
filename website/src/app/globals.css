@@ -5003,6 +5003,11 @@ html:root:root:root:root:root:root body .proves-card { display: grid; grid-templ
 @media (min-width: 900px) { html:root:root:root:root:root:root body .proves-card { grid-template-columns: 1fr 1fr; gap: 20px; } }
 html:root:root:root:root:root:root body .proves-half { background: var(--well); border: 1px solid var(--line-2, var(--line)); border-radius: 12px !important; padding: 32px 32px 28px; min-width: 0; }
 @media (max-width: 640px) { html:root:root:root:root:root:root body .proves-half { padding: 24px 20px 20px; } }
+/* The "What it proves" half ends in a button to the proofs; the half is a column so the button sits at its foot
+   whatever the other half's height. */
+html:root:root:root:root:root:root body .proves-half { display: flex; flex-direction: column; }
+html:root:root:root:root:root:root body .proves-half > .proves-actions { margin-top: auto; padding-top: 24px; margin-bottom: 0; display: flex; }
+html:root:root:root:root:root:root body .proves-half > .proves-actions > .bg-action-link { margin: 0; }
 html:root:root:root:root:root:root body .proves-half h2 { margin-bottom: 16px !important; }
 html:root:root:root:root:root:root body .proves-half > p:not(.home-kicker) { max-width: none !important; margin: 0 0 12px !important; }
 html:root:root:root:root:root:root body .proves-steps { margin: 0 0 14px !important; padding-left: 1.4em !important; max-width: none !important; }

@@ -60,6 +60,9 @@ export default function HomePage() {
               It proves where the file sits in the sequence. An old file can take a place today; the proof does not establish
               when it was&nbsp;created.
             </p>
+            <p className="proves-actions">
+              <a className="bg-action-link" href="/ledger">See every proof</a>
+            </p>
           </div>
           <div className="proves-half">
             <p className="home-kicker">How it works</p>

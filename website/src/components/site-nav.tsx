@@ -17,7 +17,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const LINKS: Array<{ href: string; label: string }> = [
   { href: "/demos", label: "Demos" },
   // The ledger: look a file up, or read every BitGraph by day (Mike, 2026-10-17: "check is ledger").
-  { href: "/ledger", label: "Ledger" },
+  { href: "/ledger", label: "Proofs" },
   { href: "/tools", label: "Tools" },
   // Make on the right, plain text like the others (Mike, 2026-10-18 / 10-19).
   { href: "/make", label: "Make" },
