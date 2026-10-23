@@ -6,7 +6,7 @@ This file is the authoritative record; the `Dockerfile.enclave`, `build-eif.sh`,
 and `eif-builder.Dockerfile` all reference these exact pins.
 
 Last resolved: 2026-10-19 (resolved on the production Nitro host, linux/amd64).
-Source: tag `enclave-v13`. In this repository the tag points at a standalone commit holding the exact tree that built v13 (the same tree as commit `fd281844` in the project's private history). Build it with `GIT_REF=enclave-v13`.
+Source: ref `enclave-v13`, a branch in this repository holding exactly one standalone commit: the exact tree that built v13 (the same tree as commit `fd281844` in the project's private history). Build it with `GIT_REF=enclave-v13`.
 
 ## Published measurement
 
