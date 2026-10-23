@@ -47,7 +47,6 @@ export default function PrivacyPage() {
         <h2>4. Third parties</h2>
         <ul>
           <li>Amazon Web Services, for infrastructure, in a US region.</li>
-          <li>Railway, for the anchoring service.</li>
           <li>Cloudflare, for network routing to the enclave.</li>
           <li>Vercel, for hosting this site and counting its page views.</li>
           <li>Resend, for delivering contact form messages.</li>
