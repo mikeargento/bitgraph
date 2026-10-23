@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-/** The demos (Mike, 2026-10-17: "Demos" in the footer). Both are two BitGraphs as bookends: A opens, the work is made
+/** The demos, linked as "Demos" in the footer (2026-10-17). Both are two BitGraphs as bookends: A opens, the work is made
  *  from A's nonce, B closes. */
 export const metadata: Metadata = {
   title: "Demos",
@@ -27,11 +27,11 @@ export default function DemosPage() {
           bound as B, after A in the same sequence.
         </p>
       </section>
-      {/* Each demo is its own card, like the four on Tools (Mike, 2026-10-19: "these each need their own cells"). */}
+      {/* Each demo is its own card, like the four on Tools (2026-10-19). */}
       <section className="home-section demos-item" aria-label="The demos">
         <div className="dm-grid">
-          {/* The whole card is the link, and glows on hover like the drop box (Mike, 2026-10-19: "instead of try it try it
-              try it each card should be a link with the glow property"). */}
+          {/* The whole card is the link, and glows on hover like the drop box (2026-10-19), in place of a "Try it"
+              link repeated on every card. */}
           {DEMOS.map((d) => (
             <a key={d.href} className="dm-card" href={d.href}>
               <h3>{d.title}</h3>

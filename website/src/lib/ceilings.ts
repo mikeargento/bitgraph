@@ -39,7 +39,7 @@ export interface CeilingWrite {
   fees: { l2Wei: string; l1Wei: string; totalWei: string };
   /* Each record's proof hash and position. The writer's JSON also names each
      record's artifact digest; writesForDay drops it on read, so no page can link
-     or print it (Mike, 2026-10-09: "We don't want that ledger."). A proof hash
+     or print it (2026-10-09: no public list of recordings). A proof hash
      opens nothing: no route resolves one to a proof. */
   items: Array<{ proofHash: string; position: string }>;
   /** L1 data inclusion (bitgraph-settlement/1), once the writer found the Ethereum batch carrying this Base block. */
@@ -75,8 +75,8 @@ export async function readSidecarText(proofHashB64: string): Promise<string | nu
 }
 
 /**
- * Writes left off the Ceilings list (Mike, 2026-09-29: "remove that 46 its a
- * glitch"). The first write was the catch-up of 46 records queued while the
+ * Writes left off the Ceilings list (2026-09-29: the 46-record first write read
+ * as a glitch). The first write was the catch-up of 46 records queued while the
  * writer waited to be funded. It is on Base for good and its records' ceilings
  * are valid: their proof pages and its own detail page still show it. Only the
  * day list skips it, so the list starts at the second write.

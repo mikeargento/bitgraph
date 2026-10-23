@@ -19,7 +19,7 @@ export const BRIDGE_SVG_KEYWORD = V16_SVG_KEYWORD;
 /** The tEXt keyword under which the PNG states the settings drawn. */
 export const BRIDGE_SETTINGS_KEYWORD = "bitgraph-art-settings";
 
-/** Mike's five presets, in his order: background, bridge, footing, sky, water. Both Bridges draw from these. */
+/** The five presets, in the original order: background, bridge, footing, sky, water. Both Bridges draw from these. */
 export const BRIDGE_PALETTES: readonly { name: string; colors: readonly [string, string, string, string, string] }[] = [
   { name: "International orange", colors: ["#f5efe0", "#c0362c", "#b08d4a", "#8fb3c9", "#1d4e6b"] },
   { name: "Red and black", colors: ["#ffffff", "#000000", "#000000", "#ee1c25", "#ee1c25"] },
@@ -31,7 +31,7 @@ export const BRIDGE_PALETTES: readonly { name: string; colors: readonly [string,
 export const BRIDGE_KINDS = ["bridge", "footing", "sky", "water"] as const;
 export const KIND_BRIDGE = 0, KIND_FOOTING = 1, KIND_SKY = 2, KIND_WATER = 3;
 
-/** The settings of Mike's standalone page, each drawn from the commitment (each version's header gives the distributions). */
+/** The settings of the standalone generator page, each drawn from the commitment (each version's header gives the distributions). */
 export interface BridgeSettings {
   /** Bridge stages run, 2 to 6. */
   detail: number;

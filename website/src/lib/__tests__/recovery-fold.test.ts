@@ -44,7 +44,7 @@ describe("recovery fold", () => {
 
   test("a file that is in no tree stays new; a row already found is asked too, and its tree position is reported beside what it had", async () => {
     // Until 2026-10-04 only "new" rows were asked, so a file holding an older solo position was
-    // never asked about its tree, and its tree position went unlisted (Mike's two photos, #4608).
+    // never asked about its tree, and its tree position went unlisted (two photos, #4608).
     const { t, store } = await storeWithEveryMember();
     const calls: string[] = [];
     const fetch = fakeFetch(store, { proofs: [t.proof], calls });

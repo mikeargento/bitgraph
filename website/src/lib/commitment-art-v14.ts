@@ -674,7 +674,7 @@ function makeModel(P: V14Plan) {
       if (P.beard === B_FULL || P.beard === B_STUBBLE) inB = v > m + mq(P.lipL, Q_1_2) + Q_0_03 || (v > P.mouth - Q_0_02 && au > P.lipW + Q_0_14) || (au > Q_0_82 && v > P.e + Q_0_42);
       else if (P.beard === B_GOATEE) inB = v > m + mq(P.lipL, Q_1_2) + Q_0_03 && au < Q_0_3;
       if (bL > 0 && v > P.chin - Q_0_12) inB = true;
-      // the moustache is a shaped band, not a box (Mike, 2026-10-08): its top arcs down toward the corners, its lower
+      // the moustache is a shaped band, not a box (2026-10-08): its top arcs down toward the corners, its lower
       // edge follows the mouth and droops past it, the ends round off, a small notch at the philtrum; strands sweep out and down
       let mo = false;
       if (P.beard !== B_GOATEE) {
@@ -758,7 +758,7 @@ function makeModel(P: V14Plan) {
   const sideKnotsX = [A105, 3390, 3703, 4563, 5085, 6258, 8218];
   const sideKnotsY = P.hair === H_WRAP
     ? [wrapLine(A105), P.e + Q_0_35, P.e + Q_0_4, P.e + Q_0_45, P.e + Q_0_55, napeV + Q_0_05, napeV + Q_0_05]
-    : isCap(P.hair) // pulled back: the hair lies above and behind the ear, no fall over the cheek (Mike, 2026-10-08)
+    : isCap(P.hair) // pulled back: the hair lies above and behind the ear, no fall over the cheek (2026-10-08)
       ? [hairLine(A105), P.e - Q_0_16, P.e - Q_0_24, P.e - Q_0_22, P.e + Q_0_12, napeV - Q_0_04, napeV - Q_0_04]
       : [hairLine(A105), P.e + sideburn, P.e - Q_0_12, P.e - Q_0_1, P.e + Q_0_28, napeV, napeV];
   /** Where the fall of a long style begins, in 1/16 steps from the front. */
@@ -2244,7 +2244,7 @@ function contours(P: V14Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
     }, 40, Q_0_45, Q_0_45);
   }
   // a loose bun sheds strands: short curls leaving its outline, and wisps at the temples (and the nape for a high
-  // bun), all from salt bits so no stream draw moves (Mike, 2026-10-08, from a photograph of a messy topknot)
+  // bun), all from salt bits so no stream draw moves (2026-10-08, modelled on a photograph of a messy topknot)
   const loose = bunLoose(P.hair);
   if (loose) {
     const high = P.hair === H_BUN_HIGH, bc = bunCentre(P, M), sy = high ? Q_0_82 : Q;

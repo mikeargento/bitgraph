@@ -274,7 +274,7 @@ const ANCHOR_FILE_SIDE: Record<string, "upper" | "lower"> = {
  * COUNTED. That is what a multi-file package export writes: one bracket for
  * the whole batch, before the lowest counter and after the highest. It is a
  * true bound and a uselessly loose one for every position but the extremes,
- * and Mike's ruling (2026-09-08) is that a position needs its OWN anchors. So
+ * and the rule (2026-09-08) is that a position needs its OWN anchors. So
  * a folder anchored only that way asks once more, gets tight per-position
  * anchors, and is settled from then on.
  */

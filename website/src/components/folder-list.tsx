@@ -58,7 +58,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
   }), [checked]);
 
   // Day groups along the causal walk: unsealed under today, ts-less sealed
-  // rows inherit the open group. UTC days, the same days /ledger uses (Mike, 2026-09-19: "yes make it UTC",
+  // rows inherit the open group. UTC days, the same days /ledger uses (2026-09-19,
   // under the 09-15 ruling, UTC everywhere): a row's time and the day it sits under must agree.
   const groups = useMemo(() => {
     const out: Array<{ key: string; label: string; short: string; rows: ExportCheckResult[] }> = [];
@@ -95,8 +95,8 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
     return out;
   }, [ordered]);
 
-  // The ledger's navigation, exactly (Mike: "i thought maybe you could just
-  // use Ledger exactly for this"): the default view is every recording newest
+  // The ledger's navigation, exactly, reused rather than reinvented: the
+  // default view is every recording newest
   // first, and past days are walked one at a time with dated steppers - not
   // scrolled past under inline headers. `day` is which slice is open; null
   // is the live view. Steppers move between RECORDED days (a folder is
@@ -104,7 +104,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
   // old sheet made).
   const [day, setDay] = useState<string | null>(null);
   // The shelf: the ledger's /days month-grid calendar, client-side. Not
-  // important at two days, load-bearing at two hundred (Mike's call).
+  // important at two days, load-bearing at two hundred.
   const [shelf, setShelf] = useState(false);
   const dayIdx = day === null ? -1 : groups.findIndex((g) => g.key === day);
   const view = day === null ? null : groups[dayIdx] ?? null;
@@ -122,7 +122,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
    * heading between rows), so flattening them changes nothing on screen and
    * lets the same window the drop uses apply here. 425 rows was survivable;
    * a folder of several thousand is the frozen tab this already cost once
-   * (Mike, 2026-09-07: "didnt we just change this to list form?").
+   * (2026-09-07, after the switch to list form).
    */
   const flat = useMemo(
     () => shownGroups.flatMap((g) => g.rows.map((r) => ({ r, groupKey: g.key }))),
@@ -132,7 +132,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
   const visible = flat.slice(rowFirst, rowLast);
   /* ❄️ NO THUMBNAILS, AND useFileThumbs IS GONE WITH THEM. Each row carried a
      48px thumb decoded from the dropped bytes, which is why the row was 80px.
-     Mike asked for a flat text list, and at forty thousand rows he is plainly
+     The list is flat text, and at forty thousand rows that is plainly
      right: a picture of file-18930.txt tells you nothing, and the decode
      pipeline behind it — four in flight, batched publishes, object URLs
      revoked on unmount, all of it hard-won after it froze a 6,000 file drop —
@@ -171,8 +171,8 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
             : `${checked.length.toLocaleString()} recording${checked.length === 1 ? "" : "s"} from your folder, newest first.`}
         </div>
       )}
-      {/* One card: the summary is its header and the rows are its body (Mike, 2026-09-19, of a found BitGraph:
-          "its hard to make out that proof bar"). The row used to float under a separate box with nothing
+      {/* One card: the summary is its header and the rows are its body (2026-09-19: on a found BitGraph the
+          proof bar was hard to make out). The row used to float under a separate box with nothing
           around it. No tick on a matching row: a match is bytes, BitGraph's copy and anchors agreeing, not a
           signature check, and green means verified. */}
       <div style={{ border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden", background: "var(--bg)" }}>
@@ -237,7 +237,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
               // the ledger never heard of still has somewhere to go.
               const clickable = !!r.digestUrlSafe;
               // The proof's own recorded instant, as its proof page shows it
-              // (Mike, 2026-09-27: "make it consistent"); the floor block's
+              // (2026-09-27, for consistency); the floor block's
               // mine time and the ledger write moment only when that is unreadable.
               const when = fmtRowWhen(recordedMsOf(r.proof) ?? (r.ts ? r.ts * 1000 : r.writeTime));
               const verdict = r.ok === true ? "" : r.ok === false ? (r.failure ?? "") : "checking\u2026";

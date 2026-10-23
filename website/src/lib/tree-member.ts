@@ -1,9 +1,8 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * A file of a tree, found by its own hash, like a file bound alone (Mike, 2026-10-20: "i drop 1000 files, it records as
- * one tree of 1000. however, when you go to choose that file individually to see if its been recorded, lookup is no
- * different than if it was 1 file dropped"; then "indexed by hash like single files").
+ * A file of a tree, found by its own hash, like a file bound alone (2026-10-20: 1000 files dropped record as one
+ * tree of 1000, and a single file from it is looked up exactly as a file dropped alone, indexed by hash).
  *
  * Trees made on the Make page from 2026-10-20 take each file's SHA-256 as its leaf data:
  *

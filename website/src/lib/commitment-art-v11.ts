@@ -345,7 +345,7 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const greyR = s.range(0.25, 0.45); if (oldT > q(0.5) && s.pick(Q) < oldT) hairDark = greyR;
   const bunV = hair === H_BUN_HIGH ? -craniumH + q(0.35) + s.range(-0.1, 0.1) : hair === H_BUN_LOW ? e + q(0.5) + s.range(0, 0.1) : s.range(-0.8, 0.2);
   const bunR0 = hair === H_PULLED_BACK || hair === H_BUN_LOW ? s.range(0.18, 0.3) : s.range(0.25, 0.4);
-  // a high bun is a loose topknot, a real mass (Mike, 2026-10-08: "bigger and messier"): 1.9 to 2.35 x, the factor from salt bits so no stream draw moves
+  // a high bun is a loose topknot, a real mass (2026-10-08, made bigger and messier): 1.9 to 2.35 x, the factor from salt bits so no stream draw moves
   const bunR = hair === H_BUN_HIGH ? mq(bunR0, q(1.9) + idiv(((salt >>> 2) & 15) * q(0.45), 15)) : bunR0;
   const sweptSide = s.sign(), braidBack = s.pick(100) < 35 ? 1 : 0;
   const ponyW = s.range(0.16, 0.27), ponyLen = s.range(0.7, 1.5);
@@ -366,7 +366,7 @@ export function planV11(commitment: Uint8Array): V11Plan {
   const bgm = s.pick(100), bg = bgm < 45 ? 0 : bgm < 80 ? 1 : 2, bgTone = s.range(0.14, 0.3), bgAngle = degA(s.range(30, 60)) * s.sign();
   const garment = s.weighted([12, 10, 9, 8, 9, 10, 9, 9, 8, 8, 8]), wrapSide = s.sign();
   const gTone = s.range(0.12, 0.75), gTone2 = s.range(0.1, 0.5);
-  const pr = s.pick(100), palette = pr < 45 ? 0 : pr < 70 ? 1 : pr < 90 ? 2 : (salt >>> 12) % 3; // ink, sepia, sanguine; the dark ground is never drawn (Mike, 2026-10-08: "nix the black background"): its tenth goes to the three by salt bits, so no stream draw moves and no other portrait changes
+  const pr = s.pick(100), palette = pr < 45 ? 0 : pr < 70 ? 1 : pr < 90 ? 2 : (salt >>> 12) % 3; // ink, sepia, sanguine; the dark ground is never drawn (dropped 2026-10-08): its tenth goes to the three by salt bits, so no stream draw moves and no other portrait changes
   if (palette === 3 && yaw !== 0) lightSide = -sgn(yaw); // on the dark ground the key light stays on the camera side at any turn
   const hatchAngle = degA(s.range(30, 60)) * s.sign();
   // rare details, one or two a draw, never on children
@@ -557,7 +557,7 @@ function makeModel(P: V11Plan) {
       if (P.beard === B_FULL || P.beard === B_STUBBLE) inB = v > m + mq(P.lipL, q(1.2)) + q(0.03) || (v > P.mouth - q(0.02) && au > P.lipW + q(0.14)) || (au > q(0.82) && v > P.e + q(0.42));
       else if (P.beard === B_GOATEE) inB = v > m + mq(P.lipL, q(1.2)) + q(0.03) && au < q(0.3);
       if (bL > 0 && v > P.chin - q(0.12)) inB = true;
-      // the moustache is a shaped band, not a box (Mike, 2026-10-08): its top arcs down toward the corners, its lower
+      // the moustache is a shaped band, not a box (2026-10-08): its top arcs down toward the corners, its lower
       // edge follows the mouth and droops past it, the ends round off, a small notch at the philtrum; strands sweep out and down
       let mo = false;
       if (P.beard !== B_GOATEE) {
@@ -640,7 +640,7 @@ function makeModel(P: V11Plan) {
   const sideKnotsX = [A105, 3390, 3703, 4563, 5085, 6258, 8218];
   const sideKnotsY = P.hair === H_WRAP
     ? [wrapLine(A105), P.e + q(0.35), P.e + q(0.4), P.e + q(0.45), P.e + q(0.55), napeV + q(0.05), napeV + q(0.05)]
-    : isCap(P.hair) // pulled back: the hair lies above and behind the ear, no fall over the cheek (Mike, 2026-10-08)
+    : isCap(P.hair) // pulled back: the hair lies above and behind the ear, no fall over the cheek (2026-10-08)
       ? [hairLine(A105), P.e - q(0.16), P.e - q(0.24), P.e - q(0.22), P.e + q(0.12), napeV - q(0.04), napeV - q(0.04)]
       : [hairLine(A105), P.e + sideburn, P.e - q(0.12), P.e - q(0.1), P.e + q(0.28), napeV, napeV];
   /** Where the fall of a long style begins, in 1/16 steps from the front. */
@@ -915,7 +915,7 @@ function buildField(P: V11Plan, M: Model, pose: Pose): Field {
     if (isPony(hair)) {
       const t = tieOf(P, M), side = absI(P.yaw) > degA(q(15)) ? sgn(P.yaw) : P.sweptSide, endV = shV0 + q(0.3) + mq(P.ponyLen, q(0.5));
       // high and low tails hang from the tie down the back, behind the neck, so a turned head shows them beside it
-      // (Mike, 2026-10-08, from a photograph); the third style still comes forward over one shoulder
+      // (2026-10-08, modelled on a photograph); the third style still comes forward over one shoulder
       const dN = P.backDepth; // clear the back of the skull at its deepest, not the nape (the occiput hid the tail)
       if (hair === H_PONY_HIGH) ponies.push([t, [0, M.napeV - q(0.1), -(dN + q(0.3) + (P.ponyW >> 1))], [side * q(0.12), M.napeV + q(0.35) + mq(P.ponyLen, q(0.6)), -(dN + q(0.2))]]);
       else if (hair === H_PONY_LOW) ponies.push([t, [0, t[1] + q(0.35), -(dN + q(0.15) + (P.ponyW >> 1))], [side * q(0.08), t[1] + q(0.3) + mq(P.ponyLen, q(0.6)), -(dN + q(0.08))]]);
@@ -930,7 +930,7 @@ function buildField(P: V11Plan, M: Model, pose: Pose): Field {
       splat(F, nA, nB, (i, j) => {
         const a = idiv(A16 * i, nA), s = idiv(Q * j, nB - 1), s1 = Q - s, w0 = sq(s1), w1 = 2 * mq(s1, s), w2 = sq(s);
         const cx0 = mq(w0, p0[0]) + mq(w1, p1[0]) + mq(w2, p2[0]), cy0 = mq(w0, p0[1]) + mq(w1, p1[1]) + mq(w2, p2[1]), cz0 = mq(w0, p0[2]) + mq(w1, p1[2]) + mq(w2, p2[2]);
-        // a tail is gathered at the tie, swells, then tapers to a soft end (a cone from the head read as a nightcap, Mike, 2026-10-08)
+        // a tail is gathered at the tie, swells, then tapers to a soft end (a cone from the head read as a nightcap, 2026-10-08)
         const g = s < q(0.25) ? q(0.5) + mq(q(0.5), smQ(dq(s, q(0.25)))) : Q - mq(q(0.75), powQ(dq(s - q(0.25), q(0.75)), q(1.6)));
         const ph = sinF(a16Of(mq(s, 40 * Q))) * 4, rr = pony ? mq(r, g) + q(0.01) : mq(r, Q + mq(q(0.15), ph));
         const ca = cosF(a) * 4;
@@ -1565,7 +1565,7 @@ function contours(P: V11Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
     }, 40, q(0.45), q(0.45));
   }
   // a loose bun sheds strands: short curls leaving its outline, and wisps at the temples (and the nape for a high
-  // bun), all from salt bits so no stream draw moves (Mike, 2026-10-08, from a photograph of a messy topknot)
+  // bun), all from salt bits so no stream draw moves (2026-10-08, modelled on a photograph of a messy topknot)
   const loose = bunLoose(P.hair);
   if (loose) {
     const high = P.hair === H_BUN_HIGH, bc = bunCentre(P, M), sy = high ? q(0.82) : Q;

@@ -318,7 +318,7 @@ async function commit(t: Bound, body: Record<string, unknown>, digestB64: string
 
 /**
  * The same open and commit, for ONE artifact made inside its position (the image generator,
- * Mike, 2026-10-05): open first, make the bytes with the commitment in them, then commit their
+ * 2026-10-05): open first, make the bytes with the commitment in them, then commit their
  * digest. Same transport, same lost-reply recovery, same refusal of a proof under any other
  * position; the caller verifies what comes back before calling anything made.
  */
@@ -592,8 +592,7 @@ export function planTrees(files: readonly PlanFile[], rereadBudget = DEFAULT_TRE
   return out;
 }
 
-/* ── Checking a whole tree from its files (Mike, 2026-10-07: "shouldnt i be able to drop the whole
- * folder in"). A tree's leaves are a function of its files and the position's commitment, so the
+/* ── Checking a whole tree from its files (2026-10-07: dropping the whole folder in). A tree's leaves are a function of its files and the position's commitment, so the
  * complete set of files rebuilds the tree with no export: each file is hashed (streamed, never read
  * whole), its placement decided from its bytes exactly as makeTree decides it, its committed digest
  * finished under the commitment the signed root document carries, and the sorted leaves give a root.

@@ -11,8 +11,8 @@
  *
  * ⚠️ It was two implementations until 2026-08-19 (home's page and a 787-line
  * /actor), and the second one drifted into six bugs in one evening that the
- * first did not have. Mike: "give bitgraph actor the same functionality
- * exactly as homepage but with actor key credentials". The seam is the
+ * first did not have, so /actor now has exactly the home page's behaviour,
+ * with actor key credentials. The seam is the
  * CommitStrategy (lib/commit-strategy.ts); nothing else is a parameter except
  * the words on the page: the title, and the block under the frame.
  *
@@ -94,15 +94,15 @@ import { attachSetProofs } from "@/lib/set-members";
  *
  * The count only advances when a whole batch comes back, so this is also how
  * chunky the progress looks: at 100 it moved in jumps of a hundred, which
- * reads as stuck whenever a batch is slow (Mike, 2026-09-07: "seemed like it
- * was doing 100 at a time"). 25 is four times smoother and costs nothing,
+ * reads as stuck whenever a batch is slow (2026-09-07: the count visibly
+ * moved 100 at a time). 25 is four times smoother and costs nothing,
  * because batching turned out not to be the win it was introduced as: hash
  * did not move when it went from 1 file a message to 100, and 1,920 messages
  * for 48,000 files is still far from the 48,000 it replaced.
  */
 const SCAN_BATCH = 25;
 
-/* A very large file is said before it is hashed (Mike, 2026-10-03: the browser
+/* A very large file is said before it is hashed (2026-10-03: the browser
    warns, it never downgrades; as is is never chosen for the visitor). The scan
    streams every file BEFORE any position opens, so what is at stake is the
    visitor's wait, not a burned position: the drop box's hasher (hash-wasm)
@@ -208,8 +208,7 @@ export interface BitGraphCameraProps {
    *  centred, while the page is the camera alone, and nowhere else. The page
    *  owns that class's CSS (its margin-top, 42 on both pages). Home: "What is
    *  a BitGraph →"; /actor: "Forget this device". One line each, so the two
-   *  pages are one composition (Mike, 2026-08-19: "make the two pages home
-   *  and actor match"). */
+   *  pages are one composition (2026-08-19: home and /actor match). */
   below?: ReactNode;
   /** false when the page keeps scrolling under the frame: the fit measurement is
       released (its own contract) and the frame stops centring in the viewport. */
@@ -260,8 +259,8 @@ interface FileItem {
   /**
    * The ledger was not asked to enumerate every position for these bytes.
    *
-   * ⚠️ A row with this set MUST NOT print a position count (Mike, 2026-09-08:
-   * "the row shouldnt claim a count until you open it"). The positions shown
+   * ⚠️ A row with this set MUST NOT print a position count (2026-09-08): the
+   * row claims no count until it is opened. The positions shown
    * are ones these bytes really hold; there may be others. Opening the row
    * reads everything, and an export asks with `members: "full"`.
    */
@@ -438,8 +437,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
    *
    * A set reports five phases and the label used to speak for one of them, so
    * a 30,000 file set sat on "BitGraphing 0 of 30000" for the whole hash pass
-   * and again through the commit, which reads as hung (Mike, 2026-09-07: "it
-   * stops and hangs"). It never was; the label simply had nothing to say
+   * and again through the commit, which reads as hung (2026-09-07). It
+   * never was; the label simply had nothing to say
    * during the longest parts of the run.
    *
    * `at` is where the bar belongs, in rows, counted across the whole drop.
@@ -452,9 +451,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   /**
    * Seconds the current phase has been running, for the ones that cannot
    * count. A spinner over a fixed label says a thing is happening; it does not
-   * say the thing is still happening (Mike, 2026-09-07, on 35,000 files: "it
-   * just stays on holding a slot for a while with no indication of what's
-   * happening"). A number that moves is the difference, and it is also the
+   * say the thing is still happening (2026-09-07, on 35,000 files: the label
+   * sat on holding a slot for a while with no sign of progress). A number
+   * that moves is the difference, and it is also the
    * only way to find out which step is actually slow: the slot allocation
    * itself measures 0.19s against production, so a long wait here is
    * something else wearing its name.
@@ -482,8 +481,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      retry to offer. The set proof itself carries the manifest, and the folder
      you hold is what answers for its members. */
   // On a results page the box is CLOSED behind one link until asked for
-  // (Mike, 2026-08-19: "what if there IS a link, and it says something like
-  // make more, and it EXPANDS the dropbox full size"). Opened by the link, or
+  // (2026-08-19): a link to make more, which EXPANDS the drop box to full
+  // size. Opened by the link, or
   // by a file drag entering the window, since a drag cannot click first and
   // dragging is the only way a folder arrives. Closes again when the next
   // drop starts, so every results page begins the same way.
@@ -505,8 +504,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
    * ⚠️ THE VALUE WAS DISCARDED. This read `const [, setExportProgress]`, so
    * five call sites updated a number nothing could render and the export
    * showed a bare "Packaging…" from click to download — for a 30,000 file
-   * folder, minutes of it (Mike, 2026-09-08: "seems like it isnt even doing
-   * anything"). `phase` separates the two halves, because they count
+   * folder, minutes of it, which looked like nothing was happening
+   * (2026-09-08). `phase` separates the two halves, because they count
    * different things and a bar that restarts at zero reads as a stall.
    */
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number; phase: "preparing" | "packaging" }>({ current: 0, total: 0, phase: "packaging" });
@@ -555,7 +554,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      because the chrome around each frame is the SAME chrome: a title row
      (the page's name, its one link on the right) over the box, and nothing
      under it. For a day /actor carried two lines under its frame and the
-     frames had to give 26px back to compensate; Mike moved the identity line
+     frames had to give 26px back to compensate; the identity line moved
      INTO the box and then the link up to the title row, so the compensation
      is gone with the cause. ⚠️ If a page ever puts a block under its frame
      again, that is the moment shrinkBy comes back, and it comes back for BOTH
@@ -625,10 +624,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   /* The one link on a closed results page. It sits on the right of the first
      results heading (the folder's list when there is one, else the files'
      heading) and opens the whole camera, title and full-size box, above the
-     results. In the action-link voice, and the noun stays — Mike, 2026-08-19:
+     results. In the action-link voice, and the noun stays (2026-08-19):
      "more BitGraphs", not "more".
 
-     It says what it does: CHOOSE MORE FILES (Mike, 2026-09-28), the same verb
+     It says what it does: CHOOSE MORE FILES (2026-09-28), the same verb
      as the box's own "Choose files, or drag in a whole folder." It read "Make
      or check more BitGraphs" until 2026-09-08, then "View more BitGraphs",
      because making was moving to the desktop app and the link above a list of
@@ -682,7 +681,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
    *
    * It used to be one card per file, roughly sixteen elements each, every one
    * of them mounted. At 30,000 files that is around 400,000 nodes and the
-   * browser freezes (Mike, 2026-09-07). It also repeated one fact 30,000
+   * browser freezes (2026-09-07). It also repeated one fact 30,000
    * times: a set is ONE BitGraph, so every member row carries the same
    * position. Your own machine is where you look at your files, and a file is
    * found again by dropping its folder in or by the member lookup on the set's
@@ -719,13 +718,12 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      The count moves as chunks land; on failure the pending evidence waits here
      for a retry.
 
-     ⚠️ RESTORED 2026-09-17 on Mike's word. Deleted 2026-09-08 (61263868), which
+     ⚠️ RESTORED 2026-09-17. Deleted 2026-09-08 (61263868), which
      left every multi-file drop's members unfindable by hash: dropping one file
      of a recorded set read as NEW, and a lone new file auto-records, so the
      answer to "is this already BitGraphed?" was a false no followed by a second
-     permanent position. Mike: "this is why i have the ledger running in the
-     background again. to avoid things like this before a user downoads there own
-     proofs." */
+     permanent position. Avoiding that, before a visitor downloads their own
+     proofs, is why the ledger runs in the background again. */
   const [indexProgress, setIndexProgress] = useState<{ current: number; total: number } | null>(null);
   const pendingIndexRef = useRef<Array<{ setDigest: string; epoch: string; counter: string; members: unknown[] }>>([]);
 
@@ -807,8 +805,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
        member write half was deleted on 2026-09-08 (61263868) rather than gated,
        so 2026-09-16's ledger-writes ruling never brought it back. Clicking a
        member of a multi-file drop therefore landed on "BitGraph not found"
-       (Mike, 2026-09-17: "clicking on one yeilds no result like its
-       disconnected"; verified against a real 10,000 member set, where the set
+       (2026-09-17: a click led nowhere, as if disconnected; verified
+       against a real 10,000 member set, where the set
        root resolves and the member's own digest and its origin both miss).
        The page is a VIEWER, and the browser is already holding the committed
        proof, so the click needs no lookup at all. The receiving half of this
@@ -962,17 +960,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      *
      * Phase 3 (2026-09-08) took the lookup out: "do these bytes already have
      * a proof?" was to be answered from the BitGraphs folder you connected.
-     * On 09-16 the ledger came back (Mike: "we have to let the proofs record
-     * to s3 so the website can function properly") but the asking did not,
+     * On 09-16 the ledger came back (proofs record to S3 again, which the
+     * website needs to function properly) but the asking did not,
      * so a plain file BitGraphed before read as new unless this browser
      * happened to hold its proof, and a lone one was made AGAIN: hello.txt
-     * got a second position, #9,398, 24 minutes after its first (Mike,
-     * 2026-09-28: "it doesnt look them up as bitgraphed"). Restored as it
+     * got a second position, #9,398, 24 minutes after its first
+     * (2026-09-28: files were not looked up as BitGraphed). Restored as it
      * stood on 09-07: chunked, ten in flight, split and retry, and
      * `unavailable` rather than an empty answer when a chunk never comes back.
      *
-     * ⚠️ THE DIGEST INDEX CAME BACK WITH IT (lib/digest-index.ts, Mike: "bring
-     * back the index"). Deleted with phase 3, it is what answers "not on
+     * ⚠️ THE DIGEST INDEX CAME BACK WITH IT (lib/digest-index.ts). Deleted
+     * with phase 3, it is what answers "not on
      * record" from memory. Without it every digest was an S3 listing again:
      * measured on production 2026-09-28 with bytes never recorded, 1,000 in
      * 5.3s alone and 10,000 in 17.3s ten at a time, so a 55,000 file folder
@@ -1008,7 +1006,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
        * six concurrent. For 48,000 files that is about thirteen minutes, and
        * the fallback never touched setCheckProgress, so the counter froze at
        * whatever it last showed while the tab ground on. That is exactly what
-       * "Checking 0 of 48000, stuck" was (Mike, 2026-09-07).
+       * "Checking 0 of 48000, stuck" was (2026-09-07).
        *
        * A chunk fails here for one reason in practice: it asked for more than
        * a 60s function can answer. Measured against production, 2,000 digests
@@ -1077,7 +1075,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      * hit: @noble/ed25519 is pure JS, 1.24 ms a proof, so 48,000 files was
      * 60 SECONDS of main-thread work inside one Promise.all over 48,000
      * pending promises, nothing yielding, the tab frozen throughout. It is
-     * most of what "checking takes FOREVER" was (Mike, 2026-09-07).
+     * most of why checking took so long (2026-09-07).
      *
      * And nothing displayed the answer: `valid` is written here and read
      * NOWHERE in the UI (folder-list.tsx does not mention it). Sixty seconds
@@ -1270,8 +1268,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      * nothing useful: discoverDrop looks for a literal proof.json in the walk,
      * a zip is one opaque file, so it was hashed as bytes and came back NOT
      * RECORDED — the worst answer available, about a package this site had
-     * just written. Mike called it before testing: "exporting a package
-     * creates a zip which i bet wont work until its unzipped".
+     * just written. This was predicted before testing: an exported package
+     * is a zip, and it would not check until unzipped.
      *
      * The site already ships fflate for WRITING zips; reading one costs an
      * import. So a dropped zip is opened here and its entries walk through
@@ -1450,12 +1448,11 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
        solo ruling applies: one file in, one page out. The bytes travel to the
        page, so the hub's downloads, the original included, work on arrival. */
     if (solo && (!solo.fromProofJson || solo.fromCarrier)) {
-      /* A lone file already on record OPENS ITS PROOF (Mike, 2026-09-08:
-         "dropping a single file should simply just pull up its coorasponding
-         proof").
+      /* A lone file already on record OPENS ITS PROOF (2026-09-08): dropping
+         a single file pulls up its corresponding proof.
 
-         ⚠️ THIS REVERSES HIS OWN RULING OF 2026-08-19, deliberately and by his
-         word. That ruling kept a found file on the results card, because
+         ⚠️ THIS REVERSES THE RULING OF 2026-08-19, deliberately. That ruling
+         kept a found file on the results card, because
          navigating on a drop that recorded something and on a drop that
          recorded nothing made the two outcomes look identical, when telling
          them apart is the job of the gesture. The counter-argument then was
@@ -1479,13 +1476,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       if (solo.status === "new" && solo.digestB64) {
         /* ❄️ NO GATE. A lone new file auto-records, exactly as it always has.
          *
-         * I put a gate here — with nothing connected, ask before minting,
-         * because "new" is unknowable without a ledger. It was the wrong call
-         * and Mike said so plainly: it should be EXACTLY like before, with the
+         * A gate was tried here — with nothing connected, ask before minting,
+         * because "new" is unknowable without a ledger. It was the wrong call:
+         * this must be EXACTLY like before, with the
          * folder standing where S3 stood. The gate was not a storage change,
          * it was a new question in front of the product's most common gesture.
          *
-         * And his own earlier ruling had already removed its justification:
+         * And an earlier ruling had already removed its justification:
          * losing dedup is a CORRECTION, not a loss — a clock that ticks when
          * you ask should tick every time you ask. If a second position for the
          * same bytes is correct, there is nothing to protect anyone from, and
@@ -1716,8 +1713,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // as missing data, because these rows showed the LEDGER's write moment and a
   // fresh proof came back from the boundary, not from a ledger read. A row's
   // time is now the proof's own recorded instant, its attestation timestamp,
-  // the time its proof page leads with (Mike, 2026-09-27: "make it
-  // consistent"), so a fresh proof carries its time in hand. Deliberately
+  // the time its proof page leads with (2026-09-27, for consistency), so a
+  // fresh proof carries its time in hand. Deliberately
   // still NOT this browser's clock: the product does not assert time from an
   // untrusted source, and a row whose time came from the machine that made it
   // would be a different claim wearing the same clothes. The ledger lookup
@@ -1942,8 +1939,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // ⚠️ THE CALLBACK BELOW RUNS ~90,000 TIMES FOR A 30,000 FILE TREE, so
         // nothing in it may walk the drop. It used to call rowsOf(set.slice(0,
         // p.done)), which slices, maps, builds a Set and filters every row, on
-        // every event: billions of operations, and the tab simply stops (Mike,
-        // 2026-09-07: "i click and this screen just stays"). Counting once, up
+        // every event: billions of operations, and the tab simply stops
+        // (2026-09-07: the screen stuck after a click). Counting once, up
         // front, makes each event a single array read.
         const rowsPerDigest = new Map<string, number>();
         for (const t of toProve) rowsPerDigest.set(t.digestB64, (rowsPerDigest.get(t.digestB64) ?? 0) + 1);
@@ -1979,8 +1976,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             // and the first leaf, and reports nothing while it waits on the
             // enclave. The last "hash" event is that wait beginning, so it is
             // shown as what it is: every file is checked, the position is
-            // what is outstanding (Mike, 2026-09-07, on 50,000 files: "this
-            // screen sits and progress bar sort of stays right there").
+            // what is outstanding (2026-09-07, on 50,000 files: the screen
+            // sat and the progress bar stayed put).
             const phase = p.phase === "hash" && p.done >= p.total ? "slot" : p.phase;
             const counts = phase === "hash" || phase === "fuse" || phase === "verify";
             if (phase === lastPhase && counts && p.done < lastWalked + step && p.done < tree.length) return;
@@ -2223,10 +2220,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   /* ⚠️ A MAKE MUST NOT END IN A SAVE DIALOG.
    *
    * This used to download bitgraphs.json on every make. With Chrome's "ask
-   * where to save each file" on — which Mike has on, as anyone who cares where
-   * their files go does — that is a modal file picker in front of the
-   * product's most common gesture, every single time. He sent a screenshot of
-   * it: "see cause this isnt right". It is not.
+   * where to save each file" on — as anyone who cares where their files go
+   * has it — that is a modal file picker in front of the product's most
+   * common gesture, every single time. That is not right.
    *
    * So making writes to THIS BROWSER and nothing else. The copy on disk
    * becomes a deliberate act you take when you want one, from the folder
@@ -2254,8 +2250,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       return next;
     });
     /* ❄️ NO NOTICE. A make used to explain itself in a paragraph, on the
-       results card and again on the proof page it navigates to. Mike: "i dont
-       like this" — and he is right twice over. It sat on top of the record you
+       results card and again on the proof page it navigates to. It was
+       wrong twice over. It sat on top of the record you
        came to look at, and it had already gone stale, telling people to use
        "the light in the corner" after the light moved under the box. The
        record is on screen and the light says what this browser holds; a
@@ -2603,7 +2599,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       // file is virtual everywhere else; the export is the one moment it is
       // asked for, because that is when the BitGraph leaves the page for
       // someone who has neither the original nor a tool that rebuilds
-      // (Mike, 2026-09-03). Same shape as a proof page's package.
+      // (2026-09-03). Same shape as a proof page's package.
       //
       // It sits INSIDE the export dir of the position that committed it. A
       // flat export has one dir and that position owns it; a file holding
@@ -2632,8 +2628,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
        * matched from your own folder exported the original and the proof and
        * nothing else — no new-file/ — even though everything needed to rebuild
        * it was in hand: the proof carries the slot commitment and the
-       * placement, and the original bytes are the file you just dropped. Mike:
-       * "bitgraph doesnt have a way to rebuild the new fused copy either".
+       * placement, and the original bytes are the file you just dropped. So
+       * the package now rebuilds the new fused copy too.
        *
        * It matters more now than it did. While the ledger held every proof,
        * the fused bytes could always be fetched back through the proof page.
@@ -2670,7 +2666,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           : setOut ? (await rebuildSetMember(setOut.proof, fileBytes, f.name, setOut.manifestBytes)).fusedBytes : null;
         // No Frame: proof.json beside it already carries the same signed proof,
         // and the manifest a Frame adds is derivable from it apart from the new
-        // file's name, which is this entry (Mike, 2026-09-03). That entry keeps
+        // file's name, which is this entry (2026-09-03). That entry keeps
         // the original's own name and is told apart by its folder: it is the
         // same file plus 48 bytes, not a different thing.
         if (fusedBytes) {
@@ -2858,8 +2854,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     /* ⚠️ THE PACKAGE MUST SAY WHAT IT WENT OUT SHORT OF.
      *
      * Making no longer waits fifteen seconds for the next Ethereum anchor —
-     * the floor is already in the signed body, and waiting was, in Mike's
-     * words, too clever. The upper bound is DEFERRED, not lost: the counter is
+     * the floor is already in the signed body, and waiting was too
+     * clever. The upper bound is DEFERRED, not lost: the counter is
      * in the signed proof and anchors are permanent, so this package completes
      * whenever anyone drops the folder back in, today or in a year.
      *
@@ -2975,15 +2971,14 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   const waitFill = (pct: number): React.CSSProperties => ({ width: `${pct}%`, height: "100%", background: "var(--accent)", transition: "width 0.15s" });
 
   return (
-    /* No ground of its own (2026-10-15, Mike: "design error here"): var(--bg) painted a white slab behind the results
+    /* No ground of its own (2026-10-15, a design error fixed): var(--bg) painted a white slab behind the results
        heading and between the cards on the grey page; the page's grey shows through, the cards keep their white. */
     <div style={{ color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
       <style>{`
         /* Drop step: the same column as /folder and /day, to the pixel —
            90% up to 800, 40px under the nav, top-aligned. The centered-hero
            formula (and its /camera morph pairing) is RETIRED with the hero:
-           the page is a tool that starts at the top, like every other page.
-           Mike: "less flashy, more utilitarian". */
+           the page is a tool that starts at the top, like every other page. */
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 40px 0 80px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; }
         /* The drop step fills the space under the nav and centres in it, so
            whatever the frame cannot use (the aspect ratio caps it whenever
@@ -2997,27 +2992,25 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         .bitgraph-wrap.bitgraph-flow { padding: 10px 0 30px; }
         .bitgraph-wrap.bitgraph-flow .bitgraph-camera { max-height: 300px; }
         /* 40 under the nav, the same as the ledger and the docs pages (it was
-           32, and the results heading sat tight: Mike, 2026-08-19: "should
-           'bitgraphs found' breathe a bit more?"). */
+           32, and the results heading sat too tight under the nav). */
         .bitgraph-wrap.bitgraph-results { padding-top: 40px; padding-bottom: 48px; }
-        /* ── Results: the box is closed behind one link (Mike, 2026-08-19).
+        /* ── Results: the box is closed behind one link (2026-08-19).
            At full size it was ~490px of empty dashed rectangle over the list
            the drop produced, with "BitGraph Found" below the first screen. It
-           was a 176px strip for an hour; Mike's better idea: a link that
+           was a 176px strip for an hour; what replaced it is a link that
            EXPANDS the box to full size in place. The results lead, nothing
            leaves the page, and the box is one click away, or no clicks: a
            file drag entering the window opens it, so the folder gesture (drag
            is the only way a folder arrives) still lands. Closed means CLOSED:
-           no title, no box, the results start at the top of the page (Mike's
-           mock), and the link sits on the right of the first results heading.
-           Opening brings "the whole thing header included": the hero mounts
-           above the results exactly as the drop step has it. ── */
+           no title, no box, the results start at the top of the page, and the
+           link sits on the right of the first results heading. Opening brings
+           back everything, header included: the hero mounts above the results
+           exactly as the drop step has it. ── */
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; }
         /* The title takes its type from .bg-page-title (globals), the one
            page-title definition on the site. What is left here is the size
            exception below and the gap to the frame. */
-        /* ── CENTRED, the title alone (Mike, 2026-08-19, evening: "now i feel
-           like that should be centered"). It went left that afternoon, when
+        /* ── CENTRED, the title alone (2026-08-19, evening). It went left that afternoon, when
            the row also carried a link on its right and sat over a left-aligned
            "BitGraph Found"; with the link gone and home's title now the claim
            itself, what was left was one sentence over a symmetric box, and a
@@ -3025,7 +3018,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
            (Home has carried no headline since 2026-09-08, so this centres
            nothing today; it is the rule any future title inherits.) Only the title: the box's own
            copy was always centred, and the block under the box (/actor's
-           "Forget this device") stays where Mike put it, bottom left. ── */
+           "Forget this device") stays bottom left. ── */
         .bitgraph-tagline { text-align: center; }
         /* 36px, taken over from the deck that used to sit between this title
            and the frame (removed 2026-08-18: it read "a place in space and
@@ -3069,13 +3062,12 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         /* ⚠️ The 34px floor above was for "A camera for bits" (17 characters).
            It was then "A BitGraph gives bits a place" (29), which at 34px
            is ~450px wide and wraps to two lines in a phone's ~350px column
-           (Mike, 2026-08-19: "on mobile it wraps. has to be smaller i suppose
-           on mobile"). So on phones the size follows the viewport: the
+           (2026-08-19). So on phones the size follows the viewport: the
            sentence measures 13.2x its font size in this face, the column is
            90vw, and 6.6vw keeps it on one line from a 360px viewport up (25.7px
            at 390, 23.8 at 360; 22 is the floor, which wraps only on 320px
-           devices). Then, the same evening: "maybe it should match docs titles
-           size?" Yes: that retires the one exception to the site's type
+           devices). Then, the same evening, it moved to the docs title size,
+           which retires the one exception to the site's type
            ladder (.bg-page-title is clamp(26px, 6vw, 32px), a flat 32 on
            desktop; home had been 34..40 since the frame started scaling with
            the window). So: the docs size from 433px up, identical to every
@@ -3145,7 +3137,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         {/* ── The camera: the page's title, the box first thing, then the
             page's block under it. The ledger lives on its own /day page.
 
-            ⚠️ IT STAYS ON THE RESULTS STEP TOO (Mike, 2026-08-19). It used to
+            ⚠️ IT STAYS ON THE RESULTS STEP TOO (2026-08-19). It used to
             vanish, on the reasoning that results were a terminal "here is what
             you did" view and the nav logo was the way back. Once a solo lookup
             stopped navigating to a proof, the results view became somewhere a
@@ -3157,10 +3149,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             note at the hook call. ── */}
         {(step === "drop" || (step === "results" && (!showingResults || boxOpen))) && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
-            {/* No page title over a box summoned onto a results page (Mike,
-                2026-08-19: "maybe we remove headings on results pages where
-                youre making MORE bitgraphs. it will also save room and be
-                cleaner"). The reader summoned the box from the results; a
+            {/* No page title over a box summoned onto a results page
+                (2026-08-19): on a results page where more BitGraphs are being
+                made, no heading saves room and is cleaner. The reader summoned the box from the results; a
                 title over it is ceremony, and the heading row below it, whose
                 job was to hold the link that opens the box, goes with it.
                 Expanded over results is: the box, then the card and the rows. */}
@@ -3236,7 +3227,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 headline={dropHeadline}
                 prompt={dropPrompt}
                 hint={dropHint}
-                // "Hashed in your browser, never uploaded." (Mike, 2026-08-26,
+                // "Hashed in your browser, never uploaded." (2026-08-26,
                 // replacing "Your file never leaves your device"): name the
                 // mechanism, scope the denial to the file. The digest travels
                 // to the ledger; the file never does, so the line stays true
@@ -3249,14 +3240,14 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                    ledger, so it belongs where the gesture happens rather than
                    in the nav. A count, never a dot; nothing red. */
                 /* ❄️ NO STATE LINE IN THE BOX. It lived here as a fourth line
-                   for a few hours; Mike moved it out — "no dialog in dropbox" —
+                   for a few hours and moved out (no dialog in the drop box)
                    once the corner light existed. The box is for the gesture;
                    whether a folder is connected belongs somewhere visible from
                    every page, which the box is not. See ledger-light.tsx. */
               />
             </div>
-            {/* The page's block, under the box, left (Mike, 2026-08-19: "move
-                Forget this device to bottom left on Actor"; home has none).
+            {/* The page's block, under the box, left (2026-08-19: /actor's
+                Forget this device sits bottom left; home has none).
                 Rendered only when the page gave one, so a page without it
                 adds no height; the fit observes it by class when present. */}
             {!showingResults && below && <div className={belowClassName}>{below}</div>}
@@ -3321,8 +3312,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             report until it is over, and only multi-chunk runs tick.
             The old rule was the chunk rule applied to both: 50 files made
             into BitGraphs sat under a bare spinner for a full minute with
-            nothing moving, which is indistinguishable from hung (Mike,
-            2026-09-04: "takes a long time and in fact gets hung"). Same look
+            nothing moving, which is indistinguishable from hung
+            (2026-09-04). Same look
             as reading/checking. ── */}
         {step === "proving" && (
           <div className="bitgraph-wait">
@@ -3413,10 +3404,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   also has no camera. */}
 
               {/* ── The folder's Ledger: a dropped BitGraph folder loads HERE
-                  instead of carrying its own generated sheet (Mike,
-                  2026-08-05: "no index file at all... you drag and drop the
-                  whole folder into the camera and it loads the ledger! and this
-                  viewer can have small thumbs"). Ledger grammar throughout: day
+                  instead of carrying its own generated sheet (2026-08-05):
+                  no index file at all; the whole folder is dragged into the
+                  camera and it loads the ledger, with small thumbs. Ledger
+                  grammar throughout: day
                   headers over causal order, rows with a small thumb made from
                   the dropped bytes themselves, the verdict in the two-outcome
                   colors — blue "matches the ledger", red naming the side that
@@ -3532,8 +3523,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   margin has to carry the whole distance itself. */}
               {/* ⚠️ The heading states what the drop DID, which is not always
                   recording. It says Found until this page has actually minted
-                  something (Mike, 2026-08-19: "make it say found until
-                  something is recorded"). The earlier rule, Found only when
+                  something (2026-08-19). The earlier rule, Found only when
                   EVERY row was found, put "BitGraphs Recorded" over a batch
                   that still had its Record row waiting, with nothing recorded
                   yet. A lookup is not a recording, and neither is a list of
@@ -3551,7 +3541,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                       can make either: with nothing connected we genuinely do
                       not know. So when nothing was found and nothing was made,
                       the heading counts files and says nothing else; the card
-                      below explains. Mike's 2026-08-19 rule (say Found until
+                      below explains. The 2026-08-19 rule (say Found until
                       something is recorded) still governs the other two. */}
                   <div className="bg-page-title">
                     {items.some((i) => i.status === "proved")
@@ -3762,9 +3752,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           </div>
         )}
 
-        {/* ❄️ Nothing at the foot of a results page, on either page (Mike:
-            "What is a BitGraph → should simply be absent from results pages";
-            then "make the two pages home and actor match"). The page's block
+        {/* ❄️ Nothing at the foot of a results page, on either page: "What
+            is a BitGraph →" is absent from results pages, and home and /actor
+            match. The page's block
             belongs to the camera-alone composition: under the box, and only
             there. /actor's Forget is one click behind "Record or check more
             BitGraphs →" on a results page, which is where its box is too. */}

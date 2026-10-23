@@ -154,7 +154,7 @@ test("a set's own anchors, written once at the top, settle it on the next drop",
 
 test("a batch bracket at the top of the drop is NOT counted as anchoring a position", () => {
   // What a multi-file package export writes: one loose bracket for the whole
-  // batch. Mike's ruling 2026-09-08 — a position needs its OWN anchors.
+  // batch. The rule since 2026-09-08: a position needs its OWN anchors.
   const { rootAnchors } = readDropShape([
     { file: "a", path: ["Drop", "ethereum-anchors", "anchor-after.json"] },
     { file: "b", path: ["Drop", "ethereum-anchors", "anchor-before.json"] },

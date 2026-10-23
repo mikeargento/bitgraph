@@ -1,9 +1,8 @@
 /**
- * The high resolution download (Mike, 2026-10-06: "make a download high resolution button", for
- * printing): the recorded image redrawn at four times the size, 4096 x 4096, from its commitment
+ * The high resolution download (2026-10-06, a button for printing): the recorded image redrawn at four times the size, 4096 x 4096, from its commitment
  * (renderV6At / renderV7At). Same shapes, sharper lines. It is a redrawing for
  * print, not the recorded file: the proof covers the 1024 x 1024 image, and anyone can redraw this
- * one from the same code. Versions 6 and 7 (10-06: "just version 6 is fine", then version 7 came),
+ * one from the same code. Versions 6 and 7 (10-06: version 6 first, then version 7),
  * then the landscape versions 8, 9 and 10 at three times their size, and the square version 11
  * (1200 x 1200) at three times, 3600 x 3600, and version 12 (recorded 2400 x 2400) at one and a half times, 3600 x 3600.
  *

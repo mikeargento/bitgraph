@@ -3,9 +3,8 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * The copy button every copyable field wears (Mike, 2026-10-21: "they just need the copy buttons", "any copyable
- * field", then "one of these on ask jev"): the two outlined sheets from the code blocks, a check for a moment after
- * the copy. Shared by the proof page and the demo pages.
+ * The copy button every copyable field wears, Ask AI's included (2026-10-21): the two outlined sheets from the
+ * code blocks, a check for a moment after the copy. Shared by the proof page and the demo pages.
  */
 import { useState } from "react";
 

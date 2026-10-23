@@ -1,6 +1,6 @@
 /**
- * bitgraph-art/8 (Mike, 2026-10-06: "make there be less lines in photo demo and make the image
- * landscape"): landscape, 1600 x 1024 with the plain 32 px frame (art 1536 x 960), mostly solid shapes.
+ * bitgraph-art/8 (2026-10-06: fewer lines for the photo demo, and a landscape
+ * image): landscape, 1600 x 1024 with the plain 32 px frame (art 1536 x 960), mostly solid shapes.
  *
  * The plan is version 6's language (shapes, fills, palettes, calm or loud, glitch strips, scanlines)
  * drawn from its own stream ("bitgraph-art/8"), with solid fills back (kind 9): the code no longer needs

@@ -4,7 +4,7 @@ import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro, IBM_Plex_Mono, 
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
-/* THE FACES (2026-09-17, Mike: "do the fonts exactly how you want. your choice").
+/* THE FACES (2026-09-17).
    Two voices from one superfamily, Adobe's Source: Source Serif 4 for every
    sentence, Source Code Pro for all structure (headings, the bar, labels,
    lead-ins, field names, data, code). They were drawn to sit together, so
@@ -41,8 +41,8 @@ const jetbrainsMono = JetBrains_Mono({
   preload: false,
 });
 
-/* PREVIEW 2026-09-16 (Mike: "what would inter look like if you replaced every
-   mono with inter"). Loaded beside the mono so the swap is one token in
+/* PREVIEW 2026-09-16: Inter in place of every mono. Loaded beside the
+   mono so the swap is one token in
    globals.css (--font-term) either way. */
 // Hashes, counts and code (2026-10-18): IBM Plex Mono, engineered and squared, self-hosted like the others.
 const plexMono = IBM_Plex_Mono({
@@ -52,7 +52,7 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
-/* Newsreader for the headings (Mike, 2026-10-21: "i basically want this look", the essay set in it): a variable
+/* Newsreader for the headings (2026-10-21, matching the essay set in it): a variable
    display serif with an optical-size axis, self-hosted by next/font like the others. */
 const newsreader = Newsreader({
   subsets: ["latin"],
@@ -75,15 +75,15 @@ export const viewport: Viewport = { themeColor: "#ffffff" };
 
 export const metadata: Metadata = {
   title: {
-    // Home's tab title is the home h1 (Mike, 2026-08-19: "fix those"), with no
+    // Home's tab title is the home h1 (2026-08-19), with no
     // "BitGraph |" prefix: the sentence already names BitGraph, and the
     // template below still brands every other page's tab. It was "BitGraph |
     // A camera for bits" from 2026-07 until the title became the claim.
     default: "BitGraph",
     template: "%s | BitGraph",
   },
-  // The overview's own sentence (Mike, 2026-08-19: "update the description
-  // too"): the line under the title in a link preview, and what a search
+  // The overview's own sentence (2026-08-19, updated with the title): the
+  // line under the title in a link preview, and what a search
   // result shows. It was "Live cryptographic proof chain. Create, verify, and
   // explore BitGraph proofs." from July, which is the old vocabulary.
   // 2026-09-10: one sentence on every surface, from the overview opener. The
@@ -115,7 +115,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { NoOrphans } from "@/components/no-orphans";
 import { FigMarkers } from "@/components/figures/fig";
-// Page views, counted anonymously by Vercel Web Analytics: no cookies (Mike, 2026-10-12; the privacy page says so).
+// Page views, counted anonymously by Vercel Web Analytics: no cookies (2026-10-12; the privacy page says so).
 import { Analytics } from "@vercel/analytics/next";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -123,15 +123,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: the head script below marks <html> data-js before React loads.
     <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${newsreader.variable}`}>
       <head>
-        {/* Day or night before the first paint (Mike, 2026-10-17: "a sun and a moon toggle"): a saved choice
-            sets data-theme on <html>; with none, day (Mike, 2026-10-21: "day is default"), whatever the device says. */}
+        {/* Day or night before the first paint (2026-10-17, for the sun and moon toggle): a saved choice
+            sets data-theme on <html>; with none, day (the default since 2026-10-21), whatever the device says. */}
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("bg-theme");document.documentElement.dataset.theme=(t==="light"||t==="dark")?t:"light"}catch(e){document.documentElement.dataset.theme="light"}` }} />
         {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
-            700 and italics). PREVIEW 2026-09-16 (Mike: "what about good ol
-            acumen"): --font-term in globals.css points at it. */}
+            700 and italics). PREVIEW 2026-09-16: --font-term in globals.css
+            points at it. */}
         {/* The Adobe kit link came out 2026-10-17: the site reads in system-ui, code in its own Source Code Pro. */}
-        {/* The site's one face since 2026-10-17 (dark, terminal): source-code-pro, from the Adobe Fonts kit below (Mike added it; code-saver, then adaptive-mono, before). */}
-        {/* Acumin Pro from the Adobe Fonts kit (Mike, 2026-10-18: "Acumin"), the face the site wore until 2026-09-11. */}
+        {/* The site's one face since 2026-10-17 (dark, terminal): source-code-pro, from the Adobe Fonts kit below (code-saver, then adaptive-mono, before). */}
+        {/* Acumin Pro from the Adobe Fonts kit (2026-10-18), the face the site wore until 2026-09-11. */}
         <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
         {/* Google's Material Symbols, only the icons the Menu uses. */}
         <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=${MENU_ICON_NAMES}&display=block`} />
@@ -164,7 +164,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Figure arrowheads, once per page, before any figure (see FigMarkers in components/figures/fig.tsx). */}
         <FigMarkers />
         <ScrollToTop />
-        {/* No one-word last lines in prose (Mike, 2026-09-17: '"it" gets orphaned'). */}
+        {/* No one-word last lines in prose (2026-09-17: a lone "it" was being orphaned). */}
         <NoOrphans />
         <SiteNav />
         {/* Main owns the page grey (2026-08-27); body and both bars are

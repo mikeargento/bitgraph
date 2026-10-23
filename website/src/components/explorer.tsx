@@ -46,7 +46,7 @@ const rowId = (e: Entry) => `${e.ep ?? ""}:${e.counter}`;
 const fmtWhen = (ms?: number) =>
   ms ? new Date(ms).toLocaleString("en-US", { timeZone: "UTC", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " UTC" : "";
 // The phone form: the time alone. The page names the day, so on a narrow
-// screen the date was only the part that got chopped (Mike, 2026-09-11).
+// screen the date was only the part that got chopped (2026-09-11).
 const fmtWhenShort = (ms?: number) =>
   ms ? new Date(ms).toLocaleTimeString("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }) + " UTC" : "";
 
@@ -56,8 +56,8 @@ const fmt = (n: number) => n.toLocaleString();
    else. The bucket keeps only anchors now, so with anchors hidden the page
    read "Beginning of epoch" over nothing. In this mode the toggle and the hash
    search are gone, only anchor rows show, and each row carries its block as
-   a link to Etherscan for matching (Mike: "access to the anchors and link to
-   the eth explorer for match reference and a way to export them easily"). */
+   a link to Etherscan for matching: the page exists to reach the anchors,
+   match them against the Ethereum explorer, and export them easily. */
 export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = false }: { title?: React.ReactNode; day?: string; aside?: React.ReactNode; subnav?: React.ReactNode; initial?: FeedResp | null; anchorsOnly?: boolean }) {
   // Seed first paint, in order of preference:
   //
@@ -512,8 +512,8 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
           anyone holding only a hash, out of a proof.json or a proof page. */}
       {/* One full-width field, the action INSIDE it on the right as the
           site's arrow-link idiom — this was the last filled button on the
-          site, retired 2026-08-06 with Mike's sign-off ("search bar full
-          width though with that change inside and to the right"). The form
+          site, retired 2026-08-06 in favour of a full-width search bar with
+          the action inside it on the right. The form
           owns the border; the input is borderless within it. */}
       {!anchorsOnly && <form
         onSubmit={runSearch}
@@ -596,16 +596,15 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
             return (
               <div key={rowId(e)} className={`xp-row${isInterval ? " xp-row-interval" : " xp-row-eth"}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`} style={{ overflow: "hidden" }}>
                 {/* A fixed-width counter, so "block …" starts on the same x in
-                    every row and the blocks read as a column (Mike,
-                    2026-09-11: "should block number be left aligned like
-                    that?"). Wide enough for a five-digit counter with its
+                    every row and the blocks read as a column
+                    (2026-09-11). Wide enough for a five-digit counter with its
                     separator. */}
                 <a href={proofHref} className="xp-counter" style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums", fontFamily: mono, textDecoration: "none" }}>
                   #{fmt(e.counter)}
                 </a>
                 {/* No "anchor" tag on a page of nothing but anchors: the word
                     was the width that pushed a phone into sideways scroll
-                    (Mike, 2026-09-11: "mobile is jacked on eth anchor page").
+                    (2026-09-11).
                     An interval row still says what it is. */}
                 {isInterval && (
                   <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
@@ -617,8 +616,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                     {e.blockNumber != null ? `block ${fmt(e.blockNumber)}` : "block"}
                   </a>
                 )}
-                {/* The hash and the time open the proof too (Mike, 2026-09-11:
-                    "date should be active to open link to proof page right?"):
+                {/* The hash and the time open the proof too (2026-09-11):
                     everything in the row but the block, which goes to
                     Etherscan, is the proof. Links, not a row-wide onClick, so
                     nothing nests inside the block's own anchor. */}

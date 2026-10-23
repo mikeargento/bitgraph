@@ -1,9 +1,8 @@
 /**
  * Time display: UTC by default, with the zone named on every value.
  *
- * ⚠️ UTC IS THE DEFAULT, NOT THE VIEWER'S ZONE (Mike, 2026-09-15: "whatever
- * time you list on the proof, when i click that eth link, it should match
- * exact"). Every instant the site prints is an Ethereum block time or the
+ * ⚠️ UTC IS THE DEFAULT, NOT THE VIEWER'S ZONE (2026-09-15: a time listed on
+ * the proof must match exactly what its Ethereum link shows). Every instant the site prints is an Ethereum block time or the
  * enclave's signed clock, and the block times sit beside Etherscan links,
  * which show UTC. In the viewer's zone the same block read 1:25:47 PM here
  * and 5:25:47 PM there, so the page contradicted its own link.
@@ -116,7 +115,7 @@ function localZoneName(): string {
 }
 
 /**
- * The Etherscan pattern (Mike, 2026-09-25: "same type ux"): the time VALUE is
+ * The Etherscan pattern (2026-09-25, the same UX as Etherscan): the time VALUE is
  * the control, with the site's own chevron and a tooltip. A bordered pill was
  * tried and dropped (2026-09-26). Click the stamp and every displayed time flips between UTC and
  * the viewer's zone, relabeled; the chevron and tooltip say it acts. Used for

@@ -1,4 +1,4 @@
-// bitgraph-art/9 (Mike, 2026-10-07): five families layered in one picture, one of them leading, the code in
+// bitgraph-art/9 (2026-10-07): five families layered in one picture, one of them leading, the code in
 // 256 reading pixels as version 8 carries it. Pinned, read back from the art alone, printable, fast, and
 // registered; the default until version 10 (2026-10-08).
 import { test } from "node:test";

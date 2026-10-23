@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { FlowFigure, SequenceFigure } from "@/components/primitive-figures";
 
 /**
- * The site is this one page, plus the ledger and the proof pages (Mike, 2026-10-17:
- * "this can literally be one page if you dont count ledger"). The How it works page
+ * The site is this one page, plus the ledger and the proof pages (2026-10-17).
+ * The How it works page
  * folded in here; every old docs address redirects to it (next.config.ts).
  *
  * Order: the line, the two steps (the drawing), what it proves, two BitGraphs make an
- * interval (Mike, 2026-10-17: the drawing before the paragraph). Making and checking one (the drop box, the API, everything else) is /make
- * (Mike, 2026-10-17: "everything from Try it down can be its own page").
+ * interval (2026-10-17: the drawing before the paragraph). Making and checking one (the drop box, the API, everything else) is /make
+ * (2026-10-17: everything from the Try it section down).
  *
  * ⚠️ Claim discipline: bound AFTER a moment, never "at" it; the claim is about when the
  * bits were bound, never how old the content is. The time shown is the enclave's own.
@@ -16,7 +16,7 @@ import { FlowFigure, SequenceFigure } from "@/components/primitive-figures";
 
 export const metadata: Metadata = {
   // The tab and the search result carry the headline (2026-10-22: a search for the h1 alone landed on "pseudorandom
-  // binary sequence"; the page must own its phrase). "records" is not a verb here (Mike, 2026-10-21).
+  // binary sequence"; the page must own its phrase). "records" is not a verb here (2026-10-21).
   title: { absolute: "Verifiable sequence for bits. | BitGraph" },
   description:
     "Verifiable sequence for bits. BitGraph binds a file's fingerprint, never the file, at a position in a signed sequence that nothing can reorder. One BitGraph fixes a position; any two bracket everything made between them. Checks offline, by anyone.",
@@ -28,14 +28,13 @@ export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
       <div className="home-hero">
-        {/* The home's h1 is visible again (Mike, 2026-10-17, with the new headline: "dont hide it"). */}
-        {/* One centred first section (Mike, 2026-10-17): the headline, its sub-headline (which replaced the How BitGraph
+        {/* The home's h1 is visible again (2026-10-17, with the new headline). */}
+        {/* One centred first section (2026-10-17): the headline, its sub-headline (which replaced the How BitGraph
             works heading), the drawing, and two ways to try it. */}
-        {/* Mike, 2026-10-18: the h1 alone, no sub-header ("bedrock for bits" before it, the same day). */}
-        {/* Mike, 2026-10-19: what BitGraph is, for the partner who already proves origin (Apple Reference Image's clock, for everyone). */}
-        {/* Mike, 2026-10-20: "A recorder for computation." (record/stop is the home's own picture), alone: no sub-line
-            ("drop sub"). */}
-        {/* Mike, 2026-10-21 late: "verifiable sequence for bits" (new that night; recorder "records nothing"). */}
+        {/* 2026-10-18: the h1 alone, no sub-header ("bedrock for bits" before it, the same day). */}
+        {/* 2026-10-19: what BitGraph is, for the partner who already proves origin (Apple Reference Image's clock, for everyone). */}
+        {/* 2026-10-20: "A recorder for computation." (record/stop is the home's own picture), alone: no sub-line. */}
+        {/* 2026-10-21: "verifiable sequence for bits", replacing the recorder line, since BitGraph records nothing. */}
         <h1 className="home-title">Verifiable sequence for&nbsp;bits.</h1>
         <div className="home-hero-figure"><FlowFigure /></div>
         <div className="home-hero-actions">
@@ -44,7 +43,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* What it proves and how it works, standing alone in one card (Mike, 2026-10-19: his copy, "in a cell of its own"):
+      {/* What it proves and how it works, standing alone in one card (2026-10-19):
           two cards side by side on desks with a gap between them, stacked on phones. */}
       <section className="home-section" aria-labelledby="home-proves">
         <div className="proves-card">
@@ -84,12 +83,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Its own cell (Mike, 2026-10-19), the same card as What it proves / How it works. */}
+      {/* Its own cell (2026-10-19), the same card as What it proves / How it works. */}
       <section className="home-section" aria-labelledby="home-work">
         <div className="proves-half">
         <p className="home-kicker">Work between two</p>
-        {/* Record and stop (Mike, 2026-10-20). Nothing to plan (Mike, 2026-10-21: "you dont have to choose. you can just
-            bitgraph the shit out of everything and check later"): any two bracket what lies between them. */}
+        {/* Record and stop (2026-10-20). Nothing to plan (2026-10-21: make BitGraphs freely and check later): any two
+            bracket what lies between them. */}
         <h2 id="home-work">Any two BitGraphs bracket the work between&nbsp;them.</h2>
         <p>
           Nothing has to be planned. Make BitGraphs as often as you like; later, any earlier one and any later one bracket
@@ -106,7 +105,7 @@ export default function HomePage() {
 
       {/* The limits and the trust, short, on the explanation page; in full on Tools (2026-10-18). */}
       <section className="home-section home-why" aria-labelledby="home-limits">
-        {/* The kicker is the heading; the line under it was cut (Mike, 2026-10-21: "cut that"). */}
+        {/* The kicker is the heading; the line under it was cut (2026-10-21). */}
         <h2 id="home-limits" className="home-kicker">What it does not prove</h2>
         <ul className="docs-list">
           <li><strong>Truth.</strong> The proof binds bytes, not their meaning.</li>
@@ -121,7 +120,7 @@ export default function HomePage() {
 
       <section className="home-section home-why" aria-labelledby="home-trust">
         <p className="home-kicker">What you trust</p>
-        {/* Mike, 2026-10-19: "shouldnt this be more generic ... its similar to the sha256". Kept honest: the hardware root is
+        {/* 2026-10-19: generic, trusted the way SHA-256 is. Kept honest: the hardware root is
             the one thing relied on, and it is checked, not asked. The specifics (AWS Nitro, PCR0, rebuilding) stay on Tools. */}
         <h2 id="home-trust">The math, and the measured&nbsp;enclave.</h2>
         <p className="home-why-body">

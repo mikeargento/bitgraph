@@ -1,5 +1,5 @@
 /**
- * bitgraph-art/6 (Mike, 2026-10-06: "build option 2 as version 6"): version 5's layered look, with
+ * bitgraph-art/6 (2026-10-06, option 2 of the candidates): version 5's layered look, with
  * the code woven INTO the art instead of ticked into the frame.
  *
  * The art square is a hidden grid of 16 x 16 tiles of 60 px; tile k (row-major) carries bit k of the
@@ -351,7 +351,7 @@ export function decodeV6(px: Uint8Array, width: number, height: number): Uint8Ar
   return null;
 }
 
-/* ── A larger drawing, for print (Mike, 2026-10-06: "make a download high resolution button") ───
+/* ── A larger drawing, for print (2026-10-06: the high resolution download button) ──────────────
  * The same geometry at S times the resolution: every length in the plan and every tile phase is
  * multiplied by S (an angle is not), a pixel is still 8 units, so lines, rings and the weave are
  * drawn sharper, not enlarged. This is a REDRAWING of the recorded image for print, not the recorded

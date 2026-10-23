@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // legacy default chain, outside that sequence.
     if (body && typeof body === "object" && !Array.isArray(body) && body.chainId === undefined) body.chainId = "bitgraph:main";
 
-    // Every BitGraph gets a Base floor and a Base ceiling (Mike, 2026-10-21; the Make page had them since 2026-10-20,
+    // Every BitGraph gets a Base floor and a Base ceiling (2026-10-21; the Make page had them since 2026-10-20,
     // the rest of the site did not). The ceiling: the host queues the proof hash for Base when asked, so ask for every
     // bind. The floor: the latest Base block is bound as BitGraph 1, in this same request, right before the caller's
     // digest; the link that says 1 is 2's floor is written once the enclave has answered (lib/floor-link.ts). A bind
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
             const text = JSON.stringify(r.link, null, 2);
             await putFloorLinkOnce(r.link.record.digestB64, r.link.record.epochId, r.link.record.counter, text);
             // The same link under the floor's own position, so the floor's proof page can say which record it floors
-            // (Mike, 2026-10-21: "curious why this bitgraph has no floor?"): a floor is BitGraph 1 and has none of its own.
+            // (2026-10-21: a floor's page otherwise showed no floor): a floor is BitGraph 1 and has none of its own.
             const f = r.link.floor.bitgraph;
             await putFloorLinkOnce(f.digestB64, f.epochId, f.counter, text);
           } catch (e) {

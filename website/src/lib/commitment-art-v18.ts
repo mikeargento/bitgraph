@@ -1,7 +1,7 @@
 // © 2026 Michael Argento. All rights reserved.
 /**
  * bitgraph-art/18 (2026-10-10), "Bridge": a suspension bridge that never existed, built from packed flat rectangles.
- * Mike's generator (a standalone page, 2026-10-10), made a BitGraph series the way "Three" is (commitment-art-v16.ts):
+ * A standalone generator page (2026-10-10), made a BitGraph series the way "Three" is (commitment-art-v16.ts):
  * every random draw comes from the position commitment, integers only, the recorded file a PNG that carries the exact
  * SVG print master in an iTXt chunk.
  *
@@ -49,10 +49,10 @@
  * A summed-area table of the mask answers "how much bridge is in this box" in four reads.
  *
  * ── The plan, read in exactly this order ───────────────────────────────────────────────────────────────────────────
- * Every setting of Mike's standalone page comes from the commitment, per click (Mike, 2026-10-10: "i want all the
- * different possibilities"), drawn first, in this order, each a sum of below() draws so the space is wide while most
+ * Every setting of the standalone page comes from the commitment, per click (2026-10-10, so every possibility
+ * can occur), drawn first, in this order, each a sum of below() draws so the space is wide while most
  * pieces still read well (tri(a, b) = below(a) + below(b), a triangle peaked in the middle):
- *   palette      PALETTES_V18[below(5)]: background, bridge, footing, sky, water (Mike's five presets), uniform
+ *   palette      PALETTES_V18[below(5)]: background, bridge, footing, sky, water (the five presets), uniform
  *   detail       how many bridge stages run, 2 to 6, by u = below(100): u < 8: 2, u < 20: 3 (the sparse "ghost"
  *                bridges, 1 in 5), u < 35: 4, u < 60: 5, else 6 (dense, 2 in 5)
  *   bridge gap   1 to 5, by u = below(100): u < 40: 1, u < 65: 2, u < 80: 3, u < 92: 4, else 5 (tight most often)
@@ -111,7 +111,7 @@ export const V18_HORIZON = 697;
 /** A bridge rectangle centerd below this line is footing. */
 export const V18_FOOTING_LINE = 787;
 
-/** Mike's five presets, in his order: background, bridge, footing, sky, water. */
+/** The five presets, in the original order: background, bridge, footing, sky, water. */
 export const PALETTES_V18 = BRIDGE_PALETTES;
 /** A rectangle's kind; its color is the palette's entry kind + 1 (entry 0 is the background). */
 export const KINDS_V18 = BRIDGE_KINDS;
@@ -123,7 +123,7 @@ export const FIELD_STAGES_V18: readonly (readonly [number, number])[] = [[360, 6
 /** The packing's fixed numbers. */
 export const V18_RULES = BRIDGE_RULES;
 
-/** The settings of Mike's standalone page, each drawn from the commitment (the header gives the distributions). */
+/** The settings of the standalone generator page, each drawn from the commitment (the header gives the distributions). */
 export type V18Settings = BridgeSettings;
 /** The standalone page's sliders: each setting's range, inclusive. */
 export const V18_SETTING_RANGES: Readonly<Record<keyof V18Settings, readonly [number, number]>> = {

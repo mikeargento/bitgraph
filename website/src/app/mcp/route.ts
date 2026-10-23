@@ -1,7 +1,7 @@
 /**
  * Remote MCP endpoint: https://bitgraph.ing/mcp (Streamable HTTP, stateless).
  *
- * One TEE, two steps, one atomic action (Mike, 2026-10-17). A hosted server
+ * One TEE, two steps, one atomic action (2026-10-17). A hosted server
  * holds no files, and needs none: the caller sends SHA-256 digests and gets
  * back proofs. bitgraph_bind is the one way to make a BitGraph (inside the
  * enclave: a fresh nonce, then the digest at the very next count, signed

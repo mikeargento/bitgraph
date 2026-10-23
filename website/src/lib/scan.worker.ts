@@ -37,7 +37,7 @@ function readsInFlight(files: File[]): number {
   for (const f of files) total += f.size;
   const avg = files.length === 0 ? 0 : total / files.length;
   // ⚠️ 8, NOT MORE. 64 here was 512 files open at once across the pool and the
-  // scan visibly stuck (Mike, 2026-09-07). Almost certainly handle exhaustion:
+  // scan visibly stuck (2026-09-07). Almost certainly handle exhaustion:
   // a read that fails falls back to re-reading on the main thread, so a wave of
   // failures turns into 48,000 main-thread reads, which looks exactly like a
   // hang. 8 a worker is the value that measured 2.0s for 48,000 files; going

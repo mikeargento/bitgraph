@@ -1,5 +1,5 @@
 /**
- * Hosted files (Mike, 2026-10-10, option 1 of the Ask Jev question): a proof link may carry
+ * Hosted files (2026-10-10, option 1 of the Ask Jev question): a proof link may carry
  * `?files=<https URL>`, and the proof page fetches the BitGraph file bundle served there (a ZIP: the
  * files, usually with the tree's export, bitgraph-export/1) and shows the files ONLY when they rebuild
  * the signed proof exactly. Generic: any host, no host named in code. Replaces the Jev-specific loader
@@ -46,7 +46,7 @@ export interface HostedSource { url: string; host: string }
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
-/** The hosts a proof page reads files from (Mike, 2026-10-10: approved hosts only, for now; the mechanism stays generic,
+/** The hosts a proof page reads files from (2026-10-10: approved hosts only, for now; the mechanism stays generic,
  *  and a host joins by being added here). Without a list, anyone could show content they recorded under bitgraph.ing. */
 export const HOSTED_FILE_HOSTS = new Set(["live.bitgraph.ing"]);
 

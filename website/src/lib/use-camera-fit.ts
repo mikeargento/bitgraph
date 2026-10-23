@@ -24,9 +24,8 @@ import { useEffect } from "react";
  *                       where the camera is STILL VISIBLE but a list has grown
  *                       under it: fit() sums every sibling of the frame into
  *                       its chrome, so a growing list is counted as chrome and
- *                       squeezes the frame flat (/actor, 2026-08-19, Mike:
- *                       "should it get smooshed like that"). Home never hit
- *                       this because its results are a separate step.
+ *                       squeezes the frame flat (/actor, 2026-08-19). Home
+ *                       never hit this because its results are a separate step.
  * @param titleSelector  the page's headline, inside .bitgraph-wrap.
  * @param moreSelector   the row beneath the frame, inside .bitgraph-wrap.
  *
@@ -119,8 +118,8 @@ export function useCameraFit(
       const statusBar = standalone && window.screen?.height
         ? Math.min(80, Math.max(0, Math.round(window.screen.height - window.innerHeight)))
         : 0;
-      /* Phones centre BELOW the nav, not on the viewport (Mike, 2026-08-26:
-         "isnt this sitting high on mobile?"). The top*2 symmetry above is
+      /* Phones centre BELOW the nav, not on the viewport (2026-08-26: it sat
+         high on mobile). The top*2 symmetry above is
          right on desktop, but on a phone the nav is a large slice of a short
          viewport and its mirror-band at the bottom holds nothing: on a 770px
          phone viewport the gap under the nav measured ~70 while the void

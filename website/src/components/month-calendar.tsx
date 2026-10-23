@@ -1,8 +1,8 @@
 /* ── The month calendar: one sheet per month, used by /days (the shelf of
    every day's day) and by a dropped Folder's shelf (folder-list.tsx), so the
-   two cannot drift (Mike, 2026-08-19: "yes i like the more informational
-   calendars ... grid left to right depending on page width ... white
-   backgrounds to separate, with light strokes").
+   two cannot drift (2026-08-19): the more informational calendars, in a
+   grid that runs left to right with the page width, on white backgrounds
+   with light strokes to separate them.
 
    No hooks and no "use client": /days renders it on the server with plain
    hrefs, the Folder's shelf renders it on the client with onPick handlers. A
@@ -70,8 +70,8 @@ export function MonthCalendar({ title, total, leading, days }: {
     background: "none", border: 0, borderBottom: "1px solid var(--line-2)", cursor: "pointer", padding: 0, width: "100%",
   };
   // Always six week rows, padded with blank cells, so every month card is the
-  // same height and side-by-side months line up (Mike, 2026-08-19: "calendar
-  // should have longest white box even without more days so they match"). Six
+  // same height and side-by-side months line up (2026-08-19), even a month
+  // with fewer days. Six
   // is the most any month needs (31 days after a Saturday 1st is 37 cells).
   const trailing = 6 * 7 - leading - days.length;
   return (

@@ -46,8 +46,8 @@ import { decodeChunkInto, memberListChunks, setMembersPrefix, type SetMemberRef 
  * The env var is the reverse switch: set LEDGER_WRITES=on to restore the old
  * behaviour instantly, without a deploy, from Vercel's env panel.
  */
-// 2026-09-16, Mike: "we have to let the proofs record to s3 so the website can
-// function properly". Writes are ON by default again (LEDGER_WRITES=off is the
+// 2026-09-16: proofs record to S3 again, because the website cannot function
+// without them. Writes are ON by default again (LEDGER_WRITES=off is the
 // switch now), and the enclave's parent carries LEDGER_WRITES=on in its unit.
 // The 2026-09-08 → 2026-09-16 gap was backfilled the same night (proofs/ had
 // every body; by-digest and the journal had none of them).
@@ -525,14 +525,14 @@ async function indexSetMembers(s3: S3Client, bucket: string, proof: Record<strin
  * offline. Evidence that does not bind is counted and skipped, never
  * written. The caller has already read the set proof from its own position.
  *
- * ⚠️ RESTORED 2026-09-17, on Mike's word, after being deleted on 2026-09-08
+ * ⚠️ RESTORED 2026-09-17, after being deleted on 2026-09-08
  * (61263868) with the rest of the by-digest write world. A set/2 commits only
  * the root of a Merkle tree, so the boundary and this server never see the
  * member list: it exists in the browser that built the tree, which is why the
  * evidence is pushed up here after the commit rather than derived. Without
  * this, every multi-file drop's members were unfindable by hash, so dropping
  * one file of a recorded set read as NEW and a lone new file auto-records
- * (Mike: "if its already bitgraphed it should be a lookup"). indexSetMembers
+ * (a file already BitGraphed must be a lookup). indexSetMembers
  * above still covers set/1, whose manifest travels inside the proof.
  */
 export async function indexSetMemberEvidence(
@@ -623,7 +623,7 @@ async function writeMemberKeys(
  * dropped folder from it (/api/proofs/batch: "a set is one position"); with
  * no list it reads each member's key on its own. Re-dropping the 55,000 file
  * set made on 2026-09-27 was minutes of that: 1,000 members cost 14.3s and
- * 11.8 MB (measured 2026-09-28, Mike: "still kind of hangs here" on
+ * 11.8 MB (measured 2026-09-28; the page hung on
  * "Checking 0 of 55000").
  *
  * ⚠️ NEVER WRITTEN BEFORE 2026-09-28. Lists arrived on 09-08 (40f6260e) with a
@@ -933,7 +933,7 @@ export async function getProofsByDigest(digestB64: string, options: LookupOption
  */
 /* getProofsAroundCounter lived here: every proof in a window of counters,
    recordings included, the reader behind /api/proofs/chain. Deleted with that
-   route (Mike, 2026-10-09: "We don't want that ledger."): walking counters
+   route (2026-10-09: no public list of recordings): walking counters
    read out every record. Proofs are read by digest only. */
 
 /**
@@ -1175,7 +1175,7 @@ async function readSetMemberListUncached(
 /** Chunks read at once. A list is ~20 objects, so this finishes in one round. */
 const SET_LIST_POOL = 24;
 
-/* ── Floor links (Mike, 2026-10-18): the Base plugin's floor is its own BitGraph. When the Base switch is on, BitGraph 1
+/* ── Floor links (2026-10-18): the Base plugin's floor is its own BitGraph. When the Base switch is on, BitGraph 1
    binds the latest Base block and BitGraph 2 the content; a floor link, written once beside the ledger, names BitGraph 1
    as BitGraph 2's floor. The bind itself stays two counts; this is a record about two BitGraphs, checked before it is
    written (app/api/floors). ── */

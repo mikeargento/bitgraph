@@ -1,8 +1,8 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * Floor links (Mike, 2026-10-18: "base floors are just their own bitgraph"; "it keeps bitgraph just writing bitgraph as
- * 2 counts"). BitGraph 1 binds base-floor.json (the latest Base block) and BitGraph 2 binds the content right after it.
+ * Floor links (2026-10-18: a Base floor is its own BitGraph, so BitGraph still writes each bind as
+ * 2 counts). BitGraph 1 binds base-floor.json (the latest Base block) and BitGraph 2 binds the content right after it.
  * This route records, once, that BitGraph 1 is BitGraph 2's floor, after checking everything anyone could check
  * (lib/floor-link.ts):
  *   - both BitGraphs are in the ledger at the positions given, in the same epoch, BitGraph 2 after BitGraph 1;

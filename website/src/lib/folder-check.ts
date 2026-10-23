@@ -461,7 +461,7 @@ export async function findAnyMatchInFiles(
    * these searches, and a set's page needs the same digests again straight
    * afterwards to ask the ledger which file is its member. Without this it
    * hashed everything twice and then looked at only the first 2,000 files
-   * (Mike, 2026-09-07: "it gets hung on that first 30k of 30k screen").
+   * (2026-09-07: the page hung on its first "30k of 30k" screen).
    * Partial when the pass short-circuits on a match, which is fine: the second
    * use only happens when there was none.
    */

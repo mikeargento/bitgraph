@@ -4,8 +4,8 @@
  * app/api/proofs/digest/[digest]/route.ts, which can only answer for a proof
  * the ledger still holds — and since 2026-09-08 the ledger holds no user
  * proofs at all, so every local-first BitGraph lost its window and its page
- * said "Waiting for the next Ethereum block…" forever (Mike: "eth anchors dont
- * load into proofs but they should. they are accessible from the s3").
+ * said "Waiting for the next Ethereum block…" forever, though the anchors
+ * were still readable from S3.
  *
  * They are. anchors/{epoch}/{counter}.json is keyed by COUNTER, not by digest,
  * which is exactly why that index survived phase 2 while by-digest did not. A
@@ -30,7 +30,7 @@ export type AnchorView = {
   digestB64: string | null;
   /** When BitGraph recorded this anchor: its attestation document's timestamp,
    *  the TEE's signed clock. Every BitGraph's time on the site is read this
-   *  way (Mike, 2026-09-27: "make it consistent"); blockTime is Ethereum's
+   *  way (one clock everywhere, 2026-09-27); blockTime is Ethereum's
    *  clock for the block, an earlier and different moment. Null when the
    *  document is absent or unreadable. */
   recordedMs: number | null;

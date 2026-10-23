@@ -9,17 +9,16 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * The bar, in its own look (2026-10-17): the wordmark, then the links, Make at the right. The sun/moon left the bar for
- * the footer's bottom right (Mike, 2026-10-20: "sun moon should now leave header enter footer bottom right").
- * Demos joined the bar 2026-10-20 (Mike: "we need demos and contact in the menu. the mobile site can have a hamburger";
- * then "remove contact from main nav and put in the footer"): on desks the links sit in the bar; on phones they fold
- * into a menu button that opens a sheet under the bar.
+ * the footer's bottom right (2026-10-20).
+ * Demos joined the bar 2026-10-20, and Contact briefly with it before moving to the footer: on desks the links sit in
+ * the bar; on phones they fold into a menu button that opens a sheet under the bar.
  */
 const LINKS: Array<{ href: string; label: string }> = [
   { href: "/demos", label: "Demos" },
-  // The ledger: look a file up, or read every BitGraph by day (Mike, 2026-10-17: "check is ledger").
+  // The ledger: look a file up, or read every BitGraph by day (2026-10-17: checking is the ledger).
   { href: "/ledger", label: "Proofs" },
   { href: "/tools", label: "Tools" },
-  // Make on the right, plain text like the others (Mike, 2026-10-18 / 10-19).
+  // Make on the right, plain text like the others (2026-10-18 / 10-19).
   { href: "/make", label: "Make" },
 ];
 
@@ -40,7 +39,7 @@ export function SiteNav() {
   return (
     <div id="site-nav" style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", boxSizing: "border-box", position: "relative", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-        {/* The record dot tried beside the wordmark and removed the same day (Mike, 2026-10-20). */}
+        {/* The record dot tried beside the wordmark and removed the same day (2026-10-20). */}
         <Link href="/" className="nav-wordmark" style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", textDecoration: "none", letterSpacing: "-0.01em" }}>
           BitGraph
         </Link>
@@ -50,7 +49,7 @@ export function SiteNav() {
               {l.label}
             </Link>
           ))}
-          {/* The sun/moon, upper right again (Mike, 2026-10-21: "moon sun at top again in nav in upper right"). */}
+          {/* The sun/moon, upper right again (2026-10-21). */}
           <ThemeToggle />
           <button
             type="button"

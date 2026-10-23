@@ -26,8 +26,8 @@ export const maxDuration = 60;
  * really a cap on reads. The digest index changed that: a digest the filter
  * rules out costs nothing at all, and a fresh drop rules out essentially all
  * of them, so the only remaining cost there is the round trip itself. At 500 a
- * 48,000 file drop was 96 round trips; at 2,000 it is 24 (Mike, 2026-09-07:
- * "why does checking only go in chunks of 500").
+ * 48,000 file drop was 96 round trips; at 2,000 it is 24 (2026-09-07: checking
+ * visibly went in chunks of 500).
  *
  * The slow case is unchanged rather than made worse: a drop of files that are
  * all on record still costs one read each at the same CONCURRENCY, so the same
@@ -51,7 +51,7 @@ const MAX_DIGESTS = 2_000;
  * That made eight the wrong number for the one case that is still slow:
  * re-dropping a folder already on record. Every digest hits, 2,000 of them
  * took 25s, and a 48,000 file re-drop spent about two minutes in lookups
- * (Mike, 2026-09-07: "checking takes FOREVER").
+ * (2026-09-07: checking was far too slow).
  *
  * Measured against the real bucket on the same data, per digest:
  *   8 -> 15.0ms   16 -> 7.6ms   32 -> 3.8ms   64 -> 2.9ms
@@ -136,8 +136,8 @@ export async function POST(req: NextRequest) {
      * operations, 70s measured against production on 2026-09-07, while the
      * SAME folder checked in 4.0s before it was ever recorded.
      *
-     * Mike's read of it: "look up the FIRST available proof and if it's in a
-     * big group it looks up the rest by logic". So a few digests are probed
+     * The fix: look up the first available proof, and if it belongs to a big
+     * group, answer the rest from that group. So a few digests are probed
      * normally; a probe that lands on a set member names its set, and that
      * set's member list answers every other file in the drop from memory.
      * ~25 reads instead of 152,000.
@@ -288,8 +288,8 @@ export async function POST(req: NextRequest) {
     }
 
     /**
-     * ⚠️ RULING (Mike, 2026-09-08): "the row shouldnt claim a count until you
-     * open it."
+     * ⚠️ RULE (2026-09-08): the row does not claim a count until it is
+     * opened.
      *
      * This is what makes a check cost what a make costs. Making 48,000
      * BitGraphs is ONE request, because the set is one tick; checking them

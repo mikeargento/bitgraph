@@ -3,7 +3,7 @@ import { CopyCode } from "@/components/copy-code";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 
 /**
- * Tools (Mike, 2026-10-18: "make the docs page a tools page"; the home page is the explanation). What a builder needs,
+ * Tools (2026-10-18: the docs page became a tools page; the home page is the explanation). What a builder needs,
  * in the order they need it: the MCP server, the SDK and CLI, the HTTP API, the offline check; then how a BitGraph is
  * made, the plugins, epochs, every limit and what you trust in full, and the reference. /docs redirects here.
  *
@@ -11,7 +11,7 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
  * base64(SHA-256(publicKeyB64 + ":" + bootNonceB64)); each epoch's counter starts at 0. Enclave v13 (2026-10-19): epochs
  * are not chained; each one's first BitGraph binds epoch-floor.json, a fresh read of the latest Base block.
  *
- * Layout (Mike, 2026-10-19: "this page could be spruced up. i give you carte blanche"): the four ways in as cards at the
+ * Layout (2026-10-19 redesign): the four ways in as cards at the
  * top, each with its command; the offline check as a wide card under them; then the reference beside a contents list
  * that stays in view on desktop. Questions fold open; the proof's fields are a table.
  */

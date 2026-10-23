@@ -2,12 +2,11 @@
 
 /* Is your BitGraphs folder connected? — a light in the corner, on every page.
  *
- * Mike's call, and it overrides two standing rules on purpose. "A count, never
- * a dot" and "nothing red" were both his, made the same day, and he changed
- * them once he had used the thing: "not connected should be red and connected
- * should be green and clicking it should open a nice modal asking for the
- * location of your BitGraph folder. no amount of proofs needed and no dialog
- * in dropbox."
+ * This overrides two standing rules on purpose. "A count, never a dot" and
+ * "nothing red" were made the same day and changed once the thing was in use:
+ * not connected is red, connected is green, and clicking opens a modal that
+ * asks for the location of the BitGraph folder. No count of proofs, and no
+ * dialog in the drop box.
  *
  * So: no count, no line inside the drop box, and a literal red/green light.
  * The reasoning that produced the old rules was that not-connected is the
@@ -166,7 +165,7 @@ export function LedgerLight() {
               textAlign: "left",
             }}
           >
-            {/* Left-aligned throughout (Mike), except the drop zone's own
+            {/* Left-aligned throughout, except the drop zone's own
                 label: that one is a target, and a centred label is what says
                 so. Everything else is prose, and prose read against a ragged
                 left edge is slower — the site sets every other card this way. */}

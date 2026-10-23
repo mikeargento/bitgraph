@@ -1,7 +1,7 @@
 // © 2026 Michael Argento. All rights reserved.
 /**
  * bitgraph-art/19 (2026-10-11), "Bridge" at 16:9: version 18's suspension bridge (commitment-art-v18.ts) on a 1920 x 1080
- * canvas, for /generate (Mike, 2026-10-11: "we should make this the demo", then "/generate"). The same rules, the same
+ * canvas, for /generate (2026-10-11: the site's demo). The same rules, the same
  * engine (commitment-art-bridge.ts), the same five palettes and the same file; the silhouette redrawn for the wide frame
  * and every size scaled so a piece reads as densely as a square one. Every random draw comes from the position
  * commitment, integers only, the recorded file a PNG that carries the exact SVG print master in an iTXt chunk.

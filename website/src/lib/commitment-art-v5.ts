@@ -1,5 +1,5 @@
 /**
- * bitgraph-art/5 (Mike, 2026-10-06: "build it as version 5"): layered line fields, rings, bursts,
+ * bitgraph-art/5 (2026-10-06): layered line fields, rings, bursts,
  * halftone, checks and solids in code-chosen shapes, with a calm or loud mood, glitch slicing and
  * scanlines when loud; and a PLATE MARK: 256 tick marks around the frame, one per bit of the code.
  *

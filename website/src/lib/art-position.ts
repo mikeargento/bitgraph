@@ -1,5 +1,5 @@
 /**
- * The image generator's protocol half (Mike, 2026-10-05): open a position, make the image FROM
+ * The image generator's protocol half (2026-10-05): open a position, make the image FROM
  * its commitment, record the image in THAT position, and read the proof back before anything
  * is called made. Nothing here is new protocol: the open and the commit are the drop box's own
  * (fuse-tree-make.ts, with its lost-reply recovery), the marker is the inline one the MCP task
@@ -263,8 +263,8 @@ export async function redrawRecordedArt(proof: BitGraphProof, opts: { onTry?: (a
   }
 }
 
-/* ── Coming back to an image (Mike, 2026-10-06: "if you navigate away from the page the image is gone
- * forever"). It never was: the recorded file is a function of its proof. /image?p=<digest> reads the
+/* ── Coming back to an image (2026-10-06): leaving the page does not lose the image, and it never
+ * did: the recorded file is a function of its proof. /image?p=<digest> reads the
  * proof back by digest and rebuilds the whole made image from it, byte for byte, or gives nothing. */
 export async function restoreArtImage(proof: BitGraphProof, opts: { onTry?: (algorithm: string | null) => void; recordedMs?: number | null } = {}): Promise<MadeArtImage | null> {
   const redrawn = await redrawRecordedArt(proof, opts);

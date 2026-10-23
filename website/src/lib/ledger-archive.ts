@@ -75,7 +75,7 @@ export type LedgerRow = {
 
 /**
  * The rows the public feed may show: anchors and interval recurrences, never a
- * recording (Mike, 2026-10-09: "We don't want that ledger.").
+ * recording (2026-10-09: no public list of recordings).
  *
  * An anchor's row is public by nature: its file is the hash of an Ethereum
  * block anyone can read. A recording's row is somebody's digest, and a list of

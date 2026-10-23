@@ -3,7 +3,7 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * The image generator on two BitGraphs (Mike, 2026-10-17: "fire the image generator back up using this same method"),
+ * The image generator on two BitGraphs (restored 2026-10-17, on the same two-BitGraph method),
  * the same shape as Ask AI. One click binds A (a small request file); A's nonce, unseen until A is bound, is the only
  * input to the drawing (bitgraph-art/19); the PNG is bound as B, after A. The drawing is deterministic, so nothing is
  * stored: /generate?a=<A's digest> reads A's proof, draws the same picture from its nonce, and looks B up by the PNG's
@@ -115,13 +115,13 @@ export function ArtTwo() {
           bound as BitGraph B, after A in the same sequence. Anyone can draw it again from A&rsquo;s proof and get the same&nbsp;bytes.
         </p>
         <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {/* The primary action, filled (Mike, 2026-10-20: "these buttons should be more prominent"). The record dot was tried
+          {/* The primary action, filled (2026-10-20) so it stands out as the one thing to press. The record dot was tried
               and left off: on a button it reads as "this site will record you". */}
           <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={state === "running"} onClick={() => void makeNow()}>
             {made ? "Generate another" : "Generate image"}
           </button>
           {/* While it runs the button keeps its label and a bar fills, one part per step, instead of the label changing
-              at each BitGraph (Mike, 2026-10-19: "the button sort of blinks for each bitgraph. maybe just a progress bar"). */}
+              at each BitGraph (2026-10-19): a label swapped per step made the button blink. */}
           {state === "running" && (
             <span className="demo-progress" role="progressbar" aria-label={step} title={step}>
               <span style={{ width: `${Math.round(100 * (step.startsWith("Making BitGraph B") ? 0.85 : step.startsWith("Drawing") || step.startsWith("Asking") ? 0.5 : 0.15))}%` }} />
@@ -133,7 +133,7 @@ export function ArtTwo() {
 
       {made && a && (
         // The result opens smoothly: the space grows and the content fades in, so the drawing below glides down
-        // instead of jumping (Mike, 2026-10-19).
+        // instead of jumping (2026-10-19).
         <div className="demo-reveal"><div>
         <section className="home-section" aria-labelledby="gen-r">
           <h2 id="gen-r" className="sr-only">The picture</h2>
@@ -142,7 +142,7 @@ export function ArtTwo() {
           <div style={{ paddingTop: 40 }}><p className="home-kicker">Drawn from BitGraph A&rsquo;s nonce</p></div>
           <div className="gen-nonce"><CopyableCode text={urlSafe(a.commit!.nonceB64!)} label="the nonce" /></div>
           {!b && <p className="db-bad">This picture has no BitGraph B on the ledger.</p>}
-          {/* The links are buttons (Mike, 2026-10-19: "should these be buttons?"), like View proof on Make. */}
+          {/* The links are buttons (2026-10-19), like View proof on Make. */}
           <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
             <a className="bg-action-link" style={{ margin: 0 }} href={proofHref(a)}>BitGraph A #{fmt(a.commit!.counter!)}, the request</a>
             {b && <a className="bg-action-link" style={{ margin: 0 }} href={proofHref(b)}>BitGraph B #{fmt(b.commit!.counter!)}, the picture</a>}
@@ -152,8 +152,8 @@ export function ArtTwo() {
         </div></div>
       )}
       {/* The drawing explains; it does not animate, and it sits below the result, so a result is the first thing seen
-          after the button (Mike, 2026-10-19: "this animation on demo is not needed but the result being higher up on the
-          page would be a better ui"). */}
+          after the button (2026-10-19): the animation added nothing, and the result reads better higher up the
+          page. */}
       <section className="home-section" aria-label="How it works">
         <div>
           <SandwichFigure

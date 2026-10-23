@@ -51,7 +51,7 @@ interface FileDropProps {
   /** Smaller, quieter line rendered beneath the hint */
   subhint?: ReactNode;
   /** One more line under the subhint, in its voice, for a fact about the
-   *  instrument itself: /actor's "Acting as …, key …" (Mike, 2026-08-19: in
+   *  instrument itself: /actor's "Acting as …, key …" (2026-08-19: in
    *  the box, under "Your file never leaves your device", so the block under
    *  the frame is one line on both pages and the two frames match). */
   note?: ReactNode;
@@ -113,8 +113,8 @@ export function FileDrop({
   // and will not select a folder (it opens it instead), `webkitdirectory`
   // selects a folder and returns everything under it. Dragging always allowed
   // both; choosing did not, which made the picker feel broken.
-  /* ⚠️ THERE IS NO "choose a folder" LINK, in any browser (Mike, 2026-08-07,
-     after seeing both paths). Folders arrive by DRAGGING, full stop, which is
+  /* ⚠️ THERE IS NO "choose a folder" LINK, in any browser (2026-08-07,
+     after both paths were tried). Folders arrive by DRAGGING, full stop, which is
      why the copy says so out loud.
 
      Both ways of clicking to a folder were built and both were rejected on
@@ -482,8 +482,8 @@ export function FileDrop({
               a caller passing neither line cannot leave a phantom margin
               behind and push the block off center. */}
           <div style={{ marginTop: hint || subhint || note ? "var(--fd-copy-gap, 12px)" : 0 }}>
-            {/* The note leads (2026-08-27 reversal, Mike: "making the
-                smaller choose files...text at the bottom"): the claim sits
+            {/* The note leads (2026-08-27 reversal, with the smaller
+                choose-files text moved to the bottom): the claim sits
                 under the headline, the operating instructions close the
                 stack. The wrapper's voice is the subhint's; a note that
                 wants its own (the what-happens pair) carries its own
@@ -535,7 +535,7 @@ export function FileDrop({
               </div>
             )}
             {/* ── The fourth line: what this browser actually knows ──
-                Mike, 2026-09-08: "oh inside i like that". BELOW the other
+                Inside the box (2026-09-08). BELOW the other
                 three, not above them and not in the nav — above the frame is
                 the slot the headline was removed from that same morning, and
                 the nav would recreate the two-meanings-of-Ledger problem.

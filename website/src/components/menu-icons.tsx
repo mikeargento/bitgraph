@@ -5,7 +5,7 @@
  * group. The font is loaded in the root layout with only these icons.
  */
 const ICON: Record<string, string> = {
-  "/generate": "auto_awesome_mosaic", // rectangles, like the images it makes (Mike, 2026-10-10: "should image icon be diff?")
+  "/generate": "auto_awesome_mosaic", // rectangles, like the images it makes (2026-10-10)
   "/jev": "quiz",
   "/docs/try": "add_box",
   "/docs/overview": "schema",

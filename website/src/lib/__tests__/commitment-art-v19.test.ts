@@ -78,7 +78,7 @@ test("version 19 is registered, 1920 x 1080, and is not the default", () => {
   assert.deepEqual([V19_WIDTH, V19_HEIGHT], [1920, 1080]);
 });
 
-test("the five palettes are version 18's, Mike's presets", () => {
+test("the five palettes are version 18's presets", () => {
   assert.deepEqual(PALETTES_V19.map((p) => [p.name, [...p.colors]]), PALETTES_V18.map((p) => [p.name, [...p.colors]]));
   assert.equal(PALETTES_V19.length, 5);
 });

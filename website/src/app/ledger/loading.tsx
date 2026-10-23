@@ -1,5 +1,5 @@
-/* What shows while the ledger is read on the server (Mike, 2026-10-18: "if there is a wait, like when loading the
-   ledger, maybe there should be a progress indicator"): the page's own frame, its label, and a moving bar. */
+/* What shows while the ledger is read on the server, so a slow read shows progress instead of nothing (2026-10-18):
+   the page's own frame, its label, and a moving bar. */
 export default function LedgerLoading() {
   return (
     <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>

@@ -172,7 +172,7 @@ test("the Ledger row's tag reads file, set of N, or set, from a package-free hel
   assert.equal(setRowLabel(0), "set", "a set whose count is unreadable");
 });
 
-// ── the public feed: anchors, never a recording (Mike, 2026-10-09) ─────────
+// ── the public feed: anchors, never a recording (2026-10-09) ───────────────
 
 test("publicRows drops every recording and keeps anchors and intervals in order", () => {
   const rows = [row(9, "a"), row(8, "p"), row(7, "i"), row(6, "p"), row(5, "a")];

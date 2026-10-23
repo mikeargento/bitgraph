@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ledgerPage, rowsAfter } from "@/lib/running-ledger";
 
-/* The running ledger's rows, for the live page (Mike, 2026-10-17: "bitgraph ledger needs to dynamically load"):
+/* The running ledger's rows, for the live page, which loads dynamically (2026-10-17):
    ?after=<key>  today's BitGraphs made after that row, newest first (the poll; costs the same however long the day);
    ?day=<YYYY-MM-DD>&before=<key>  the 200 before that row (Show older). */
 

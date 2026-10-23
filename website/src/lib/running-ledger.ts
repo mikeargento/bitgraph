@@ -1,11 +1,10 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * The running ledger (Mike, 2026-10-17: "a running ledger like the base one"):
+ * The running ledger (2026-10-17, modelled on the Base ledger):
  * every BitGraph made from enclave v11 on, newest first, one UTC day per page.
  *
- * Private by construction (Mike, same night: "its private since the hash is the
- * lookup"): a row carries the position, the two counts, the enclave's signed
+ * Private by construction (same night; the hash is the lookup): a row carries the position, the two counts, the enclave's signed
  * time and the proof hash, NEVER the file's SHA-256. The proof page is
  * addressed by the file's hash, so the list cannot open anyone's record; a
  * BitGraph is found only by someone who holds its bits (the 2026-10-09 ruling
@@ -35,7 +34,7 @@ export interface LedgerRow {
   recordedMs: number | null;
   /** The proof hash, URL-safe base64, from the ledger key. */
   proofHash: string;
-  /** The bound content's SHA-256, URL-safe base64: the proof page's address. Public since 2026-10-17 (Mike: every
+  /** The bound content's SHA-256, URL-safe base64: the proof page's address. Public since 2026-10-17 (every
    *  row links to its proof; a hash cannot be turned back into the file). */
   digest: string | null;
   /** True for the anchor service's binds (none from enclave v12 on). */
@@ -97,7 +96,7 @@ const pad = (n: number) => String(n).padStart(12, "0");
 const counterOfKey = (k: string) => Number(k.match(/\/(\d{12})-/)?.[1] ?? -1);
 
 /** The highest count with a proof in this epoch, found by binary search on the count-ordered keys (one key per
- *  probe), so it costs ~20 tiny LISTs however long the day is (Mike, 2026-10-17: "ledger page loads SLOW"). -1 if empty. */
+ *  probe), so it costs ~20 tiny LISTs however long the day is (2026-10-17: the ledger page loaded slowly). -1 if empty. */
 // The last answer per epoch, kept while this server instance is warm: the next search starts there, so a page load
 // usually costs one or two one-key LISTs. Counts only grow within an epoch, so a remembered count is a safe floor.
 const lastNewest = new Map<string, number>();

@@ -1,5 +1,5 @@
 /**
- * Which results this browser made (Mike, 10-06: his own image, reloaded, said "someone clicked"). A
+ * Which results this browser made (10-06: a maker's own image, reloaded, said "someone clicked"). A
  * per-viewer convenience in localStorage: a reopened result says "you" to the browser that made it and
  * "someone" to everyone else. Never the record of anything; empty or blocked storage just means "someone".
  */

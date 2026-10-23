@@ -1,11 +1,11 @@
 "use client";
 
-/* The drop-target border. Doctrine (Mike, 2026-08-06): a dashed edge means
+/* The drop-target border. Doctrine (2026-08-06): a dashed edge means
  * "this is where you drop files", and every drop box wears it: the Try page's
  * band, the ledger's anchor box, the proof page's find-this-file box.
  *
- * 2026-09-17: a fine CSS dashed border with the site's 6px corners (Mike, of
- * the drawn version: "dotted lines on drop boxes should be tighter. smaller").
+ * 2026-09-17: a fine CSS dashed border with the site's 6px corners, tighter
+ * and smaller than the drawn version.
  * Until today the dashes were DRAWN, four background gradients 2px thick with
  * a 9:7 dash solved per edge, because at 2px with square corners a CSS dashed
  * border fills each mitre into a solid L. At 1px on a rounded corner the

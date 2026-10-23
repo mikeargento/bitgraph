@@ -7,7 +7,7 @@
  * what it cost. This answers the same question about YOUR files, from the
  * BitGraphs files you have on your own disk, and it costs nothing.
  *
- * ⚠️ THE GATE IS ON MINTING, NOT ON DRAGGING. Mike's July ruling — a lone new
+ * ⚠️ THE GATE IS ON MINTING, NOT ON DRAGGING. The July rule — a lone new
  * file auto-records, the drop is the shutter — depended on the ledger being
  * able to say the file was NEW. Without one, "new" is unknowable, and
  * auto-record silently becomes "record something that may already be

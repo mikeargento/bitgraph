@@ -4,7 +4,7 @@
  * Markdown for human-facing summaries, JSON for complete structured data.
  * A BitGraph's time is its attestation timestamp, the enclave platform's
  * signed clock, the same time its proof page leads with (RE-RULING
- * 2026-09-25; one clock everywhere, Mike 2026-09-27). Since enclave v10 the
+ * 2026-09-25; one clock everywhere, 2026-09-27). Since enclave v10 the
  * floor is a Base block signed into the proof (commit.slotFloor) and no anchor
  * follows it. For earlier proofs the Ethereum bracket
  * confirms it: a floor block with its mine time, and a ceiling in POSITION,

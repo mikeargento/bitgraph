@@ -29,7 +29,7 @@ import type { BitGraphProof } from "./bitgraph";
 
 export const BITGRAPHS_VERSION = "bitgraph-bitgraphs/1";
 
-/** The folder these accumulate in. Mike's call, 2026-09-08: the product's own
+/** The folder these accumulate in. Chosen 2026-09-08: the product's own
  *  plural, and the word the UI already uses ("BitGraphs in this folder"), so
  *  nothing needs explaining. NOT a dot-folder — hidden folders defeat backing
  *  up and syncing, which is the entire durability story. */
@@ -103,9 +103,9 @@ export function bitgraphsFileName(source: string | null, at: Date = new Date()):
    * name to borrow, and leaning on the browser's de-duplication gave the worst
    * name in the scheme: the first save is `bitgraphs.json`, the second
    * `bitgraphs (1).json`, and neither says what is in it or when it was made.
-   * Mike hit this within minutes of the feature existing. A timestamp is not a
+   * This showed up within minutes of the feature existing. A timestamp is not a
    * good name, but it is a name: it cannot collide, it sorts, and it tells you
-   * something true. UTC, like every time on the site (Mike, 2026-09-19: "it should be UTC throughout"), and
+   * something true. UTC, like every time on the site (UTC throughout since 2026-09-19), and
    * the Z says so, so nobody reads it as local.
    */
   const two = (n: number) => String(n).padStart(2, "0");

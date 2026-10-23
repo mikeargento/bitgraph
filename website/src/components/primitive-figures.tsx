@@ -1,17 +1,17 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * The two pictures the site is (Mike, 2026-10-17: "turn off and strip away
- * everything on the site that isnt just this").
+ * The two pictures the site is (2026-10-17: everything on the site that is
+ * not one of these was turned off and stripped away).
  *
  *   1. The primitive: inside the enclave, one atomic action counts twice, a
  *      nonce nobody sees and then the payload bound after it. What the payload
  *      is decides what is proven: a block hash, a Merkle root, an action or
  *      record, a prior BitGraph.
  *   2. The sandwich: BitGraph A, the records, BitGraph B. Everything between
- *      was bound after A and before B (no clock: "opens" and "closes", Mike 2026-10-17).
+ *      was bound after A and before B (no clock: "opens" and "closes", 2026-10-17).
  *
- * 0. The flow (Mike, 2026-10-17, "a simpler graphic"): content, its SHA-256,
+ * 0. The flow (2026-10-17, the simpler graphic): content, its SHA-256,
  *    then the enclave's one action (1: nonce, 2: bind the digest, signed), then
  *    the proof, checked offline. The digest goes straight to step 2: the nonce
  *    is drawn without it. This is the home page's one picture.
@@ -64,7 +64,7 @@ export function PrimitiveFigure() {
 interface Step { title: string; sub?: string }
 const RECORDS: Step[] = [{ title: "Work" }, { title: "Work" }, { title: "Work" }];
 
-/** Two BitGraphs as bookends. The home draws the general case; a demo names its own steps (Mike, 2026-10-17). */
+/** Two BitGraphs as bookends. The home draws the general case; a demo names its own steps (2026-10-17). */
 /** "The request" → "the request", for "BitGraph A: the request". */
 const lowerFirst = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
 
@@ -73,7 +73,7 @@ export function SandwichFigure({
   label = "BitGraph A, then the work, then BitGraph B. Everything between is bound after A and before B.",
   progress,
 }: { a?: string; b?: string; steps?: Step[]; caption?: ReactNode; label?: string; progress?: number } = {}) {
-  /* A demo can show where it is (Mike, 2026-10-18: the drawing should move as the demo runs): `progress` is the index
+  /* A demo can show where it is (2026-10-18: the drawing moves as the demo runs): `progress` is the index
      of the box being worked on (A is 0, the steps 1.., B last); every box before it is done. Past the last box, all
      are done. Undefined: a plain drawing. */
   const state = (i: number) => (progress === undefined ? "" : i < progress ? " is-done" : i === progress ? " is-active" : " is-waiting");
@@ -81,8 +81,8 @@ export function SandwichFigure({
   return (
     <figure className={`pf-figure${progress !== undefined ? " pf-live" : ""}`} aria-label={label}>
       <div className="pf-row pf-row-sandwich">
-        {/* A and B are the bold words, their role below (Mike, 2026-10-21: record and stop "means specific action taken";
-            the red dot and the stop square went with them). */}
+        {/* A and B are the bold words, their role below (2026-10-21: "record" and "stop" read as a specific action
+            taken, so they went, and the red dot and the stop square with them). */}
         <div className={`pf-box pf-purple pf-end${state(0)}`}>
           <div className="pf-title">BitGraph A</div>
           <div className="pf-sub">{lowerFirst(a)}</div>
@@ -108,7 +108,7 @@ export function SandwichFigure({
   );
 }
 
-/** Work between two (Mike, 2026-10-19: "another diagram with examples of mixed content"): BitGraph A, then the work made from
+/** Work between two (2026-10-19, a second diagram with examples of mixed content): BitGraph A, then the work made from
  *  its nonce, any kind of work (the three stacked examples read as "or", the demos' own three), then BitGraph B binding the
  *  result. A fan, not a line, so it does not repeat the sandwich above it. */
 const RecordIcon = () => (
@@ -120,17 +120,17 @@ const StopIcon = () => (
 
 export function WorkFigure() {
   return (
-    // A is record, B is stop (Mike, 2026-10-20: "bitgraph A is like the record button and bitgraph B is the stop button";
+    // A is record, B is stop (2026-10-20: BitGraph A works like a record button and BitGraph B like a stop button;
     // the red record dot and the stop square, labels "Start the recording" / "Stop the recording").
     <figure className="pf-figure pf-work" aria-label="BitGraph A starts the recording: its nonce becomes the input to the work, a question, an image, or an AI's task. BitGraph B stops the recording and binds the result.">
       <div className="pf-row pf-row-work">
         <div className="pf-box pf-purple pf-end">
-          {/* Record and Stop are the bold words, the BitGraphs the subtext (Mike, 2026-10-20). */}
+          {/* Record and Stop are the bold words, the BitGraphs the subtext (2026-10-20). */}
           <div className="pf-title"><RecordIcon />Record</div>
           <div className="pf-sub">BitGraph A starts the recording</div>
         </div>
         <Arrow />
-        {/* No articles: "A question" beside BitGraph A read as A's (Mike, 2026-10-20). */}
+        {/* No articles: "A question" beside BitGraph A read as A's (2026-10-20). */}
         <div className="pf-choices">
           <div className="pf-box pf-grey"><div className="pf-title pf-plain">Question</div></div>
           <div className="pf-box pf-grey"><div className="pf-title pf-plain">Image</div></div>
@@ -147,8 +147,8 @@ export function WorkFigure() {
   );
 }
 
-/** The sequence (Mike, 2026-10-21: "you dont have to choose. you can just bitgraph the shit out of everything and check
- *  later"): a run of BitGraphs, two of them picked out after the fact, and the work between them in order. Drawn as one
+/** The sequence (2026-10-21: nothing has to be chosen in advance; BitGraph everything and pick the pair to check
+ *  later): a run of BitGraphs, two of them picked out after the fact, and the work between them in order. Drawn as one
  *  SVG so it is the same picture at every width. */
 function SequenceRow({ n, a, b, first = 41, className }: { n: number; a: number; b: number; first?: number; className: string }) {
   const w = 72, gap = 24, x0 = 32, y0 = 60, h = 48;
@@ -178,8 +178,8 @@ function SequenceRow({ n, a, b, first = 41, className }: { n: number; a: number;
   );
 }
 
-/** The sequence (Mike, 2026-10-21: "you dont have to choose. you can just bitgraph the shit out of everything and check
- *  later"): a run of BitGraphs, all alike, two of them picked out after the fact, and the work between them in order.
+/** The sequence (2026-10-21: nothing has to be chosen in advance; BitGraph everything and pick the pair to check
+ *  later): a run of BitGraphs, all alike, two of them picked out after the fact, and the work between them in order.
  *  Drawn as SVG so it is the same picture at every width; phones get a shorter row so the numbers stay readable. */
 export function SequenceFigure() {
   return (
@@ -190,7 +190,7 @@ export function SequenceFigure() {
   );
 }
 
-/** The simple picture: content → [enclave: 1 nonce → 2 bind] → proof, the content entering at step 2 (Mike, 2026-10-17: "simplify ... only keep content"). */
+/** The simple picture: content → [enclave: 1 nonce → 2 bind] → proof, the content entering at step 2 (2026-10-17: simplified to content alone). */
 export function FlowFigure() {
   return (
     <figure className="pf-figure pf-flow" aria-label="Content goes into the enclave and runs straight through one atomic action: step 1 makes a position commitment, unpredictable and unused, step 2 binds the content right after it and signs both. The result is a proof anyone can check offline.">
@@ -201,7 +201,7 @@ export function FlowFigure() {
       <div className="pf-box pf-purple pf-f-nonce"><div className="pf-title">1. Position commitment</div><div className="pf-sub">Unpredictable and unused</div></div>
       <span className="pf-arrow pf-f-a2" aria-hidden="true" />
       <div className="pf-box pf-green pf-f-bind"><div className="pf-title">2. Content fills position</div><div className="pf-sub">Position consumed</div></div>
-      {/* Inside the enclave, under its two steps (Mike, 2026-10-17: "maybe this text should be inside tee box"). */}
+      {/* Inside the enclave, under its two steps (2026-10-17), since the text describes the TEE's action. */}
       <div className="pf-f-note">One atomic action. If any step fails, nothing is released and the counter does not move.</div>
       <span className="pf-arrow pf-f-a3" aria-hidden="true" />
       <div className="pf-box pf-green pf-f-proof"><div className="pf-title">Portable proof</div><div className="pf-sub">Checks offline, by anyone</div></div>

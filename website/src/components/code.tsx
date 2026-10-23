@@ -3,8 +3,8 @@ import { createCssVariablesTheme, createHighlighterCore, type HighlighterCore } 
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 
 /**
- * A highlighted code listing, for the inside of a `.code-block` (Mike,
- * 2026-09-17, of GitHub's syntax colouring: "do it").
+ * A highlighted code listing, for the inside of a `.code-block`, coloured
+ * the way GitHub colours syntax (2026-09-17).
  *
  * A server component: Shiki tokenises at build time for the static pages, so
  * what ships is plain spans and no client script. The theme is Shiki's

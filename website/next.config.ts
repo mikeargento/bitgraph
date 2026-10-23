@@ -15,8 +15,8 @@ const nextConfig: NextConfig = {
     },
   },
   async redirects() {
-    // 2026-10-17 (Mike): the site is one page, plus the ledger and the proof pages
-    // ("this can literally be one page if you dont count ledger"). Every retired page
+    // 2026-10-17: the site is one page, plus the ledger and the proof pages, since
+    // everything else fits on the home page. Every retired page
     // redirects home; none of these is permanent, because browsers keep a permanent
     // redirect forever and the site is still settling. /docs went to /docs/overview
     // PERMANENTLY until today; both now land on /, which redirects nowhere, so no

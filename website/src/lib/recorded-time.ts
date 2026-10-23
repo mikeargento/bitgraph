@@ -7,8 +7,8 @@ const memo = new WeakMap<object, number | null>();
 /** A BitGraph's recorded instant: its attestation document's own timestamp,
  *  the TEE's signed clock, in epoch ms.
  *
- *  The one clock the site shows a BitGraph's time by (Mike, 2026-09-27:
- *  "make it consistent"). The proof page leads with it (RE-RULING 2026-09-25),
+ *  The one clock the site shows a BitGraph's time by (2026-09-27, so every
+ *  view agrees). The proof page leads with it (RE-RULING 2026-09-25),
  *  and the Positions rows, the bracket anchors, the ledger lists and the drop
  *  box all read it here, so a row and the page it opens never disagree. Before
  *  this, the ledger showed when the proof file reached storage (S3's clock,

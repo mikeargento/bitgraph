@@ -3,15 +3,15 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * The drop box (Mike, 2026-10-17: "wheres the dropbox? there should be a
- * checker and a maker right?"). Drop files; each is hashed HERE, in the
+ * The drop box (2026-10-17): one place that is both a checker and a
+ * maker. Drop files; each is hashed HERE, in the
  * browser, and only its SHA-256 ever leaves the machine.
  *
  *   Checker: every file is looked up by its hash. A file that is already a
  *   BitGraph gets its proof verified in this browser against the file's own
  *   bytes, and a link to its proof page.
  *   Maker: on /make, files that are not yet BitGraphs are made at once when
- *   dropped (Mike, 2026-10-17: "dropping bitgraph in should just do it"): one
+ *   dropped, with no further step (2026-10-17): one
  *   atomic action in the enclave each (a fresh nonce, then the file's digest).
  *   One file lands on its proof page.
  *   Each result shows the enclave's own signed time.
@@ -89,9 +89,9 @@ function proofFileOf(f: File, bytes: Uint8Array): Proof | null {
   }
 }
 
-/** Every file in a drop, folders opened all the way down (Mike, 2026-10-17: a folder of 10,000 files). The walk lists
+/** Every file in a drop, folders opened all the way down (2026-10-17: a folder of 10,000 files). The walk lists
  *  entries first and then opens up to 64 files at once, reporting as it goes: a 100,000-file folder read one file at a
- *  time, with nothing on screen, looked like a dead page (Mike, 2026-10-18). */
+ *  time, with nothing on screen, looked like a dead page (2026-10-18). */
 async function filesOfDrop(dt: DataTransfer, onProgress?: (msg: string) => void): Promise<File[]> {
   const entries = Array.from(dt.items ?? []).map((i) => (i.kind === "file" ? i.webkitGetAsEntry?.() : null)).filter(Boolean) as FileSystemEntry[];
   if (entries.length === 0 || entries.every((e) => e.isFile)) return Array.from(dt.files);
@@ -113,8 +113,8 @@ async function filesOfDrop(dt: DataTransfer, onProgress?: (msg: string) => void)
   for (const e of entries) await walk(e);
   const out: File[] = new Array(found.length);
   let opened = 0; shown = 0;
-  /* Opened in slices of 500 with a pause between them (Mike, 2026-10-19: a 100,000-file drop "hung … then said page
-     unresponsive"). Opening a dropped file costs the page's main thread a little each time; 100,000 of them queued at
+  /* Opened in slices of 500 with a pause between them (2026-10-19: a 100,000-file drop hung, then the browser
+     reported the page unresponsive). Opening a dropped file costs the page's main thread a little each time; 100,000 of them queued at
      once held it for seconds on end. A slice at a time, with a macrotask between slices, keeps the page answering. */
   const SLICE = 500;
   for (let from = 0; from < found.length; from += SLICE) {
@@ -139,7 +139,7 @@ async function pool<T>(items: T[], n: number, fn: (x: T, i: number) => Promise<v
 /* ── A batch: files under one Merkle root (the tool at ~/Desktop/merkle-tool, RFC 6962, outside BitGraph). Drop a
    file (or several) with the batch's merkle-tree.json and merkle-root.txt: each file is walked up the tree to the
    root here, in the browser; the root must match merkle-root.txt; merkle-root.txt is looked up as a BitGraph
-   (Mike, 2026-10-17: "so i drop a file and the merkle txt and the merkle json"). ── */
+   (2026-10-17). ── */
 type MerkleTree = { format: "rfc6962-sha256" | typeof DIGEST_TREE_FORMAT; files: number; root: string; leaves: Array<[string, string, ...string[]]>; levels: string[][] };
 const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 const unhex = (h: string) => new Uint8Array(h.match(/../g)!.map((x) => parseInt(x, 16)));
@@ -175,8 +175,8 @@ async function rootFromLeaf(tree: MerkleTree, leafHex: string): Promise<{ root: 
 async function unwrapBitGraphed(files: File[]): Promise<File[]> {
   const magic = [0x42, 0x47, 0x50, 0x52, 0x4f, 0x4f, 0x46, 0x01];
   // Sixteen tails at a time, never all at once: a 50,000-file folder drop started 50,000 reads together and the
-  // browser gave up on the lot, and the drop handler then swallowed the error (2026-10-21, Mike: "it froze a sec and
-  // then just simply didn't work").
+  // browser gave up on the lot, and the drop handler then swallowed the error (2026-10-21: the page froze briefly,
+  // then the drop did nothing).
   const out: File[] = files.slice();
   await pool(files, 16, async (f, i) => {
     if (f.size < 32 || f.size > 2_000_000_000) return;
@@ -266,14 +266,14 @@ async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
 /** mode "check" only looks files up and never makes anything (the ledger page); "make" looks them up, then
  *  offers to make the ones that are new (/make). */
 export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "check"; variant?: "zone" | "buttons" }) {
-  // The drop box on /make makes and checks (Mike, 2026-10-17: "shouldnt the dropbox do both"). The ledger's search
+  // The drop box on /make makes and checks (2026-10-17), both in one box. The ledger's search
   // (mode "check", variant "buttons": two Finder buttons, no box) only looks files up and never makes one.
   const [rows, setRows] = useState<Row[]>([]);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
-  /** One file at a time shows a single line in the box instead of a row list (Mike, 2026-10-17: it "jumps"). */
+  /** One file at a time shows a single line in the box instead of a row list (2026-10-17: the list made it jump). */
   const [status, setStatus] = useState<string | null>(null);
-  /** ?timer on the page's address shows the elapsed time of a big drop, live and final (Mike, 2026-10-17: a speed test). */
+  /** ?timer on the page's address shows the elapsed time of a big drop, live and final (2026-10-17: a speed test). */
   const [timer, setTimer] = useState(false);
   useEffect(() => { try { setTimer(new URLSearchParams(window.location.search).has("timer")); } catch { /* no timer */ } }, []);
   /** A big drop (more than MAX_FILES): counts and the proofs, never one row per file. */
@@ -284,7 +284,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
   const inputRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  /* Plugins (Mike, 2026-10-18: "toggles at the top in the section where you make a bitgraph"): off by default; both
+  /* Plugins (2026-10-18: toggles at the top of the section where a BitGraph is made): off by default; both
      sit on the plain bind (lib/plugins.ts). */
   const [plugError, setPlugError] = useState<string | null>(null);
   const [plug, setPlug] = useState<{
@@ -334,7 +334,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
     return out;
   };
 
-  /* A drop just does it (Mike, 2026-10-17: "dropping bitgraph in should just do it ... and open proof page"):
+  /* A drop just does it, then opens the proof page (2026-10-17):
      every file is looked up; on /make the new ones are made at once; one file lands on its proof page. A dropped
      proof file (a .bitgraph.json) opens the proof it belongs to, and is never itself made into a BitGraph. */
   /* A big drop: hash everything here, then bind in batches of 50 (make) or look each up (check). Rate limits are
@@ -358,8 +358,8 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
     const unknown = new Set<string>(); // a lookup that failed: never made, since it may already be a BitGraph
     {
       let looked = 0;
-      // One request per 2,000 files, three at a time (Mike, 2026-10-18: a 10,000 file drop "takes quite a bit to
-      // check"): the batch route rules new files out from its digest index without reading the ledger, where one
+      // One request per 2,000 files, three at a time (2026-10-18: a 10,000 file drop was slow to
+      // check): the batch route rules new files out from its digest index without reading the ledger, where one
       // request per file was 10,000 round trips. Attestations travel once per batch and are put back on each proof.
       const batches: string[][] = [];
       for (let i = 0; i < todo.length; i += 2000) batches.push(todo.slice(i, i + 2000));
@@ -461,7 +461,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
 
   /* Proofs dropped as files (a list from "Download all", or single .bitgraph.json files), with or without the originals:
      each original is paired with its proof by its SHA-256 and checked in this browser. Nothing here is ever made or sent
-     (Mike, 2026-10-17: the grouped JSON "doesnt function as a proof. it wants to read it again"). */
+     (2026-10-17: the grouped JSON did not work as a proof; it was read again instead). */
   const takePairing = useCallback(async (proofs: Map<string, Proof>, originals: File[]) => {
     setRows([]); setBulk(null); setBatch(null);
     const st = { proofs: proofs.size, files: originals.length, valid: 0, invalid: 0, noProof: 0, unusedProofs: 0, done: false };
@@ -484,11 +484,11 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
 
   const takePlugins = useCallback(async (files: File[], list?: Array<{ hex: string; name: string }>) => {
     setRows([]); setBulk(null); setBatch(null); setPairing(null); setPlug(null); setPlugError(null); setBusy(true);
-    // ?timer times the run from the drop to the proof (Mike, 2026-10-18: time the 100,000-file tree).
+    // ?timer times the run from the drop to the proof (2026-10-18: for timing the 100,000-file tree).
     const t0 = performance.now();
     const secs = () => ((performance.now() - t0) / 1000).toFixed(1);
     try {
-      /* Every drop, one file or many, is one tree and one BitGraph (Mike, 2026-10-20). Its first leaf is the latest Base
+      /* Every drop, one file or many, is one tree and one BitGraph (2026-10-20). Its first leaf is the latest Base
          block (base-block.json): the bound root holds that block's hash, so everything in the tree was bound after the
          block existed. Every BitGraph gets a Base ceiling too, so each file's proof carries a window, after block X and
          by block Y. The Base switch and its second BitGraph are gone. */
@@ -646,7 +646,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
       if (tree) { await takeBatch(files, tree, f); return; }
     }
     // A hash list (shasum -a 256 output) dropped on Make: the files are already hashed, so the tree is built from the
-    // list and no file is opened (Mike, 2026-10-21: a million files, "can it be hashed already?").
+    // list and no file is opened (2026-10-21: a million files, already hashed).
     if (mode === "make" && files.length === 1 && /\.(sha256|sha256sum|sha|txt)$/i.test(files[0]!.name) && files[0]!.size <= 200_000_000) {
       const list = parseDigestList(await files[0]!.text());
       if (list) { await takePlugins([], list); return; }
@@ -685,7 +685,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
       }
     }));
     // A file of the tree this page just made is that tree's, even before its index is written: it is shown in the tree,
-    // never made again (Mike, 2026-10-20: a file of a 50,000-file tree "re-recorded it instead of checking it").
+    // never made again (2026-10-20: a file of a 50,000-file tree was re-recorded instead of checked).
     const pt = plugRef.current;
     const inPageTree = (d: string) => (pt?.tree && pt.b.commit?.counter && pt.b.commit?.epochId ? pt.tree.leaves.findIndex((l) => l[2] === d) : -1);
     const ended2: Row[] = ended.map((r) => {
@@ -765,20 +765,20 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
         className="db-zone"
         data-over={over ? "1" : undefined}
       >
-        {/* The old drop prompt's two sheets (components/drop-prompt.tsx), back in the box (Mike, 2026-10-18). */}
+        {/* The old drop prompt's two sheets (components/drop-prompt.tsx), back in the box (2026-10-18). */}
         <svg className="db-zone-icon" width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
           <path d="M16 12V8a3 3 0 0 1 3-3h11l8 8v17a3 3 0 0 1-3 3h-4" />
           <path d="M30 5v8h8" />
           <path d="M9 12h12l7 7v17a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3Z" />
           <path d="M21 12v7h7" />
         </svg>
-        {/* With a plugin on, the box says what a drop will do (Mike, 2026-10-18), instead of an explanation beside the switch. */}
-        {/* A folder can be chosen as a folder (2026-10-21, Mike: "choose opens the folder then i still have to select all"). */}
+        {/* With a plugin on, the box says what a drop will do (2026-10-18), instead of an explanation beside the switch. */}
+        {/* A folder can be chosen as a folder (2026-10-21): the file picker only opened it, and every file then had to be selected. */}
         <div className="db-zone-title">{status ?? <>{mode === "check" ? "Drop files here to check them, or choose " : "Drop files or a folder here, or choose "}
           <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>files</button>
           {" · "}
           <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); folderRef.current?.click(); }}>a folder</button></>}</div>
-        {/* Something is happening: a thin moving bar under the line that says what (Mike, 2026-10-18). */}
+        {/* Something is happening: a thin moving bar under the line that says what (2026-10-18). */}
         {status && <div className="bg-working" role="progressbar" aria-label={status} />}
         <div className="db-zone-sub">Each file is hashed in your browser. <br className="sub-br" />Only its SHA-256 is&nbsp;sent.</div>
         <div className="db-zone-sub">The file never leaves your machine.</div>
@@ -788,7 +788,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
       </div>}
 
       {plugError && <div className="db-reveal"><div><div className="db-rows"><div className="db-row"><div className="db-state"><span className="db-bad">{plugError}</span></div></div></div></div></div>}
-      {/* The result, plainly (Mike, 2026-10-18: the first version was "messy as fuck"): one row per BitGraph, a name and
+      {/* The result, plainly (2026-10-18: the first version was cluttered): one row per BitGraph, a name and
           number, one quiet line under it, one link to its proof; the download lined up with the rows. It eases open. */}
       {plug && (<div className="db-reveal" key={String(plug.b.commit?.counter ?? "")}><div>
         <div className="plug-result">
@@ -926,7 +926,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
                 {r.state === "in-tree" && r.tree && (
                   <>
                     <span className="db-ok">In a tree of {r.tree.files.toLocaleString("en-US")} files (file {(r.tree.leafIndex + 1).toLocaleString("en-US")}), checked in this browser</span>
-                    {/* Two clear buttons (Mike, 2026-10-20): see the tree's BitGraph, or record this file on its own. */}
+                    {/* Two clear buttons (2026-10-20): see the tree's BitGraph, or record this file on its own. */}
                     <span className="db-row-actions">
                       <a className="bg-action-link is-make" style={{ margin: 0 }} href={`/proof/${toUrlSafe(r.tree.proof.digestB64)}?counter=${encodeURIComponent(r.tree.proof.counter)}`}>View BitGraph #{Number(r.tree.proof.counter).toLocaleString("en-US")}</a>
                       {mode === "make" && <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => void takePlugins([new File([r.bytes!.slice()], r.name)])}>Make a new BitGraph</button>}

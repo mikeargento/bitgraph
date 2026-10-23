@@ -66,7 +66,7 @@ test("version 11: the art alone spells the code for 40 codes; every drawn palett
     assert.equal(px.length, V11_WIDTH * V11_HEIGHT * 4);
     assert.deepEqual(decodeV11(px, V11_WIDTH, V11_HEIGHT), c, `code ${i} (${PALETTE_NAMES_V11[plan.palette]}, ${HAIR_NAMES_V11[plan.hair]}, ${EXPRESSION_NAMES_V11[plan.expr]}) reads back`);
   });
-  assert.deepEqual([...palettes].sort(), [0, 1, 2], "ink, sepia and sanguine occur in 40, the dark ground never (Mike, 2026-10-08)");
+  assert.deepEqual([...palettes].sort(), [0, 1, 2], "ink, sepia and sanguine occur in 40, the dark ground never");
   assert.deepEqual([...exprs].sort(), [0, 1, 2], "every expression occurs in 40");
   assert.ok(hairs.size >= 6, `at least six hair silhouettes in 40, not ${hairs.size}`);
 });

@@ -35,7 +35,7 @@ export function CopyCode() {
         }, () => {});
       }}
     >
-      {/* An icon in the block's corner, as in Claude (Mike, 2026-10-18: "the same copy buttons that you do"): two
+      {/* An icon in the block's corner, the common chat-app copy button (2026-10-18): two
           outlined sheets, then a check for a moment after the copy. */}
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         {copied ? (

@@ -1,4 +1,4 @@
-// bitgraph-art/1 (Mike, 2026-10-05): the commitment is the only input, the pixels are the
+// bitgraph-art/1 (2026-10-05): the commitment is the only input, the pixels are the
 // same everywhere, the strip spells the commitment, and a changed file or a different
 // commitment is caught.
 import { test } from "node:test";

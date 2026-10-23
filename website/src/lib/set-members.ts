@@ -9,8 +9,8 @@
  * against production on 2026-09-07 while the same folder checked in 4.0s
  * before it was recorded. One position, answered 48,000 separate times.
  *
- * Mike's read of it (2026-09-07) is the fix: "look up the FIRST available
- * proof and if it's in a big group it looks up the rest by logic". A probe
+ * The fix (2026-09-07): look up the first available proof, and if it belongs
+ * to a big group, answer the rest from that group. A probe
  * finds one member, the member names its set, and the set's list answers
  * every other file in the drop from memory. ~20 reads instead of 152,000.
  *

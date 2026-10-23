@@ -1,8 +1,8 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * The latest Base block, for the Base plugin's first BitGraph (Mike, 2026-10-18: "it reads in the most recent base
- * block in bitgraph 1, records the content in bitgraph 2, then writes to base"). Read here rather than in the
+ * The latest Base block, for the Base plugin's first BitGraph (2026-10-18: BitGraph 1 reads in the most recent Base
+ * block, BitGraph 2 records the content, then the result is written to Base). Read here rather than in the
  * browser so the page needs no RPC of its own; the block is public, and anyone can look it up by number and hash.
  */
 import { NextResponse } from "next/server";

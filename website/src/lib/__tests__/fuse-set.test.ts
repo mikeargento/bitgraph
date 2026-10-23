@@ -89,7 +89,7 @@ test("set/2: bindSet binds a root document to the signed digest and the slot; bi
 
 // A drop on a set page: which digests it may match.
 //
-// The bug this pins (Mike, 2026-09-07): on a 473-member set page, dragging in a
+// The bug this pins (2026-09-07): on a 473-member set page, dragging in a
 // whole folder matched whichever member the walk reached first, usually the
 // first file the set was made from, and the page switched to it because the
 // held member outranks the row the URL names. It looked like the page resetting

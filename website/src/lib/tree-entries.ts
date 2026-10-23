@@ -1,8 +1,8 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * Finding a file in its tree (Mike, 2026-10-18: "dropping a file from the merkle dropped 100k folder makes a new
- * bitgraph. shouldnt it be wired up to find the proof in the tree?").
+ * Finding a file in its tree (2026-10-18: a file dropped from a 100k folder recorded as a Merkle tree made a new
+ * BitGraph instead of finding its proof in the tree).
  *
  * A tree made with the Make page's switch binds only merkle-root.txt, so a file from the tree has no BitGraph of its
  * own. When the tree is made, the browser writes one sealed entry per file into the site's recovery store (the same

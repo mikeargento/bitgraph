@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { JevAsker } from "@/components/jev-asker";
 
-/** Ask Jev, on two BitGraphs (Mike, 2026-10-17: "build ask jev demo again with this new architecture"; unlinked). */
+/** Ask Jev, rebuilt on two BitGraphs, the current architecture (2026-10-17; unlinked). */
 export const metadata: Metadata = {
   title: "Ask AI",
   description: "One click makes BitGraph A; two questions are made from its nonce, the AI Jev answers them, and the record is bound as BitGraph B.",

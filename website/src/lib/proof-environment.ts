@@ -12,8 +12,8 @@
  *
  * 24.1 MB of that 37.4 MB, 64 percent, was two blobs repeated 4,000 times.
  * Across the 24 requests a 48,000 file re-drop is ~900 MB for the browser to
- * decompress, parse and hold, which is what "checking takes FOREVER" was
- * (Mike, 2026-09-07). The server was never the slow part: the S3 reads finish
+ * decompress, parse and hold, which is why checking took so long
+ * (2026-09-07). The server was never the slow part: the S3 reads finish
  * in a few seconds, and asking Vercel to compress the result made the request
  * SLOWER, 30.2s against 19.4s, because 37 MB of brotli is not free either.
  *

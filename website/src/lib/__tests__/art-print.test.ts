@@ -1,4 +1,4 @@
-// The high resolution download (Mike, 2026-10-06): the recorded version 6 image redrawn at four times
+// The high resolution download (2026-10-06): the recorded version 6 image redrawn at four times
 // the size. It must be the same picture (averaged back down, it matches the recorded pixels), a
 // readable PNG at 4096 x 4096, and never a file that passes for the recorded one.
 import { test } from "node:test";

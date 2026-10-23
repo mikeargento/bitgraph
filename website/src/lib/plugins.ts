@@ -3,7 +3,7 @@
 import { DIGEST_TREE_FORMAT, digestRootText } from "./tree-member.ts";
 
 /**
- * The drop box's two plugins (Mike, 2026-10-18: toggles at the top of the Make section). Both sit on the plain bind
+ * The drop box's two plugins (2026-10-18: toggles at the top of the Make section). Both sit on the plain bind
  * and never change what a proof is.
  *
  *   Tree: many files, one position. An RFC 6962 SHA-256 tree whose leaf data is each file's SHA-256 (leaf =

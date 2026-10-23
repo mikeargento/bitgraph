@@ -3,8 +3,8 @@ import { DropBox } from "@/components/drop-box";
 
 /**
  * Make or check a BitGraph: the drop box, and one sentence on everything else. The For software section went to Tools,
- * which already carried all of it (Mike, 2026-10-21).
- * Split off the home page (Mike, 2026-10-17: "everything from Try it down can be its own page").
+ * which already carried all of it (2026-10-21).
+ * Split off the home page (2026-10-17): everything from the home's Try it section down.
  */
 
 export const metadata: Metadata = {
@@ -16,11 +16,11 @@ export const metadata: Metadata = {
 export default function MakePage() {
   return (
     <div className="frame home home-typing prose home-scroll">
-      {/* The drop box in its own darker band, like the home's first section (Mike, 2026-10-17). */}
+      {/* The drop box in its own darker band, like the home's first section (2026-10-17). */}
       <div className="home-hero hero-band">
-        {/* No visible h1: it repeated the nav (Mike, 2026-10-17: "drop the h1's theyre basically redundant"). */}
+        {/* No visible h1: it repeated the nav (2026-10-17). */}
         <h1 className="sr-only">Make a BitGraph.</h1>
-        {/* Mike, 2026-10-17: "a little eyebrow now that says make / check a bitgraph". */}
+        {/* A small eyebrow names the page in place of the h1 (2026-10-17). */}
         <p className="home-kicker">Make a BitGraph</p>
         <div style={{ marginTop: 16 }}>
           <DropBox />

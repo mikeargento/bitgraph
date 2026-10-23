@@ -248,8 +248,7 @@ export interface DeCarrierNote {
  * bytes read, one file at a time, before hashing could start. Each read is a
  * round trip through the browser's file layer however small, and 55,000
  * small files took 8.6s of it, measured: the spinner that sat on "Reading
- * your folder… 55,000 files" (Mike, 2026-09-28: "it just spins for a moment
- * if its alot of files").
+ * your folder… 55,000 files" for a large folder (2026-09-28).
  */
 const CARRIER_MIN_BYTES = 4096;
 /** Tail reads in flight, for the files big enough to check (a folder of photos). */
@@ -317,7 +316,7 @@ export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; no
           : { name: f.name, ceiling: parsed.payload.ceiling.status, ...(matches ? { proof: parsed.payload.proof } : {}), innerMatches: matches, ...(member ? { member } : {}) });
       } else if (parsed.kind === "corrupt") {
         notes.push({ name: f.name, ceiling: "corrupt" });
-        // The safety catch (Mike, 2026-10-11): a file whose proof block cannot be read is never recorded as new bytes.
+        // The safety catch (2026-10-11): a file whose proof block cannot be read is never recorded as new bytes.
         // A damaged BitGraphed file, or one in a format newer than this site, is held back, not re-minted.
         unreadable.add(f);
       }

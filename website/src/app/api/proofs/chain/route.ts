@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-// Proofs by position is DISABLED (Mike, 2026-10-09: "We don't want that ledger.").
+// Proofs by position is DISABLED (2026-10-09: no public list of recordings).
 //
 // GET /api/proofs/chain?epoch=&counter= returned every proof around a counter,
 // recordings included, with their digests. Counters run from 1 each day, so

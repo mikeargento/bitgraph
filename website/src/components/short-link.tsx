@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { digestsWithPrefix } from "@/lib/s3";
 
-/* Short links (Mike, 2026-10-08: "build the url shortener"): the first characters of a record's digest, at
-   /<code> (Mike, 2026-10-09: no /p/, and ten characters now that the p is gone) or the older /p/<code>, which
+/* Short links (2026-10-08): the first characters of a record's digest, at
+   /<code> (2026-10-09: no /p/, and ten characters now that the p is gone) or the older /p/<code>, which
    keeps working forever. Nothing is registered: a short link is the digest's own prefix, so anyone holding a
    proof can write it, and the long /proof/<digest> link keeps working too. Any prefix of eight or more
    characters resolves. One match redirects to the proof page; two or more (never seen) lists them all rather

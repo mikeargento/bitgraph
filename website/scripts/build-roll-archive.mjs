@@ -107,7 +107,7 @@ async function getJson(key) {
 
 /* A row's time is the proof's recorded instant: its attestation document's own
    timestamp, the TEE's signed clock. It is what the site shows a BitGraph's time
-   by everywhere (Mike, 2026-09-27: "make it consistent"; src/lib/recorded-time.ts
+   by everywhere, one clock for every view (src/lib/recorded-time.ts
    is the site's reader, and this must agree with it to the millisecond). S3
    LastModified, the storage clock, is only the fallback for a proof whose
    attestation cannot be read. Decoded, not verified, as the site does. */

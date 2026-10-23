@@ -6,8 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LedgerRow } from "@/lib/running-ledger";
 
 /**
- * The ledger's rows, live (Mike, 2026-10-17: "bitgraph ledger needs to dynamically load too. it seems to lag or
- * need refreshes"). Today's page asks /api/ledger/rows for what came after its newest row every 2 s while the tab
+ * The ledger's rows, live (2026-10-17), so the page neither lags nor needs a refresh. Today's page asks /api/ledger/rows for what came after its newest row every 2 s while the tab
  * is visible, and puts new BitGraphs on top as they are made; nothing re-reads the rows already shown. The newest
  * 200 come with the page; Show older fetches the 200 before the oldest shown.
  */
@@ -50,10 +49,10 @@ function Row({ r }: { r: LedgerRow }) {
   const epochStart = useEpochStart(r);
   const inner = (
     <>
-      {/* The epoch's first BitGraph leads with "Genesis", its number where "Genesis" was (Mike, 2026-10-20). */}
+      {/* The epoch's first BitGraph leads with "Genesis", its number where "Genesis" was (2026-10-20). */}
       <span className="rl-num">{epochStart !== null ? "Genesis" : `#${fmt(r.counter)}`}</span>
-      {/* An epoch's first BitGraph reads "Genesis"; its Base block is in the tooltip and on its proof page (Mike, 2026-10-20:
-          "this wraps bad ... maybe just call that first block genesis"). */}
+      {/* An epoch's first BitGraph reads "Genesis"; its Base block is in the tooltip and on its proof page (2026-10-20):
+          the block number wrapped badly, and "Genesis" is short. */}
       <span className="rl-counts" title={epochStart !== null ? `Epoch start: Base block ${fmt(epochStart)}` : undefined}>{r.nonceCounter ? `counts ${fmt(r.nonceCounter)}, ${fmt(r.counter)}` : ""}{r.anchor ? " · anchor" : ""}{epochStart !== null ? ` · #${fmt(r.counter)}` : ""}</span>
       <span className="rl-hash" title="SHA-256 of the bound content">{r.digest ?? r.proofHash}</span>
       {r.recordedMs !== null && (

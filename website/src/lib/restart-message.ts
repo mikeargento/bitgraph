@@ -1,7 +1,7 @@
 // Copyright (c) 2024-2026 Argento Computing Inc. All rights reserved.
 /**
  * What a visitor reads when BitGraph's enclave cannot take a position (the retryable 503 "tee-restarting").
- * Mike, 2026-10-11: say exactly what is happening and that it is back in a minute. The same 503 also covers
+ * Since 2026-10-11 it says exactly what is happening and that it is back in a minute. The same 503 also covers
  * a moment when the enclave host does not answer or no floor block is ready yet, so the daily restart is named
  * only inside its window (23:57 to 00:05 UTC); outside it the message says the plainer thing.
  */

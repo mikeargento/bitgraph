@@ -29,9 +29,9 @@ export function takeFreshProof<T = unknown>(digest: string): T | null {
  * now, and the line explaining that file lives on the results card — but a
  * lone file is the product's most common gesture and it navigates STRAIGHT to
  * its proof page, so the card is never rendered and the download arrived with
- * no explanation at all. Mike, minutes after it shipped: "it didnt create a
- * FOLDER called bitgraph on my desktop". He had no way to know one was his to
- * make, because nothing had told him a file was saved in the first place.
+ * no explanation at all. Minutes after it shipped, it read as a missing
+ * BitGraph folder on the desktop: there was no way to know that folder was the
+ * user's to make, because nothing had said a file was saved in the first place.
  *
  * So the notice rides across the navigation the same way the proof does. Same
  * one-shot rule: read once, so a reload or a shared link never shows a stale

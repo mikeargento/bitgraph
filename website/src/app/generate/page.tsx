@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ArtTwo } from "@/components/art-two";
 
-/** The image generator, on two BitGraphs (Mike, 2026-10-17: "fire the image generator back up using this same method"; unlinked). */
+/** The image generator, rebuilt on two BitGraphs with the same method as the other demos (2026-10-17; unlinked). */
 export const metadata: Metadata = {
   title: "Generate image",
   description: "One click makes BitGraph A; its nonce draws a picture, and the picture is bound as BitGraph B.",

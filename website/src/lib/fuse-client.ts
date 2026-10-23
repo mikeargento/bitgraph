@@ -411,8 +411,8 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
    * timer fires and every onProgress update is computed and thrown away
    * unseen. The page sat on whichever label was painted last, which made the
    * slot allocation look like it took twelve seconds when it takes 0.19
-   * (Mike, 2026-09-07: "each ONLY showed static ... no indication of progress
-   * between the 2"). The tell was the elapsed counter never appearing: a timer
+   * (2026-09-07: each label was static, with no sign of progress between the
+   * two). The tell was the elapsed counter never appearing: a timer
    * that cannot tick says the thread is blocked, not that the step is slow.
    *
    * Time-based, not every-nth-member: a yield costs a few milliseconds, so

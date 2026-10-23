@@ -44,12 +44,12 @@ export default function ContactPage() {
 
   return (
     <div className="frame prose contact-form-page" style={{ padding: "56px 0 96px" }}>
-      {/* The form is the contact page again, reached from the footer (Mike, 2026-10-20: "make contact the contact form"). */}
-      {/* The site's eyebrow, not a big h1 (Mike, 2026-10-20: "contact should use same eyebrow instead of h1"). */}
+      {/* The form is the contact page again, reached from the footer (2026-10-20). */}
+      {/* The site's eyebrow, not a big h1, matching the other pages (2026-10-20). */}
       <h1 className="sr-only">Contact</h1>
       <p className="home-kicker">Contact</p>
-      {/* ONE column, the form's own width (Mike, 2026-09-17: the text went
-          "weird"). The sentences used to fill the 1040px frame while the fields
+      {/* ONE column, the form's own width (2026-09-17: the text read badly).
+          The sentences used to fill the 1040px frame while the fields
           stopped at 560, so a paragraph ran twice the width of the inputs under
           it and the page read as two pages. A form page's measure is its form. */}
       <div style={{ maxWidth: 560 }}>

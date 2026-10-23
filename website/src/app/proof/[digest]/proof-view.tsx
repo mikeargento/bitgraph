@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * The proof page's presentation (2026-09-30, Mike: "completely overhaul the
- * proof pages ... including all of the same information in the MOST intuitive
- * and simple streamlined way"). The page (page.tsx) still loads, caches,
+ * The proof page's presentation (2026-09-30 overhaul: all of the same
+ * information, laid out as simply as it can be). The page (page.tsx) still loads, caches,
  * matches drops, binds sets and builds downloads; this file only shows.
  *
  * Five sections, top to bottom, each a raised card on the grey ground:
@@ -154,7 +153,7 @@ export interface ProofViewModel {
   ceilingFileHref: string | null;
   checks: ChecksView;
   onConfirm: () => void;
-  /** ONE export per position (Mike, 2026-10-04: "a master button"): what the
+  /** ONE export per position (2026-10-04, a single master button): what the
    *  button downloads depends on the kind of position, and the person makes no
    *  choice. Null while nothing can be exported yet (a tree still binding). */
   exportAction: DownloadView | null;
@@ -232,8 +231,8 @@ function usePhone(): boolean {
   return phone;
 }
 
-/** One group of checks, folded to its title and tally at every width (Mike, 2026-10-05: the list
- *  was 3,700px tall at 375px, "collapse like that for neatness on desktop too"); a group holding
+/** One group of checks, folded to its title and tally at every width (2026-10-05: the list
+ *  was 3,700px tall at 375px, and desktop folds the same way for neatness); a group holding
  *  a failed check always starts open, so a failure is never folded away. */
 function ChecksGroup({ title, rows }: { title: string; rows: CarrierClaim[] }) {
   const failed = rows.filter((x) => x.result === "FALSE").length;
@@ -293,10 +292,10 @@ function whenBeside(ms: number, ref: number | null): string {
 /* ── The view ─────────────────────────────────────────────────────────────── */
 
 export function ProofView({ m }: { m: ProofViewModel }) {
-  /* Stripped to the primitive (Mike, 2026-10-17), with the Base floor and ceiling back (2026-10-18). Anchors, export
+  /* Stripped to the primitive (2026-10-17), with the Base floor and ceiling back (2026-10-18). Anchors, export
      packages and the position lists stay off the page; every old proof still opens, and all of it is in the raw JSON. */
-  // Where it sits in time, on Base (Mike, 2026-10-18: "the base write should be on proof page too along with floor and
-  // ceiling time like we used to have it"): the floor signed into the proof, the recorded time, and the Base write.
+  // Where it sits in time, on Base (2026-10-18: the Base write is back beside the floor and ceiling times, as before):
+  // the floor signed into the proof, the recorded time, and the Base write.
   const attested = m.attestedMs;
   const bf = m.kind !== "anchor" ? m.baseFloor ?? null : null;
   // Records made before 2026-10-07 carry an Ethereum floor instead: shown the same way, so old proofs keep their window.
@@ -307,8 +306,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const ct = m.ceilingTime;
   const ctMs = ct?.anchor ? ct.anchor.blockTimestamp * 1000 : null;
   const ctStampOk = ctMs === null || baseTimeIsBound(ctMs / 1000, { floorTimestampSec: floorMs !== null ? floorMs / 1000 : null, attestedAtMs: attested }).ok;
-  // Only a record that went to Base shows where it sits in time (Mike, 2026-10-18: "floor stays on even when base is
-  // toggled off"). Enclave v11 signs a Base floor into every bind; it shows here only beside a Base write (or one
+  // Only a record that went to Base shows where it sits in time (2026-10-18: the floor had stayed on with the Base
+  // switch off). Enclave v11 signs a Base floor into every bind; it shows here only beside a Base write (or one
   // waiting), i.e. when the Base switch was on. Enclave v12 drops the floor from plain binds altogether.
   const es = m.epochStart ?? null;
   const tf = m.treeFloor ?? null;
@@ -345,7 +344,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               {m.kind === "anchor" && <span className="pv-kind">Ethereum anchor</span>}
               {m.kind === "interval" && <span className="pv-kind">Interval</span>}
             </div>
-            {/* When it was made, by the enclave's own signed clock (Mike, 2026-10-17: "need time and date at top"). */}
+            {/* When it was made, by the enclave's own signed clock, at the top (2026-10-17). */}
             {m.attestedMs !== null && (
               <div className="pv-when"><TimeChip date={new Date(m.attestedMs)} withDate /></div>
             )}
@@ -374,8 +373,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
       <section className="pv-card">
         <div className="pv-section-title">Monotonic counter</div>
-        {/* The previous BitGraph, named first, so the card reads as the chain it is (Mike, 2026-10-19: prevB64 is the key;
-            "prevBitGraph" as the readers' name). Shown by its hash: proofs are not looked up by position (2026-10-09), so
+        {/* The previous BitGraph, named first, so the card reads as the chain it is (2026-10-19: prevB64 is the key;
+            "prevBitGraph" is the readers' name). Shown by its hash: proofs are not looked up by position (2026-10-09), so
             the page cannot open the BitGraph before this one; whoever holds both proofs can check the link offline. */}
         {(commit as { prevB64?: string }).prevB64 && (
           <Row f={{ label: "Previous BitGraph", value: (commit as { prevB64?: string }).prevB64!, mono: true }} />
@@ -508,7 +507,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             </button>
           )}
         </div>
-        {/* The same copy tab as /make, so the site's code blocks look alike (Mike, 2026-10-17: "shouldnt the site stay congruent"). */}
+        {/* The same copy tab as /make, so the site's code blocks look alike (2026-10-17). */}
         <div className="code-block mk-code">
           <pre className="hiw-code">{command}</pre>
           <CopyCode />
@@ -537,8 +536,8 @@ function Moment({ label, title, note, children, accent, chain }: { label: string
   );
 }
 
-/* Claims this page does not judge by design, said plainly instead of as a question mark (Mike, 2026-10-05:
-   "is this one supposed to be there still?"). Still listed, so every claim is shown. One the audit tool
+/* Claims this page does not judge by design, said plainly instead of as a question mark (2026-10-05: the
+   question mark read as a leftover). Still listed, so every claim is shown. One the audit tool
    checks; one a status BitGraph's Base node reported, never proven by the file. */
 const NOTED: Record<string, { label: string; text: (x: CarrierClaim) => string }> = {
   "settlement.blobs.decoded": {

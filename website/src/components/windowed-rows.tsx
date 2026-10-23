@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
  *
  * A 30,000 file drop rendered every row as a card of roughly sixteen elements,
  * which is around 400,000 nodes mounted in one pass, and the browser froze
- * (Mike, 2026-09-07). Nothing about the node count depends on the drop being
+ * (2026-09-07). Nothing about the node count depends on the drop being
  * interesting: the rows off screen cost exactly as much as the ones you can
  * see. This keeps the mounted count proportional to the viewport instead, and
  * the list keeps its true height from spacers above and below, so the
@@ -30,8 +30,8 @@ export function useWindowedRows(count: number, rowHeight: number, overscan = 16)
    * mounted, so the effect ran against a null ref and returned; by the time
    * setStep put the list on the page, `count` had not changed, the effect
    * never ran again, and no listener was ever attached. The reader saw the
-   * first screenful and then blank for the rest of the drop (Mike,
-   * 2026-09-07: "the list just kinda stops"). A check-only drop hides this
+   * first screenful and then blank for the rest of the drop
+   * (2026-09-07). A check-only drop hides this
    * completely, because there the rows and the list arrive in one batch.
    *
    * The node in state means the effect re-runs when the element actually

@@ -122,14 +122,14 @@ function formatHashAlg(alg: string): string {
    page shows: a deliberate trade, not a regression. Do not re-add a row without
    putting the file back in the same commit, or the page fetches a 404 on every
    load. */
-/** New words staged for Mike's reading, in red until he approves them (the site's staging convention). */
-const staged = (text: string) => <>{text}</>; // approved 2026-10-11 (Mike: push); was red while staged
+/** New words staged for review, in red until approved (the site's staging convention). */
+const staged = (text: string) => <>{text}</>; // approved 2026-10-11; was red while staged
 
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
   [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
-  // The home page's "See a real BitGraph" since 2026-10-07: BitGraph #201, Mike's almanac line as a text
+  // The home page's "See a real BitGraph" since 2026-10-07: BitGraph #201, the almanac line as a text
   // file made inside its own BitGraph (the commitment is its last line). Keyed by its own digest.
   "0lf7NPmzZTzTs2BftkfvtIcox8uIu78Et395H5UnLPk":
     { path: "/example/bitgraph-almanac-text.txt", name: "bitgraph-almanac.txt", mime: "text/plain" },
@@ -137,7 +137,7 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   // made inside its own BitGraph (its position commitment is printed at the foot). Keyed by its own digest.
   "sq_qZ7Tuu4h-Jj-HBlRRVDaPcq5CHaJjuSI7faDsppM":
     { path: "/example/bitgraph-almanac.png", name: "bitgraph-almanac.png", mime: "image/png" },
-  // The home page's "See a real BitGraph" from 2026-10-05 to 10-07 (Mike: "extremely simple and short"): one
+  // The home page's "See a real BitGraph" from 2026-10-05 to 10-07, kept as short as possible: one
   // line, "This file was recorded with BitGraph.", a tree/1 of one (BitGraph #1,281, container/2). Pinned to
   // its own digest, not HOME_EXAMPLE_DIGEST: when home moved to #14 (an image) the mapping followed the
   // constant and #14's page showed this text file as its own (fixed 2026-10-07). Hosted files skip the hash
@@ -197,7 +197,7 @@ export default function ProofPage() {
     anchor: { txHash: string; blockNumber: number; blockTimestamp: number } | null;
     floor?: { blockNumber: number; blockTimestamp: number } | null;
   } | null>(null);
-  // Auto-check (Mike, 2026-09-30): the Base write lands seconds after the
+  // Auto-check (2026-09-30): the Base write lands seconds after the
   // commit, so a fresh proof keeps asking until its card appears (every 4 s,
   // up to 3 minutes), and an included one keeps asking until Base settles it
   // on Ethereum (every 15 s, up to 10 minutes). An old proof asks once.
@@ -228,14 +228,14 @@ export default function ProofPage() {
     void ask();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [proof]);
-  // The floor link (Mike, 2026-10-18): with the Base switch on, BitGraph 1 binds the latest Base block and is this
+  // The floor link (2026-10-18): with the Base switch on, BitGraph 1 binds the latest Base block and is this
   // record's floor. The site writes the link seconds after the bind, so a fresh proof asks a few times.
   const [floorLink, setFloorLink] = useState<ProofViewModel["floorLink"]>(null);
   /** This proof is a floor: BitGraph 1 of a pair, bound right before the record it floors (app/api/commit, 2026-10-21). */
   const [floorOf, setFloorOf] = useState<ProofViewModel["floorOf"]>(null);
   // An epoch's first BitGraph (counts 1, 2), from enclave v13 a read of the latest Base block (epoch-floor.json).
-  // Shown only when the served file hashes, in this browser, to this proof's digest (Mike, 2026-10-19: "how can you
-  // tell that it read a base block?").
+  // Shown only when the served file hashes, in this browser, to this proof's digest (2026-10-19), so a reader can
+  // tell that it read a Base block.
   const [epochStart, setEpochStart] = useState<ProofViewModel["epochStart"]>(null);
   // A tree member's floor (2026-10-20): base-block.json, the first leaf of its tree, checked into the bound root here.
   const [treeFloor, setTreeFloor] = useState<ProofViewModel["treeFloor"]>(null);
@@ -319,7 +319,7 @@ export default function ProofPage() {
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
   // A BitGraph image (/image) opens with its proof: the page redraws it from the commitment the
   // proof authenticates and holds it as the file in hand only when it hashes to the recorded
-  // digest (Mike, 2026-10-06: "cant the proof page open up and display image?"). Nothing is stored.
+  // digest (2026-10-06). Nothing is stored.
   const [redrawn, setRedrawn] = useState(false);
   const [redrawnAlgo, setRedrawnAlgo] = useState<string | null>(null);
   // A painting (bitgraph-art/15) is redrawn in a worker over a few seconds: the file pane says Painting meanwhile.
@@ -335,7 +335,7 @@ export default function ProofPage() {
     if (!proof || cachedFile || !isInlineProof(proof)) return;
     // A record whose file this site hosts (EXAMPLE_FILES: home's example) is not an /image picture to
     // redraw: trying every art algorithm on it froze the page for about 2 s, twice, before the file and
-    // the checks could paint (Mike, 2026-10-07: "the sample bitgraph loads SLOOOOOW").
+    // the checks could paint (2026-10-07: the sample BitGraph loaded very slowly).
     if (Object.hasOwn(EXAMPLE_FILES, decodeURIComponent(digestParam))) return;
     let live = true;
     void redrawRecordedArt(proof as never, { recordedMs: recordedMsOf(proof), onTry: (a) => { if (live) setPainting(a === ART_ALGORITHM_V15); } }).then((r) => {
@@ -535,7 +535,7 @@ export default function ProofPage() {
     };
     void runChecks({ ethereumBlockHash: rpc("https://ethereum-rpc.publicnode.com"), baseBlockHash: rpc("https://mainnet.base.org") });
   };
-  /* Confirmed by default (Mike, 2026-10-05: "remove the button and run the check automatically"): once the
+  /* Confirmed by default (2026-10-05: no button; the check runs by itself): once the
      offline checks are done, the page asks the public nodes itself. A re-run of the offline checks (a
      ceiling landing, a file arriving) resets confirmed, so the new evidence is confirmed too; a node that
      does not answer still counts as asked, so nothing loops. */
@@ -549,8 +549,8 @@ export default function ProofPage() {
   // A set/2 page reached by the SET's own digest has no member list and no
   // evidence, so a dropped member cannot be recognised locally: there is
   // nothing to compare it against. The drop asks the ledger instead, and what
-  // comes back is kept here (Mike, 2026-09-07: "it works on home drop but not
-  // proof card drop").
+  // comes back is kept here (2026-09-07: a member dropped here failed while the
+  // same drop on home worked).
   const [resolvedMember, setResolvedMember] = useState<SetMemberRow | null>(null);
   useEffect(() => {
     const marker = (proof?.attribution as { name?: string; message?: string } | undefined);
@@ -579,8 +579,8 @@ export default function ProofPage() {
   // The new file's readable content. A wrapper placement (container/2, every text
   // file) puts the original inside a small tar, so previewing the new file's own
   // bytes showed the wrapper's header, "bitgraph-fuse/original" and zero padding,
-  // instead of the text (Mike, 2026-09-28: "our sample proof shows more lines of
-  // text than when i load this one"). The original comes back out the way the
+  // instead of the text (2026-09-28: a loaded file showed fewer lines of text
+  // than the sample proof). The original comes back out the way the
   // "Original file" download takes it, and is previewed in the new file's place.
   // Kept with the file it came from, so a stale result never shows for another,
   // and kept when nothing came out (original: null), so the preview stops waiting.
@@ -710,8 +710,8 @@ export default function ProofPage() {
   // line on Ethereum-anchor pages. Null for user proofs.
   const [anchorBlock, setAnchorBlock] = useState<{ blockNumber: number | null; blockTime: string | null; etherscanUrl: string | null } | null>(null);
   // When each bracketing anchor was itself RECORDED, per the enclave platform's
-  // signed clock (Mike, 2026-09-27: "the anchors should bracket it. but as you
-  // can see this is after its bracket?"). The ceiling card used to show only the
+  // signed clock (2026-09-27: a file appeared to fall after its bracketing
+  // anchors). The ceiling card used to show only the
   // ceiling block's MINE time under "Before anchor #K", which reads as a clock
   // ceiling and is not one: an anchor is recorded after the block it carries.
   // On #1,012 the block was mined 9:44:59 PM, the file recorded 9:45:01, and
@@ -774,7 +774,7 @@ export default function ProofPage() {
     if (flashArmed && !loading && proof) {
       setFlashArmed(false);
       setJustCreated(true);
-      const t = setTimeout(() => setJustCreated(false), 950); // 0.9 s now (Mike, 2026-10-17: "speed up the animation"); was 1.5 s
+      const t = setTimeout(() => setJustCreated(false), 950); // 0.9 s now (2026-10-17, a faster animation); was 1.5 s
       return () => clearTimeout(t);
     }
   }, [flashArmed, loading, proof]);
@@ -785,9 +785,8 @@ export default function ProofPage() {
    * a proof made after 2026-09-08 — the ledger keeps only anchors. A BitGraph
    * opened from its own holder's folder therefore showed no time at all, and
    * the anchor card sat on "Waiting for the next Ethereum block…" forever,
-   * which was false: the anchors had landed and nobody was asking (Mike: "eth
-   * anchors dont load into proofs but they should. they are accessible from
-   * the s3").
+   * which was false: the anchors had landed, readable from S3, and nobody
+   * was asking.
    *
    * The proof carries its own counter and epoch in its SIGNED body, and
    * anchors are indexed by counter — that is why that index survived the
@@ -836,7 +835,7 @@ export default function ProofPage() {
      * nothing for a proof made after the cutover — so for a local-first
      * BitGraph it could never resolve. It ran its full five minutes, gave up,
      * and the page kept its unfinished window with nothing said. Live in
-     * principle, never live in fact (Mike: "shouldnt this be a live change").
+     * principle, never live in fact.
      *
      * The window endpoint is keyed by COUNTER, which is what survived phase 2,
      * and the proof carries its own counter and epoch in its signed body — so
@@ -1002,8 +1001,8 @@ export default function ProofPage() {
     // The proof a row handed over (fresh-proof.ts) is taken whenever it is
     // there, not only behind ?fresh=1: a results row navigates without the
     // flag, so the hand-off was never read and the page fell through to a
-    // retired lookup and "not found" (Mike, 2026-09-16: "you click one after
-    // its made and it doesnt work"). The flag now only means "play the flash".
+    // retired lookup and "not found" (2026-09-16: a row clicked right after
+    // its proof was made did not open). The flag now only means "play the flash".
     const freshHit = takeFreshProof<Parameters<typeof applyData>[0]>(digestParam);
     // A tree member's evidence handed over with the proof is kept apart from
     // it: the live fetch below replaces the proof with the ledger's copy,
@@ -1146,8 +1145,8 @@ export default function ProofPage() {
   /* ⚠️ NOTHING TO LOOK UP IS NOT NOTHING TO SAY, but it is very little.
    *
    * This screen briefly carried the whole viewer: a paragraph plus a drop zone
-   * that took a package or a proof.json and rendered it. Mike: "site doesnt
-   * need this does it?" — it does not. /verify IS that, properly: the offline
+   * that took a package or a proof.json and rendered it. The site does not
+   * need it. /verify IS that, properly: the offline
    * verifier, one file, no network, the thing you send someone. A second
    * weaker copy of it living inside an error state is exactly the drift that
    * killed the old page generator.
@@ -1169,7 +1168,7 @@ export default function ProofPage() {
               BitGraph keeps no index of proofs by digest, so this is not a finding
               about those bytes. If you have the BitGraph itself, check it offline.
             </div>
-            {/* ⚠️ WAS /verify, WHICH NO LONGER EXISTS (Mike, 2026-09-08). The
+            {/* ⚠️ WAS /verify, WHICH NO LONGER EXISTS (2026-09-08). The
                 offline check is a command, not a page you load from us: a page
                 served from bitgraph.ing is trusted exactly as much as we are,
                 which is the thing being checked. /docs/verification names the
@@ -1216,7 +1215,7 @@ export default function ProofPage() {
   // to the slot it consumed? A fused file carries it in its own bytes, a set
   // member in each member's bytes, and a digest-only recording (the
   // compatibility path) does not say. That is a field, not a different page
-  // (Mike, 2026-09-07: "all bitgraphs should render the same way"). The
+  // (2026-09-07: every BitGraph renders the same way). The
   // placement id stays out of it, as it has since 2026-09-03: a verifier
   // detail, in the attribution and the Raw JSON.
   // One marker, and its title answers "how is the commitment carried" in either
@@ -1303,9 +1302,9 @@ export default function ProofPage() {
   // M/D vs D/M ambiguity across locales.
   let recordedDate: string | null = null;
   // The heading names the day IN THE DISPLAYED ZONE, so the times beneath it
-  // drop their date when they fall on that day (Mike, 2026-09-17), and a
+  // drop their date when they fall on that day (2026-09-17), and a
   // toggle to local can never print "3:05 AM EDT" under a UTC date. UTC stays
-  // the default (Mike, 2026-09-19: "it should be UTC throughout").
+  // the default, used throughout (2026-09-19).
   const longDate = (d: Date) => longDateTz(d);
   const sameUtcDay = (a: Date, b: Date) => sameDayTz(a, b);
   const utcDate = (d: Date) => dateTz(d);
@@ -1388,25 +1387,24 @@ export default function ProofPage() {
   const winLine = (children: React.ReactNode) => (
     <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "var(--dim)" }}>{children}</div>
   );
-  // RE-RULING 2026-09-25 (Mike: "just say what time it commits according to
-  // the TEE... the eth proofs confirm the time", then "Recorded ... we dont
-  // need eth info there"): the lead is the recorded instant alone, bare by
+  // RE-RULING 2026-09-25 (the lead states the commit time by the TEE's clock;
+  // the Ethereum proofs confirm it, so no Ethereum detail goes in the lead):
+  // the lead is the recorded instant alone, bare by
   // the ruled lead exception, because the card stack directly beneath it
   // supplies the root and both bounds (Hardware Enclave, floor, ceiling).
-  // The card's heading names the position (Mike, 2026-09-26: "show WHAT bitgraph"): the
+  // The card's heading names the position, i.e. which BitGraph (2026-09-26): the
   // commit counter, the BitGraph's own number, not the slot just before it. The epoch ID
   // stays in the Positions card: an epoch is one UTC day, which the date line already gives.
   const commitCounter = typeof commit?.counter === "string" && /^\d+$/.test(commit.counter) ? Number(commit.counter) : null;
-  // The position's other coordinate, one line down (Mike, 2026-09-26: "the other coordinate is
-  // epoch id ... next line down, its like a teacher too"): a counter means nothing without its
+  // The position's other coordinate, the epoch ID, one line down (2026-09-26): a counter means nothing without its
   // epoch, so the head shows both. The full ID where it fits, cut with an ellipsis by the
   // column's width where it does not (a phone); the tooltip always holds all of it.
   const epochFull = typeof commit?.epochId === "string" ? commit.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null;
-  // The date and the time share one line under "BitGraphed" (Mike, 2026-09-26: "let date
-  // and time share second line", "remove recorded"): the heading carries the verb.
+  // The date and the time share one line under "BitGraphed" (2026-09-26; the "Recorded"
+  // label went): the heading carries the verb.
   const committedLine = attestedMs !== null
     ? (
-      // Normal text, not mono (Mike, 2026-09-26): a date written in words is read, not
+      // Normal text, not mono (2026-09-26): a date written in words is read, not
       // compared character by character; the epoch ID beneath stays mono.
       <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink)" }}>
         <TimeChip date={new Date(attestedMs)} withDate />
@@ -1414,8 +1412,8 @@ export default function ProofPage() {
     )
     : null;
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
-    // An anchor leads like every other proof (Mike, 2026-09-27: "match the new
-    // proof page format"): the attested instant, when the enclave recorded the
+    // An anchor leads like every other proof (2026-09-27, the new proof page
+    // format): the attested instant, when the enclave recorded the
     // block, per the 09-25 re-ruling. It used to lead with the block's own mine
     // time, which is a different and earlier moment (an anchor is built after
     // the block it carries: 2s after it on the anchor this was checked against,
@@ -1434,8 +1432,8 @@ export default function ProofPage() {
       // block's own time still shows on its card below, beside its link.
       const s1 = new Date(lowerTime);
       const s2 = new Date(upperTime);
-      // The lead is the recorded instant alone (Mike, 09-25: "we dont need
-      // eth info there"); the floor and ceiling keep their own cards below.
+      // The lead is the recorded instant alone, with no Ethereum detail (09-25);
+      // the floor and ceiling keep their own cards below.
       // When the attestation is unreadable, the bracket line stands in, with
       // the ceiling stated in position.
       leadStack = committedLine ?? winLine(
@@ -1480,16 +1478,16 @@ export default function ProofPage() {
     return day && day < today ? `/ledger?day=${day}` : "/ledger";
   })() : null;
   // The record's name. It was the first line of the card head; since the card
-  // folds (Mike, 2026-09-28: "BitGraph #1,012 would be label and it is closed
-  // by default"), it is the card's label, and each page shows its own number.
+  // folds (2026-09-28: the name is the label, and the card starts closed),
+  // it is the card's label, and each page shows its own number.
   // A tree's root file (the drop box's "Merkle tree plugin") names the record by its size when the page holds
-  // the file (Mike, 2026-10-18: "it should say tree of 100 ... on proof"); the proof alone carries only the root's hash.
+  // the file (2026-10-18: e.g. "Tree of 100"); the proof alone carries only the root's hash.
   const treeOf = (() => {
     if (!cachedFile || cachedFile.data.byteLength > 512) return null;
     const m = /^Merkle root \(RFC 6962, SHA-256\) of (\d+) files:/.exec(new TextDecoder().decode(cachedFile.data));
     return m ? Number(m[1]) : null;
   })();
-  // Both the BitGraph's number and the tree's size (Mike, 2026-10-18: "it should say both").
+  // Both the BitGraph's number and the tree's size (2026-10-18).
   const recordName = `BitGraph${commitCounter !== null ? ` #${commitCounter.toLocaleString("en-US")}` : ""}${treeOf !== null ? ` · Tree of ${treeOf.toLocaleString("en-US")}` : ""}`;
 
   // Interval window, derived from the causal positions the page already loads
@@ -1587,7 +1585,7 @@ export default function ProofPage() {
     const files: Record<string, Uint8Array> = {
       "proof.json": strToU8(JSON.stringify(proofOut, null, 2)),
     };
-    // No Frame in the package (Mike, 2026-09-03: "this is the correct proof").
+    // No Frame in the package (2026-09-03): proof.json is the correct proof.
     // A Frame is { type, manifest, proof }, and the proof inside it is byte for
     // byte proof.json, so shipping both put the signed proof in the zip twice.
     // Of the manifest's four fields, three are already in the signed proof (the
@@ -1597,7 +1595,7 @@ export default function ProofPage() {
     //
     // The package. A fused BitGraph leaves this page for someone who may have
     // neither the original nor a tool that rebuilds, so the export is the one
-    // moment the new file is actually wanted (Mike, 2026-09-03): the original
+    // moment the new file is actually wanted (2026-09-03): the original
     // as it always was, and the new file beside it under new-file/.
     // Everywhere else the new file stays virtual. Built here from whichever
     // file is in hand: the original rebuilds it, the new file carries the
@@ -1607,7 +1605,7 @@ export default function ProofPage() {
     if (cachedFile && packProof) {
       const bytes = new Uint8Array(cachedFile.data);
       // The new file keeps the original's name and is told apart by the folder
-      // it sits in (Mike, 2026-09-03). It is the same picture plus 48 bytes, so
+      // it sits in (2026-09-03). It is the same picture plus 48 bytes, so
       // a second name would imply a second thing. "fused" is gone from the
       // package too: Fuse is a working name and an export is permanent.
       if (isSet && cachedRole === "new") {
@@ -1983,7 +1981,7 @@ export default function ProofPage() {
     }
   }
 
-  /* /three's print master (bitgraph-art/16, Mike, 2026-10-09): the SVG the recorded PNG carries, taken out of the PNG
+  /* /three's print master (bitgraph-art/16, 2026-10-09): the SVG the recorded PNG carries, taken out of the PNG
      this page redrew from the proof (its SHA-256 is the recorded digest) and confirmed, byte for byte, against the SVG
      drawn from the commitment the proof authenticates. Offered only for a redrawn version 16 piece, or a version 17 one
      (home's 16:9 Three, 2026-10-10), checked against its own SVG; and a version 18 bridge (/bridge, 2026-10-10), the same way
@@ -2088,7 +2086,7 @@ export default function ProofPage() {
         </>
       )}
 
-      {/* 56px from the nav, the skeleton's own top, so nothing jumps when the proof arrives (Mike, 2026-10-18: "is content high enough up on the page"). */}
+      {/* 56px from the nav, the skeleton's own top, so nothing jumps when the proof arrives (2026-10-18). */}
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
         <ProofView m={(() => {
           const kind: ProofViewModel["kind"] = isEth ? "anchor" : isInterval ? "interval" : "file";
@@ -2103,7 +2101,7 @@ export default function ProofPage() {
           // Until the signed evidence lands, the window's anchor stands in for the floor ONLY when it is
           // the anchor the proof signed (commit.slotAnchor). The window's "anchor before" is the one
           // just before the COMMIT, often a later block: shown as the floor it said "17 s after the
-          // floor block" for a 29 s floor on #9,855 (Mike, 2026-10-06). The floor waits instead.
+          // floor block" for a 29 s floor on #9,855 (2026-10-06). The floor waits instead.
           const signedFloor = (commit as { slotAnchor?: { counter?: string | number } } | null | undefined)?.slotAnchor;
           const windowFloor = side(causalWindow?.anchorBefore ?? null, anchorRecordedMs.before);
           // A Base floor (enclave v10) is read from the signed proof itself; no anchor stands on either side of it.
@@ -2120,8 +2118,8 @@ export default function ProofPage() {
             ? { counter: causalWindow.anchorBefore.counter, blockNumber: causalWindow.anchorBefore.blockNumber, blockTime: causalWindow.anchorBefore.blockTime ?? null, digestB64: causalWindow.anchorBefore.digestB64 ?? null }
             : null;
           // The file pane: the preview, the drop box, or the anchor's block row.
-          // Every file pane is the same outlined box with a name row and an Open pill (Mike,
-          // 2026-10-05: "make it the uniform for any file"): text and other files (FileCard),
+          // Every file pane is the same outlined box with a name row and an Open pill, uniform
+          // for any file (2026-10-05): text and other files (FileCard),
           // images (PhotoCard), and an anchor's Ethereum block here.
           const filePane: React.ReactNode = isEth ? (
             <div className="pv-filecard">
@@ -2136,7 +2134,7 @@ export default function ProofPage() {
           ) : isInterval ? null : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
             <>
               <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "drawn from the proof" : heldLabel}
-                /* No "Save for print" (Mike, 2026-10-09: a print is a different bit version of the picture, so it would not
+                /* No "Save for print" (2026-10-09: a print is a different bit version of the picture, so it would not
                    match its own proof and would confuse; the recorded file is the one to print). */ />
               {/* The redraw made visible (2026-10-14, an outside reading of /generate: "a verifier has to take your word for it").
                   redrawRecordedArt hands the picture over only when the redrawing's SHA-256 IS the recorded digest, so the
@@ -2161,7 +2159,7 @@ export default function ProofPage() {
             <div style={{ padding: 16 }}>
               <HostedFilesView state={hosted} />
               {/* Once a host's files have matched, the record's files are already on the page: no "Locate the file" row
-                  (Mike, 2026-10-10). Generic, not Jev's: any matched ?files= bundle hides it; a failed or absent one keeps it. */}
+                  (2026-10-10). Generic, not Jev's: any matched ?files= bundle hides it; a failed or absent one keeps it. */}
               {hosted.phase === "matched" ? null : <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} />}
             </div>
           );
@@ -2230,8 +2228,8 @@ export default function ProofPage() {
             placement: mrow.placement,
             originDigestB64: mrow.originDigestB64,
           })) : [];
-          /* ONE Export button per position (Mike, 2026-10-04: "shouldn't it just
-             be an export proof button? like a master button?"). What it downloads
+          /* ONE Export button per position (2026-10-04: a single master export
+             button). What it downloads
              follows the kind of position; the person chooses nothing. The pieces
              (the proof alone, the anchors, the original, the BitGraphed file) stay
              reachable as text under it. Before this, four pills: Export (.zip) /
@@ -2491,7 +2489,7 @@ function BringYourFile({
   onTreeEvidence?: (evidence: TreeMemberEvidence | null) => void;
 }) {
   const [state, setState] = useState<"idle" | "reading" | "checking" | "looking" | "mismatch" | "tree" | "treeAll" | "treeNo">("idle");
-  // The one file dropped was this BitGraph's own proof, not the file it describes (Mike, 2026-10-20: dropping
+  // The one file dropped was this BitGraph's own proof, not the file it describes (2026-10-20: dropping
   // bitgraph-2.json on #2's page said "No match").
   const [ownProof, setOwnProof] = useState(false);
   // The tree's size, for the tree messages: bound from the signed root document, never from the drop.
@@ -2505,7 +2503,7 @@ function BringYourFile({
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [readCount, setReadCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  /* Open whenever no file is attached (Mike, 2026-10-19: the "Locate the file" button was "another step"); this
+  /* Open whenever no file is attached (2026-10-19: the "Locate the file" button was one step too many); this
      replaces the 2026-10-05 fold behind a button. A page that already holds the file never renders this box. */
 
   /* Dash geometry lives in use-dashed-edges now, shared with FileDrop: the
@@ -2577,8 +2575,8 @@ function BringYourFile({
           setState("mismatch");
           return;
         }
-        /* The whole set rebuilds the tree with no export (Mike, 2026-10-07: "shouldnt i be able to
-           drop the whole folder in"): every leaf is a function of a file and the commitment the signed
+        /* The whole set rebuilds the tree with no export (2026-10-07: the whole folder can be
+           dropped in): every leaf is a function of a file and the commitment the signed
            root document carries, so the complete set gives the signed root, and anything else does
            not. Fewer files than the tree holds cannot be the set: said plainly, no hashing spent. */
         if (dropped.rest.length >= bound.tree.count) {
@@ -2590,7 +2588,7 @@ function BringYourFile({
         }
         /* Fewer files than the tree: each one's recovery entry (sealed under the file's own hash when
            the tree was made, opened only by those bytes) names its place, checked against this tree
-           before it is believed (Mike, 2026-10-07: "if i have file 98. how do i find that proof?").
+           before it is believed (2026-10-07: so a single file, e.g. file 98, finds its own proof).
            The first file placed in THIS tree opens, exactly as one placed by its export would. */
         if (dropped.rest.length > 0) {
           const rows: Array<{ status: string; digestB64: string; file: File }> = [];
@@ -2649,7 +2647,7 @@ function BringYourFile({
           // member came first in the walk, which was usually the first file the
           // set was made from: the page then switched to it, because the held
           // member outranks the row the URL names. That looked like the page
-          // resetting to the first recorded file (Mike, 2026-09-07).
+          // resetting to the first recorded file (2026-09-07).
           //
           // The all-rows search survives for the one case that wants it: the
           // page reached by the SET's own digest, where no member is named and
@@ -2811,7 +2809,7 @@ function BringYourFile({
          page. Same mark, same blue on hover and drag. Dashed edges from the
          shared hook, like every drop target. */
       ref={edges.ref}
-      /* One drop box site-wide (Mike, 2026-09-17: 16:9, and every box the
+      /* One drop box site-wide (2026-09-17: 16:9, and every box the
          same): the geometry, the centring and the type are the .dropbox
          rules in globals.css; only the state colours are set here. */
       className="dropbox"
@@ -2956,7 +2954,7 @@ function PhotoCard({
   // True while a preview is being made from bytes the browser cannot show as
   // they are (a HEIC on anything but Safari: several seconds of WebAssembly
   // for a 24 MP photo). The card shows the wait rather than nothing; nothing
-  // read as "HEIC files aren't compatible" (Mike, 2026-08-19).
+  // read as "HEIC files aren't compatible" (2026-08-19).
   const [preparing, setPreparing] = useState(false);
 
   // Build an object URL for image preview if the cached file is an image.
@@ -3093,8 +3091,8 @@ function PhotoCard({
       }}
     >
       {/* Identity row — the same name · size · Open → that FileCard gives every
-          other file, and in the same place: ABOVE the preview (Mike, 2026-09-26:
-          "id rather all the proofs look the same"). The inline image is capped in
+          other file, and in the same place: ABOVE the preview (2026-09-26: all
+          the proofs look the same). The inline image is capped in
           size, so Open shows it at full resolution in a new tab. Only when the
           artifact bytes are in hand (a C2PA-thumbnail-only preview has no full
           file to name or open). */}
@@ -3239,8 +3237,8 @@ function FileCard({ cachedFile, label, preview, pending }: {
     return () => URL.revokeObjectURL(u);
   }, [shown, kind, mime]);
 
-  // Text: a plain text file opens all the way (Mike, 2026-09-30: "why dont we
-  // just let txt files open all the way up"); only a huge one stops, at 50,000
+  // Text: a plain text file opens all the way (2026-09-30); only a huge one
+  // stops, at 50,000
   // characters, and says Open shows the rest. A formatted JSON record keeps its
   // 60-line excerpt.
   let excerpt: { text: string; truncated: boolean; formatted?: boolean } | null = null;
@@ -3278,8 +3276,8 @@ function FileCard({ cachedFile, label, preview, pending }: {
   const hasPreview = pending ? kind === "text" : kind === "text" || kind === "video" || kind === "audio" || (kind === "docx" && !!docx);
   return (
     <div className="pv-filecard">
-      {/* The identity row, and it HEADS the file rather than closing it (Mike,
-          2026-09-26: people may think the file's contents are part of the proof).
+      {/* The identity row, and it HEADS the file rather than closing it
+          (2026-09-26: people may think the file's contents are part of the proof).
           The proof's own header ends in "epoch <base64>", and a text file that
           opens with a label over a long base64 line, as the home example does,
           reads as one more proof field when nothing marks where the proof stops.
@@ -3300,7 +3298,7 @@ function FileCard({ cachedFile, label, preview, pending }: {
         )}
       </div>
       {/* Font scales with the screen so a whole 43-character base64 value holds
-          one line on a phone (Mike, 2026-09-26: "the text wraps weird"). At a
+          one line on a phone (2026-09-26: the text wrapped badly). At a
           fixed 12.5px a 375px screen fits 40 monospace characters, so a
           position commitment broke at its own hyphen and read as two separate
           values. 11px keeps 44 columns down to a 360px screen; 12.5px returns
@@ -3320,7 +3318,7 @@ function FileCard({ cachedFile, label, preview, pending }: {
         /* Words are never broken: the font shrinks just enough for the longest unbroken run (a
            hash, a word) to fit the box, and lines wrap only at spaces. So a hash stays whole on a
            phone, and a line like "(position commitment) <hash>" sits on one line on a desk and
-           breaks at its space on a phone (Mike, 2026-10-07: "keep the number on same line").
+           breaks at its space on a phone (2026-10-07: the number stays on one line).
            0.6em is the mono face's advance width; 100cqi is the box, less the 32px of padding. A
            run over 60 characters (a base64 blob) would shrink the text too far, so that file
            breaks words as before. */

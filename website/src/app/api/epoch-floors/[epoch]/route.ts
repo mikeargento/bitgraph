@@ -8,7 +8,7 @@ import { checkEpochGenesisOnBase, parseEpochGenesisFile } from "@/lib/epoch-gene
  *
  * From enclave v13 (2026-10-19) the host binds a read of the latest Base block as each epoch's first BitGraph
  * (server/commit-service/src/parent/epoch-floor.ts) and keeps the file at epoch-floors/<epoch>.json beside the
- * ledger. Mike, 2026-10-19: "how can you tell that it read a base block?" This serves the file, so anyone can hash it
+ * ledger. It must be checkable that the host read a Base block (2026-10-19). This serves the file, so anyone can hash it
  * against the proof's digest and look the block up on Base. The answer also says whether Base has that block with
  * that hash and time (checked here against Base's RPC), as a convenience: the file and Basescan are the evidence.
  *
@@ -23,7 +23,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ epoch: string }
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(epoch)) return NextResponse.json({ error: "not an epoch id" }, { status: 400 });
   const text = await getObjectText(`epoch-floors/${epoch}.json`);
   if (!text) return NextResponse.json({ error: "no epoch floor for this epoch" }, { status: 404 });
-  // ?file: the file itself, byte for byte, as a download (Mike, 2026-10-20: the button opened this answer's JSON
+  // ?file: the file itself, byte for byte, as a download (2026-10-20: the button opened this answer's JSON
   // wrapper, so there was no file to drop on the proof).
   if (new URL(req.url).searchParams.has("file")) {
     return new Response(text, { headers: { "content-type": "application/json; charset=utf-8", "content-disposition": `attachment; filename="${parseEpochGenesisFile(text) ? "epoch-genesis.json" : "epoch-floor.json"}"`, "cache-control": "public, s-maxage=3600, stale-while-revalidate=86400" } });

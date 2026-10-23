@@ -34,8 +34,8 @@
  * usually nothing. Rebuilding the base folds the journal away: see
  * scripts/build-digest-filter.mjs.
  *
- * ⚠️ DELETED 2026-09-08 (61263868), RESTORED 2026-09-28 on Mike's word ("bring
- * back the index"), with the drop box's lookup. Without it every digest in a
+ * ⚠️ DELETED 2026-09-08 (61263868), RESTORED 2026-09-28 together
+ * with the drop box's lookup. Without it every digest in a
  * drop is an S3 listing: 1,000 never-recorded digests took 5.3s on production
  * and a 55,000 file folder about 95s of checking (measured 2026-09-28).
  *

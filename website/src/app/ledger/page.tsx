@@ -4,14 +4,14 @@ import { LedgerRows } from "@/components/ledger-rows";
 import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-ledger";
 
 /**
- * The running ledger (Mike, 2026-10-17: "a running ledger like the base one"):
+ * The running ledger (2026-10-17), modelled on the Base ledger:
  * every BitGraph, newest first, one UTC day per page, today live. The Base
  * page's own layout and styles.
  *
- * Public (Mike, 2026-10-17: "nobody cares. make it. this is genesis of new BitGraph"): a row shows the
+ * Public (2026-10-17; the ledger starts with the new BitGraph): a row shows the
  * BitGraph's number, its two counts, the SHA-256 it bound and the enclave's signed time, and opens its proof
  * page. A hash cannot be turned back into the file; a guessable file can be confirmed by someone hashing their
- * own copy, which Mike accepted. This reverses the 2026-10-09 ruling against a browsable gallery.
+ * own copy, an accepted trade-off. This reverses the 2026-10-09 decision against a browsable gallery.
  */
 
 export const dynamic = "force-dynamic";
@@ -78,11 +78,11 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
           .rl-num { min-width: 0; }
         }
       `}</style>
-      {/* No visible h1: it repeated the nav (Mike, 2026-10-17: "drop the h1's theyre basically redundant"). */}
+      {/* No visible h1: it repeated the nav (2026-10-17). */}
         <h1 className="sr-only">Proofs.</h1>
 
-      {/* Check is the ledger (Mike, 2026-10-17): the drop box here only looks files up and never makes one; the
-          one on /make makes (Mike, 2026-10-17: the SHA-256 field went, "dont need this"). */}
+      {/* Check is the ledger (2026-10-17): the drop box here only looks files up and never makes one; the
+          one on /make makes (2026-10-17: the SHA-256 field went as unneeded). */}
       <div>
         <DropBox mode="check" variant="buttons" />
       </div>
@@ -90,7 +90,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       {/* The ledger itself, under the checker: every BitGraph by day. */}
       {/* The same divider as between sections elsewhere: a hairline halfway through the 96px gap. */}
       <div style={{ height: 48, borderBottom: "1px solid var(--line-2)", marginBottom: 48 }} aria-hidden="true" />
-      {/* LEDGER on the left, the day links and Calendar on the right; no paragraph (Mike, 2026-10-17). */}
+      {/* LEDGER on the left, the day links and Calendar on the right; no paragraph (2026-10-17). */}
       <div className="ledger-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", margin: "0 0 20px" }}>
         <div>
           <p className="home-kicker" style={{ margin: 0 }}>Ledger</p>

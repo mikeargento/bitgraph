@@ -1,9 +1,9 @@
 // © 2026 Michael Argento. All rights reserved.
 /**
  * bitgraph-art/16 (2026-10-09), "Three": a square of one flat colour holding exactly three flat squares or rectangles
- * that never touch, every decision drawn from the position commitment. Mike's rules: a square canvas, one solid
+ * that never touch, every decision drawn from the position commitment. The rules: a square canvas, one solid
  * background colour, exactly 3 objects, each a square or a rectangle (axis-aligned), never touching each other, flat
- * solid colour only (no texture, no shading, no outlines). Colours (Mike, 2026-10-09, locked): four, a mid-century red,
+ * solid colour only (no texture, no shading, no outlines). Colours (2026-10-09, locked): four, a mid-century red,
  * yellow, blue and green; the background is one of the four and each object one of the three that are not the
  * background, so no object ever matches the ground (two objects may share a colour: they never touch).
  *
@@ -13,7 +13,7 @@
  *   the SVG (svgV16)  the print master: integer rectangles on an 1800 x 1800 viewBox, crisp edges, so it prints sharp
  *                     at any size. Canonical bytes: fixed element and attribute order, no floats, fixed whitespace,
  *                     UTF-8, LF line ends.
- *   the PNG           THE RECORDED FILE (Mike, 2026-10-09: share it anywhere; its BitGraphed file works as a painting's):
+ *   the PNG           THE RECORDED FILE (2026-10-09: shareable anywhere; its BitGraphed file works as a painting's):
  *                     1800 x 1800 RGB, the same rectangles as pixels, encoded by version 15's pure deflate
  *                     (png-deflate-v15.ts), with the manifest and a copyright line in tEXt and the SVG, byte for byte, in
  *                     an iTXt chunk (pngFileV16), so the proof covers the print master too: it is inside the recorded
@@ -68,7 +68,7 @@ export const THREE_SPEC_V16: ThreeSpec = { label: ART_ALGORITHM_V16, width: V16_
 
 export type RGB = readonly [number, number, number];
 /**
- * The four colours, in one place (Mike, 2026-10-09: mid-century modern, locked). Tunable before the first piece is
+ * The four colours, in one place (2026-10-09: mid-century modern, locked). Tunable before the first piece is
  * recorded; after that a change of any value is a new version, as every drawing rule is.
  */
 export const COLOURS_V16: readonly { name: string; hex: string; rgb: RGB }[] = [

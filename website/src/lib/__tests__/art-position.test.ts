@@ -1,4 +1,4 @@
-// The image generator end to end and offline (Mike, 2026-10-05): the real open and commit
+// The image generator end to end and offline (2026-10-05): the real open and commit
 // (fuse-tree-make.ts) against the stub boundary the tree/1 tests use, the image drawn from the
 // commitment only after the position opened, recorded in that position, read back with the
 // published verifier. Negative cases: expiry, a failed recording, a refused allocation, a

@@ -510,7 +510,7 @@ function makeModel(P: V12Plan) {
       if (P.beard === B_FULL || P.beard === B_STUBBLE) inB = v > m + mq(P.lipL, Q_1_2) + Q_0_03 || (v > P.mouth - Q_0_02 && au > P.lipW + Q_0_14) || (au > Q_0_82 && v > P.e + Q_0_42);
       else if (P.beard === B_GOATEE) inB = v > m + mq(P.lipL, Q_1_2) + Q_0_03 && au < Q_0_3;
       if (bL > 0 && v > P.chin - Q_0_12) inB = true;
-      // the moustache is a shaped band, not a box (Mike, 2026-10-08): its top arcs down toward the corners, its lower
+      // the moustache is a shaped band, not a box (2026-10-08): its top arcs down toward the corners, its lower
       // edge follows the mouth and droops past it, the ends round off, a small notch at the philtrum; strands sweep out and down
       let mo = false;
       if (P.beard !== B_GOATEE) {
@@ -593,7 +593,7 @@ function makeModel(P: V12Plan) {
   const sideKnotsX = [A105, 3390, 3703, 4563, 5085, 6258, 8218];
   const sideKnotsY = P.hair === H_WRAP
     ? [wrapLine(A105), P.e + Q_0_35, P.e + Q_0_4, P.e + Q_0_45, P.e + Q_0_55, napeV + Q_0_05, napeV + Q_0_05]
-    : isCap(P.hair) // pulled back: the hair lies above and behind the ear, no fall over the cheek (Mike, 2026-10-08)
+    : isCap(P.hair) // pulled back: the hair lies above and behind the ear, no fall over the cheek (2026-10-08)
       ? [hairLine(A105), P.e - Q_0_16, P.e - Q_0_24, P.e - Q_0_22, P.e + Q_0_12, napeV - Q_0_04, napeV - Q_0_04]
       : [hairLine(A105), P.e + sideburn, P.e - Q_0_12, P.e - Q_0_1, P.e + Q_0_28, napeV, napeV];
   /** Where the fall of a long style begins, in 1/16 steps from the front. */
@@ -871,7 +871,7 @@ function buildField(P: V12Plan, M: Model, pose: Pose): Field {
     if (isPony(hair)) {
       const t = tieOf(P, M), side = absI(P.yaw) > degA(Q_15) ? sgn(P.yaw) : P.sweptSide, endV = shV0 + Q_0_3 + mq(P.ponyLen, Q_0_5);
       // high and low tails hang from the tie down the back, behind the neck, so a turned head shows them beside it
-      // (Mike, 2026-10-08, from a photograph); the third style still comes forward over one shoulder
+      // (2026-10-08, modelled on a photograph); the third style still comes forward over one shoulder
       const dN = P.backDepth; // clear the back of the skull at its deepest, not the nape (the occiput hid the tail)
       if (hair === H_PONY_HIGH) ponies.push([t, [0, M.napeV - Q_0_1, -(dN + Q_0_3 + (P.ponyW >> 1))], [side * Q_0_12, M.napeV + Q_0_35 + mq(P.ponyLen, Q_0_6), -(dN + Q_0_2)]]);
       else if (hair === H_PONY_LOW) ponies.push([t, [0, t[1] + Q_0_35, -(dN + Q_0_15 + (P.ponyW >> 1))], [side * Q_0_08, t[1] + Q_0_3 + mq(P.ponyLen, Q_0_6), -(dN + Q_0_08)]]);
@@ -886,7 +886,7 @@ function buildField(P: V12Plan, M: Model, pose: Pose): Field {
       splat(F, nA, nB, (i, j) => {
         const a = idiv(A16 * i, nA), s = idiv(Q * j, nB - 1), s1 = Q - s, w0 = sq(s1), w1 = 2 * mq(s1, s), w2 = sq(s);
         const cx0 = mq(w0, p0[0]) + mq(w1, p1[0]) + mq(w2, p2[0]), cy0 = mq(w0, p0[1]) + mq(w1, p1[1]) + mq(w2, p2[1]), cz0 = mq(w0, p0[2]) + mq(w1, p1[2]) + mq(w2, p2[2]);
-        // a tail is gathered at the tie, swells, then tapers to a soft end (a cone from the head read as a nightcap, Mike, 2026-10-08)
+        // a tail is gathered at the tie, swells, then tapers to a soft end (a cone from the head read as a nightcap, 2026-10-08)
         const g = s < Q_0_25 ? Q_0_5 + mq(Q_0_5, smQ(dq(s, Q_0_25))) : Q - mq(Q_0_75, powQ(dq(s - Q_0_25, Q_0_75), Q_1_6));
         const ph = sinF(a16Of(mq(s, 40 * Q))) * 4, rr = pony ? mq(r, g) + Q_0_01 : mq(r, Q + mq(Q_0_15, ph));
         const ca = cosF(a) * 4;
@@ -1701,7 +1701,7 @@ function contours(P: V12Plan, F: Field, M: Model, pose: Pose, prims: Prims, inv:
     }, 40, Q_0_45, Q_0_45);
   }
   // a loose bun sheds strands: short curls leaving its outline, and wisps at the temples (and the nape for a high
-  // bun), all from salt bits so no stream draw moves (Mike, 2026-10-08, from a photograph of a messy topknot)
+  // bun), all from salt bits so no stream draw moves (2026-10-08, modelled on a photograph of a messy topknot)
   const loose = bunLoose(P.hair);
   if (loose) {
     const high = P.hair === H_BUN_HIGH, bc = bunCentre(P, M), sy = high ? Q_0_82 : Q;

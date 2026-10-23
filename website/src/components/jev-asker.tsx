@@ -127,13 +127,13 @@ export function JevAsker() {
           the record is bound as BitGraph B, after A in the same sequence. Nothing about the questions existed before&nbsp;A.
         </p>
         <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {/* The primary action, filled (Mike, 2026-10-20: "these buttons should be more prominent"). The record dot was tried
+          {/* The primary action, filled (2026-10-20) so it stands out as the one thing to press. The record dot was tried
               and left off: on a button it reads as "this site will record you". */}
           <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={state === "running"} onClick={() => void askNow()}>
             {r ? "Ask again" : "Ask AI"}
           </button>
           {/* While it runs the button keeps its label and a bar fills, one part per step, instead of the label changing
-              at each BitGraph (Mike, 2026-10-19: "the button sort of blinks for each bitgraph. maybe just a progress bar"). */}
+              at each BitGraph (2026-10-19): a label swapped per step made the button blink. */}
           {state === "running" && (
             <span className="demo-progress" role="progressbar" aria-label={step} title={step}>
               <span style={{ width: `${Math.round(100 * (step.startsWith("Making BitGraph B") ? 0.85 : step.startsWith("Drawing") || step.startsWith("Asking") ? 0.5 : 0.15))}%` }} />
@@ -145,7 +145,7 @@ export function JevAsker() {
 
       {r && (
         // The result opens smoothly: the space grows and the content fades in, so the drawing below glides down
-        // instead of jumping (Mike, 2026-10-19).
+        // instead of jumping (2026-10-19).
         <div className="demo-reveal"><div>
         <section className="home-section" aria-labelledby="jev-r">
           <p className="home-kicker">The code: BitGraph A&rsquo;s nonce</p>
@@ -170,7 +170,7 @@ export function JevAsker() {
             {derived === "mismatch" && <span className="db-bad">The questions do not match A&rsquo;s nonce on bitgraph.ing.</span>}
             {derived === "unavailable" && "A’s proof could not be read just now to remake the questions here; the links below still open both proofs."}
           </p>
-          {/* The links are buttons (Mike, 2026-10-19: "should these be buttons?"), like View proof on Make. */}
+          {/* The links are buttons (2026-10-19), like View proof on Make. */}
           <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
             <a className="bg-action-link" style={{ margin: 0 }} href={proofLink(r.a.id, r.id)}>BitGraph A #{fmt(r.a.counter)}, the request</a>
             <a className="bg-action-link" style={{ margin: 0 }} href={proofLink(r.id, r.id)}>BitGraph B #{fmt(r.b.counter)}, the record</a>
@@ -180,8 +180,8 @@ export function JevAsker() {
         </div></div>
       )}
       {/* The drawing explains; it does not animate, and it sits below the result, so a result is the first thing seen
-          after the button (Mike, 2026-10-19: "this animation on demo is not needed but the result being higher up on the
-          page would be a better ui"). */}
+          after the button (2026-10-19): the animation added nothing, and the result reads better higher up the
+          page. */}
       <section className="home-section" aria-label="How it works">
         <div>
           <SandwichFigure

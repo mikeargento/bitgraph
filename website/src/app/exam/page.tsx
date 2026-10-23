@@ -3,7 +3,7 @@ import { CopyCode } from "@/components/copy-code";
 import { SandwichFigure } from "@/components/primitive-figures";
 
 /**
- * The sealed exam, on two BitGraphs (Mike, 2026-10-19: "do all 3": the repo's release v3, npm 0.3.0, and this page).
+ * The sealed exam, on two BitGraphs (2026-10-19, shipped together with the repo's release v3 and npm 0.3.0).
  * A binds a request naming the public bank; twenty questions are derived from A's nonce; the model answers; B binds the
  * answer sheet with a Base ceiling. Repo: github.com/mikeargento/sealed-exam. The zip is a GitHub release asset and its
  * URL is versionless (releases/latest), so the page cannot point at a stale file; the checksum is here so a recipient can

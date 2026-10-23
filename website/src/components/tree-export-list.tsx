@@ -22,13 +22,13 @@ import { fmtRowWhen } from "@/components/folder-list";
 import type { TreeExportRow } from "@/lib/folder-check";
 
 /** One row: five lines of type and the padding around them. Phones wrap each line instead of
- *  cutting it off (Mike, 2026-10-05: "it cuts off"), so their rows are taller; still one fixed
+ *  cutting it off (2026-10-05), so their rows are taller; still one fixed
  *  height per screen, which is what the windowing needs. */
 const ROW_H_WIDE = 118;
 const ROW_H_PHONE = 236;
 /* Wrap whenever the list is narrower than its longest line needs (about 820px), not only on phones:
-   a narrow desktop window or a tablet cut the floor and Base lines off too (Mike, 2026-10-05:
-   "this should wrap it gets chopped"). Measured on the list itself, so it follows the layout. */
+   a narrow desktop window or a tablet cut the floor and Base lines off too (2026-10-05).
+   Measured on the list itself, so it follows the layout. */
 const WRAP_BELOW_PX = 820;
 const ROW_H_MID = 168; // wrapped, between a phone and WRAP_BELOW_PX: lines take two rows at most
 function useListWidth(): [React.RefObject<HTMLDivElement | null>, number] {
@@ -150,7 +150,7 @@ export function TreeExportList({ rows, onOpen }: { rows: TreeExportRow[]; onOpen
             >
               <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 15, color: "var(--ink)" }}>{r.fileName ?? r.exportName}</span>
-                {/* The row opens the proof: say so (Mike, 2026-10-05: "no indication you can click"). */}
+                {/* The row opens the proof: say so, since nothing else shows it can be clicked (2026-10-05). */}
                 <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: v.color }}>{v.text}<span aria-hidden style={{ marginLeft: 6, color: "var(--faint)", fontWeight: 400 }}>&rsaquo;</span></span>
               </div>
               <div style={{ ...line, color: r.verdict === "FALSE" ? "var(--err)" : "var(--dim)" }}>{whereLine(r)}</div>

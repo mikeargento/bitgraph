@@ -1,7 +1,7 @@
 /**
  * Recovering a BitGraph from the file: bitgraph-recovery/1 (2026-10-03).
  *
- * THE RULE (Mike): anyone holding a file can always get its proof back, and
+ * THE RULE: anyone holding a file can always get its proof back, and
  * export it again, if the export was lost.
  *
  * RECOVERY IS NOT VERIFICATION. Verification needs nothing of ours: an export

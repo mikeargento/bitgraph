@@ -1,12 +1,12 @@
 /**
  * bitgraph-art/1 and /2: an image whose every pixel is a function of one position commitment
- * (Mike, 2026-10-05: "an image that could not have existed before" its position opened).
+ * (2026-10-05): an image that could not have existed before its position opened.
  *
  * The commitment is the ONLY creative input. Algorithm, dimensions, palettes and drawing
  * rules are fixed here and versioned; a change to any of them is a new version, never an edit
  * of an old one, and every version stays here so every image ever made still redraws.
  *   bitgraph-art/1 (2026-10-05, BitGraph #2,285): one sample per pixel, hard edges.
- *   bitgraph-art/2 (2026-10-06, Mike: "can you add some kind of antialiasing"): the same rules,
+ *   bitgraph-art/2 (2026-10-06, antialiased): the same rules,
  *     its own stream label, 4 x 4 supersampling inside the art square (below), and a fixed
  *     deflate (encodeArtPng), so the whole recorded FILE, not only its pixels, is a function of
  *     the commitment and the proof page can redraw it byte for byte. No clock, no Math.random, no viewport, no user input,
@@ -77,16 +77,16 @@ import { ART_ALGORITHM_V19, planV19, renderV19, pngFileV19, settingsTextV19, svg
 
 export const ART_ALGORITHM_V1 = "bitgraph-art/1";
 export const ART_ALGORITHM_V2 = "bitgraph-art/2";
-/** What a new image is drawn with: version 3 from 2026-10-06 (Mike: "lose barcode use version 3"),
- *  version 4 (the Truchet maze) the same night (Mike: "build the truchet maze as version 4"). */
+/** What a new image is drawn with: version 3 from 2026-10-06 (replacing the barcode),
+ *  version 4 (the Truchet maze) the same night. */
 export const ART_ALGORITHM = "bitgraph-art/15"; // version 15 from 2026-10-09: an oil painting (a bristle brush on linen, lit relief), integer-only; version 14 (engraved portraits with anatomical ears) before it
-/** Built 2026-10-06 for a side-by-side look (Mike: "build it and show me side by side"): the art spells the commitment. */
+/** Built 2026-10-06 for a side-by-side comparison: the art spells the commitment. */
 export const ART_ALGORITHM_V3 = "bitgraph-art/3";
-/** Built 2026-10-06 (Mike: "build the truchet maze as version 4"): every tile is one bit. */
+/** Built 2026-10-06 (the Truchet maze): every tile is one bit. */
 export const ART_ALGORITHM_V4 = "bitgraph-art/4";
-/** Built 2026-10-06 (Mike: "build it as version 5"): layered fields with a plate mark; see commitment-art-v5.ts. */
+/** Built 2026-10-06: layered fields with a plate mark; see commitment-art-v5.ts. */
 export const ART_ALGORITHM_V5 = "bitgraph-art/5";
-/** Built 2026-10-06 (Mike: "build option 2 as version 6"): version 5's look with the code woven into the art. */
+/** Built 2026-10-06 (option 2 of the candidates): version 5's look with the code woven into the art. */
 export const ART_ALGORITHM_V6 = "bitgraph-art/6";
 /** Version 6's picture with nothing broken at the tile edges: the code in colour twins (commitment-art-v7.ts). */
 export const ART_ALGORITHM_V7 = "bitgraph-art/7";
@@ -110,7 +110,7 @@ export const ART_ALGORITHM_V15 = "bitgraph-art/15";
 export { ART_ALGORITHM_V16 };
 /** Version 17 (2026-10-10, the home page): version 16's rules on a 16:9 canvas, 1920 x 1080 (commitment-art-v17.ts). Not the default. */
 export { ART_ALGORITHM_V17 };
-/** Version 18 (2026-10-10, /bridge, hidden): a suspension bridge of packed flat rectangles, 1200 x 1200, every setting of Mike's generator drawn per click; the recorded PNG carries its print SVG (commitment-art-v18.ts). Not the default. */
+/** Version 18 (2026-10-10, /bridge, hidden): a suspension bridge of packed flat rectangles, 1200 x 1200, every setting of the standalone generator drawn per click; the recorded PNG carries its print SVG (commitment-art-v18.ts). Not the default. */
 export { ART_ALGORITHM_V18 };
 /** Version 19 (2026-10-11, /generate): version 18's bridge on a 16:9 canvas, 1920 x 1080, the silhouette redrawn wide (commitment-art-v19.ts). Not the default. */
 export { ART_ALGORITHM_V19 };
@@ -701,8 +701,8 @@ const concat = (parts: Uint8Array[]): Uint8Array => {
  */
 /* ── A fixed deflate, so a version-2 file is a pure function of its commitment ─────────
  * Browsers compress the same pixels to different bytes, so a version-1 file could only be
- * checked by its pixels. Version 2 writes its own zlib stream (Mike, 2026-10-06: the proof page
- * should open the image): one final block with the fixed Huffman codes of RFC 1951, built
+ * checked by its pixels. Version 2 writes its own zlib stream (2026-10-06, so the proof page
+ * can open the image): one final block with the fixed Huffman codes of RFC 1951, built
  * greedily from two candidates only, the previous pixel (distance 3) and the pixel above
  * (distance = one row, 1 + 3W bytes), the longer match winning and distance 3 on a tie; a
  * match shorter than 3 is a literal. zlib header 78 01, Adler-32 at the end. The same pixels
@@ -836,8 +836,8 @@ export async function encodeArtPng(px: Uint8Array, manifest: ArtManifest): Promi
 }
 
 /**
- * A PNG of any size, for the print redrawing (Mike, 2026-10-06: "make a download high resolution
- * button"). Not a recorded file and never made into one: the platform's deflate, the Sub filter
+ * A PNG of any size, for the print redrawing (2026-10-06: the high resolution download
+ * button). Not a recorded file and never made into one: the platform's deflate, the Sub filter
  * (the larger drawing is mostly flat runs), 300 dpi in pHYs, and a tEXt chunk saying what it is.
  * It carries no manifest and no commitment, so it is never mistaken for the recorded image.
  */

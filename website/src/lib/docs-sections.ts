@@ -18,7 +18,7 @@
  * historical reasons (cached permanent redirects point at two of them) and
  * mount the previous/next pair themselves. "Floors" (/ledger, Ethereum anchors)
  * and "Ceilings" (/ceilings) became one item, "Base", when floors moved to Base
- * with enclave v10 (Mike, 2026-10-06); /ledger stays as the history of the
+ * with enclave v10 (2026-10-06); /ledger stays as the history of the
  * Ethereum anchors, out of the sequence.
  */
 export type DocsSection = { href: string; label: string };
@@ -83,8 +83,8 @@ export const MENU_GROUPS: MenuGroup[] = [
     label: "See it working",
     feature: true,
     items: [
-      // /generate in place of "Make a painting" (Mike, 2026-10-10: "i dont want the slow make a painting", "you were supposed to replace
-      // painting with it"). Since 2026-10-11 (Mike: "remove painting and all the other demos", then "i still want ask jev"), it and
+      // /generate in place of "Make a painting" (2026-10-10: the painting was too slow, and /generate replaces it).
+      // Since 2026-10-11, with the painting and the other demos removed, it and
       // Ask Jev are the demos; /painting and /exam redirect to /generate.
       { href: "/generate", label: "Generative art", desc: "One click, an image that never existed." },
       { href: "/jev", label: "Ask AI", desc: "Two questions no one could have seen before." },

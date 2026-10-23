@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 
 /**
- * Day or night (Mike, 2026-10-17: "put a sun and a moon toggle in upper right"). The site follows the
+ * Day or night (2026-10-17): a sun and moon toggle in the upper right. The site follows the
  * device until someone presses this; the choice is saved and set on <html> as data-theme before the
  * first paint (the head script in layout.tsx). The button shows where it would take you: a sun at
  * night, a moon by day.

@@ -1,5 +1,5 @@
 /**
- * bitgraph-art/9 (Mike, 2026-10-07): five families in one picture. Landscape, 1600 x 1024 with the
+ * bitgraph-art/9 (2026-10-07): five families in one picture. Landscape, 1600 x 1024 with the
  * plain 32 px frame (art 1536 x 960), the code carried exactly as version 8 carries it.
  *
  * Every image layers the same five families, bottom to top, each painting flat palette indices into one

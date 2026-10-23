@@ -72,7 +72,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
        is what every one of them names. The artifact's own set holds exactly one
        entry, its own commit, which is why a fused artifact's page said
        "Positions (1)" while the original's said "Positions (6)" for the same
-       file (Mike, 2026-09-04). Dropping the original and dropping the new file
+       file (2026-09-04). Dropping the original and dropping the new file
        must land on the same list.
 
        Deliberately separate from `all`: that set still drives the lead card,
@@ -157,7 +157,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
         ceiling: baseCeilings[idx],
         // When BitGraph recorded this position, by the TEE's signed clock: the
         // same time the proof page leads with, so a Positions row and the page
-        // it opens never disagree (Mike, 2026-09-27: "make it consistent").
+        // it opens never disagree (one clock everywhere, 2026-09-27).
         recordedMs: recordedMsOf(e.proof),
         kind: e.kind,
         // For a fused descendant: the fused artifact's own digest (url-safe) and placement.

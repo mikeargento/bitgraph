@@ -1,7 +1,7 @@
 // © 2026 Michael Argento. All rights reserved.
 /**
- * bitgraph-art/17 (2026-10-10), "Three" at 16:9 (Mike, 2026-10-10: "tweak the model to make 16:9 instead so its wider
- * and takes up less vertical space"), for the home page. Version 16's rules exactly (commitment-art-v16.ts: one flat
+ * bitgraph-art/17 (2026-10-10), "Three" at 16:9 (2026-10-10: wider, so it takes up less
+ * vertical space), for the home page. Version 16's rules exactly (commitment-art-v16.ts: one flat
  * ground, exactly three axis-aligned squares or rectangles that never touch, the same locked four colours and colour
  * rules, integers only, no stroke, the recorded PNG carrying the canonical print SVG in iTXt, the copyright line), the
  * same code, on a 1920 x 1080 canvas. Version 16 is unchanged: its pieces are recorded and /generate (once /three) keeps making them.

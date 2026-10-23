@@ -1,8 +1,8 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * A Base floor for one BitGraph, as two counts (Mike, 2026-10-18: "base floors are just their own bitgraph"; 2026-10-21:
- * "every bitgraph gets a base floor and ceiling"). BitGraph 1 binds base-floor.json, the latest Base block; BitGraph 2
+ * A Base floor for one BitGraph, as two counts (2026-10-18: a Base floor is its own BitGraph; since 2026-10-21 every
+ * BitGraph gets a Base floor and ceiling). BitGraph 1 binds base-floor.json, the latest Base block; BitGraph 2
  * binds the content right after it. A floor link is the checked statement that 1 is 2's floor. The bind is untouched:
  * a link is about two BitGraphs and is part of neither proof.
  *

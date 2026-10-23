@@ -1,5 +1,5 @@
 /**
- * bitgraph-art/7 (Mike, 2026-10-06: "make the style stay square, but make it less jagged"): version 6's
+ * bitgraph-art/7 (2026-10-06: the same square style, less jagged): version 6's
  * picture with nothing broken at the tile edges.
  *
  * Version 6 carried each bit by shifting the top pattern inside its hidden tile, so lines, rings and

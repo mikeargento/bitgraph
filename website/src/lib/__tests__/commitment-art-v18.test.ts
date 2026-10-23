@@ -1,5 +1,5 @@
 // bitgraph-art/18 (2026-10-10), "Bridge": a suspension bridge of packed flat rectangles on a 1200 square, every draw (the
-// palette and every setting of Mike's generator, then the packing) from the commitment's labelled SHA-256 stream, integers
+// palette and every setting of the standalone generator, then the packing) from the commitment's labelled SHA-256 stream, integers
 // only, the recorded PNG carrying its print SVG. Pinned; the mask is pinned and its parts checked (two legs and four struts
 // a tower, continuous double cables, suspenders); the settings' distributions checked over 200 codes; 300 codes
 // property-checked under their own settings (50 of them drawn twice); the PNG is the SVG's rectangles; the image checks
@@ -68,7 +68,7 @@ test("version 18 is registered and is not the default", () => {
   assert.deepEqual([V18_WIDTH, V18_HEIGHT], [1200, 1200]);
 });
 
-test("the five palettes are Mike's presets: background, bridge, footing, sky, water", () => {
+test("the five palettes are the presets: background, bridge, footing, sky, water", () => {
   assert.deepEqual(PALETTES_V18.map((p) => [p.name, [...p.colors]]), [
     ["International orange", ["#f5efe0", "#c0362c", "#b08d4a", "#8fb3c9", "#1d4e6b"]],
     ["Red and black", ["#ffffff", "#000000", "#000000", "#ee1c25", "#ee1c25"]],

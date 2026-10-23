@@ -68,8 +68,8 @@ export function takeWarm<T = unknown>(key: string): { data: T } | { promise: Pro
 export const EXAMPLE_PROOF = {
   // The ChatGPT original from the three-images research (2026-08-10):
   // OpenAI-signed C2PA with an RFC 3161 token, zero parents, recorded at
-  // #8,038. Replaced preston.jpg as the front-door example 2026-08-12
-  // (Mike's call); preston stays hosted so existing links keep their photo.
+  // #8,038. Replaced preston.jpg as the front-door example 2026-08-12;
+  // preston stays hosted so existing links keep their photo.
   digest: "ngeTOzgjwu_2x2pQyLG3lbhFPFHLkF8JKdETlZyvcyY",
   counter: "8038",
   epoch: "2bx9IFX9ZOoY5HSwlZstSEGx1PWv8DncGofdK5v93jQ",
@@ -92,8 +92,8 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
 
 /** The home page's "See a real BitGraph" target. Its own constant rather than
  *  EXAMPLE_PROOF, which is the ChatGPT image used elsewhere: the home example is
- *  BitGraph #201 (2026-10-07): Mike's almanac line as a 186-byte text file, so the proof page
- *  shows it at once (Mike: "it should be a txt file so it loads super fast"). Made INSIDE its
+ *  BitGraph #201 (2026-10-07): the almanac line as a 186-byte text file, so the proof page
+ *  shows it at once (a text file loads fastest). Made INSIDE its
  *  BitGraph in one run (SDK beginTask, the text written with "position commitment" and the
  *  commitment on its own last two lines, sealTask; 3 s): bitgraph-fuse/3, so the bytes were
  *  finished after the Base floor block. Floor 52,278,218, ceiling 52,278,221. (#199, with the
