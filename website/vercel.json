@@ -4,5 +4,10 @@
       "path": "/api/digest-index/compact",
       "schedule": "17 * * * *"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "enclave-v13": false
+    }
+  }
 }
