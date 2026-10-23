@@ -4877,20 +4877,23 @@ html:root:root:root:root:root:root:root body :is(.pv-row-value, .pv-mono, .hiw-c
    padding was sized for the big h1 those pages no longer show; only the home, which still has it, keeps it. */
 html:root:root:root:root .home-scroll .home-hero:not(:has(.home-title)) { padding-top: 56px !important; }
 /* Tools (2026-10-19, a redesign of the page). The four ways in as cards, the
-   offline check wide under them; the reference beside a contents list that stays in view on desktop; questions fold;
+   offline check under them; the reference beside a contents list that stays in view on desktop; questions fold;
    the proof's fields and the limits as two-column tables. Cards match the drop box and proof card: panel, hairline,
-   12px corners. */
+   12px corners.
+   One card per row (2026-10-23): two to a row held 50 characters of code at the widest frame, and five of the six
+   commands are longer, so they broke mid-command. A full-width card holds 118. */
 html:root:root:root .tools-page .tl-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 40px; }
-@media (min-width: 900px) { html:root:root:root .tools-page .tl-grid { grid-template-columns: 1fr 1fr; gap: 20px; } }
+@media (min-width: 900px) { html:root:root:root .tools-page .tl-grid { gap: 20px; } }
 html:root:root:root .tools-page .tl-card { min-width: 0; background: var(--panel); border: 1px solid var(--line-2, var(--line)); border-radius: 12px; padding: 28px 28px 24px; display: flex; flex-direction: column; }
 @media (max-width: 640px) { html:root:root:root .tools-page .tl-card { padding: 22px 18px 18px; } }
-@media (min-width: 900px) { html:root:root:root .tools-page .tl-card.tl-wide { grid-column: 1 / -1; } }
 html:root:root:root .tools-page .tl-label { font-size: 12px !important; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px !important; }
 html:root:root:root:root:root .tools-page .tl-card h3 { font-size: 24px !important; line-height: 1.2 !important; font-weight: 700 !important; color: var(--ink); margin: 0 0 10px !important; padding: 0 !important; }
 html:root:root:root .tools-page .tl-card > p { font-size: 16px !important; line-height: 1.6 !important; margin: 0 0 14px !important; max-width: none !important; }
 html:root:root:root:root .tools-page .tl-card :is(.code-block, .mk-code) { margin: 0 0 14px !important; }
 html:root:root:root .tools-page .tl-card .tl-note { font-size: 14px !important; color: var(--dim); margin: auto 0 0 !important; padding-top: 4px; }
-html:root:root:root .tools-page .tl-verbs { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 4px 0 18px; font-size: 15px; line-height: 1.5; }
+/* The names keep their width; the descriptions take the rest and may shrink below their own content, so a long
+   inline code cannot push them past the card. */
+html:root:root:root .tools-page .tl-verbs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 4px 0 18px; font-size: 15px; line-height: 1.5; }
 html:root:root:root .tools-page .tl-verbs dt { margin: 0; white-space: nowrap; }
 html:root:root:root .tools-page .tl-verbs dd { margin: 0; color: var(--text); }
 @media (max-width: 640px) { html:root:root:root .tools-page .tl-verbs { grid-template-columns: 1fr; gap: 2px; } html:root:root:root .tools-page .tl-verbs dd { margin-bottom: 10px; } }

@@ -14,9 +14,9 @@ import { ThemeToggle } from "@/components/theme-toggle";
  * the bar; on phones they fold into a menu button that opens a sheet under the bar.
  */
 const LINKS: Array<{ href: string; label: string }> = [
-  { href: "/demos", label: "Demos" },
-  // The ledger: look a file up, or read every BitGraph by day (2026-10-17: checking is the ledger).
+  // The ledger first: look a file up, or read every BitGraph by day (2026-10-17: checking is the ledger).
   { href: "/ledger", label: "Proofs" },
+  { href: "/demos", label: "Demos" },
   { href: "/tools", label: "Tools" },
   // Make on the right, plain text like the others (2026-10-18 / 10-19).
   { href: "/make", label: "Make" },
