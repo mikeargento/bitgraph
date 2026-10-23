@@ -1,0 +1,17 @@
+{
+  "slot": {
+    "version": "bitgraph/slot/1",
+    "nonceB64": "5psLgbY7G82e+dijTCIo2WmZuPYgakm4fHEsLdG4Me4=",
+    "counter": "1",
+    "epochId": "rGDc8XYP1C6nYkLSPxbkq5i2NRAG3UH6+6VflZzqHxo=",
+    "publicKeyB64": "3+PwwK1mceL6L2E21BuFF7KX5e+Y3bh7CF1EyE4KPmo=",
+    "chainId": "bitgraph:main",
+    "signatureB64": "PbwUvmOVDmWcvX0Co0DhTCZWsSzJN7S2ASR1W2qsQSNzJKRruwpIt3nyIiM1Cu4EJuxa+IJ157Xqc/SL4VhlCA=="
+  },
+  "floorBlockHash": "0x71d926aeae9847fcc15fad2d4de8871923f56862d42db7a7463e95a838f8f9b0",
+  "slotRecordHashHex": "7b9abe9ac1a810888218eba7d0a5353491757aeecf776a4965dc07d921a892d4",
+  "preimageHex": "62697467726170682d667573652f33007b9abe9ac1a810888218eba7d0a5353491757aeecf776a4965dc07d921a892d4e69b0b81b63b1bcd9ef9d8a34c2228d96999b8f6206a49b87c712c2dd1b831ee71d926aeae9847fcc15fad2d4de8871923f56862d42db7a7463e95a838f8f9b0",
+  "commitmentHex": "6c6fe5d012bd4011ac7c799764bf7aa8e9753bc59063395c23bd74541008da2e",
+  "fuse2CommitmentHex": "a84c52b86e20de1f02a6bd88f340a8bcc4ec7dea3655c9a5edba05bea0024bd8",
+  "fuse1CommitmentHex": "95bbd27ada8b4b49a6b56e48638430120ee6e3aac9bf58c35db2cdcbb2b2f8dd"
+}

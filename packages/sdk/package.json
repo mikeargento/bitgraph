@@ -1,0 +1,48 @@
+{
+  "name": "@mikeargento/bitgraph-sdk",
+  "version": "0.7.4",
+  "description": "Make and check BitGraphs from any stack: files are hashed locally, each SHA-256 is bound in one atomic action in the enclave, and the proof is saved beside the file.",
+  "keywords": [
+    "bitgraph",
+    "sdk",
+    "provenance",
+    "proof",
+    "ai-audit",
+    "causal-order"
+  ],
+  "license": "MIT",
+  "homepage": "https://bitgraph.ing",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikeargento/bitgraph.git",
+    "directory": "packages/sdk"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "bitgraph": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "rm -rf dist && tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test dist/__tests__/*.test.js"
+  },
+  "dependencies": {
+    "@mikeargento/bitgraph": "^1.14.0",
+    "@mikeargento/bitgraph-verify": "^1.25.0"
+  }
+}

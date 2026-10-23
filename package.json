@@ -1,0 +1,66 @@
+{
+  "name": "@mikeargento/bitgraph",
+  "version": "1.14.1",
+  "license": "SEE LICENSE IN LICENSE",
+  "description": "Position commitments for content: verifiable positions for files, records, and computations in a cryptographically linked sequence.",
+  "keywords": [
+    "bitgraph",
+    "ai-audit",
+    "audit-trail",
+    "proof",
+    "tamper-evident",
+    "causal-order",
+    "tee",
+    "nitro-enclave",
+    "ethereum",
+    "sdk"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "!dist/__tests__",
+    "!src/__tests__"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run build --workspace=packages/sdk && npm run build --workspace=packages/player && npm run build --workspace=packages/mcp && rm -rf dist && tsc",
+    "typecheck": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run typecheck --workspace=packages/mcp && tsc --noEmit",
+    "test:core": "npm run build && node --test dist/__tests__/*.test.js",
+    "test": "npm run test:core && npm run test:packages",
+    "prepack": "npm run build",
+    "test:packages": "npm test --workspace=packages/verify --workspace=packages/sdk --workspace=packages/mcp --workspace=packages/player --workspace=packages/titles",
+    "test:integration": "npm run build --prefix server/commit-service && npm run test:core"
+  },
+  "dependencies": {
+    "@mikeargento/bitgraph-verify": "^1.20.0",
+    "@noble/ed25519": "^2.1.0",
+    "@noble/hashes": "^1.4.0"
+  },
+  "devDependencies": {
+    "@mikeargento/bitgraph-audit": "^0.11.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "workspaces": [
+    "packages/verify",
+    "packages/sdk",
+    "packages/audit",
+    "packages/mcp",
+    "packages/player",
+    "packages/titles"
+  ],
+  "bin": {
+    "bitgraph-fuse": "dist/fuse-cli.js"
+  }
+}

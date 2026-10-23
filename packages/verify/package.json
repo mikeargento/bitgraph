@@ -1,0 +1,49 @@
+{
+  "name": "@mikeargento/bitgraph-verify",
+  "version": "1.25.0",
+  "description": "Offline verification of BitGraph proofs: the enclave signature, its attestation and the two counts. Permissionless by design.",
+  "keywords": [
+    "bitgraph",
+    "verification",
+    "offline",
+    "proof",
+    "ed25519",
+    "attestation",
+    "ai-audit",
+    "tamper-evident"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "rm -rf dist && tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test dist/__tests__/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.3.0",
+    "@noble/ed25519": "^2.1.0",
+    "@noble/hashes": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}

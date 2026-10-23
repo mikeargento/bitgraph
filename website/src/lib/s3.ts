@@ -1,0 +1,1249 @@
+/**
+ * S3-based proof storage — replaces Neon Postgres.
+ *
+ * Keys:
+ *   by-digest/{urlSafeDigest}.json  — lookup by artifact hash
+ *   anchors-by-time/{timestamp}.json — chronological anchor listing
+ */
+
+import { Agent } from "node:https";
+import { isAnchorProof } from "@mikeargento/bitgraph-verify";
+import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { journalDigests } from "./digest-index";
+import { checkMember } from "./tree-member";
+import { fusedOriginDigestOf } from "@/lib/fuse-core";
+import { SET_KEY, SET_MEMBER_KEY, bindSet, bindSetMember, isSetProof, setIndexEntries, stripSetManifest, type BoundSet, type SetIndexEntry } from "@/lib/fuse-set";
+import { decodeChunkInto, memberListChunks, setMembersPrefix, type SetMemberRef } from "@/lib/set-members";
+
+
+/* ── PHASE 2: THE LEDGER KEEPS ONLY ANCHORS ────────────────────────────────
+ *
+ * The service is a TEE plus an anchor publisher. Proofs are made and kept
+ * next to the files they are about; the bucket keeps `anchors/` and nothing
+ * else.
+ *
+ * Why the per-proof writes go: discovery cost almost everything and is not
+ * needed. If you do not have the proof you probably do not have the file
+ * either — BitGraph is evidence you HOLD AND PRESENT, not a registry you
+ * search. Measured: 19.4s to ask the ledger about 48,000 files against free
+ * from proofs in hand. Anchors are ~2% of the bucket (7.7 KB each, 7,200/day,
+ * ~$4.69/month after a decade), while ONE 48,000 file drop writes 0.8 GB of
+ * by-digest keys — more than two weeks of anchoring, for a folder already on
+ * somebody's own disk. It also closes a real leak: today anyone holding a copy
+ * of your file can derive its digest and learn when you recorded it.
+ *
+ * ⚠️ GOING FORWARD ONLY. Three million digests are already written under
+ * Object Lock COMPLIANCE for ten years and cannot be removed by anyone,
+ * including us. Reads keep serving them; see the discovery-retired answer in
+ * the proof routes for what a MISS now means.
+ *
+ * ⚠️ THE PRECONDITION IS THAT MAKING ENDS IN A FILE. The ledger was quietly
+ * the backup: while every proof is written here, a package you forget to save
+ * is an inconvenience. Once this is off, the file on your disk IS the
+ * BitGraph. Do not turn this off until a mint saves itself (it does — see
+ * saveBitGraphs in bitgraph-camera.tsx).
+ *
+ * The env var is the reverse switch: set LEDGER_WRITES=on to restore the old
+ * behaviour instantly, without a deploy, from Vercel's env panel.
+ */
+// 2026-09-16, Mike: "we have to let the proofs record to s3 so the website can
+// function properly". Writes are ON by default again (LEDGER_WRITES=off is the
+// switch now), and the enclave's parent carries LEDGER_WRITES=on in its unit.
+// The 2026-09-08 → 2026-09-16 gap was backfilled the same night (proofs/ had
+// every body; by-digest and the journal had none of them).
+export const ledgerWritesOn = () => process.env.LEDGER_WRITES !== "off";
+
+/**
+ * What a MISS means once the per-proof writes have stopped.
+ *
+ * ⚠️ "NOT ON THE LEDGER" STOPS BEING A TRUE SENTENCE. Before phase 2 a miss
+ * meant these bytes were never recorded. After it, a miss means EITHER that,
+ * or that they were recorded and the proof lives in the holder's folder where
+ * it belongs. The endpoint cannot tell, so it must not imply either — that is
+ * the same failure family as reporting a failed read as an absence, which is
+ * what [[project_ledger_read_honesty]] is about.
+ *
+ * Attached to every miss so the published readers degrade honestly: copies of
+ * @mikeargento/bitgraph-mcp 0.4.1 is already installed elsewhere and
+ * cannot be updated by a push, and they will keep asking these routes forever.
+ * The three million digests written before the cutover keep resolving exactly
+ * as they always did — they are under a ten-year lock regardless — so only new
+ * recordings reach this, and they reach it with an explanation rather than a
+ * verdict.
+ */
+export const DISCOVERY_RETIRED = {
+  discovery: "retired",
+  note: "BitGraph no longer keeps an index of proofs by digest, so a miss here " +
+    "is not a finding: it means either these bytes were never recorded, or they " +
+    "were and the proof is in the holder's own BitGraphs folder. A BitGraph is " +
+    "evidence you hold and present. Check the folder, or ask whoever has it.",
+} as const;
+
+/**
+ * Raised when the ledger could not be READ. It is not an answer about the
+ * ledger's contents, and callers must never degrade it into one: "we could
+ * not check" and "these bytes were never recorded" are opposite claims, and
+ * only one of them accuses the holder of a file.
+ */
+export class LedgerUnavailableError extends Error {
+  constructor(where: string, cause?: unknown) {
+    super(`ledger read failed (${where}): ${(cause as Error)?.message ?? "unknown"}`);
+    this.name = "LedgerUnavailableError";
+  }
+}
+
+/**
+ * ONE client for the process, not one per lookup.
+ *
+ * This used to construct a fresh S3Client on every call, and every read path
+ * calls it per digest: a 2000-recording folder dropped on the site fanned out
+ * into thousands of clients, each with its own connection pool and none of
+ * them reused. Under that burst the reads started failing, and because every
+ * layer below turned a failure into an empty answer, the viewer told the
+ * owner that hundreds of genuine recordings were not on the ledger (observed
+ * 2026-08-06: 448 false verdicts in one drop, all of them present when asked
+ * again calmly).
+ *
+ * `adaptive` retries add client-side rate limiting on top of the standard
+ * backoff, which is the mode meant for exactly this: a burst that trips
+ * throttling should slow itself down rather than fail.
+ */
+let client: S3Client | null = null;
+function getClient() {
+  if (!client) {
+    client = new S3Client({
+      region: (process.env.LEDGER_REGION || "us-east-2").trim(),
+      maxAttempts: 5,
+      retryMode: "adaptive",
+      // The SDK's default agent allows 50 sockets, which capped a set's
+      // member index at 50 puts in flight whatever the pool said: the 3,804
+      // keys of a 1,902-member set took six to eight seconds before the
+      // route could answer. Sockets for the whole index pool, kept alive.
+      requestHandler: { httpsAgent: new Agent({ keepAlive: true, maxSockets: INDEX_POOL }) },
+    });
+  }
+  return client;
+}
+
+function getBucket() {
+  return (process.env.LEDGER_BUCKET || "occ-ledger-prod").trim();
+}
+
+function toSafe(b64: string): string {
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function isPlainObject(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null && !Array.isArray(x);
+}
+
+/** How many S3 calls one lookup keeps in flight for its position reads. */
+const POOL = 16;
+/** How many member keys a set index write keeps in flight: a 2000-member set is 4000 puts, and the route answers only when they are written. The client's agent is sized to match. */
+const INDEX_POOL = 256;
+
+/**
+ * Run `fn` over `items` with at most `limit` in flight, results settled in
+ * item order. Nothing here throws: a rejection comes back as a settled
+ * result so the caller decides what a failure means (the index counts it,
+ * a lookup raises it).
+ */
+export async function runPool<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      try {
+        results[i] = { status: "fulfilled", value: await fn(items[i], i) };
+      } catch (reason) {
+        results[i] = { status: "rejected", reason };
+      }
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+// Warm-instance cache for the current epoch (a new epoch is born at counter 1
+// on every TEE restart, so it changes rarely).
+let epochCache: { epoch: string; at: number } | null = null;
+const EPOCH_TTL = 60_000;
+
+/** Current epoch, asked of the authority that mints it.
+ *
+ * The enclave's /key endpoint knows the current epoch in one call, so that is
+ * the primary source (cached briefly). The S3 scan is only a fallback for the
+ * seconds when the boundary is rotating, and it PAGINATES: with daily epoch
+ * rotation the old single-page MaxKeys:200 listing would have silently
+ * returned a stale epoch once the 201st epoch prefix existed (~2027-01), with
+ * the failure day decided by how the new epoch's base64 happened to sort.
+ * The fallback also costs one LIST per epoch ever created, which grows by one
+ * per day under rotation; the /key path costs one HTTP call, always. */
+export async function getCurrentEpoch(): Promise<string | null> {
+  const now = Date.now();
+  if (epochCache && now - epochCache.at < EPOCH_TTL) return epochCache.epoch;
+
+  // Primary: the enclave itself.
+  try {
+    const r = await fetch("https://nitro.occproof.com/key", { signal: AbortSignal.timeout(4000) });
+    if (r.ok) {
+      const k = (await r.json()) as { epochId?: string };
+      if (k.epochId) {
+        const epoch = toSafe(k.epochId);
+        epochCache = { epoch, at: now };
+        return epoch;
+      }
+    }
+  } catch { /* rotating or unreachable: fall through to the ledger scan */ }
+
+  // Fallback: newest epoch by first-object write time, over ALL epoch
+  // prefixes (paginated — correctness must not depend on epoch count).
+  const s3 = getClient();
+  const bucket = getBucket();
+  const prefixes: string[] = [];
+  let token: string | undefined;
+  do {
+    const pe = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket, Prefix: "proofs/", Delimiter: "/", ContinuationToken: token,
+    }));
+    for (const p of pe.CommonPrefixes || []) if (p.Prefix) prefixes.push(p.Prefix);
+    token = pe.NextContinuationToken;
+  } while (token);
+  const born = await Promise.all(prefixes.map(async (pfx) => {
+    const first = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: pfx, MaxKeys: 1 }));
+    return { epoch: pfx.replace("proofs/", "").replace(/\/$/, ""), born: first.Contents?.[0]?.LastModified?.getTime() ?? 0 };
+  }));
+  let best: { epoch: string; born: number } | null = null;
+  for (const b of born) if (!best || b.born > best.born) best = b;
+  if (!best) return null;
+  epochCache = { epoch: best.epoch, at: now };
+  return best.epoch;
+}
+
+/**
+ * Every epoch prefix under proofs/ with the write time of its first object
+ * (paginated over all epochs; one LIST each). The running ledger's index of
+ * days: since the 23:59 UTC rotation each epoch is one UTC day.
+ */
+export async function listEpochsWithBirth(): Promise<Array<{ epoch: string; born: number }>> {
+  const s3 = getClient();
+  const bucket = getBucket();
+  const prefixes: string[] = [];
+  let token: string | undefined;
+  do {
+    const pe = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: "proofs/", Delimiter: "/", ContinuationToken: token }));
+    for (const p of pe.CommonPrefixes || []) if (p.Prefix) prefixes.push(p.Prefix);
+    token = pe.NextContinuationToken;
+  } while (token);
+  const out: Array<{ epoch: string; born: number }> = [];
+  await runPool(prefixes, 16, async (pfx) => {
+    const first = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: pfx, MaxKeys: 1 }));
+    const born = first.Contents?.[0]?.LastModified?.getTime();
+    if (born !== undefined) out.push({ epoch: pfx.replace("proofs/", "").replace(/\/$/, ""), born });
+  });
+  return out.sort((a, b) => a.born - b.born);
+}
+
+/** List every key under a prefix, paginated, lexicographically sorted (read-only). */
+export async function listKeysUnderPrefix(prefix: string, maxKeys = 100_000): Promise<string[]> {
+  const s3 = getClient();
+  const bucket = getBucket();
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+  do {
+    const result = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    }));
+    for (const obj of result.Contents || []) {
+      if (obj.Key) keys.push(obj.Key);
+      if (keys.length >= maxKeys) return keys.sort();
+    }
+    continuationToken = result.NextContinuationToken;
+  } while (continuationToken);
+  return keys.sort(); // counter-padded keys sort lexicographically = causal order
+}
+
+/** Keys under `prefix` that sort after `startAfter`, in order, up to `max`: the running ledger's "what is new" read
+ *  (one LIST page per 1,000 keys, however long the day already is). */
+export async function listKeysAfter(prefix: string, startAfter: string | undefined, max = 1000): Promise<string[]> {
+  const s3 = getClient();
+  const bucket = getBucket();
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+  do {
+    const result = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      ...(continuationToken ? { ContinuationToken: continuationToken } : startAfter ? { StartAfter: startAfter } : {}),
+      MaxKeys: Math.min(1000, Math.max(1, max - keys.length)),
+    }));
+    for (const obj of result.Contents || []) {
+      if (obj.Key) keys.push(obj.Key);
+      if (keys.length >= max) return keys;
+    }
+    continuationToken = result.NextContinuationToken;
+  } while (continuationToken);
+  return keys;
+}
+
+/**
+ * Every recorded digest (URL-safe base64) that starts with `prefix`, up to `limit`, from the by-digest index:
+ * one LIST with a delimiter, so a digest's per-position entries count once. The short-link resolver's only
+ * read (/<prefix> and /p/<prefix>, 2026-10-08): nothing is registered to make a short link, it is arithmetic over the digest.
+ */
+export async function digestsWithPrefix(prefix: string, limit = 5): Promise<string[]> {
+  const s3 = getClient();
+  const result = await s3.send(new ListObjectsV2Command({ Bucket: getBucket(), Prefix: `by-digest/${prefix}`, Delimiter: "/", MaxKeys: 50 }));
+  const out = new Set<string>();
+  for (const cp of result.CommonPrefixes || []) { const m = cp.Prefix?.match(/^by-digest\/([A-Za-z0-9_-]{43})\/$/); if (m) out.add(m[1]!); }
+  for (const obj of result.Contents || []) { const m = obj.Key?.match(/^by-digest\/([A-Za-z0-9_-]{43})\.json$/); if (m) out.add(m[1]!); }
+  return [...out].sort().slice(0, limit);
+}
+
+/** Fetch one object's raw UTF-8 text, or null when missing (read-only). */
+export async function getObjectText(key: string): Promise<string | null> {
+  try {
+    const s3 = getClient();
+    const result = await s3.send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
+    return (await result.Body?.transformToString()) ?? null;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    console.error("[s3] getObjectText failed:", name, (err as Error).message);
+    return null;
+  }
+}
+
+/** One object's raw bytes, or null when it is not there. For binary files such as archived blob data. */
+export async function getObjectBytes(key: string): Promise<Uint8Array | null> {
+  try {
+    const result = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
+    return (await result.Body?.transformToByteArray()) ?? null;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    console.error("[s3] getObjectBytes failed:", name, (err as Error).message);
+    throw err;
+  }
+}
+
+/** Look up a proof by artifact digest (legacy single-object index: latest proof only) */
+export async function getProofByDigest(digestB64: string): Promise<Record<string, unknown> | null> {
+  return readLegacyDigest(digestB64, false);
+}
+
+/**
+ * The legacy single-object index read.
+ *
+ * `strict` is the difference between the two things a null can mean. A
+ * missing key is an ANSWER (these bytes have no legacy entry); any other
+ * error is a failure to read, and the strict form raises it so a reader
+ * cannot mistake one for the other. The write path (commit pre-reads the
+ * prior) stays lenient: there, a failed read costs a merge hint, not a
+ * verdict about someone's file.
+ */
+async function readLegacyDigest(digestB64: string, strict: boolean): Promise<Record<string, unknown> | null> {
+  try {
+    const s3 = getClient();
+    const key = `by-digest/${toSafe(digestB64)}.json`;
+    const result = await s3.send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
+    const body = await result.Body?.transformToString();
+    if (!body) return null;
+    return JSON.parse(body);
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    console.error("[s3] getProofByDigest failed:", name, (err as Error).message);
+    if (strict) throw new LedgerUnavailableError("legacy digest key", err);
+    return null;
+  }
+}
+
+/**
+ * Store a proof indexed by artifact digest.
+ *
+ * Two writes per proof:
+ *   by-digest/{digest}.json                      — legacy single-object index
+ *     (latest proof wins; kept so older readers keep working)
+ *   by-digest/{digest}/{epoch}-{counter}.json    — one entry per causal
+ *     position, so the same bytes can be BitGraphed more than once and every
+ *     position stays findable. Digests are fixed-length so the "/" sub-prefix
+ *     can never collide with another digest's legacy key.
+ * A set proof additionally earns one position key per member digest, see
+ * indexSetMembers.
+ */
+/**
+ * @param priorLegacy The proof the legacy by-digest key held BEFORE this
+ * commit, when the caller pre-read it (null = key absent). MUST be pre-read
+ * before the commit that produced `proof`: the EC2 parent also overwrites the
+ * legacy key fire-and-forget as soon as the TEE responds, so reading it here
+ * races that write and can see the NEW proof — skipping the backfill and
+ * orphaning the original recording from digest lookup. When undefined, the
+ * key is read here (best effort, race-prone).
+ */
+export async function storeProofByDigest(proof: Record<string, unknown>, priorLegacy?: Record<string, unknown> | null): Promise<void> {
+  if (!ledgerWritesOn()) return;  // phase 2: the bucket keeps only anchors
+  try {
+    const s3 = getClient();
+    const bucket = getBucket();
+    const artifact = proof.artifact as { digestB64: string };
+    const body = JSON.stringify(proof, null, 2);
+    const safeDigest = toSafe(artifact.digestB64);
+
+    const positionKeyFor = (p: Record<string, unknown>): string | null => {
+      const c = p.commit as { epochId?: string; counter?: string } | undefined;
+      if (!c?.epochId || !c?.counter) return null;
+      return `by-digest/${safeDigest}/${toSafe(c.epochId)}-${String(c.counter).padStart(12, "0")}.json`;
+    };
+
+    // Backfill: digests BitGraphed before the per-position index existed live
+    // ONLY in the legacy key, and the write below replaces it. If the legacy
+    // key holds a DIFFERENT position than the proof being stored and that
+    // position has no index entry yet, copy it into the index first so no
+    // recording is orphaned. The entry is flagged as a backfill (metadata) so
+    // the reader orders it before same-second index writes: a proof that was
+    // ever legacy-only necessarily predates every indexed one.
+    const newPositionKey = positionKeyFor(proof);
+    // Journal FIRST, before any key below exists (the backfill included): the
+    // lookup's digest index rules a digest out unless it has heard of it, so a
+    // key it was never told about would read "not on record" (lib/digest-index).
+    // The EC2 parent journals the artifact for its own write, but the origin's
+    // key is written only here. Unjournaled from 09-16 to 09-28.
+    const originForIndex = fusedOriginDigestOf(proof);
+    await journalDigests(originForIndex !== null && originForIndex !== artifact.digestB64
+      ? [artifact.digestB64, originForIndex]
+      : [artifact.digestB64]);
+    try {
+      const existing = priorLegacy !== undefined ? priorLegacy : await getProofByDigest(artifact.digestB64);
+      if (existing) {
+        const existingPositionKey = positionKeyFor(existing);
+        if (existingPositionKey && existingPositionKey !== newPositionKey) {
+          const alreadyIndexed = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: existingPositionKey }))
+            .then(() => true, () => false);
+          if (!alreadyIndexed) {
+            await s3.send(new PutObjectCommand({
+              Bucket: bucket,
+              Key: existingPositionKey,
+              Body: JSON.stringify(existing, null, 2),
+              ContentType: "application/json",
+              Metadata: { "bg-backfill": "1" },
+            }));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[s3] by-digest backfill failed:", (err as Error).message);
+    }
+
+    const puts = [
+      s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: `by-digest/${safeDigest}.json`,
+        Body: body,
+        ContentType: "application/json",
+      })),
+    ];
+    if (newPositionKey) {
+      puts.push(s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: newPositionKey,
+        Body: body,
+        ContentType: "application/json",
+      })));
+    }
+    // A fused proof (profile bitgraph-fuse/1) that names an origin in its
+    // SIGNED attribution is also indexed under the origin digest, per
+    // position, so a lookup by the origin's hash lists its descendants. Never
+    // the origin's legacy key: that key means "the proof of these bytes" to
+    // /api/search and the commit pre-read, and a descendant is not that.
+    const originDigest = fusedOriginDigestOf(proof);
+    const c = proof.commit as { epochId?: string; counter?: string } | undefined;
+    if (originDigest !== null && originDigest !== artifact.digestB64 && c?.epochId && c?.counter) {
+      // The origin earns a key too, so the index has to hear about it as well.
+      puts.push(s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: `by-digest/${toSafe(originDigest)}/${toSafe(c.epochId)}-${String(c.counter).padStart(12, "0")}.json`,
+        Body: body,
+        ContentType: "application/json",
+        Metadata: { "bg-kind": "fused-descendant" },
+      })));
+    }
+    await Promise.all(puts);
+    if (c?.epochId && c?.counter) await indexSetMembers(s3, bucket, proof, artifact.digestB64, c.epochId, c.counter);
+  } catch (err) {
+    console.error("[s3] storeProofByDigest failed:", (err as Error).message);
+  }
+}
+
+/**
+ * The member keys of a set proof: one position entry per distinct member
+ * digest, so a lookup by a member's ORIGINAL bytes (bg-kind
+ * "fused-descendant": these bytes are the origin of a fused artifact under
+ * this proof, the same meaning the solo fused index gives it) or by its
+ * FUSED bytes (bg-kind "set-member": these exact bytes were fused under this
+ * proof as one of N) lists the set's position. bg-set-member carries the
+ * row as "i/N" and bg-set-digest names the set, so a reader can say "one of
+ * N" and find the set's own entry without opening the body.
+ *
+ * Every member entry carries the set proof WITHOUT its manifest and is
+ * hydrated on read from the set's own position key (hydrateSetMembers). A
+ * 2000-row manifest pretty-printed is ~700 KB, and copying it under up to
+ * 4000 member keys, permanently, under Object Lock, is not a cost a per-row
+ * convenience may incur.
+ *
+ * Only a BOUND set is indexed (bindSet: strict parse, hash equal to the
+ * signed artifact digest, commitment equal to the proof's own slot record),
+ * whatever route stored the proof: a set proof with forged or stripped
+ * metadata indexes nothing. Never a legacy key for a member. Failures are
+ * counted and logged, never thrown, which is this function's contract.
+ */
+async function indexSetMembers(s3: S3Client, bucket: string, proof: Record<string, unknown>, artifactDigestB64: string, epochId: string, counter: string): Promise<void> {
+  const bound = await bindSet(proof);
+  if (bound === null) {
+    if (isSetProof(proof)) console.log("[s3] set proof carries no bound manifest; members not indexed");
+    return;
+  }
+  // A set/2 proof lists no members: each arrives with its evidence through
+  // indexSetMemberEvidence, and only a path that reaches the root earns a key.
+  if (bound.kind === "set/2") return;
+  const entries = setIndexEntries(bound, artifactDigestB64);
+  const body = JSON.stringify(stripSetManifest(proof), null, 2);
+  const written = await writeMemberKeys(s3, bucket, entries.map((e) => ({ ...e, body })), artifactDigestB64, epochId, counter);
+  console.log(`[s3] set index wrote=${written.written} failed=${written.failed}`);
+}
+
+/**
+ * set/2: index members from their evidence. Each evidence object is bound
+ * to the set (bindSetMember: strict parse, the set's count, leaf and path
+ * recomputing the committed root) before it earns its two keys, under the
+ * member's origin digest and its fused digest; the key's body is the set
+ * proof with the member's own evidence riding under metadata, so a lookup
+ * by either digest returns everything a reader needs to verify the member
+ * offline. Evidence that does not bind is counted and skipped, never
+ * written. The caller has already read the set proof from its own position.
+ *
+ * ⚠️ RESTORED 2026-09-17, on Mike's word, after being deleted on 2026-09-08
+ * (61263868) with the rest of the by-digest write world. A set/2 commits only
+ * the root of a Merkle tree, so the boundary and this server never see the
+ * member list: it exists in the browser that built the tree, which is why the
+ * evidence is pushed up here after the commit rather than derived. Without
+ * this, every multi-file drop's members were unfindable by hash, so dropping
+ * one file of a recorded set read as NEW and a lone new file auto-records
+ * (Mike: "if its already bitgraphed it should be a lookup"). indexSetMembers
+ * above still covers set/1, whose manifest travels inside the proof.
+ */
+export async function indexSetMemberEvidence(
+  proof: Record<string, unknown>,
+  bound: BoundSet,
+  evidence: unknown[],
+): Promise<{ written: number; failed: number; rejected: number }> {
+  // Writes off: nothing is written, and nothing was REJECTED either — the
+  // caller is told the truth about what happened, which is nothing.
+  if (!ledgerWritesOn()) return { written: 0, failed: 0, rejected: 0 };
+  const c = proof.commit as { epochId?: string; counter?: string } | undefined;
+  const artifact = (proof.artifact as { digestB64?: string } | undefined)?.digestB64;
+  if (!c?.epochId || !c?.counter || !artifact || bound.kind !== "set/2") return { written: 0, failed: 0, rejected: evidence.length };
+  const entries: Array<SetIndexEntry & { body: string }> = [];
+  let rejected = 0;
+  const seen = new Set<string>([artifact]);
+  for (const ev of evidence) {
+    const m = bindSetMember(bound, ev);
+    if (m === null) {
+      rejected++;
+      continue;
+    }
+    const withMember = { ...proof, metadata: { ...(isPlainObject(proof.metadata) ? proof.metadata : {}), [SET_MEMBER_KEY]: m.proof } };
+    const body = JSON.stringify(withMember, null, 2);
+    if (!seen.has(m.originDigestB64)) {
+      seen.add(m.originDigestB64);
+      entries.push({ digestB64: m.originDigestB64, kind: "fused-descendant", index: m.index, count: m.count, body });
+    }
+    if (!seen.has(m.fusedDigestB64)) {
+      seen.add(m.fusedDigestB64);
+      entries.push({ digestB64: m.fusedDigestB64, kind: "set-member", index: m.index, count: m.count, body });
+    }
+  }
+  const written = await writeMemberKeys(getClient(), getBucket(), entries, artifact, c.epochId, c.counter);
+  return { ...written, rejected };
+}
+
+/**
+ * Tree members (lib/tree-member.ts): one key per file under its own hash, at the tree's position, holding the tree's
+ * proof with that file's member block. The caller has checked every entry (checkMember); each digest is journaled for
+ * the digest index first, as every other by-digest write is.
+ */
+export async function indexTreeMembers(entries: ReadonlyArray<{ digestB64: string; body: string }>, epochId: string, counter: string): Promise<{ written: number; failed: number }> {
+  if (!ledgerWritesOn() || entries.length === 0) return { written: 0, failed: 0 };
+  const position = `${toSafe(epochId)}-${String(counter).padStart(12, "0")}`;
+  await journalDigests(entries.map((e) => e.digestB64));
+  const results = await runPool(entries, INDEX_POOL, (e) => getClient().send(new PutObjectCommand({
+    Bucket: getBucket(),
+    Key: `by-digest/${toSafe(e.digestB64)}/${position}.json`,
+    Body: e.body,
+    ContentType: "application/json",
+    Metadata: { "bg-kind": "tree-member" },
+  })));
+  const failed = results.filter((r) => r.status === "rejected").length;
+  return { written: results.length - failed, failed };
+}
+
+/** One member key per entry: the position key under the member's digest, the body the entry names, the headers a reader needs. */
+async function writeMemberKeys(
+  s3: S3Client,
+  bucket: string,
+  entries: Array<SetIndexEntry & { body: string }>,
+  artifactDigestB64: string,
+  epochId: string,
+  counter: string,
+): Promise<{ written: number; failed: number }> {
+  const position = `${toSafe(epochId)}-${String(counter).padStart(12, "0")}`;
+  const setDigest = toSafe(artifactDigestB64);
+  // Every member key is journaled before it is written, for the digest index
+  // (see storeProofByDigest). Both set paths come through here: set/1 from its
+  // manifest, set/2 from the evidence the browser posts after the commit.
+  await journalDigests(entries.map((e) => e.digestB64));
+  const results = await runPool(entries, INDEX_POOL, (e) => s3.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: `by-digest/${toSafe(e.digestB64)}/${position}.json`,
+    Body: e.body,
+    ContentType: "application/json",
+    Metadata: { "bg-kind": e.kind, "bg-set-digest": setDigest, "bg-set-member": `${e.index}/${e.count}` },
+  })));
+  const failed = results.filter((r) => r.status === "rejected").length;
+  await writeMemberList(s3, bucket, entries, setDigest, epochId, counter);
+  return { written: results.length - failed, failed };
+}
+
+/**
+ * The set's member list, written beside its member keys from the same
+ * entries. The lookup reads a set's list once and answers every member of a
+ * dropped folder from it (/api/proofs/batch: "a set is one position"); with
+ * no list it reads each member's key on its own. Re-dropping the 55,000 file
+ * set made on 2026-09-27 was minutes of that: 1,000 members cost 14.3s and
+ * 11.8 MB (measured 2026-09-28, Mike: "still kind of hangs here" on
+ * "Checking 0 of 55000").
+ *
+ * ⚠️ NEVER WRITTEN BEFORE 2026-09-28. Lists arrived on 09-08 (40f6260e) with a
+ * backfill script, the same day the ledger writes stopped, and no write path
+ * ever called the writer; every set made since had none until it was
+ * backfilled (scripts/build-set-member-list.mjs).
+ *
+ * A list is an index and never a verdict: a member it does not name is looked
+ * up key by key as before, so a chunk that fails to write costs speed, not
+ * answers. Its digests are already journaled (writeMemberKeys above), so the
+ * digest index admits every one of them.
+ */
+async function writeMemberList(
+  s3: S3Client,
+  bucket: string,
+  entries: ReadonlyArray<SetIndexEntry>,
+  setDigest: string,
+  epochId: string,
+  counter: string,
+): Promise<void> {
+  if (entries.length === 0) return;
+  const chunks = memberListChunks({ setDigest, epochId, counter, count: entries[0].count }, entries);
+  const done = await runPool(chunks, 4, (c) => s3.send(new PutObjectCommand({ Bucket: bucket, Key: c.key, Body: c.body, ContentType: "application/json" })));
+  const failed = done.filter((d) => d.status === "rejected").length;
+  if (failed) console.error(`[set-members] ${epochId}/${counter}: ${failed} of ${chunks.length} list chunks failed to write; those members fall back to per-key lookups`);
+}
+
+export interface DigestProofEntry {
+  proof: Record<string, unknown>;
+  /** S3 write time of the position-index entry (ms), null for the legacy key. */
+  writeTime: number | null;
+  /**
+   * "recorded": the proof commits exactly the looked-up bytes.
+   * "fused": a fused artifact (profile bitgraph-fuse/1) that names the
+   * looked-up bytes as its origin, or a set that lists them as a member's
+   * origin or fused bytes; the bytes themselves were not committed by this
+   * proof. Descendants are listed, never ranked.
+   */
+  kind: "recorded" | "fused";
+  /**
+   * Present on a set member's entry: which row of the set these bytes are,
+   * as the row's origin ("origin") or its fused bytes ("fused"), read from
+   * the headers the index write stamped.
+   */
+  member?: { index: number; count: number; role: "origin" | "fused" };
+  /**
+   * Present on a set member's entry: the set's own digest (url-safe), as the
+   * index stamped it. When the lookup ran with hydrate false the entry's
+   * proof lacks its manifest, and this names the set position that holds it
+   * (readSetPosition).
+   */
+  setDigest?: string;
+}
+
+/** One position read: the entry plus the set it belongs to, when the headers name one. */
+interface IndexedRead {
+  entry: DigestProofEntry;
+  /** bg-set-digest (url-safe), or null for anything that is not a set member entry. */
+  setDigest: string | null;
+}
+
+/** A set member entry's row, from the headers its index write stamped (see indexSetMembers). */
+function memberOfHeaders(metadata: Record<string, string> | undefined): { member?: DigestProofEntry["member"] } {
+  const kind = metadata?.["bg-kind"];
+  const m = /^(\d+)\/(\d+)$/.exec(metadata?.["bg-set-member"] ?? "");
+  if (m === null || (kind !== "set-member" && kind !== "fused-descendant")) return {};
+  return { member: { index: parseInt(m[1], 10), count: parseInt(m[2], 10), role: kind === "set-member" ? "fused" : "origin" } };
+}
+
+/**
+ * Member entries carry the set proof stripped of its manifest (see
+ * indexSetMembers). Put it back from the set's own position key, read once
+ * per distinct set position, and only when that copy BINDS and the entry
+ * binds to it in turn (bindSet on both): an unbound source leaves the group
+ * exactly as it was, which is never a verdict, only less to show. A source
+ * that cannot be READ raises, like any other hole in the answer; a source
+ * that does not EXIST leaves the group unhydrated, since a missing key is
+ * permanent and a lookup must not fail forever on it.
+ */
+const setPositionKey = (setDigestSafe: string, epochId: string, counter: string) =>
+  `by-digest/${setDigestSafe}/${toSafe(epochId)}-${String(counter).padStart(12, "0")}.json`;
+
+/**
+ * The set proof at its own position key, WITH its manifest, when that copy
+ * binds (bindSet). Null when the key does not exist or the copy does not
+ * bind; raises LedgerUnavailableError when it cannot be read.
+ */
+async function readBoundSetPosition(s3: S3Client, bucket: string, key: string): Promise<{ proof: Record<string, unknown>; bound: BoundSet } | null> {
+  let body: string | undefined;
+  try {
+    const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    body = await result.Body?.transformToString();
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw new LedgerUnavailableError(`set position ${key}`, err);
+  }
+  if (!body) return null;
+  const proof = JSON.parse(body) as Record<string, unknown>;
+  const bound = await bindSet(proof);
+  return bound === null ? null : { proof, bound };
+}
+
+/**
+ * A set's own position entry, bound, for a caller that looked members up
+ * with hydrate false and wants each distinct set ONCE (the batch route's
+ * side table) instead of a manifest copy per member row. setDigest is
+ * url-safe, as the entry's setDigest carries it. Null when absent or
+ * unbound; raises LedgerUnavailableError when unreadable.
+ */
+export async function readSetPosition(setDigest: string, epochId: string, counter: string): Promise<Record<string, unknown> | null> {
+  const r = await readBoundSetPosition(getClient(), getBucket(), setPositionKey(setDigest, epochId, counter));
+  return r?.proof ?? null;
+}
+
+async function hydrateSetMembers(s3: S3Client, bucket: string, reads: IndexedRead[]): Promise<void> {
+  const groups = new Map<string, { key: string; entries: DigestProofEntry[] }>();
+  for (const r of reads) {
+    if (r.setDigest === null) continue;
+    // A set/2 member key already carries the small root document and its own
+    // evidence; only a set/1 member key was stripped of its manifest.
+    if (isPlainObject(r.entry.proof.metadata) && SET_KEY in r.entry.proof.metadata) continue;
+    const c = r.entry.proof.commit as { epochId?: string; counter?: string } | undefined;
+    if (!c?.epochId || !c?.counter) continue;
+    const key = setPositionKey(r.setDigest, c.epochId, c.counter);
+    const g = groups.get(key) ?? { key, entries: [] };
+    g.entries.push(r.entry);
+    groups.set(key, g);
+  }
+  if (groups.size === 0) return;
+  const results = await runPool([...groups.values()], POOL, async (g) => {
+    const source = await readBoundSetPosition(s3, bucket, g.key);
+    if (source === null) return;
+    const bound = source.bound;
+    for (const e of g.entries) {
+      const prior = e.proof.metadata;
+      e.proof.metadata = { ...(isPlainObject(prior) ? prior : {}), [SET_KEY]: bound.manifest };
+      // The entry itself must bind to what was attached (its own signed
+      // digest, its own slot), or the attachment is undone.
+      if ((await bindSet(e.proof)) === null) e.proof.metadata = prior;
+    }
+  });
+  for (const r of results) if (r.status === "rejected") throw r.reason;
+}
+
+/**
+ * Look up EVERY proof recorded for an artifact digest, earliest causal
+ * position first. Merges the per-position index with the legacy single-object
+ * key (which is the only record for digests BitGraphed before the
+ * per-position index existed) and dedupes by (epoch, counter).
+ *
+ * Ordering: within an epoch the counter is exact causal order. Across epochs
+ * counters reset (TEE restart), and stored proofs carry no clock field, so
+ * entries are ordered by the index entry's S3 write time; the legacy entry has
+ * no per-position write time and necessarily predates the index, so it sorts
+ * first.
+ */
+export interface LookupOptions {
+  /**
+   * Put each set member entry's manifest back from the set's own position
+   * key (default true: a page or a single lookup wants the whole proof).
+   * A BATCH of member lookups passes false and reads each distinct set once
+   * itself (readSetPosition): hydrating per entry copied one N-row manifest
+   * onto every member row, so a batch answer over a set grew with N squared
+   * (a 50-digest batch over 400 members passed 4.5 MB) and the same set key
+   * was fetched once per digest. Unhydrated member entries carry setDigest.
+   */
+  hydrate?: boolean;
+  /**
+   * Answer one position WITHOUT reading its object, when a set's member list
+   * already knows what it says.
+   *
+   * ⚠️ THE LISTING STILL DECIDES WHICH POSITIONS EXIST. This only supplies
+   * the contents of a position the listing already found, so a digest that
+   * sits in several sets, or in a set and a plain recording, still reports
+   * every one of them. Skipping the listing instead would silently
+   * under-report positions, which is a wrong answer about the ledger.
+   *
+   * Return null for anything not covered and the read happens as usual.
+   */
+  resolveMember?: (digestSafe: string, epochId: string, counter: string) => DigestProofEntry | null;
+}
+
+/** `by-digest/<d>/<epoch>-<counter>.json` -> its position. Null if the key is not that shape. */
+export function positionFromKey(key: string): { epochId: string; counter: string } | null {
+  const base = key.slice(key.lastIndexOf("/") + 1);
+  // The epoch is url-safe base64 and MAY contain "-", so the counter is
+  // pinned by its fixed 12-digit padding rather than by splitting on "-".
+  const m = /^(.+)-(\d{12})\.json$/.exec(base);
+  return m === null ? null : { epochId: m[1], counter: String(parseInt(m[2], 10)) };
+}
+
+export async function getProofsByDigest(digestB64: string, options: LookupOptions = {}): Promise<DigestProofEntry[]> {
+  const safeDigest = toSafe(digestB64);
+  const entries: DigestProofEntry[] = [];
+  // ⚠️ NOTHING in this function may turn a read failure into an empty or
+  // partial answer. It used to do both — the outer catch logged and carried
+  // on with whatever it had, and a per-object catch dropped individual
+  // positions — so a throttled read came back looking exactly like "never
+  // recorded". Every failure below raises LedgerUnavailableError, and the
+  // routes turn that into a 503 the caller can tell apart from a verdict.
+  try {
+    const s3 = getClient();
+    const bucket = getBucket();
+    // Every page of the listing. A digest with more positions than one page
+    // holds must not lose the rest to a missing continuation loop.
+    const objects: { key: string; lastModified?: Date }[] = [];
+    let token: string | undefined;
+    do {
+      const listed = await s3.send(new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: `by-digest/${safeDigest}/`,
+        ContinuationToken: token,
+        MaxKeys: 1000,
+      }));
+      for (const o of listed.Contents || []) if (o.Key) objects.push({ key: o.Key, lastModified: o.LastModified });
+      token = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+    } while (token);
+    const fetched = await runPool(objects, POOL, async (obj): Promise<IndexedRead | null> => {
+      try {
+        // A position a set's member list already describes needs no read.
+        // The listing above still found it, so nothing is missed; this only
+        // saves the GET, which is ~68% of the S3 work in a set re-drop.
+        if (options.resolveMember) {
+          const at = positionFromKey(obj.key);
+          const known = at ? options.resolveMember(safeDigest, at.epochId, at.counter) : null;
+          if (known) return { entry: known, setDigest: known.setDigest ?? null };
+        }
+        const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.key }));
+        const body = await result.Body?.transformToString();
+        if (!body) return null;
+        // Backfilled entries were records copied into the index after the
+        // fact, so their OWN LastModified is the copy's moment, not the
+        // recording's. When the true write time was recoverable at backfill
+        // time it rides in bg-writetime (ms) and is the honest answer; a
+        // backfill without one predates every indexed entry and orders like
+        // the legacy key (no write time at all).
+        const backfilled = result.Metadata?.["bg-backfill"] === "1";
+        const stamped = parseInt(result.Metadata?.["bg-writetime"] ?? "", 10);
+        const writeTime = Number.isFinite(stamped) ? stamped : backfilled ? null : obj.lastModified?.getTime() ?? null;
+        const parsed = JSON.parse(body) as Record<string, unknown>;
+        const artifactDigest = (parsed.artifact as { digestB64?: string } | undefined)?.digestB64;
+        const member = memberOfHeaders(result.Metadata);
+        const setDigest = member.member ? result.Metadata?.["bg-set-digest"] ?? null : null;
+        return {
+          // A tree member (lib/tree-member.ts) is recorded under its own hash when its path, checked here again, reaches
+          // the root the proof binds: found by its hash exactly as a file bound alone.
+          entry: { proof: parsed, writeTime, kind: artifactDigest === digestB64 || checkMember(parsed, digestB64) ? "recorded" : "fused", ...member, ...(setDigest ? { setDigest } : {}) },
+          setDigest,
+        };
+      } catch (err) {
+        // A position that was LISTED but could not be read is a hole in the
+        // answer, not a position that does not exist.
+        throw new LedgerUnavailableError(`position ${obj.key}`, err);
+      }
+    });
+    const reads: IndexedRead[] = [];
+    for (const r of fetched) {
+      if (r.status === "rejected") throw r.reason;
+      if (r.value) reads.push(r.value);
+    }
+    if (options.hydrate !== false) await hydrateSetMembers(s3, bucket, reads);
+    for (const r of reads) entries.push(r.entry);
+  } catch (err) {
+    if (err instanceof LedgerUnavailableError) throw err;
+    console.error("[s3] getProofsByDigest failed:", (err as Error).message);
+    throw new LedgerUnavailableError("by-digest listing", err);
+  }
+  const legacy = await readLegacyDigest(digestB64, true);
+  if (legacy) {
+    const legacyDigest = (legacy.artifact as { digestB64?: string } | undefined)?.digestB64;
+    entries.push({ proof: legacy, writeTime: null, kind: legacyDigest === digestB64 ? "recorded" : "fused" });
+  }
+
+  const positionOf = (p: Record<string, unknown>) => {
+    const c = p.commit as { epochId?: string; counter?: string } | undefined;
+    return { epoch: c?.epochId ?? "", counter: parseInt(c?.counter ?? "0", 10) || 0 };
+  };
+  const seen = new Set<string>();
+  const unique = entries.filter((e) => {
+    const pos = positionOf(e.proof);
+    const id = `${pos.epoch}:${pos.counter}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  // Recordings of the bytes first, earliest causal position first. Fused
+  // descendants follow in a stable order that makes no lineage or version
+  // claim: BitGraph knows they name these bytes, nothing more.
+  unique.sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === "recorded" ? -1 : 1;
+    const pa = positionOf(a.proof);
+    const pb = positionOf(b.proof);
+    if (pa.epoch && pa.epoch === pb.epoch) return pa.counter - pb.counter;
+    return (a.writeTime ?? 0) - (b.writeTime ?? 0);
+  });
+  return unique;
+}
+
+/**
+ * Get the first ETH anchor proof(s) AFTER a given counter on the same chain.
+ *
+ * Since anchors and user proofs share the same monotonic counter chain,
+ * we find the next anchor by scanning proofs with counter > proofCounter
+ * in the same epoch, filtering for Ethereum anchors (attribution.name).
+ */
+/* getProofsAroundCounter lived here: every proof in a window of counters,
+   recordings included, the reader behind /api/proofs/chain. Deleted with that
+   route (Mike, 2026-10-09: "We don't want that ledger."): walking counters
+   read out every record. Proofs are read by digest only. */
+
+/**
+ * Get the most recent ETH anchor BEFORE a given counter on the same chain.
+ * Scans backwards from the counter to find the latest anchor.
+ *
+ * `strict` throws LedgerUnavailableError instead of returning null on a read
+ * failure, exactly as getProofByDigest does. Null means TWO things here — "no
+ * anchor precedes this counter" (true of the first proof of an epoch) and "we
+ * could not find out" — and a caller writing a package needs them apart: an
+ * absent anchor-before.json otherwise reads as both. Default OFF so the check
+ * path (/api/proofs/digest) keeps the behaviour it has.
+ */
+export async function getAnchorBeforeCounter(proofCounter: number, epochId: string, strict = false): Promise<Record<string, unknown> | null> {
+  try {
+    const s3 = getClient();
+    const bucket = getBucket();
+    const safeEpoch = toSafe(epochId);
+    // Scan the counter-indexed anchors/ index (anchors only — no user proofs to
+    // skip), same source getAnchorsAfterCounter uses.
+    const anchorPrefix = `anchors/${safeEpoch}/`;
+
+    // Nearest anchor strictly BEFORE proofCounter (the lower time bound). S3
+    // lists ascending only, so we open a window just below proofCounter via
+    // StartAfter, page forward keeping the highest anchor counter still
+    // < proofCounter, and stop as soon as keys reach proofCounter. The window
+    // starts wider than any realistic anchor gap (~600 commits per 12s at peak
+    // TEE throughput) and widens only if it somehow caught no anchor, e.g. a
+    // long anchoring outage left a large gap. Crucially this is bounded near
+    // proofCounter rather than scanning the whole epoch from the start, which
+    // was the previous bug (it always returned the first anchor of the epoch).
+    for (let window = 4096; ; window *= 8) {
+      const start = Math.max(0, proofCounter - window);
+      let token: string | undefined;
+      let bestKey: string | null = null;
+      let bestCounter = -1;
+      let reachedProof = false;
+      for (let page = 0; page < 128; page++) {
+        const res = await s3.send(new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: anchorPrefix,
+          StartAfter: `${anchorPrefix}${String(start).padStart(12, "0")}`,
+          ContinuationToken: token,
+          MaxKeys: 1000,
+        }));
+        for (const obj of res.Contents || []) {
+          const filename = (obj.Key || "").split("/").pop() || "";
+          const c = parseInt(filename.split("-")[0], 10);
+          if (isNaN(c)) continue;
+          if (c < proofCounter) {
+            if (c > bestCounter) { bestCounter = c; bestKey = obj.Key!; }
+          } else {
+            reachedProof = true;
+            break;
+          }
+        }
+        if (reachedProof || !res.IsTruncated) break;
+        token = res.NextContinuationToken;
+      }
+      if (bestKey) {
+        const gr = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: bestKey }));
+        const body = await gr.Body?.transformToString();
+        return body ? JSON.parse(body) : null;
+      }
+      // No anchor found in the window. If we already reached the epoch start,
+      // there is genuinely no anchor before this proof (very early proof).
+      if (start === 0) return null;
+      // ⚠️ THE WINDOW RAN OUT BEFORE THE EPOCH DID, which is a different fact
+      // and used to be the same null. "We stopped looking" is not "there is
+      // nothing there", and a caller writing a package turns the second into a
+      // PERMANENT claim — a lower bound is the one side that can never arrive
+      // later, so `none` says "and it never will". Strict callers get the
+      // honest answer; the check path keeps the null it has always had.
+      if (window >= 8_388_608) {
+        if (strict) throw new LedgerUnavailableError("anchor before counter: search window exhausted before the epoch start");
+        return null;
+      }
+    }
+  } catch (err) {
+    console.error("[s3] getAnchorBeforeCounter failed:", (err as Error).message);
+    if (strict) throw new LedgerUnavailableError("anchor before counter", err);
+    return null;
+  }
+}
+
+/**
+ * The ETH anchors that FOLLOW a counter (the upper time bound).
+ *
+ * ⚠️ An empty array is not one answer, it is four: nothing is anchored past
+ * this counter yet, the epoch is closed and nothing ever will be, we have no
+ * anchors for that epoch at all, or the read failed. `strict` peels the last
+ * one off by throwing; classifyEmptyAnchorAnswer below separates the rest.
+ * Default OFF so the check path keeps the behaviour it has.
+ */
+export async function getAnchorsAfterCounter(proofCounter: number, epochId: string, limit = 2, strict = false): Promise<Array<Record<string, unknown>>> {
+  try {
+    const s3 = getClient();
+    const bucket = getBucket();
+
+    const safeEpoch = toSafe(epochId);
+    const startCounter = String(proofCounter + 1).padStart(12, "0");
+
+    // Scan anchors/{epoch}/ — counter-indexed, only contains anchors.
+    // One S3 LIST + one GET per anchor found. No user proofs to skip.
+    // Falls back to proofs/ scan if anchors/ index isn't populated yet.
+    const anchorPrefix = `anchors/${safeEpoch}/`;
+    let result = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: anchorPrefix,
+      StartAfter: `${anchorPrefix}${startCounter}`,
+      MaxKeys: limit,
+    }));
+
+    let keys = (result.Contents || []).map(o => o.Key!).filter(Boolean);
+
+    // Fallback: if anchors/ index is empty, scan proofs/ (slower but works)
+    if (keys.length === 0) {
+      const proofPrefix = `proofs/${safeEpoch}/`;
+      let continuationToken: string | undefined;
+      const foundAnchors: Array<Record<string, unknown>> = [];
+      for (let page = 0; page < 5 && foundAnchors.length < limit; page++) {
+        const r = await s3.send(new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: proofPrefix,
+          StartAfter: page === 0 ? `${proofPrefix}${startCounter}` : undefined,
+          ContinuationToken: continuationToken,
+          MaxKeys: 100,
+        }));
+        for (const obj of r.Contents || []) {
+          if (!obj.Key || foundAnchors.length >= limit) break;
+          try {
+            const gr = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.Key }));
+            const body = await gr.Body?.transformToString();
+            if (!body) continue;
+            // Typed as the parsed record it is: isAnchorProof narrows to
+            // BitGraphProof, which has no index signature, so an untyped
+            // parse cannot go back into this list afterwards.
+            const p: Record<string, unknown> = JSON.parse(body);
+            // Signed commit.anchor first; the attribution name is the pre-v7
+            // fallback and is all the older half of the ledger carries.
+            if (isAnchorProof(p)) foundAnchors.push(p);
+          } catch { /* skip */ }
+        }
+        if (!r.IsTruncated) break;
+        continuationToken = r.NextContinuationToken;
+      }
+      return foundAnchors;
+    }
+
+    // Fetch from anchors/ index
+    const anchors: Array<Record<string, unknown>> = [];
+    for (const key of keys.slice(0, limit)) {
+      try {
+        const getResult = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        const body = await getResult.Body?.transformToString();
+        if (!body) continue;
+        anchors.push(JSON.parse(body));
+      } catch { /* skip */ }
+    }
+    return anchors;
+  } catch (err) {
+    console.error("[s3] getAnchorsAfterCounter failed:", (err as Error).message);
+    if (strict) throw new LedgerUnavailableError("anchors after counter", err);
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// A set's member list: one position answered once, not once per member.
+// See lib/set-members.ts for the layout and for why this is only ever an
+// index — the per-digest keys above stay the sole source of a proof.
+// ---------------------------------------------------------------------------
+
+/**
+ * Member lists held in function memory between requests.
+ *
+ * ⚠️ WITHOUT THIS THE LISTS MADE THINGS BARELY BETTER. A drop is dozens of
+ * requests, and each one was reading every chunk of every set it touched —
+ * for the 48,000 file folder that is 43 objects and ~12 MB PER REQUEST, used
+ * once and dropped. Measured on production 2026-09-08: a TEN digest request
+ * cost 1.5-2.1s, all of it this, and a 48,000 file check spent 64s where the
+ * per-request numbers had promised far less.
+ *
+ * A list is an index over append-only keys, so a cached one can only ever be
+ * missing entries that were added since, never wrong about the ones it has —
+ * and a digest it does not name falls through to a real lookup anyway. The
+ * TTL is short regardless, because a set indexed in chunks gains members over
+ * minutes and a stale list would keep sending them the slow way.
+ */
+const SET_LIST_TTL_MS = 5 * 60_000;
+/** Sets held at once. A drop touches a few; this bounds the memory a lambda keeps. */
+const SET_LIST_MAX = 6;
+const setListCache = new Map<string, { list: Map<string, SetMemberRef> | null; at: number }>();
+
+/**
+ * Every member of one set position, keyed by url-safe digest.
+ *
+ * Returns null when there is no usable list, which is not a statement about
+ * any digest: the caller must then look those digests up exactly as before.
+ * A list that is partly unreadable returns what it could read, for the same
+ * reason — a digest it does not name simply is not answered here.
+ */
+export async function readSetMemberList(
+  epochId: string,
+  counter: string,
+): Promise<Map<string, SetMemberRef> | null> {
+  const at = setMembersPrefix(epochId, counter);
+  const hit = setListCache.get(at);
+  if (hit && Date.now() - hit.at < SET_LIST_TTL_MS) return hit.list;
+  const list = await readSetMemberListUncached(epochId, counter);
+  // The absence of a list is cached too: a set that has none would otherwise
+  // cost a fresh listing on every request of a drop, for nothing.
+  setListCache.set(at, { list, at: Date.now() });
+  if (setListCache.size > SET_LIST_MAX) {
+    const oldest = [...setListCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+    if (oldest) setListCache.delete(oldest[0]);
+  }
+  return list;
+}
+
+async function readSetMemberListUncached(
+  epochId: string,
+  counter: string,
+): Promise<Map<string, SetMemberRef> | null> {
+  const keys = await listKeysUnderPrefix(setMembersPrefix(epochId, counter), 10_000);
+  if (keys.length === 0) return null;
+  const into = new Map<string, SetMemberRef>();
+  const texts = await runPool(keys.sort(), SET_LIST_POOL, (k) => getObjectText(k));
+  let ok = 0;
+  for (const t of texts) {
+    if (t.status !== "fulfilled" || t.value === null) continue;
+    if (decodeChunkInto(t.value, { epochId, counter }, into)) ok++;
+  }
+  if (ok === 0) return null;
+  if (ok < keys.length) console.warn(`[set-members] ${epochId}/${counter}: read ${ok} of ${keys.length} chunks; the rest fall back to per-digest lookups`);
+  return into;
+}
+
+/** Chunks read at once. A list is ~20 objects, so this finishes in one round. */
+const SET_LIST_POOL = 24;
+
+/* ── Floor links (Mike, 2026-10-18): the Base plugin's floor is its own BitGraph. When the Base switch is on, BitGraph 1
+   binds the latest Base block and BitGraph 2 the content; a floor link, written once beside the ledger, names BitGraph 1
+   as BitGraph 2's floor. The bind itself stays two counts; this is a record about two BitGraphs, checked before it is
+   written (app/api/floors). ── */
+
+const positionKey = (prefix: string, digestB64: string, epochId: string, counter: string) =>
+  `${prefix}/${toSafe(digestB64)}/${toSafe(epochId)}-${String(counter).padStart(12, "0")}.json`;
+
+/** The proof the ledger holds for one digest at one position, or null. Throws LedgerUnavailableError on a failed read. */
+export async function getProofAtPosition(digestB64: string, epochId: string, counter: string): Promise<Record<string, unknown> | null> {
+  try {
+    const r = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: positionKey("by-digest", digestB64, epochId, counter) }));
+    const body = await r.Body?.transformToString();
+    return body ? JSON.parse(body) : null;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw new LedgerUnavailableError("position key", err);
+  }
+}
+
+/** A tree's floor, kept under the ROOT's own position (2026-10-22): base-block.json, its leaf index and path, and the
+ *  root text, so the root's proof page shows the floor too, not only each member's. Written by app/api/tree-members. */
+export async function getTreeFloorText(digestB64: string, epochId: string, counter: string): Promise<string | null> {
+  try {
+    const r = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: positionKey("tree-floors", digestB64, epochId, counter) }));
+    return (await r.Body?.transformToString()) ?? null;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw new LedgerUnavailableError("tree floor", err);
+  }
+}
+export async function putTreeFloorOnce(digestB64: string, epochId: string, counter: string, body: string): Promise<boolean> {
+  if (!ledgerWritesOn()) return false;
+  try {
+    await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: positionKey("tree-floors", digestB64, epochId, counter), Body: body, ContentType: "application/json", IfNoneMatch: "*" }));
+    return true;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
+    throw err;
+  }
+}
+
+/** The floor link written for BitGraph 2 at its position, or null. */
+export async function getFloorLinkText(digestB64: string, epochId: string, counter: string): Promise<string | null> {
+  try {
+    const r = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: positionKey("floor-links", digestB64, epochId, counter) }));
+    return (await r.Body?.transformToString()) ?? null;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw new LedgerUnavailableError("floor link", err);
+  }
+}
+
+/** Writes a floor link once (never over another; the bucket keeps it). False when one is already there or writes are off. */
+export async function putFloorLinkOnce(digestB64: string, epochId: string, counter: string, body: string): Promise<boolean> {
+  if (!ledgerWritesOn()) return false;
+  try {
+    await getClient().send(new PutObjectCommand({
+      Bucket: getBucket(), Key: positionKey("floor-links", digestB64, epochId, counter),
+      Body: body, ContentType: "application/json", IfNoneMatch: "*",
+    }));
+    return true;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
+    throw err;
+  }
+}

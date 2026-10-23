@@ -1,0 +1,118 @@
+// Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
+
+/**
+ * Assemble a bitgraph-carrier/2 or /3 payload from vetted parts. The caller has
+ * already verified every part (the anchors over their messages, the headers
+ * by hash, the Base sidecar with verifyCeiling); this lays them out, derives
+ * the attestation witness from the proof's own document, and declares the
+ * pins the file was made under. It computes nothing that a verifier would
+ * later trust: the witness is recomputed on read, the pins compared.
+ *
+ * /3 is for a proof whose floor is a Base block (commit.slotFloor): the floor
+ * is its header (checked by the caller with checkFloorHeader), and the block
+ * states that no ceiling in position exists, since order is the chain of
+ * proof hashes. /2 stays the format for Ethereum-floor proofs.
+ *
+ * /4 is for one member of a tree/1 BitGraph, over either floor: the same parts
+ * as /2 (an Ethereum floor) or /3 (a Base floor), plus the tree part a
+ * one-file export/1 carries (the root document and the member's evidence).
+ * The caller has checked the member against the proof (verifyTreeMember) and
+ * the committed bytes against the leaf; this only lays the parts out.
+ */
+
+import { CARRIER_VERSION_2, CARRIER_VERSION_3, CARRIER_VERSION_4, encodeCarrierBlock, type CarrierPayload, type CarrierFloor, type CarrierBaseFloor, type CarrierCeiling, type CarrierCeilingInTime, type CarrierSettlement, type CarrierPins, type CarrierProof, type CarrierTree } from "./carrier.js";
+import { attestationWitness } from "./nitro.js";
+import { computeProofHash, computeSignedBodyHash } from "./proof-hash.js";
+import { BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID } from "./carrier-verify.js";
+import type { BitGraphProof } from "./types.js";
+
+export interface CarrierV2Parts {
+  proof: CarrierProof;
+  floor: CarrierFloor;
+  ceiling: CarrierCeiling;
+  ceilingInTime: CarrierCeilingInTime;
+  settlement?: CarrierSettlement;
+  /** Overrides for the declared pins; defaults to the proof's measurement, BitGraph's ceiling writer, Ethereum mainnet and Base mainnet. */
+  pins?: Partial<CarrierPins>;
+  /** Set false to leave the openssl witness out (a ZIP-family file whose block would pass the limit). Default true when the proof carries an aws-nitro attestation. */
+  withAttestationWitness?: boolean;
+}
+
+/**
+ * A ZIP-family file (docx, xlsx, pptx, zip) stops opening once the trailing
+ * block passes 65,535 bytes, because its end-of-archive record must sit within
+ * the last 64 KiB (measured 2026-09-30: Python and Spotlight fail at 65,536,
+ * QuickLook hangs; MP4 and MOV have no limit at all). Builders keep every
+ * block under this, dropping the attestation witness first (it is derivable
+ * from the proof) and refusing the carrier otherwise.
+ */
+export const CARRIER_BLOCK_ZIP_LIMIT = 60_000;
+
+/** The parts of a /3 block: a Base floor header, and no ceiling in position (there is none). */
+export interface CarrierV3Parts extends Omit<CarrierV2Parts, "floor" | "ceiling"> {
+  floor: CarrierBaseFloor;
+}
+
+/**
+ * The parts of a /4 block: the floor the proof signs (an Ethereum anchor with
+ * its header, or a Base header), the ceiling in position for an Ethereum floor
+ * (ignored over a Base floor, where none exists and the block says so), and
+ * the tree member.
+ */
+export interface CarrierV4Parts extends Omit<CarrierV2Parts, "floor" | "ceiling"> {
+  floor: CarrierFloor | CarrierBaseFloor;
+  ceiling?: CarrierCeiling;
+  tree: CarrierTree;
+}
+
+export function assembleCarrierV2Payload(parts: CarrierV2Parts): CarrierPayload {
+  return assemble(CARRIER_VERSION_2, parts);
+}
+
+export function assembleCarrierV3Payload(parts: CarrierV3Parts): CarrierPayload {
+  return assemble(CARRIER_VERSION_3, { ...parts, ceiling: { status: "none", basis: "hash-chain" } });
+}
+
+export function assembleCarrierV4Payload(parts: CarrierV4Parts): CarrierPayload {
+  const baseFloor = (parts.floor as { basis?: unknown }).basis === "base-header";
+  const ceiling: CarrierCeiling = baseFloor ? { status: "none", basis: "hash-chain" } : parts.ceiling ?? { status: "unfetched" };
+  const tree: CarrierTree = { rootDocument: parts.tree.rootDocument, member: { index: parts.tree.member.index, count: parts.tree.member.count, leaf: parts.tree.member.leaf, path: [...parts.tree.member.path] } };
+  return assemble(CARRIER_VERSION_4, { ...parts, ceiling }, tree);
+}
+
+function assemble(version: typeof CARRIER_VERSION_2 | typeof CARRIER_VERSION_3 | typeof CARRIER_VERSION_4, parts: Omit<CarrierV2Parts, "floor"> & { floor: CarrierFloor | CarrierBaseFloor }, tree?: CarrierTree): CarrierPayload {
+  const proof = parts.proof as unknown as BitGraphProof;
+  const att = proof.environment?.attestation;
+  const wantWitness = parts.withAttestationWitness ?? (att?.format === "aws-nitro" && typeof att.reportB64 === "string");
+  const pins: CarrierPins = {
+    pcr0: proof.environment?.measurement,
+    ceilingWriter: BITGRAPH_CEILING_WRITER,
+    chains: { ethereum: 1, base: BASE_MAINNET_CHAIN_ID },
+    ...(parts.pins ?? {}),
+  };
+  const payload: CarrierPayload = {
+    carrier: version,
+    proof: parts.proof,
+    ...(tree ? { tree } : {}),
+    floor: parts.floor,
+    ceiling: parts.ceiling,
+    ceilingInTime: parts.ceilingInTime,
+    ...(parts.settlement ? { settlement: parts.settlement } : {}),
+    pins,
+  };
+  if (wantWitness && att && typeof att.reportB64 === "string") {
+    const signedBodyHashB64 = computeSignedBodyHash(proof);
+    const proofHashB64 = computeProofHash(proof);
+    payload.attestation = attestationWitness(att.reportB64, {
+      pcr0: proof.environment.measurement,
+      signedBodyHashB64,
+      ...(proofHashB64 === signedBodyHashB64 ? { proofHashB64 } : {}),
+    }) as unknown as Record<string, unknown>;
+  }
+  return payload;
+}
+
+/** The size the block will have on disk for this payload. */
+export function carrierBlockSize(payload: CarrierPayload): number {
+  return encodeCarrierBlock(payload).length;
+}

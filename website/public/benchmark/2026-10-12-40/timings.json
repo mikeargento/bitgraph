@@ -1,0 +1,25 @@
+{
+  "real": true,
+  "floor": {
+    "chain": "base",
+    "evmChainId": 8453,
+    "blockNumber": 52495475,
+    "blockHash": "0xf0b6d6d8167647ae663931620ba3ecfc3bdeaf24b7b8da4a94297e2651400156",
+    "blockTimestamp": 1791780297
+  },
+  "count": 1000000,
+  "threads": 8,
+  "cpu": "Apple M3, 8 cores, 8 GB",
+  "placement": "container/2",
+  "hashAllS": 4.16,
+  "positionOpenS": 4.16,
+  "allFusedS": 8.61,
+  "commitSentS": 9.46,
+  "proofBackS": 10.5,
+  "openToProofS": 6.35,
+  "anchorWaitS": 0,
+  "proofBackWallClock": "2026-10-12T04:45:05.389Z",
+  "localRecheckDoneS": 74.01,
+  "counter": "40",
+  "digestB64": "WPyiS1eEvGOehhG/lGs1qmpAqW4gzLZY+0ka8d7oIxU="
+}

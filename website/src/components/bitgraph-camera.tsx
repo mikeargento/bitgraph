@@ -1,0 +1,3916 @@
+"use client";
+
+/**
+ * The camera: one implementation, two pages.
+ *
+ * Home renders this with the plain commit; /actor renders it with the commit
+ * that puts this device's key on the recording. Everything else (the drop, the
+ * local hash, the one batched ledger lookup, the folder check, the results list
+ * with every position the bytes hold, the export, the hold through the daily
+ * key renewal) is the same instrument and lives here once.
+ *
+ * ⚠️ It was two implementations until 2026-08-19 (home's page and a 787-line
+ * /actor), and the second one drifted into six bugs in one evening that the
+ * first did not have. Mike: "give bitgraph actor the same functionality
+ * exactly as homepage but with actor key credentials". The seam is the
+ * CommitStrategy (lib/commit-strategy.ts); nothing else is a parameter except
+ * the words on the page: the title, and the block under the frame.
+ *
+ * Doctrine that must survive any edit here:
+ *   - A lookup is not a recording. Nothing navigates when nothing was minted.
+ *   - A folder drop is a READ. Every step is a read; nothing in that path can
+ *     record. (Getting this wrong on /actor nearly minted 15k positions.)
+ *   - The box never prompts on its own. A first-time visitor drops a file and
+ *     gets a proof, with no dialog and no decision. /actor's touch is a
+ *     property of ITS strategy, not of the camera.
+ */
+
+import { restartMessage } from "@/lib/restart-message";
+import { DropPrompt, Browse } from "@/components/drop-prompt";
+import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_BASE_FLOOR_FILE, floorHeaderFile } from "@/lib/package-layout";
+import { baseFloorOf } from "@/lib/fuse-core";
+import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
+import { useRouter } from "next/navigation";
+import { FileDrop } from "@/components/file-drop";
+import { useCameraFit } from "@/lib/use-camera-fit";
+import {
+  isBitGraphProof,
+  verifyProofSignature,
+  proofHashB64,
+  type BitGraphProof,
+  hashBytes,
+} from "@/lib/bitgraph";
+import type { CommitStrategy } from "@/lib/commit-strategy";
+import { toUrlSafeB64 } from "@/lib/explorer";
+import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, readTreeExports, checkTreeExports, walkEntries, type CapturedDrop, type WalkedFile, type ExportCheckResult, type TreeExportRow } from "@/lib/folder-check";
+import { TreeExportList } from "@/components/tree-export-list";
+import { PUBLISHED_PCR0S } from "@/lib/enclave-measurements";
+import { CheckedList, fmtRowWhen } from "@/components/folder-list";
+import { recordedMsOf } from "@/lib/recorded-time";
+import { useWindowedRows } from "@/components/windowed-rows";
+import { takePendingDrop } from "@/lib/pending-drop";
+import { deCarrierFiles, completeDroppedCarrier, fetchBaseFloorHeader } from "@/lib/carrier-site";
+import { setFreshProof } from "@/lib/fresh-proof";
+import { Zip, ZipPassThrough, unzipSync } from "fflate";
+import {
+  positionsNeedingAnchors, positionCount as countPositions, readDropShape, anchorStatusDoc, isSettled,
+  ANCHOR_STATUS_FILE, type ExportSite, type PositionNeed, type BoundReport, type BoundState,
+} from "@/lib/anchor-export";
+import { fetchAnchorsFor, packAnchorZip, anchorZipName } from "@/lib/anchor-package";
+import { cacheArtifactToIDB, putPackageToIDB } from "@/lib/file-cache";
+import { buildBitGraphsFile } from "@/lib/bitgraphs-file";
+import { emptyLedger, addProofs, readBitGraphsFiles, heldFor, saveLedger, loadLedger, type LocalLedger } from "@/lib/local-ledger";
+import { LEDGER_CHANGED } from "@/components/ledger-light";
+import { rebuildSetMember, isTeeRestarting, fusedMarkerOf, rebuildFromOrigin, makeTreeHere, planTrees, treeInputOf, type FusedOutcome, type FusedSetMember, type MadeTree, type MadeTreeMember } from "@/lib/fuse-client";
+import { scanPool } from "@/lib/scan-pool";
+import type { SitePlacement } from "@/lib/fuse-placement";
+import { SPEC_FILE_NAME, specFileFor, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, ownerTree, rootOnlyTree, treeHandoff, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource } from "@/lib/fuse-tree";
+import { recoverRows, treePositionKey } from "@/lib/recovery-fold";
+import { browserRecoveryQueue } from "@/lib/recovery-queue";
+import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CHUNK } from "@/lib/fuse-set";
+import { paintFrame, PAINT_EVERY_MS } from "@/lib/paint-frame";
+import { attachEnvironments } from "@/lib/proof-environment";
+import { attachSetProofs } from "@/lib/set-members";
+
+/**
+ * One /api/proofs/batch answer, with every set member entry's manifest put
+ * back from the answer's side table. The route sends a member's set proof
+ * stripped of its manifest and each distinct set once (`sets`), so a drop of
+ * N originals from one set is not answered with N copies of an N-row
+ * manifest. Rows that hold the whole proof export a proof.json the
+ * skeptic's drop can verify, exactly as before the table existed.
+ */
+/**
+ * Digests per lookup request: the batch endpoint's own MAX_DIGESTS.
+ *
+ * 500 until 2026-09-07, from when every digest cost an S3 listing. The digest
+ * index made a ruled-out digest free, and a fresh drop rules out essentially
+ * all of them, so what remained at 500 was 96 round trips for a 48,000 file
+ * drop where 24 will do.
+ */
+/**
+ * Files per scan-worker round trip.
+ *
+ * The count only advances when a whole batch comes back, so this is also how
+ * chunky the progress looks: at 100 it moved in jumps of a hundred, which
+ * reads as stuck whenever a batch is slow (Mike, 2026-09-07: "seemed like it
+ * was doing 100 at a time"). 25 is four times smoother and costs nothing,
+ * because batching turned out not to be the win it was introduced as: hash
+ * did not move when it went from 1 file a message to 100, and 1,920 messages
+ * for 48,000 files is still far from the 48,000 it replaced.
+ */
+const SCAN_BATCH = 25;
+
+/* A very large file is said before it is hashed (Mike, 2026-10-03: the browser
+   warns, it never downgrades; as is is never chosen for the visitor). The scan
+   streams every file BEFORE any position opens, so what is at stake is the
+   visitor's wait, not a burned position: the drop box's hasher (hash-wasm)
+   ran at 325 MB/s in Chromium on a 2026 Mac, measured 2026-10-03. Past
+   LARGE_FILE_WARN_SECONDS of hashing for one file the visitor is told and
+   chooses; the command line tool streams the same file at disk speed. */
+const BROWSER_HASH_BYTES_PER_SECOND = 325_000_000;
+const LARGE_FILE_WARN_SECONDS = 10;
+function slowestFile(files: readonly File[]): { file: File; gb: string; seconds: number } | null {
+  let largest: File | null = null;
+  for (const f of files) if (largest === null || f.size > largest.size) largest = f;
+  if (largest === null) return null;
+  const seconds = largest.size / BROWSER_HASH_BYTES_PER_SECOND;
+  if (seconds <= LARGE_FILE_WARN_SECONDS) return null;
+  const gb = largest.size / 1e9;
+  return { file: largest, gb: gb >= 10 ? gb.toFixed(0) : gb.toFixed(1), seconds: Math.max(15, Math.ceil(seconds / 5) * 5) };
+}
+/**
+ * Digests per lookup request.
+ *
+ * ⚠️ 2,000 IS PAST A CLIFF. Measured against production on the real 48,000
+ * file folder, re-dropped so every digest hits, five requests at once:
+ *
+ *   500  ->  4.9 - 8.0s     1,000 ->  9.2 - 12.4s     2,000 -> 24s ... 60s
+ *
+ * 500 and 1,000 scale linearly; at 2,000 THREE OF FIVE hit the function's
+ * 60s maxDuration. A timeout is the expensive kind of failure, so the chunk
+ * sits where the request still finishes comfortably inside the limit.
+ */
+const BATCH_CHUNK = 1_000;
+/** The smallest a failing chunk is split to before it counts as unanswered. */
+const BATCH_MIN_CHUNK = 125;
+/** Retries once a chunk is already at its smallest, before reporting unavailable. */
+const BATCH_MIN_RETRIES = 2;
+/**
+ * Lookup requests in flight.
+ *
+ * Total throughput measured the same day, digests answered per second:
+ *   1,000 x 5  ->  5,000 in 12.4s (403/s)
+ *   1,000 x 10 -> 10,000 in 18.3s (546/s)
+ * Ten is a third faster and every request still finished; the ceiling here is
+ * the 60s per request, and smaller chunks are what keeps room under it.
+ */
+const BATCH_IN_FLIGHT = 10;
+/**
+ * Set-index chunks in flight. Each one writes SET_INDEX_CHUNK member keys, so
+ * this is deliberately small: the lookup path went into S3 throttling at
+ * sixteen concurrent readers, and these are writers.
+ */
+const SET_INDEX_IN_FLIGHT = 3;
+/**
+ * One results line, in pixels. Fixed on purpose: the window over the list is
+ * measured in rows, so a row that grew with its content would put the spacers
+ * and the scrollbar out of step with what is on screen.
+ */
+const RESULT_ROW_H = 34;
+
+function batchAnswer(json: { results?: Record<string, BatchEntry>; sets?: Record<string, Record<string, unknown>>; environments?: Record<string, Record<string, unknown>> }): Record<string, BatchEntry> {
+  const results = json.results || {};
+  // FIRST: the attestation travels once per epoch rather than once per proof,
+  // so a proof is not whole until this runs. Everything below and everything
+  // downstream (the signature check, the export, the proof page) reads a
+  // restored proof. See lib/proof-environment.ts.
+  // A set member's entry names its set instead of copying the proof, so this
+  // runs FIRST: there is no proof to restore an environment into otherwise.
+  const set = attachSetProofs(results as unknown as Parameters<typeof attachSetProofs>[0], json.sets);
+  if (set.unresolved) console.warn(`[batch] ${set.unresolved} entries named a set the answer did not carry`);
+  const env = attachEnvironments(results as unknown as Parameters<typeof attachEnvironments>[0], json.environments);
+  if (env.unresolved) console.warn(`[batch] ${env.unresolved} proofs arrived naming an environment the answer did not carry`);
+  attachSetManifests(results as unknown as Parameters<typeof attachSetManifests>[0], json.sets);
+  return results;
+}
+type BatchEntry = {
+  /** `envRef` is transport only: batchAnswer resolves it and removes it. */
+  proofs?: Array<{ proof: BitGraphProof; kind?: string; writeTime?: number | null; member?: { index: number; count: number; role: "origin" | "fused" } | null; setDigest?: string; envRef?: string; setRef?: string }>;
+  /** The read FAILED: not an answer about these bytes. */
+  unavailable?: true;
+  /** Positions came from set member lists without the per-digest listing:
+   *  positions these bytes hold, NOT a complete count. */
+  partial?: true;
+};
+import { SET_METADATA_KEY, readSetMetadata, computeProofHash, bytesToHex as bytesToHexString, type BitGraphProof as VerifyProof, type TreeMemberEvidence, blobSource, } from "@mikeargento/bitgraph-verify";
+
+type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
+
+export interface BitGraphCameraProps {
+  /** Which page this is, for the module-level caches below: each page keeps
+   *  its own batch across a trip to a proof page and back, and never sees the
+   *  other's. */
+  id: "home";
+  /** How a digest not yet on the ledger gets committed. The one seam. */
+  strategy: CommitStrategy;
+  /** The default gesture makes a fused artifact from the dropped file (profile bitgraph-fuse/1); ordinary recording stays reachable as its own row. */
+  fuseByDefault?: boolean;
+  /** The page title, inside the shared h1 (home's is a link, /actor's is a
+   *  noun). */
+  /** Omitted by a page that carries its own hero above the box. */
+  title?: ReactNode;
+  /** A block above the frame, in place of a title. It sits inside the wrap so
+      the fit measurement counts it and the frame gives up exactly its height. */
+  above?: ReactNode;
+  /** The page's own block, and the class its row wears: UNDER the box,
+   *  centred, while the page is the camera alone, and nowhere else. The page
+   *  owns that class's CSS (its margin-top, 42 on both pages). Home: "What is
+   *  a BitGraph →"; /actor: "Forget this device". One line each, so the two
+   *  pages are one composition (Mike, 2026-08-19: "make the two pages home
+   *  and actor match"). */
+  below?: ReactNode;
+  /** false when the page keeps scrolling under the frame: the fit measurement is
+      released (its own contract) and the frame stops centring in the viewport. */
+  fitViewport?: boolean;
+  /** The box's own first line. Defaults to naming both functions; a page whose
+      headline already names them passes the instruction instead. */
+  dropHeadline?: string;
+  /** The line under it. Empty when the headline has taken its words. */
+  dropHint?: string;
+  /** The quiet line under that. Empty when a page states it in its own copy. */
+  dropSubhint?: ReactNode;
+  /** The box's whole idle content, in place of the three lines (see FileDrop `prompt`). */
+  dropPrompt?: ReactNode;
+  /* Only meaningful alongside `below`: it is the selector useCameraFit measures
+     for the row under the frame. Optional since 2026-09-04, when home moved its
+     explainer inside the frame and stopped rendering anything below it. */
+  belowClassName?: string;
+  /** One line inside the frame under "Hashed in your browser, never uploaded",
+   *  for a fact about the instrument: /actor's "Acting as …, key …". Home
+   *  passes nothing. */
+  frameNote?: ReactNode;
+  /** Resolve an actor key on a proof to a name this page is entitled to
+   *  print, or undefined to print the key. /actor passes its own key's label;
+   *  home passes nothing. Identity is a property of the reader: a row never
+   *  borrows this browser's name for someone else's key. */
+  /** Pick up files dropped on a proof page's camera strip (they always go to
+   *  home, which is the page that strip navigates to). */
+  acceptsPendingDrop?: boolean;
+}
+
+
+interface FileItem {
+  file: File;
+  digestB64: string;
+  // What the scan learned hashing the bytes once: the placement a fuse would
+  // give them and, for a trailer/1 file, the hasher's saved state, which
+  // finishes the member's fused digest for any slot without a second read.
+  scan?: { placement: SitePlacement; state: Uint8Array | null };
+  proof: BitGraphProof | null;
+  // Every proof recorded for these bytes, earliest causal position first.
+  // The same bits can be BitGraphed more than once; `proof` is the earliest
+  // (originating) one and drives the row's open/verify behavior.
+  proofs: BitGraphProof[];
+  // Ledger write moments per recording (ms), parallel to `proofs`. Null for
+  // legacy/backfilled entries, which predate per-position write times.
+  times?: (number | null)[];
+  valid: boolean | null;
+  /**
+   * The ledger was not asked to enumerate every position for these bytes.
+   *
+   * ⚠️ A row with this set MUST NOT print a position count (Mike, 2026-09-08:
+   * "the row shouldnt claim a count until you open it"). The positions shown
+   * are ones these bytes really hold; there may be others. Opening the row
+   * reads everything, and an export asks with `members: "full"`.
+   */
+  partial?: boolean;
+  status: "found" | "new" | "proving" | "proved" | "error";
+  // True when this item came from a dropped proof.json rather than an artifact.
+  // The `file` in hand is then the JSON, not the thing the proof is about, so we
+  // offer an inline check to confirm the visitor holds the matching artifact.
+  fromProofJson?: boolean;
+  /** The row arrived as a carrier: its proof came from inside the file, and the bytes are in hand. */
+  fromCarrier?: boolean;
+  matchedFile?: File | null;
+  /** Per proof in `proofs`: a recording of these exact bytes, or a fused artifact that names them as origin. */
+  kinds?: Array<"recorded" | "fused">;
+  /** Set when this drop fused the file: the transient fused bytes, for the export. */
+  fused?: FusedOutcome;
+  /** Per proof in `proofs`: the row the ledger names when the bytes are one member of a set (its origin, or its new file). Null where a position is not a set's. */
+  member?: Array<{ index: number; count: number; role: "origin" | "fused" } | null> | null;
+  /** Set when this drop fused the file as one of N: the member row, the shared manifest and the set proof. NO fused bytes are held; the export rebuilds them. */
+  setMember?: { member: FusedSetMember; manifestBytes: Uint8Array; count: number; proof: BitGraphProof };
+  /**
+   * Set when this drop made the file a member of a tree/1 BitGraph: the tree
+   * (shared, by reference, by every row it covers: the proof, the root
+   * document, every leaf and name, which the owner's export is made of) and
+   * this file's own leaf and evidence. No committed bytes are held: an export
+   * carries none, and the file in hand rebuilds them.
+   */
+  tree?: { made: MadeTree; member: MadeTreeMember };
+  /** Tree positions this file was found in by its recovery entry: the root document and its place, per position. */
+  recoveredTrees?: Array<{ proofKey: string; rootDocument: Uint8Array; evidence: TreeMemberEvidence }>;
+  /**
+   * Set when the recovery lookup for this row did not complete, with why.
+   * The row reads "new", but whether it is already in a tree is UNKNOWN (a
+   * member of an earlier tree would look exactly like it), so it is not made
+   * without the visitor saying so (SPEC section 13).
+   */
+  recoveryUnknown?: string;
+}
+
+
+/**
+ * Queue a made tree's recovery entries (lib/recovery-queue.ts): sealed under
+ * each file's own hash, written after the proof is already in hand, retried
+ * and saved across a closed tab. Never in the way of the proof: a failure here
+ * is logged, and the tree is exactly as made.
+ */
+function keepRecoveryCopy(made: MadeTree, keep = true): void {
+  try {
+    void browserRecoveryQueue()
+      .enqueueTree({ proof: made.proof as never, rootDocument: made.rootDocument, leavesBytes: made.leavesBytes, names: made.names, keepRecoveryCopy: keep })
+      .catch((e: unknown) => console.warn("[recovery] could not queue this tree's recovery entries:", e));
+  } catch (e) {
+    console.warn("[recovery] queue unavailable:", e);
+  }
+}
+
+// The results list survives leaving for a proof page: client-side navigation
+// keeps the module alive, so browser-back restores the batch exactly as left
+// (File objects intact — no serialization). A hard reload (the logo's
+// documented "start over" gesture) still wipes it. Keyed by page: home's batch
+// must not reappear on /actor or the other way round.
+const cachedResults = new Map<string, FileItem[]>();
+// Same survival rule for a dropped folder's check verdicts (the File objects
+// inside are only used again for click-through caching, so nothing serializes).
+const cachedChecked = new Map<string, ExportCheckResult[]>();
+// And for the verdicts on dropped export/1 files (tree/1 BitGraphs).
+const cachedExports = new Map<string, TreeExportRow[]>();
+
+/** Drop a page's remembered batch. /actor calls this when the device is
+ *  forgotten: rows looked up or recorded under a key that is gone should not
+ *  greet whoever registers next. */
+export function clearCameraCache(id: BitGraphCameraProps["id"]) {
+  cachedResults.delete(id);
+  cachedChecked.delete(id);
+  cachedExports.delete(id);
+}
+
+/** The set proof as it leaves the page: with its manifest at
+ *  metadata["bitgraph-fuse/1"]. fuseFiles attaches one whenever the boundary
+ *  did not echo it and the camera never strips it, so this finds it there; a
+ *  belt, since a proof.json without its manifest is a set no member can be
+ *  checked against. */
+/**
+ * A row a found drop can BitGraph again: on record, and with the file's digest
+ * in hand. A dropped proof.json has nothing to make. Since tree/1 a file over
+ * kept as is has an again too: it is a leaf as is in the new tree, at
+ * a new position, where it used to be recorded by digest and answered with
+ * the same proof.
+ */
+function isAgainRow(i: FileItem): boolean {
+  return i.status === "found" && !i.fromProofJson && !!i.digestB64;
+}
+
+function withSetManifest(proof: BitGraphProof, manifestBytes: Uint8Array): BitGraphProof {
+  if (readSetMetadata(proof as unknown as VerifyProof) !== null) return proof;
+  const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as Record<string, unknown>;
+  return { ...proof, metadata: { ...(proof.metadata ?? {}), [SET_METADATA_KEY]: manifest } };
+}
+
+
+export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, above, below, belowClassName, frameNote, acceptsPendingDrop, fitViewport = true, dropHeadline = "Make or check BitGraphs", dropHint = "Choose files, or drag in a whole folder.", dropSubhint = "Hashed in your browser, never uploaded.", dropPrompt }: BitGraphCameraProps) {
+  const router = useRouter();
+  const [step, setStep] = useState<Step>(() => (cachedResults.get(id)?.length || cachedChecked.get(id)?.length || cachedExports.get(id)?.length ? "results" : "drop"));
+  const [items, setItems] = useState<FileItem[]>(() => cachedResults.get(id) ?? []);
+  // Verdicts for a dropped folder of BitGraph exports (the skeptic's drop):
+  // one entry per export directory found in the drop, in walk order.
+  /* Files that arrived as carriers (proof inside): stripped here so the CHECK runs
+     on the committed bytes, which are what hold a position. The envelope's own hash
+     is recorded nowhere, so hashing the outer file would answer "never recorded"
+     about bytes that are. One line above the results says what happened. */
+  const [carrierDrops, setCarrierDrops] = useState<(import("@/lib/carrier-site").DeCarrierNote & { note?: string })[]>([]);
+  const [carrierFetching, setCarrierFetching] = useState<string | null>(null);
+  /* One click on an incomplete carrier: fetch the anchor that followed, verify
+     it, stamp it into the block, hand the same file back completed. Nothing is
+     stamped unverified, and "none has landed yet" is an answer, not a spinner. */
+  async function fetchClosingAnchor(name: string, outer: Uint8Array) {
+    if (carrierFetching) return;
+    setCarrierFetching(name);
+    try {
+      const r = await completeDroppedCarrier(outer, { waitForCeilingMs: 15000 });
+      if (r.status === "completed" || r.status === "already-complete") {
+        const url = URL.createObjectURL(new Blob([r.bytes.slice() as Uint8Array<ArrayBuffer>], { type: "application/octet-stream" }));
+        const el = document.createElement("a"); el.href = url; el.download = name; el.click();
+        URL.revokeObjectURL(url);
+        setCarrierDrops((d) => d.map((c) => (c.name === name ? { name, ceiling: "present" } : c)));
+      } else {
+        setCarrierDrops((d) => d.map((c) => (c.name === name ? { ...c, note: r.note } : c)));
+      }
+    } catch (e) {
+      setCarrierDrops((d) => d.map((c) => (c.name === name ? { ...c, note: e instanceof Error ? e.message : String(e) } : c)));
+    } finally {
+      setCarrierFetching(null);
+    }
+  }
+  const [checked, setChecked] = useState<ExportCheckResult[]>(() => cachedChecked.get(id) ?? []);
+  // Verdicts for dropped export/1 files: one row per file an export covers,
+  // or per export dropped without its files. Checked from the drop alone.
+  const [exportRows, setExportRows] = useState<TreeExportRow[]>(() => cachedExports.get(id) ?? []);
+  // True while checkExports is doing its per-export ledger work, so the
+  // checking wait shows a live count even for small folders (each export is
+  // its own round trips, unlike the one-request digest lookup).
+  const [folderChecking, setFolderChecking] = useState(false);
+  /* ── The anchors export ──────────────────────────────────────────────────
+     The dropped folder's positions and which of them are short an Ethereum
+     anchor. Making is instant and leaves the upper bound DEFERRED; this is
+     where it is completed, deliberately, on a folder you already hold.
+     Null until a folder drop produces exports. */
+  const [anchorPlan, setAnchorPlan] = useState<{ positions: number; needs: PositionNeed[]; dropName: string | null } | null>(null);
+  const [anchorBusy, setAnchorBusy] = useState<{ current: number; total: number } | null>(null);
+  /* What the last run found, in one line under the card. It exists for the
+     outcomes that are NOT a download: nothing was missing, or the ledger could
+     not be reached, or a position simply has no upper bound yet. An export
+     that silently produced no file would be the same absent-answer bug in a
+     new place. */
+  const [anchorNote, setAnchorNote] = useState<string | null>(null);
+  const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
+  // Ledger-check progress (digests looked up). Only meaningful when the check
+  // is chunked (large drops); a single-request check has nothing to count.
+  const [checkProgress, setCheckProgress] = useState({ current: 0, total: 0 });
+  /* The recovery lookup after the ledger lookup (2026-10-07: 50,000 files sat on
+     "Checking 50000 of 50000" with no sign of life while it ran). */
+  const [recoveryProgress, setRecoveryProgress] = useState({ current: 0, total: 0 });
+  // The scan is two honest phases: hashing files locally ("reading"), then
+  // one batch round trip to the ledger ("checking"). The label tracks them;
+  // "N of N checked" sitting under a full bar while the lookup ran was a lie.
+  // "walking" is the folder being READ off the disk, which has no total to
+  // count against (you learn the size by finishing) and so shows a live file
+  // count without a bar. The other two keep their progress bars.
+  const [scanPhase, setScanPhase] = useState<"walking" | "reading" | "checking">("reading");
+  const [walkCount, setWalkCount] = useState(0);
+  const [proveProgress, setProveProgress] = useState({ current: 0, total: 0 });
+  /**
+   * The phase a set is in, while it is in it.
+   *
+   * A set reports five phases and the label used to speak for one of them, so
+   * a 30,000 file set sat on "BitGraphing 0 of 30000" for the whole hash pass
+   * and again through the commit, which reads as hung (Mike, 2026-09-07: "it
+   * stops and hangs"). It never was; the label simply had nothing to say
+   * during the longest parts of the run.
+   *
+   * `at` is where the bar belongs, in rows, counted across the whole drop.
+   * THREE of the five walk every file: hash, fuse and verify. They carry the
+   * bar over one third of the set's span apiece, in the order they run, so it
+   * never jumps back. tree and commit are single steps, so they hold the bar
+   * where fuse left it and say what they are rather than counting to one.
+   */
+  const [provePhase, setProvePhase] = useState<{ phase: "hash" | "slot" | "fuse" | "tree" | "commit" | "verify"; done: number; total: number; at: number; since: number } | null>(null);
+  /**
+   * Seconds the current phase has been running, for the ones that cannot
+   * count. A spinner over a fixed label says a thing is happening; it does not
+   * say the thing is still happening (Mike, 2026-09-07, on 35,000 files: "it
+   * just stays on holding a slot for a while with no indication of what's
+   * happening"). A number that moves is the difference, and it is also the
+   * only way to find out which step is actually slow: the slot allocation
+   * itself measures 0.19s against production, so a long wait here is
+   * something else wearing its name.
+   */
+  const [phaseSeconds, setPhaseSeconds] = useState(0);
+  // Bytes per second the last scan hashed, which is this machine's read
+  // speed; the set plan sizes what must be read again by it.
+  const scanRateRef = useRef<number | null>(null);
+  // True while a commit is being held because the boundary is mid-rotation
+  // (daily key renewal) or the fresh epoch's first anchor has not landed.
+  // Files are already hashed; the record flow waits and retries on its own.
+  const [teeRestarting, setTeeRestarting] = useState(false);
+  // What the strategy says it is waiting on, when that is not the ledger
+  // ("Waiting for you" while /actor's touch prompt is up). Null means the
+  // proving label is the plain one.
+  const [recordStatus, setRecordStatus] = useState<string | null>(null);
+  // The strategy's sentence about a failed run, shown in the receipt card
+  // until the next run or drop. Home's strategy has none; its rows say Error.
+  const [recordMessage, setRecordMessage] = useState<string | null>(null);
+  /* ❄️ SET MEMBER INDEXING IS GONE (2026-09-08).
+     A set/2 used to land with only its root on the ledger, and its members
+     were indexed afterwards, evidence by evidence, so that dropping any one
+     of them would find the set. Nothing is indexed by digest any more - the
+     bucket keeps only anchors - so there is nothing to make findable and no
+     retry to offer. The set proof itself carries the manifest, and the folder
+     you hold is what answers for its members. */
+  // On a results page the box is CLOSED behind one link until asked for
+  // (Mike, 2026-08-19: "what if there IS a link, and it says something like
+  // make more, and it EXPANDS the dropbox full size"). Opened by the link, or
+  // by a file drag entering the window, since a drag cannot click first and
+  // dragging is the only way a folder arrives. Closes again when the next
+  // drop starts, so every results page begins the same way.
+  const [boxOpen, setBoxOpen] = useState(false);
+  /* A drop with a file that will take a while to hash, held until the visitor says so. */
+  const [largeDrop, setLargeDrop] = useState<{ files: File[]; name: string; gb: string; seconds: number } | null>(null);
+  const largeOkRef = useRef(new WeakSet<File>());
+  /* Rows whose recovery lookup did not complete are not made until the visitor
+     says so: the gate names how many and why, and holds the run it stopped. */
+  const [unknownGate, setUnknownGate] = useState<{ count: number; why: string; proceed: () => void } | null>(null);
+  const unknownOkRef = useRef(false);
+  /* The recovery switch (SPEC section 13, opting out): on, a tree made here keeps
+     a sealed entry per file so the file finds its proof again; off, nothing of
+     the tree is stored for recovery and a lost export cannot be recovered. */
+  const [keepRecovery] = useState(true);
+  const [proveAnimCount, setProveAnimCount] = useState(0);
+  const proveAnimRef = useRef(0);
+  /**
+   * ⚠️ THE VALUE WAS DISCARDED. This read `const [, setExportProgress]`, so
+   * five call sites updated a number nothing could render and the export
+   * showed a bare "Packaging…" from click to download — for a 30,000 file
+   * folder, minutes of it (Mike, 2026-09-08: "seems like it isnt even doing
+   * anything"). `phase` separates the two halves, because they count
+   * different things and a bar that restarts at zero reads as a stall.
+   */
+  const [exportProgress, setExportProgress] = useState<{ current: number; total: number; phase: "preparing" | "packaging" }>({ current: 0, total: 0, phase: "packaging" });
+  const [animCount, setAnimCount] = useState(() =>
+    (cachedResults.get(id) ?? []).filter(i => i.status === "found" || i.status === "proved").length);
+  /* What the package that was just downloaded is short, if anything.
+     ⚠️ THIS REPLACES A FIFTEEN SECOND WAIT. The export used to be withheld for
+     15s after minting so the next Ethereum anchor would land first, because an
+     absent anchor-after.json was indistinguishable from a broken one and a
+     package could not say which. It can now say exactly which, so the wait is
+     no longer buying anything — but going silent instead would hand someone a
+     package they believe is complete, which is the same bug the wait existed
+     to avoid. The line below is what the wait was standing in for. */
+  const [packageNote, setPackageNote] = useState<string | null>(null);
+
+  // Mirror the live batch into the module cache so browser-back from a proof
+  // page restores this list (see cachedResults above).
+  // Recovery entries a closed tab left unwritten are written now (lib/recovery-queue.ts).
+  useEffect(() => {
+    try {
+      void browserRecoveryQueue().resume().catch((e: unknown) => console.warn("[recovery] resume:", e));
+    } catch (e) {
+      console.warn("[recovery] queue unavailable:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (step === "results" && items.length > 0) cachedResults.set(id, items);
+  }, [id, step, items]);
+  useEffect(() => {
+    if (step === "results" && checked.length > 0) cachedChecked.set(id, checked);
+  }, [id, step, checked]);
+  useEffect(() => {
+    if (step === "results") { if (exportRows.length > 0) cachedExports.set(id, exportRows); else cachedExports.delete(id); }
+  }, [id, step, exportRows]);
+
+  useEffect(() => {
+    if (step !== "drop") window.scrollTo(0, 0);
+  }, [step]);
+
+  /* The frame's height measurement lives in lib/use-camera-fit.ts. The only
+     thing that was ever page-specific is which two elements get observed for
+     height: the shared title, and the page's own block under the frame.
+
+     No shrinkBy. The two frames are the same size and the titles sit level
+     because the chrome around each frame is the SAME chrome: a title row
+     (the page's name, its one link on the right) over the box, and nothing
+     under it. For a day /actor carried two lines under its frame and the
+     frames had to give 26px back to compensate; Mike moved the identity line
+     INTO the box and then the link up to the title row, so the compensation
+     is gone with the cause. ⚠️ If a page ever puts a block under its frame
+     again, that is the moment shrinkBy comes back, and it comes back for BOTH
+     pages or the titles part.
+
+     ⚠️ Gated on step === "drop" and it must stay so. The measurement sums
+     every sibling of the frame into the chrome it has to fit around, so with
+     a results list below it the frame gets squeezed flatter as the list
+     grows (that exact bug shipped on /actor). Disabled, the hook clears its
+     custom properties and the frame falls back to its CSS sizing, which is
+     what a page that has stopped being viewport-fitted should use. */
+  useCameraFit(fitViewport && step === "drop", ".bitgraph-tagline", belowClassName ? `.${belowClassName}` : ".bitgraph-nothing-below");
+
+  // Files dropped on a proof page's camera strip arrive via the pending-drop
+  // slot: pick them up on mount and run the normal drop flow.
+  useEffect(() => {
+    if (!acceptsPendingDrop) return;
+    const pending = takePendingDrop();
+    if (pending?.length) void handleFiles(pending);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The elapsed clock for a phase that has nothing to count.
+  const phaseSince = provePhase?.since ?? 0;
+  useEffect(() => {
+    if (!phaseSince) return;
+    const tick = () => setPhaseSeconds(Math.floor((Date.now() - phaseSince) / 1000));
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [phaseSince]);
+
+  // Smooth-tick the displayed proving counter toward each chunk's real value.
+  // The TEE signs atomically per chunk, so the truthful count only updates every
+  // CHUNK_SIZE items (every ~1.5s). We interpolate between those updates so the
+  // number visibly ticks 1, 2, 3, … instead of jumping by 50.
+  useEffect(() => {
+    const target = proveProgress.current;
+    if (target === 0) {
+      setProveAnimCount(0);
+      proveAnimRef.current = 0;
+      return;
+    }
+    const startValue = proveAnimRef.current;
+    if (startValue >= target) {
+      setProveAnimCount(target);
+      proveAnimRef.current = target;
+      return;
+    }
+    let raf = 0;
+    const startTime = performance.now();
+    const tick = () => {
+      const elapsed = performance.now() - startTime;
+      const ratio = Math.min(elapsed / 1500, 1);
+      const value = Math.round(startValue + (target - startValue) * ratio);
+      proveAnimRef.current = value;
+      setProveAnimCount(value);
+      if (ratio < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [proveProgress.current]);
+
+  // Results are on the page: the camera (title row, box) is closed behind
+  // one link on the results heading until asked for (see the render).
+  const showingResults = step === "results" && (items.length > 0 || checked.length > 0 || exportRows.length > 0);
+
+  /* The one link on a closed results page. It sits on the right of the first
+     results heading (the folder's list when there is one, else the files'
+     heading) and opens the whole camera, title and full-size box, above the
+     results. In the action-link voice, and the noun stays — Mike, 2026-08-19:
+     "more BitGraphs", not "more".
+
+     It says what it does: CHOOSE MORE FILES (Mike, 2026-09-28), the same verb
+     as the box's own "Choose files, or drag in a whole folder." It read "Make
+     or check more BitGraphs" until 2026-09-08, then "View more BitGraphs",
+     because making was moving to the desktop app and the link above a list of
+     BitGraphs should not be the verb that mints. The app was retired on 09-20
+     and making stayed here, and the link never viewed anything: it opens the
+     box for another drop. */
+  const openLink = showingResults && !boxOpen ? (
+    <button type="button" className="bg-arrow-link" onClick={() => setBoxOpen(true)}
+      style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--accent)", whiteSpace: "nowrap", flexShrink: 0 }}>
+      <span className="bg-long">Choose more files</span><span className="bg-short">Choose more</span>
+    </button>
+  ) : null;
+
+  // A file drag entering the window opens the box, so a folder (or anything)
+  // dragged at a results page finds its target without a click it cannot
+  // make mid-drag. Files only: a dragged text selection is not a drop.
+  useEffect(() => {
+    if (!showingResults || boxOpen) return;
+    const onDragEnter = (e: DragEvent) => {
+      if (e.dataTransfer?.types?.includes("Files")) setBoxOpen(true);
+    };
+    window.addEventListener("dragenter", onDragEnter);
+    return () => window.removeEventListener("dragenter", onDragEnter);
+  }, [showingResults, boxOpen]);
+  const found = items.filter(i => i.status === "found" || i.status === "proved");
+  // Files the Record row offers: never recorded, or recorded and failed (an
+  // errored file is still an unrecorded file; see proveRemaining).
+  const unproven = items.filter(i => i.status === "new" || i.status === "error");
+  const againRows = items.filter(isAgainRow);
+  // The trees this drop made, once each (every row of a tree holds the same one).
+  const madeTrees = useMemo(() => [...new Map(items.filter((i) => i.tree).map((i) => [`${i.tree!.made.proof.commit.counter}:${i.tree!.made.proof.artifact.digestB64}`, i.tree!.made] as const)).values()], [items]);
+  // The distinct positions the dropped files hold, across every row: a set is
+  // one position for many files, and a file BitGraphed twice holds two.
+  // ⚠️ ZERO when any row's positions were not fully enumerated, which hides
+  // the summary rather than printing a total that is only a floor. Same
+  // ruling as the per-row count: nothing claims a number it did not count.
+  const anyPartial = items.some((i) => i.partial);
+  const positionCount = anyPartial ? 0 : new Set(items.flatMap((i) => (i.proofs.length ? i.proofs : i.proof ? [i.proof] : []).map((p) => `${p.commit?.epochId ?? ""}:${p.commit?.counter ?? ""}`))).size;
+  // What the export label counts. These mirror downloadZip's own filter, so the
+  // label always names what the zip actually holds: one entry per file, and one
+  // proof.json per causal position that file occupies.
+  const zipFileCount = items.filter(i => i.proof).length;
+  const zipProofCount = items.reduce((n, i) => n + (i.proof ? (i.proofs.length || 1) : 0), 0);
+  // Only files that actually have a BitGraph get a row (plus errors, so a
+  // failure is never silent). A not-yet-recorded file is not a BitGraph, so it
+  // is represented by the count banner and the "BitGraph N remaining" button,
+  // never a blank pending row.
+  const shown = items.filter(i => i.status === "found" || i.status === "proved" || i.status === "error");
+  /**
+   * The results list is a receipt, not a browser.
+   *
+   * It used to be one card per file, roughly sixteen elements each, every one
+   * of them mounted. At 30,000 files that is around 400,000 nodes and the
+   * browser freezes (Mike, 2026-09-07). It also repeated one fact 30,000
+   * times: a set is ONE BitGraph, so every member row carries the same
+   * position. Your own machine is where you look at your files, and a file is
+   * found again by dropping its folder in or by the member lookup on the set's
+   * page, so this needs to be legible at thirty thousand lines, not browsable.
+   *
+   * So: one plain line per BitGraph, fixed height, three elements, windowed.
+   * A proof dropped looking for its file is not a line, it carries an
+   * interactive check, so those keep their own block above the list.
+   */
+  /**
+   * The interactive match check belongs to the gesture it was built for: ONE
+   * proof dropped, looking for its file. A folder of recordings carries a
+   * proof.json beside every file, and 2,851 of them rendered 25,659 nodes,
+   * 99% of the page, with the windowed list underneath costing 45 rows
+   * (measured 2026-09-07). Past one, a proof is a line like anything else.
+   */
+  const matching = useMemo(() => {
+    const pj = shown.filter((i) => i.fromProofJson);
+    return pj.length === 1 ? pj : [];
+  }, [shown]);
+  const lines = useMemo(() => {
+    const solo = shown.filter((i) => i.fromProofJson).length === 1;
+    return shown.filter((i) => !(solo && i.fromProofJson)).flatMap((item) => {
+      const ps: Array<BitGraphProof | null> = item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
+      // `of` is 0 when the answer did not enumerate every position: the row
+      // then prints no count at all rather than an incomplete one.
+      return ps.map((p, k) => ({ item, p, k, of: item.partial ? 0 : ps.length }));
+    });
+  }, [shown]);
+  const { ref: resultListRef, first: rowFirst, last: rowLast } = useWindowedRows(lines.length, RESULT_ROW_H);
+
+  /* A set/2 lands with only its ROOT on the ledger; its members are indexed
+     afterwards, evidence by evidence, so a drop of any of them finds the set.
+     The count moves as chunks land; on failure the pending evidence waits here
+     for a retry.
+
+     ⚠️ RESTORED 2026-09-17 on Mike's word. Deleted 2026-09-08 (61263868), which
+     left every multi-file drop's members unfindable by hash: dropping one file
+     of a recorded set read as NEW, and a lone new file auto-records, so the
+     answer to "is this already BitGraphed?" was a false no followed by a second
+     permanent position. Mike: "this is why i have the ledger running in the
+     background again. to avoid things like this before a user downoads there own
+     proofs." */
+  const [indexProgress, setIndexProgress] = useState<{ current: number; total: number } | null>(null);
+  const pendingIndexRef = useRef<Array<{ setDigest: string; epoch: string; counter: string; members: unknown[] }>>([]);
+
+  async function indexSetEvidence(): Promise<void> {
+    const pending = pendingIndexRef.current;
+    const total = pending.reduce((n, p) => n + p.members.length, 0);
+    if (total === 0) { setIndexProgress(null); return; }
+    let done = 0;
+    setIndexProgress({ current: 0, total });
+    for (const set of pending) {
+      // The chunks are independent: every request re-reads the set from its
+      // own position, re-binds the root document, and each member's evidence
+      // has to recompute that root before it earns a key. Nothing carries
+      // between them, so they go a few at a time rather than one after
+      // another. 100,000 members took 453s strictly sequentially (measured
+      // 2026-09-07); each request also writes 2,500 keys, which is why this
+      // is a small number and not a large one. Sixteen concurrent readers
+      // once pushed S3 into throttling on the lookup path.
+      const chunks: unknown[][] = [];
+      for (let i = 0; i < set.members.length; i += SET_INDEX_CHUNK) chunks.push(set.members.slice(i, i + SET_INDEX_CHUNK));
+      const landed = new Array<boolean>(chunks.length).fill(false);
+      let next = 0;
+      let stopped = false;
+      await Promise.all(Array.from({ length: Math.min(SET_INDEX_IN_FLIGHT, chunks.length) }, async () => {
+        while (!stopped) {
+          const i = next++;
+          if (i >= chunks.length) return;
+          let ok = false;
+          for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+            try {
+              const r = await fetch("/api/fuse/set-index", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ setDigest: set.setDigest, epoch: set.epoch, counter: set.counter, members: chunks[i] }) });
+              ok = r.ok;
+            } catch {
+              ok = false;
+            }
+          }
+          // One failure stops the set. The rest of its chunks are left unsent
+          // rather than raced past, so the retry sends exactly what is missing.
+          if (!ok) { stopped = true; return; }
+          landed[i] = true;
+          done += chunks[i].length;
+          setIndexProgress({ current: done, total });
+        }
+      }));
+      // Whatever did not land stays pending, in order, for the retry.
+      set.members = chunks.filter((_, i) => !landed[i]).flat();
+      if (stopped) {
+        setIndexProgress(null);
+        setRecordMessage(`The set is made, but ${total - done} of its ${total} files are not yet findable by hash. Indexing stopped; retry below.`);
+        return;
+      }
+    }
+    pendingIndexRef.current = [];
+    setIndexProgress(null);
+  }
+
+  /** Open one row's position. Same-tab: the recordings also live in the Ledger. */
+  function openProof(item: FileItem, p: BitGraphProof, k: number) {
+    // Use the proof's digest (from the TEE) for the URL, not the browser's
+    // hash; ?counter=&epoch= pins THIS row's causal position. A set member is
+    // the exception: its proof's digest is the manifest's, one page for N
+    // files, so the row opens by the bytes in hand and the page finds the
+    // cached bytes under exactly the digest it was asked for.
+    const asMember = !!item.setMember || !!item.member?.[k];
+    const proofDigest = asMember && item.digestB64 ? item.digestB64 : p.artifact.digestB64;
+    const c = p.commit?.counter;
+    const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
+    const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
+    // Cache the artifact bytes (and any embedded C2PA manifest) in the
+    // background; the client-side push keeps this JS context alive and the
+    // proof page polls IndexedDB, so navigation never waits on the ~6 MB C2PA
+    // toolkit. For a dropped proof.json the file in hand is the JSON, not the
+    // artifact, so only cache a real file.
+    const artifactFile = item.fromProofJson ? item.matchedFile : item.file;
+    if (artifactFile) void cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+    /* ⚠️ HAND THE PROOF OVER. THE ROW MUST NOT MAKE THE PAGE LOOK ANYTHING UP.
+       Without this a row navigated on the digest alone, and for a SET MEMBER
+       that digest resolves to nothing: the ledger holds the set's root, and the
+       member write half was deleted on 2026-09-08 (61263868) rather than gated,
+       so 2026-09-16's ledger-writes ruling never brought it back. Clicking a
+       member of a multi-file drop therefore landed on "BitGraph not found"
+       (Mike, 2026-09-17: "clicking on one yeilds no result like its
+       disconnected"; verified against a real 10,000 member set, where the set
+       root resolves and the member's own digest and its origin both miss).
+       The page is a VIEWER, and the browser is already holding the committed
+       proof, so the click needs no lookup at all. The receiving half of this
+       hand-off was fixed on 2026-09-16 for the same complaint; this is the
+       sender, which was never wired. Same shape openCheckedRow uses.
+
+       A tree this drop made goes over with the row's own evidence beside it
+       (unsigned, TREE_MEMBER_KEY), so the page can show the file as the leaf
+       it is: a tree's page is one page for all its files, reached by the
+       root document's digest, and its members are indexed nowhere. */
+    const madeHere = item.tree && item.tree.made.proof.artifact.digestB64 === p.artifact.digestB64 && item.tree.made.proof.commit.counter === p.commit?.counter ? item.tree : null;
+    const handed = madeHere ? (treeHandoff(madeHere.made.proof, bytesToHexString(madeHere.made.rootDocument), madeHere.made.evidenceOf(madeHere.member.leafIndex)) as unknown as BitGraphProof) : p;
+    setFreshProof(toUrlSafeB64(proofDigest), {
+      proofs: [{ proof: handed }],
+      positions: c ? [{ counter: c, epoch: epoch || null, lowerTime: null, upperTime: null }] : [],
+      causalWindow: null,
+      anchorBlock: null,
+    });
+    router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
+  }
+
+  /* Open a checked export's proof page, handed the proof, its root document
+     and, when the row's file is the member it says, that file and its
+     evidence. A file that did not verify is never cached for the page: it
+     would show on the record's own page as if it were the record's. */
+  function openExportRow(r: TreeExportRow) {
+    const member = r.claims.some((x) => x.id === "bytes.member" && x.result === "TRUE");
+    const handed = treeHandoff(r.proof as unknown as VerifyProof, r.rootDocumentHex, member ? r.evidence : null) as unknown as BitGraphProof;
+    setFreshProof(r.digestUrlSafe, {
+      proofs: [{ proof: handed }],
+      positions: r.counter ? [{ counter: r.counter, epoch: r.epochUrlSafe, lowerTime: null, upperTime: null }] : [],
+      causalWindow: null,
+      anchorBlock: null,
+    });
+    if (member && r.file) void cacheArtifactToIDB(r.file, r.proof.artifact.digestB64).catch((e) => console.error("[bitgraph] cache error:", e));
+    const sel = r.counter ? `?counter=${encodeURIComponent(r.counter)}${r.epochUrlSafe ? `&epoch=${encodeURIComponent(r.epochUrlSafe)}` : ""}` : "";
+    router.push(`/proof/${encodeURIComponent(r.digestUrlSafe)}${sel}`);
+  }
+  // Tiny thumbs from the dropped bytes, for recognition in the results list
+  // (record and check alike): you dropped forty photos, the rows should look
+  // like your photos, not forty filenames. For a dropped proof.json the
+  // artifact is the matched file, when one was found.
+  const allDone = items.length > 0 && items.every(i => i.status === "found" || i.status === "proved");
+
+  /* ── Drop → Scan ── */
+
+  // Phases 1-3 of a drop — hash locally, one batched ledger lookup, assemble
+  // in drop order. Shared by the plain-file flow (handleFiles, which adds the
+  // solo routing and auto-record) and the folder-check flow, whose stray
+  // files ride the same scan with none of the routing.
+  async function scanFiles(files: File[], carrierProofs?: Map<File, BitGraphProof> | null): Promise<FileItem[]> {
+    setScanPhase("reading");
+    setScanProgress({ current: 0, total: files.length });
+
+    // Phase 1 — local work: detect dropped proof.json files, hash everything.
+    // Each file is streamed once through a scan worker (one per core) with
+    // the state-saving hasher: the digest for the lookup, the placement from
+    // the bytes, and for a trailer/1 file the hasher's state, so the set can
+    // finish its fused digest later without reading the file again. The
+    // couldBeProof gate stays: reading a multi-MB photo as TEXT allocates a
+    // UTF-16 copy and crashed iOS Safari after ~15 files.
+    type Scanned = { f: File; digest: string; proofJson: BitGraphProof | null; valid: boolean | null; scan: FileItem["scan"] | null; fromCarrier?: boolean };
+    const scanned: Scanned[] = new Array(files.length);
+    const pool = scanPool();
+    const scanStart = performance.now();
+    let bytesHashed = 0;
+    let hashed = 0;
+    let nextFile = 0;
+    let lastPaint = performance.now();
+    const hashWorker = async () => {
+      while (nextFile < files.length) {
+        // ⚠️ A WHOLE BATCH PER WORKER ROUND TRIP. One file per message made a
+        // 48,000 file drop 48,000 trips through the pool to hash 57 bytes
+        // apiece, and the messaging was the wait: 2.7MB of content in total
+        // took 6.9s (measured 2026-09-07). A File posts as a handle, so a
+        // hundred cost about what one costs.
+        const from = nextFile;
+        nextFile = Math.min(nextFile + SCAN_BATCH, files.length);
+        const at: number[] = [];
+        const toHash: File[] = [];
+        for (let i = from; i < nextFile; i++) {
+          const f = files[i];
+          // A dropped proof.json is decided here, in the page, and never
+          // reaches the hasher. The size gate stays: reading a multi-MB photo
+          // as TEXT allocates a UTF-16 copy and crashed iOS Safari after ~15.
+          let proofJson: BitGraphProof | null = null;
+          /* A file that arrived as a carrier travels with its own proof: the
+             row is decided by the pair it carries, the same way a dropped
+             proof.json is, and no lookup or mint can apply to it. The strip
+             already confirmed the bytes hash to the carried proof's digest. */
+          const carried = carrierProofs?.get(f) ?? null;
+          if (carried) {
+            const result = await verifyProofSignature(carried).catch(() => ({ valid: false }));
+            scanned[i] = { f, digest: carried.artifact.digestB64, proofJson: carried, valid: result.valid, scan: null, fromCarrier: true };
+            hashed++;
+            continue;
+          }
+          try {
+            const couldBeProof =
+              f.size <= 1_000_000 &&
+              (f.type === "application/json" || /\.(json|proof)$/i.test(f.name));
+            proofJson = couldBeProof ? isBitGraphProof(await f.text()) : null;
+          } catch { proofJson = null; }
+          if (proofJson) {
+            const result = await verifyProofSignature(proofJson).catch(() => ({ valid: false }));
+            scanned[i] = { f, digest: proofJson.artifact.digestB64, proofJson, valid: result.valid, scan: null };
+            hashed++;
+          } else {
+            at.push(i);
+            toHash.push(f);
+          }
+        }
+        if (toHash.length > 0) {
+          // hashBatch never rejects: a file the worker could not read falls
+          // back to the page, and past that to the native hasher.
+          const rs = await pool.hashBatch(toHash);
+          for (let k = 0; k < at.length; k++) {
+            const i = at[k];
+            const r = rs[k];
+            if (r) {
+              bytesHashed += r.bytes;
+              scanned[i] = { f: files[i], digest: r.digestB64, proofJson: null, valid: null, scan: { placement: r.placement, state: r.state } };
+            } else {
+              scanned[i] = { f: files[i], digest: "", proofJson: null, valid: null, scan: null };
+            }
+            hashed++;
+          }
+        }
+        // ⚠️ ON A TIME BUDGET, NOT PER FILE. This used to report progress and
+        // yield with setTimeout(0) for every single file: on a 48,000 file
+        // drop that is 48,000 React renders and 48,000 timer yields, and a
+        // chained setTimeout clamps to 4ms, so across the worker pool the
+        // waiting alone ran into tens of seconds. Same mistake, same shape, as
+        // the fuse pass that took 85s to do 2s of work (2026-09-07). One
+        // painted frame per 250ms of hashing is four updates a second, which
+        // is all a moving count needs.
+        if (performance.now() - lastPaint >= PAINT_EVERY_MS) {
+          lastPaint = performance.now();
+          setScanProgress({ current: hashed, total: files.length });
+          await paintFrame();
+          lastPaint = performance.now();
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(pool.size, files.length) }, hashWorker));
+    setScanProgress({ current: hashed, total: files.length });
+    const hashDoneAt = performance.now();
+    const scanSeconds = (hashDoneAt - scanStart) / 1000;
+    scanRateRef.current = scanSeconds > 0.5 && bytesHashed > 0 ? bytesHashed / scanSeconds : null;
+    /* ── PHASE 2, RESTORED 2026-09-28: THE SITE ASKS AGAIN ───────────────
+     *
+     * Phase 3 (2026-09-08) took the lookup out: "do these bytes already have
+     * a proof?" was to be answered from the BitGraphs folder you connected.
+     * On 09-16 the ledger came back (Mike: "we have to let the proofs record
+     * to s3 so the website can function properly") but the asking did not,
+     * so a plain file BitGraphed before read as new unless this browser
+     * happened to hold its proof, and a lone one was made AGAIN: hello.txt
+     * got a second position, #9,398, 24 minutes after its first (Mike,
+     * 2026-09-28: "it doesnt look them up as bitgraphed"). Restored as it
+     * stood on 09-07: chunked, ten in flight, split and retry, and
+     * `unavailable` rather than an empty answer when a chunk never comes back.
+     *
+     * ⚠️ THE DIGEST INDEX CAME BACK WITH IT (lib/digest-index.ts, Mike: "bring
+     * back the index"). Deleted with phase 3, it is what answers "not on
+     * record" from memory. Without it every digest was an S3 listing again:
+     * measured on production 2026-09-28 with bytes never recorded, 1,000 in
+     * 5.3s alone and 10,000 in 17.3s ten at a time, so a 55,000 file folder
+     * would have spent about 95s checking.
+     *
+     * ⚠️ WHAT LEAVES THE MACHINE CHANGES: every dropped file's digest, not
+     * only the new file's. The "Is sent" list on /docs/try has to say so.
+     *
+     * A carrier or a proof.json answers its own row and is never asked
+     * about. The browser's own list (the fold-in at the end of this
+     * function) stays a second source, and only ever turns "new" into
+     * "found".
+     */
+    const lookupKeys = [...new Set(
+      scanned.filter((s) => !s.proofJson && s.digest).map((s) => toUrlSafeB64(s.digest)),
+    )];
+    const lookup: Record<string, BatchEntry> = {};
+    setCheckProgress({ current: 0, total: 0 });
+    setScanPhase("checking");
+    if (lookupKeys.length) {
+      setCheckProgress({ current: 0, total: lookupKeys.length });
+      let done = 0;
+      const advance = (n: number) => {
+        done += n;
+        setCheckProgress({ current: done, total: lookupKeys.length });
+      };
+      /**
+       * One chunk, and what happens when it does not come back.
+       *
+       * ⚠️ A FAILED CHUNK USED TO DESTROY THE WHOLE LOOKUP. One `throw` left
+       * the try block, threw away every chunk that had already succeeded, and
+       * dropped into a fallback that fetched all N digests ONE AT A TIME at
+       * six concurrent. For 48,000 files that is about thirteen minutes, and
+       * the fallback never touched setCheckProgress, so the counter froze at
+       * whatever it last showed while the tab ground on. That is exactly what
+       * "Checking 0 of 48000, stuck" was (Mike, 2026-09-07).
+       *
+       * A chunk fails here for one reason in practice: it asked for more than
+       * a 60s function can answer. Measured against production, 2,000 digests
+       * that all hit took 24s alone but THREE OF FIVE concurrent requests ran
+       * into maxDuration at 60s. So a failure is a signal to ask for less,
+       * and halving is the response: the same digests come back as two
+       * cheaper questions, and only a chunk that fails at its smallest still
+       * counts as unanswered.
+       */
+      const lookupChunk = async (keys: string[], depth: number): Promise<void> => {
+        try {
+          const r = await fetch("/api/proofs/batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ digests: keys, environments: "table" }),
+          });
+          if (!r.ok) throw new Error(`batch ${r.status}`);
+          Object.assign(lookup, batchAnswer(await r.json()));
+          advance(keys.length);
+        } catch (err) {
+          if (keys.length > BATCH_MIN_CHUNK) {
+            const mid = Math.ceil(keys.length / 2);
+            // Sequentially, not in parallel: the thing that just failed was
+            // too much at once, so a retry must not re-create the load.
+            await lookupChunk(keys.slice(0, mid), depth + 1);
+            await lookupChunk(keys.slice(mid), depth + 1);
+            return;
+          }
+          if (depth < BATCH_MIN_RETRIES) {
+            await new Promise((r) => setTimeout(r, 400 * (depth + 1)));
+            await lookupChunk(keys, depth + 1);
+            return;
+          }
+          // ⚠️ `unavailable`, NEVER `{ proofs: [] }`. An empty list is the
+          // wire form of "these bytes were never recorded", so writing one
+          // here would tell a visitor their genuine recording is not on the
+          // ledger, and offer to record it AGAIN, minting a second permanent
+          // position for bytes that already had one. The old per-digest
+          // fallback did exactly that on every non-ok response.
+          console.error("[check] giving up on", keys.length, "digests:", err);
+          for (const k of keys) lookup[k] = { proofs: [], unavailable: true };
+          advance(keys.length);
+        }
+      };
+      const chunks: string[][] = [];
+      for (let i = 0; i < lookupKeys.length; i += BATCH_CHUNK) chunks.push(lookupKeys.slice(i, i + BATCH_CHUNK));
+      let nextChunk = 0;
+      const chunkWorker = async () => {
+        while (nextChunk < chunks.length) await lookupChunk(chunks[nextChunk++], 0);
+      };
+      await Promise.all(Array.from({ length: Math.min(BATCH_IN_FLIGHT, chunks.length) }, chunkWorker));
+    }
+
+    // Phase 3 — assemble in drop order. The lookup returns EVERY proof
+    // recorded for the bytes (earliest causal position first): the same bits
+    // can occupy several positions when BitGraphed more than once. Signature
+    // checks are WebCrypto, cheap to run together.
+    const lookupDoneAt = performance.now();
+    /**
+     * ⚠️ NO SIGNATURE CHECK RUNS HERE, and `valid` stays null, which is this
+     * type's "not checked" and what a row that was never looked up already
+     * carries.
+     *
+     * It used to verify the earliest proof of EVERY found file. Measured
+     * 2026-09-07 on the real 48,000 file folder, re-dropped so every digest
+     * hit: @noble/ed25519 is pure JS, 1.24 ms a proof, so 48,000 files was
+     * 60 SECONDS of main-thread work inside one Promise.all over 48,000
+     * pending promises, nothing yielding, the tab frozen throughout. It is
+     * most of what "checking takes FOREVER" was (Mike, 2026-09-07).
+     *
+     * And nothing displayed the answer: `valid` is written here and read
+     * NOWHERE in the UI (folder-list.tsx does not mention it). Sixty seconds
+     * bought a field no one sees.
+     *
+     * ⚠️ IF A PER-ROW VERIFIED MARK IS EVER WANTED, it must not come back as
+     * a loop over every file. Verify the rows the window actually renders,
+     * about thirty of them, and leave the rest null: null must keep meaning
+     * NOT CHECKED and must never be drawn as if it verified. The full check
+     * still runs, unchanged, in the two places that show a verdict: a dropped
+     * proof.json (below, via `s.valid`) and the proof page a row opens.
+     */
+    const results: FileItem[] = scanned.map((s) => {
+      const { f, digest, proofJson, valid } = s;
+      if (proofJson) {
+        return { file: f, digestB64: digest, proof: proofJson, proofs: [proofJson], valid, status: "found" as const, fromProofJson: true, fromCarrier: s.fromCarrier === true };
+      }
+      const rec = digest ? lookup[toUrlSafeB64(digest)] : undefined;
+      // "On record" means bitgraph/1 only — the same filter the Folder applies
+      // at its response edge (1.10.0). The append-only ledger still answers
+      // occ/1 proofs for pre-cutover bytes, but those can never verify under
+      // the current chain, so treating them as "on record" here meant a drop
+      // LOOKED UP a dead proof instead of recording the bytes properly. The
+      // earliest bitgraph/1 position stays proofs[0], never re-derived.
+      // Recordings of these exact bytes first, then the fused artifacts that
+      // name them as origin (kind "fused"), each by position, none ranked.
+      // Either kind answers the drop: a visitor who drops the original finds
+      // the fused BitGraph it produced. A fused descendant is still not a
+      // recording of the bytes themselves; the row's label says so and the
+      // proof page says where the artifact came from.
+      // ⚠️ A FAILED READ IS NOT A VERDICT. `unavailable` means the ledger
+      // could not be read, which is not the same as "these bytes are not on
+      // it". Falling through to "new" here would offer to record bytes that
+      // may already hold a position, minting a permanent second one. The row
+      // says error instead, and the visitor can still choose to record.
+      if (rec?.unavailable) {
+        return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "error" as const, ...(s.scan ? { scan: s.scan } : {}) };
+      }
+      const entries = (rec?.proofs || []).filter((x) => x.proof?.version === "bitgraph/1");
+      const ordered = [...entries.filter((x) => x.kind !== "fused"), ...entries.filter((x) => x.kind === "fused")];
+      if (ordered.length > 0) {
+        // Each row shows a compact "when", same as the ledger: the proof's own
+        // recorded instant (its attestation timestamp), with the ledger write
+        // moment only for a proof whose attestation cannot be read. Legacy
+        // entries with neither just leave the slot blank.
+        const times = ordered.map((x) => recordedMsOf(x.proof) ?? x.writeTime ?? null);
+        const kinds = ordered.map((x): "recorded" | "fused" => (x.kind === "fused" ? "fused" : "recorded"));
+        // A position held as one member of a set says so, per row: the
+        // ledger's member index names the row (ordinal and count, and whether
+        // these bytes are the origin or the new file).
+        const member = ordered.map((x) => x.member ?? null);
+        return { file: f, digestB64: digest, proof: ordered[0].proof, proofs: ordered.map((x) => x.proof), kinds, times, member: member.some((m) => m !== null) ? member : null, valid: null, status: "found" as const, ...(rec?.partial ? { partial: true } : {}), ...(s.scan ? { scan: s.scan } : {}) };
+      }
+      return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const, ...(s.scan ? { scan: s.scan } : {}) };
+    });
+
+    // The same measurement discipline as the making, for the half that runs
+    // before the button appears: reasoning about which step is slow has been
+    // wrong every time today, and the number has been right every time.
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("timing")) {
+      const ms = (a: number, b: number) => `${((b - a) / 1000).toFixed(1)}s`;
+      const end = performance.now();
+      setRecordMessage(
+        `checked ${files.length} files · hash ${ms(scanStart, hashDoneAt)}` +
+        ` · lookup ${ms(hashDoneAt, lookupDoneAt)}` +
+        ` · assemble ${ms(lookupDoneAt, end)}` +
+        ` · total ${ms(scanStart, end)}`,
+      );
+    }
+
+    /* ── What YOU already hold ──
+     *
+     * The connected folder answers the same question the hosted ledger does,
+     * about your own files, for free. Folded in AFTER the lookup so it can
+     * only ever ADD: a row the hosted ledger already settled keeps its answer,
+     * and a row it could not settle can still be recognised from your folder.
+     *
+     * ⚠️ IT ONLY EVER TURNS "new" INTO "found", NEVER THE REVERSE. The local
+     * ledger is a record of what you happen to have shown this browser, so its
+     * SILENCE means nothing at all — exactly the distinction that mattered
+     * four times on 2026-09-07. It can miss a match; it must never erase one.
+     */
+    if (ledger.proofs.length) {
+      for (const r of results) {
+        if (r.status !== "new" || !r.digestB64) continue;
+        const held = heldFor(ledger, r.digestB64);
+        if (!held.length) continue;
+        r.proofs = held;
+        r.proof = held[0];
+        r.status = "found";
+        // Not asserted: nothing here verified a signature, and the row's
+        // own verify path is what earns that.
+        r.valid = null;
+      }
+    }
+
+    /* ── What a recovery entry remembers ──
+     *
+     * A file made inside a tree (tree/1) is never indexed by its plain hash:
+     * that is the privacy rule. Its sealed recovery entry (lib/recovery.ts) is
+     * how a dropped file finds its proof again, so it is asked here, for rows
+     * still "new", BEFORE anything decides to make them: a member found here
+     * must never be made a second time. Every entry is bound to its proof and
+     * the file is verified as that member before the row changes.
+     *
+     * Like the folder above, it only ever turns "new" into "found". A failed
+     * read leaves the row "new" and says so in the console: the recovery store
+     * being unreachable must not stop a first recording.
+     */
+    const recovered = await recoverRows(results, {
+      local: (d) => browserRecoveryQueue().localEntriesFor(d),
+      onProgress: (current, total) => setRecoveryProgress(total > 1000 ? { current, total } : { current: 0, total: 0 }),
+    });
+    setRecoveryProgress({ current: 0, total: 0 });
+    for (const [i, trees] of recovered.found) {
+      const r = results[i]!;
+      // ADDED to what the plain index found, never substituted (2026-10-04): a file can hold an
+      // older solo position and a tree position, and the row lists both. The earlier position
+      // stays first; a tree position already listed is not listed twice.
+      const had = r.proofs.length ? r.proofs : r.proof ? [r.proof] : [];
+      const have = new Set(had.map((p) => treePositionKey(p)));
+      const treeProofs = trees
+        .filter((t) => !have.has(t.proofKey))
+        .map((t) => treeHandoff(t.proof as unknown as Parameters<typeof treeHandoff>[0], t.rootDocumentHex, t.evidence) as unknown as BitGraphProof);
+      r.proofs = [...had, ...treeProofs];
+      r.proof = r.proofs[0]!;
+      r.recoveredTrees = trees.map((t) => ({ proofKey: t.proofKey, rootDocument: t.rootDocument, evidence: t.evidence }));
+      r.status = "found";
+      r.valid = null;
+    }
+    // A lookup that did not complete is not a verdict either way: the row
+    // stays "new" to look at, and is not made without asking (SPEC section 13).
+    for (const [i, why] of recovered.unknown) results[i]!.recoveryUnknown = why;
+    if (recovered.failed) console.warn(`[recovery] ${recovered.failed} lookup(s) did not complete; whether those files are already in a tree is unknown`);
+    return results;
+  }
+
+  /**
+   * Take any BitGraphs files out of a drop and connect them.
+   *
+   * ⚠️ CONNECTING IS DRAGGING, and it can never mint. A drop that is only
+   * BitGraphs files is a connection and nothing else: it ends here, with the
+   * count in the box changed and no slot consumed anywhere. A mixed drop
+   * connects what it can and carries on with the rest, so dragging a whole
+   * BitGraphs folder in alongside photos does the obvious thing.
+   */
+  async function connectFrom(files: File[]): Promise<File[]> {
+    const { proofs, sources, rest } = await readBitGraphsFiles(files);
+    if (!proofs.length) return rest;
+    setLedger((prev) => {
+      const next = addProofs(prev, proofs, sources[0] ?? null,
+        (p) => { try { return fusedMarkerOf(p)?.originDigestB64 ?? null; } catch { return null; } });
+      void saveLedger(next);
+      // The nav's indicator lives on every page and cannot see this state.
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(LEDGER_CHANGED));
+      return next;
+    });
+    return rest;
+  }
+
+  async function handleFiles(files: File[]) {
+    /* A loose-file drop borrows the folder the browser reports for the files,
+       when there is one (a folder chosen through the picker carries
+       webkitRelativePath); otherwise there is genuinely no name to take, and
+       the saved file says so rather than inventing one. A folder DROP sets
+       this in handleFolder before the files ever get here. */
+    if (dropNameRef.current === null) {
+      const rel = (files[0] as File & { webkitRelativePath?: string })?.webkitRelativePath;
+      dropNameRef.current = rel && rel.includes("/") ? rel.split("/")[0] : null;
+    }
+    setStep("scanning");
+    // A new drop retires the last run's sentence; the rows are the answer now.
+    setRecordMessage(null);
+    setBoxOpen(false);
+    /* ⚠️ AND IT RETIRES THE LAST FOLDER'S VERDICTS. handleFolder clears
+       `items` when a folder lands, but nothing cleared `checked` when FILES
+       landed — so a file dropped after a folder rendered the old folder's
+       verdicts above the new answer, as though they were part of it. Latent
+       before (two drops in a row, one of each); ordinary now that a dropped
+       zip takes the folder path. */
+    setChecked([]);
+    setExportRows([]);
+    setAnchorPlan(null);
+    setAnchorNote(null);
+    setCarrierDrops([]);
+
+    /* ⚠️ THE PRODUCT COULD NOT READ ITS OWN EXPORT.
+     *
+     * "Export BitGraph package" produces a .zip. Dropping that zip back in did
+     * nothing useful: discoverDrop looks for a literal proof.json in the walk,
+     * a zip is one opaque file, so it was hashed as bytes and came back NOT
+     * RECORDED — the worst answer available, about a package this site had
+     * just written. Mike called it before testing: "exporting a package
+     * creates a zip which i bet wont work until its unzipped".
+     *
+     * The site already ships fflate for WRITING zips; reading one costs an
+     * import. So a dropped zip is opened here and its entries walk through
+     * exactly the same path a dragged folder does.
+     *
+     * ⚠️ SIZE IS THE ONE REAL RISK: unzipSync is synchronous and holds
+     * everything in memory, and a package carries the original bytes, so a
+     * folder of raws is gigabytes. Past the cap the zip is left alone and
+     * treated as an ordinary file, which is the old behaviour and honest —
+     * never a frozen tab. */
+
+    /* Carriers announce themselves in their last bytes: strip by structure and
+       check the committed bytes inside (lib/carrier-site). The line above the
+       results says what happened; the outer envelope's hash is checked nowhere. */
+    let carrierProofs: Map<File, BitGraphProof> | null = null;
+    {
+      const dc = await deCarrierFiles(files);
+      // Files whose proof block cannot be read are held back: never recorded, never checked as plain bytes.
+      files = dc.files.filter((f) => !dc.unreadable.has(f));
+      if (dc.notes.length) setCarrierDrops(dc.notes);
+      if (dc.proofs.size) carrierProofs = dc.proofs as unknown as Map<File, BitGraphProof>;
+      // Everything dropped was held back: the line above the results says why, and nothing is recorded.
+      if (files.length === 0) return;
+    }
+
+    const zips = files.filter((f) => f.name.toLowerCase().endsWith(".zip"));
+    if (zips.length) {
+      const UNZIP_CAP = 256 * 1024 * 1024;
+      const walked: WalkedFile[] = [];
+      const opened = new Set<File>();
+      for (const z of zips) {
+        if (z.size > UNZIP_CAP) continue;
+        try {
+          const entries = unzipSync(new Uint8Array(await z.arrayBuffer()));
+          const root = z.name.replace(/\.zip$/i, "");
+          for (const [path, bytes] of Object.entries(entries)) {
+            // Directory entries carry no bytes and no name.
+            if (path.endsWith("/") || !bytes.length) continue;
+            const segs = path.split("/").filter(Boolean);
+            if (!segs.length) continue;
+            walked.push({
+              file: new File([bytes as Uint8Array<ArrayBuffer>], segs[segs.length - 1]),
+              // Rooted at the zip's own name, so the export inside it keeps the
+              // shape a folder drop would have had.
+              path: [root, ...segs],
+            });
+          }
+          opened.add(z);
+        } catch (e) {
+          // Not a readable zip, or not a zip at all: it stays an ordinary file.
+          console.warn("[bitgraph] could not open a dropped zip:", e);
+        }
+      }
+      if (walked.length) {
+        const rest = files.filter((f) => !opened.has(f));
+        if (rest.length) walked.push(...rest.map((f) => ({ file: f, path: [f.name] })));
+        void handleFolder(walked);
+        return;
+      }
+    }
+
+    // Connect first. A drop of nothing but BitGraphs files IS the connection
+    // gesture and ends right here — nothing is hashed, nothing is minted, the
+    // count in the box just changes.
+    const rest = await connectFrom(files);
+    if (rest.length === 0) { setStep("drop"); setBoxOpen(true); return; }
+    files = rest;
+
+    /* The browser warns, it does not downgrade: a file that will take long to
+       hash is named, with the wait, before anything is read, and the drop
+       goes on only when the visitor says so. Nothing is chosen for them. */
+    const slow = slowestFile(files);
+    if (slow !== null && !largeOkRef.current.has(slow.file)) {
+      setLargeDrop({ files, name: slow.file.name, gb: slow.gb, seconds: slow.seconds });
+      setStep("drop");
+      setBoxOpen(true);
+      return;
+    }
+
+    /* export/1: a tree/1 BitGraph's one JSON file, dropped alone or with the
+       files it covers. It is checked here, from the drop alone, and the files
+       it covers come OUT of the drop before anything can offer to make them:
+       a photo dropped beside its export is a check, never a new BitGraph. Its
+       digest is no key on the ledger (a tree's members are not indexed), so
+       without this the lookup below calls it new and a lone one is made again
+       at a fresh position. SPEC.md, which travels beside every export, comes
+       out with them. Nothing on this path can mint. */
+    const dropped = await readTreeExports(files);
+    if (dropped.exports.length > 0) {
+      const scannedRest = await scanFiles(dropped.rest, carrierProofs);
+      setScanPhase("checking");
+      setCheckProgress({ current: 0, total: 0 });
+      let left = scannedRest;
+      try {
+        const verdicts = await checkTreeExports(
+          dropped.exports,
+          scannedRest.filter((r) => !r.fromProofJson && r.digestB64).map((r) => ({ file: r.file, digestB64: r.digestB64 })),
+          // The enclave images BitGraph publishes: PCR0 is judged, not just reported.
+          { pins: { pcr0: [...PUBLISHED_PCR0S] }, onProgress: (current, total) => setCheckProgress({ current, total }) },
+        );
+        left = scannedRest.filter((r) => !verdicts.covered.has(r.file) && !verdicts.specFiles.has(r.file));
+        setExportRows(verdicts.rows);
+      } catch (e) {
+        console.error("[bitgraph] export check failed:", e);
+        setRecordMessage(`The export could not be checked: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      setItems(left);
+      setStep("results");
+      setAnimCount(left.filter((r) => r.status === "found").length);
+      return;
+    }
+    const results = await scanFiles(files, carrierProofs);
+
+    // One file in, one page out. A single artifact drop always lands on its
+    // proof page, with no button in between: the drop IS the shutter.
+    //   - already recorded  → open its existing proof (a lookup).
+    //   - not yet recorded  → record it now, then open the new proof.
+    // The outcome (lookup vs record) is decided only by whether the bytes
+    // already existed. Batches KEEP the explicit Record button (recording N
+    // new files at once is a batch commitment, and the list is where you see
+    // which are new vs on record). A dropped proof.json stays here too: its
+    // check flow lives on this page.
+    const solo = results.length === 1 ? results[0] : null;
+    // fresh=true plays the capture flash on the proof page (a just-recorded
+    // BitGraph), never on a lookup of something already on record.
+    const openProofPage = (p: BitGraphProof, file: File, fresh = false) => {
+      const proofDigest = p.artifact.digestB64;
+      const c = p.commit?.counter;
+      const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
+      const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}${fresh ? "&fresh=1" : ""}` : (fresh ? "?fresh=1" : "");
+      // Fire-and-forget: bytes land in IndexedDB while the client-side push
+      // happens now; the proof page polls the cache, so navigation never waits
+      // on the ~6 MB C2PA toolkit.
+      void cacheArtifactToIDB(file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+      // A tree member that arrived in its own BitGraphed file (carrier/4) goes over with the
+      // evidence its block placed it by (the strip checked it against the proof): a tree's
+      // members are indexed nowhere, so the page could not place it from a lookup.
+      if (!fresh && treeMemberHandoffOf(p)) {
+        setFreshProof(toUrlSafeB64(proofDigest), {
+          proofs: [{ proof: p }],
+          positions: c ? [{ counter: c, epoch: epoch || null, lowerTime: null, upperTime: null }] : [],
+          causalWindow: null,
+          anchorBlock: null,
+        });
+      }
+      // On a fresh recording, hand the committed proof to the proof page so it
+      // paints the record instantly (image + hash + "Recorded"), no skeleton.
+      // The causal window / anchor stay pending until the background fetch fills
+      // them in — correct, since a new proof's sealing anchor hasn't landed yet.
+      /* Making ends in a file, on the solo path too: this screen is about to be
+         replaced by the proof page, and a mint that leaves nothing on disk is
+         exactly the loss the ledger used to absorb for us.
+
+         ⚠️ THE ROW IS BUILT HERE, NOT READ FROM `items`. On this path the proof
+         is never written into items — a solo make goes straight to its proof
+         page — so a save driven off state finds a row with no proof on it and
+         silently exports nothing. It did exactly that the first time. */
+      if (fresh) {
+        saveBitGraphs([{
+          file, digestB64: p.artifact.digestB64, proof: p, proofs: [p],
+          valid: true, status: "proved",
+        } as FileItem], file.name.replace(/\.[^.]+$/, ""));
+      }
+      if (fresh) {
+        setFreshProof(toUrlSafeB64(proofDigest), {
+          proofs: [{ proof: p }],
+          positions: c ? [{ counter: c, epoch: epoch || null, lowerTime: null, upperTime: null }] : [],
+          causalWindow: null,
+          anchorBlock: null,
+        });
+      }
+      router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
+    };
+    /* A carrier rides the proof.json path (its proof came from inside the
+       file), but unlike a bare proof it arrives WITH its bytes, so the 09-08
+       solo ruling applies: one file in, one page out. The bytes travel to the
+       page, so the hub's downloads, the original included, work on arrival. */
+    if (solo && (!solo.fromProofJson || solo.fromCarrier)) {
+      /* A lone file already on record OPENS ITS PROOF (Mike, 2026-09-08:
+         "dropping a single file should simply just pull up its coorasponding
+         proof").
+
+         ⚠️ THIS REVERSES HIS OWN RULING OF 2026-08-19, deliberately and by his
+         word. That ruling kept a found file on the results card, because
+         navigating on a drop that recorded something and on a drop that
+         recorded nothing made the two outcomes look identical, when telling
+         them apart is the job of the gesture. The counter-argument then was
+         that the card showed every position the bytes hold, which one proof
+         page could not.
+
+         What changed is what the card is worth. It was a window onto a hosted
+         ledger; there is no hosted ledger now, and the proof page itself
+         carries every position in its Causal Positions card — so the card's
+         one advantage moved into the destination. What is left of it is a
+         one-row list in front of the thing you asked for.
+
+         The two outcomes are still told apart, just not by whether the screen
+         moves: a make lands on a page that says Recorded and its BitGraph is
+         in the browser; a lookup lands on a page that was already there. */
+      if (solo.status === "found" && solo.proof) {
+        setItems(results);
+        openProofPage(solo.proof, solo.file);
+        return;
+      }
+      if (solo.status === "new" && solo.digestB64) {
+        /* ❄️ NO GATE. A lone new file auto-records, exactly as it always has.
+         *
+         * I put a gate here — with nothing connected, ask before minting,
+         * because "new" is unknowable without a ledger. It was the wrong call
+         * and Mike said so plainly: it should be EXACTLY like before, with the
+         * folder standing where S3 stood. The gate was not a storage change,
+         * it was a new question in front of the product's most common gesture.
+         *
+         * And his own earlier ruling had already removed its justification:
+         * losing dedup is a CORRECTION, not a loss — a clock that ticks when
+         * you ask should tick every time you ask. If a second position for the
+         * same bytes is correct, there is nothing to protect anyone from, and
+         * nothing to ask about. */
+        // Auto-record the lone new file, then open its fresh proof. Show the
+        // proving spinner while the TEE signs (a second or two).
+        setItems(results);
+        setStep("proving");
+        setProveProgress({ current: 0, total: 1 });
+        // Through the rotation wrapper: a solo drop is the product's most
+        // common gesture, and during the daily key renewal it must hold and
+        // resume (the proving view shows the held message), not fail raw.
+        // `begin` is inside the hold too: /actor's touch waits for a live
+        // camera rather than signing a nonce the restart has already thrown
+        // away.
+        let begun = false;
+        try {
+          // By default the file becomes a tree of one (tree/1): a position is
+          // allocated for it, its committed bytes are built and hashed in
+          // memory (or, when the user kept it as is, the file is a leaf as is),
+          // and the root document over its one leaf consumes that position.
+          // The proof page then shows the visitor's own file, which rebuilds
+          // its leaf (see the tree card there).
+          const made = fuseByDefault
+            ? await makeOne(solo)
+            : await (async () => {
+                await commitThroughRotation(() => beginRun([solo.digestB64]));
+                begun = true;
+                return { proof: await commitThroughRotation(() => strategy.one(solo.digestB64)) };
+              })();
+          const p = made.proof;
+          void announceRecorded([p]);
+          openProofPage(p, solo.file, true);
+          return;
+        } catch (e) {
+          // Recording failed: fall back to the results card so the user can
+          // retry via the explicit button instead of a dead end. The file
+          // stays "new" either way (a solo commit that fails mints nothing).
+          setRecordMessage(strategy.errorMessage?.(e, begun ? "commit" : "begin") ?? (e instanceof Error ? e.message : null));
+          setItems(prev => prev.map(i => i.digestB64 === solo.digestB64 ? { ...i, status: "new" as const } : i));
+          setAnimCount(0);
+          setStep("results");
+          return;
+        }
+      }
+    }
+
+    setItems(results);
+    setStep("results");
+
+    // Show the count directly, no per-tick animation. The old setInterval
+    // ticked the number up one at a time, and each tick re-rendered the whole
+    // results list; for a large drop (1000+) that looked hung near the end and
+    // took far too long. The final number just appears.
+    setAnimCount(results.filter(r => r.status === "found").length);
+  }
+
+  /* ── Folder drop: the skeptic's drop ── */
+
+  // The drop zone detected a directory. Discovery is by content, the same
+  // rule as the Folder and bitgraph-audit: directories holding a proof.json
+  // are exports and get the three-sided check (bytes vs proof, proof vs
+  // ledger at the claimed position, anchors vs chain); a folder with no
+  // proof.json anywhere is just files and takes the ordinary flow — which
+  // also finally makes "drag the files/ folder itself" work without
+  // select-all. Every step is a read; nothing here can record.
+  function handleFolderScan(files: number, done: boolean) {
+    if (done) return; // handleFolder takes the screen from here
+    setScanPhase("walking");
+    setWalkCount(files);
+    setStep("scanning");
+  }
+
+  async function handleFolder(walked: WalkedFile[]) {
+    setRecordMessage(null);
+    setBoxOpen(false);
+    setExportRows([]);
+    const scan = discoverDrop(walked);
+    /* Connect before anything else is decided. A dragged BitGraphs folder IS
+       the connection gesture — it holds no proof.json, so discoverDrop finds
+       no exports and every file in it is a "stray" that would otherwise be
+       hashed and looked up like a photo. Connecting first also means a folder
+       holding BOTH exports and a BitGraphs file does the obvious thing.
+       ⚠️ This can never mint: it only reads JSON already on the machine. */
+    const strays = await connectFrom(scan.strays);
+    if (scan.exports.length === 0) {
+      // Hand off, or put the drop zone back: the reading state was raised
+      // before anyone knew what was in the folder, so it has to be retired
+      // here even when the answer is "nothing".
+      if (strays.length) void handleFiles(strays);
+      else {
+        // Connect-only drop: nothing to read, so retire the walking phase
+        // with the step rather than leaving it for the next screen to inherit.
+        setScanPhase("reading");
+        setStep("drop");
+        setBoxOpen(true);
+      }
+      return;
+    }
+    // The day renders the moment the local scan finishes; verdicts stream
+    // in per row behind it. No full-screen wait at all: browsing must be
+    // instant, verification merely prompt.
+    setFolderChecking(true);
+    setAnchorPlan(null);
+    setAnchorNote(null);
+    // Cleared ONCE, here, rather than inside onRows. Both halves of a mixed
+    // drop are in flight at the same time, and onRows fires whenever the
+    // export scan happens to finish — so clearing there raced the stray scan
+    // and silently ate every loose file whenever the strays landed first.
+    setItems([]);
+    /* The drop's own shape, for the anchors export: where each export dir
+       sits, and what anchor files the drop already holds. Read from the WALK,
+       not from scan.exports, because a multi-file package export writes one
+       batch-level ethereum-anchors/ at the TOP of the drop and discoverDrop
+       only claims ethereum-anchors/ found inside an export dir — measured: a
+       3-file site export shows 3 exports, 0 of which see anchors. Reading the
+       walk means this converges on folders the check cannot fully see, and
+       needs no change to the check. */
+    dropNameRef.current = walked[0]?.path[0] ?? null;
+    const { dirPathOf, rootAnchors } = readDropShape(walked);
+    const { done } = startFolderCheck(scan.exports, {
+      onRows: (rows) => {
+        setChecked(rows);
+        setStep("results");
+        // Proofs are parsed by the time the rows exist, so the plan is free
+        // here; `rows` is index-aligned with scan.exports by construction.
+        const sites: ExportSite[] = scan.exports.map((cand, i) => ({
+          dirPath: dirPathOf.get(cand.proofFile) ?? [],
+          epochId: rows[i]?.proof?.commit?.epochId ?? null,
+          counter: rows[i]?.proof?.commit?.counter ?? null,
+          hasUpper: !!cand.anchors.after,
+          hasLower: !!cand.anchors.before,
+          // A Base floor (enclave v10) has no Ethereum anchors to complete.
+          baseFloor: baseFloorOf(rows[i]?.proof) !== null,
+        }));
+        setAnchorPlan({
+          positions: countPositions(sites),
+          needs: positionsNeedingAnchors(sites, rootAnchors),
+          dropName: walked[0]?.path[0] ?? null,
+        });
+      },
+      onUpdate: (index, row) => {
+        setChecked((prev) => prev.map((r, i) => (i === index ? row : r)));
+      },
+      onDone: (rows) => {
+        setChecked(rows);
+        setFolderChecking(false);
+      },
+    });
+    void done.catch((e) => {
+      console.error("[bitgraph] folder check failed:", e);
+      setFolderChecking(false);
+    });
+    // Files in the drop that belong to no export are just files: hash and
+    // look them up like any other drop (their card renders below the
+    // verdicts), with none of the solo routing. An export/1 among them is
+    // checked against the files it covers, which then leave the list, the
+    // same rule handleFiles keeps.
+    if (strays.length) {
+      void (async () => {
+        const dropped = await readTreeExports(strays);
+        const strayItems = await scanFiles(dropped.rest);
+        let left = strayItems;
+        if (dropped.exports.length > 0) {
+          const verdicts = await checkTreeExports(dropped.exports, strayItems.filter((r) => !r.fromProofJson && r.digestB64).map((r) => ({ file: r.file, digestB64: r.digestB64 })), { pins: { pcr0: [...PUBLISHED_PCR0S] } });
+          left = strayItems.filter((r) => !verdicts.covered.has(r.file) && !verdicts.specFiles.has(r.file));
+          setExportRows(verdicts.rows);
+        }
+        setItems(left);
+        setAnimCount(left.filter((r) => r.status === "found").length);
+      })().catch(() => { /* strays are secondary; the ledger stands */ });
+    }
+  }
+
+  // Open a verdict row's proof page, pinned to the claimed position. The
+  // artifact bytes are cached for the page only when they matched the proof —
+  // caching differing bytes under the proof's digest would show the wrong
+  // image on the record's own page.
+  function openCheckedRow(r: ExportCheckResult) {
+    /* ⚠️ A ROW NO LONGER HAS TO BE ON THE LEDGER TO BE OPENED. The gate was
+       `onLedger`, which was right when the proof page could only look things
+       up — clicking through to a page that would say "not found" helped
+       nobody. The page is a VIEWER now, so the row hands it the proof it is
+       already holding and the record renders with no lookup behind it at all.
+       Without this, every row from your own BitGraphs folder would be inert. */
+    if (!r.digestUrlSafe) return;
+    if (r.proof) {
+      setFreshProof(r.digestUrlSafe, {
+        proofs: [{ proof: r.proof }],
+        positions: r.counter ? [{ counter: r.counter, epoch: r.epochUrlSafe, lowerTime: null, upperTime: null }] : [],
+        causalWindow: null,
+        anchorBlock: null,
+      });
+    }
+    if (r.matchedFile && r.proof) {
+      void cacheArtifactToIDB(r.matchedFile, r.proof.artifact.digestB64).catch((e) => console.error("[bitgraph] cache error:", e));
+    }
+    const sel = r.counter
+      ? `?counter=${encodeURIComponent(r.counter)}${r.epochUrlSafe ? `&epoch=${encodeURIComponent(r.epochUrlSafe)}` : ""}`
+      : "";
+    router.push(`/proof/${encodeURIComponent(r.digestUrlSafe)}${sel}`);
+  }
+
+  /* ── Prove unproven files ── */
+
+  // Hand each fresh recording straight to the ledger: the commit response
+  // already knows the counter, so the dropper's own Ledger shouldn't wait for
+  // the next poll to show a mint it just watched happen. Fire-and-forget.
+  async function announceRecorded(proofs: BitGraphProof[]) {
+    try {
+      const entries = await Promise.all(proofs.filter(Boolean).map(async (p) => ({
+        counter: parseInt(String(p.commit?.counter ?? "0"), 10),
+        type: "proof" as const,
+        digest: toUrlSafeB64(p.artifact.digestB64),
+        hashShort: toUrlSafeB64(await proofHashB64(p)).slice(0, 10),
+        blockNumber: null,
+        etherscanUrl: null,
+        isNew: true as const,
+        at: Date.now(),
+      })));
+      const valid = entries.filter((e) => e.counter > 0);
+      if (valid.length) window.dispatchEvent(new CustomEvent("bitgraph:recorded", { detail: valid }));
+    } catch { /* display-only, never block the prove flow */ }
+    void fillRecordedTimes(proofs);
+  }
+
+  // A just-minted row had no "when" while every row around it did, which read
+  // as missing data, because these rows showed the LEDGER's write moment and a
+  // fresh proof came back from the boundary, not from a ledger read. A row's
+  // time is now the proof's own recorded instant, its attestation timestamp,
+  // the time its proof page leads with (Mike, 2026-09-27: "make it
+  // consistent"), so a fresh proof carries its time in hand. Deliberately
+  // still NOT this browser's clock: the product does not assert time from an
+  // untrusted source, and a row whose time came from the machine that made it
+  // would be a different claim wearing the same clothes. The ledger lookup
+  // below is only for a proof whose attestation cannot be read.
+  async function fillRecordedTimes(proofs: BitGraphProof[]) {
+    setItems((prev) => prev.map((it) => {
+      if (!it.digestB64) return it;
+      const rendered = it.proofs.length ? it.proofs : it.proof ? [it.proof] : [];
+      const times = rendered.map((p) => recordedMsOf(p));
+      return times.some((t) => t !== null) ? { ...it, times } : it;
+    }));
+    if (proofs.every((p) => !p || recordedMsOf(p) !== null)) return;
+    try {
+      const digests = [...new Set(proofs.filter(Boolean).map((p) => toUrlSafeB64(p.artifact.digestB64)))];
+      if (!digests.length) return;
+      const r = await fetch("/api/proofs/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ digests }),
+      });
+      if (!r.ok) return;
+      const results = ((await r.json()) as {
+        results?: Record<string, { proofs?: Array<{ proof: BitGraphProof; writeTime?: number | null }> }>;
+      }).results || {};
+      setItems((prev) => prev.map((it) => {
+        if (!it.digestB64) return it;
+        // Align to the rows actually rendered: each row's own position gets
+        // its own write time, so a file recorded twice keeps them distinct.
+        // The answer was asked under each PROOF's artifact digest, which is
+        // the row's own digest for a recording but the new file's for a
+        // solo fuse and the manifest's for a set; a fused row's time is read
+        // under its proof's digest, where the position that made it was
+        // written (the set's own position key carries the set's time).
+        const rendered = it.proofs.length ? it.proofs : it.proof ? [it.proof] : [];
+        const own = results[toUrlSafeB64(it.digestB64)]?.proofs ?? [];
+        const times = rendered.map((p) => {
+          const recorded = p ? recordedMsOf(p) : null;
+          if (recorded !== null) return recorded;
+          const c = p?.commit?.counter;
+          const under = p ? results[toUrlSafeB64(p.artifact.digestB64)]?.proofs ?? [] : [];
+          const hit = [...own, ...under].find((e) => String(e.proof?.commit?.counter) === String(c));
+          return hit?.writeTime ?? null;
+        });
+        return times.some((t) => t !== null) ? { ...it, times } : it;
+      }));
+    } catch { /* the row simply keeps its blank when */ }
+  }
+
+  // Retry a commit through the daily rotation window. Only the typed
+  // "TeeRestartingError" is retried: on that path nothing was minted (the
+  // proxy refused before forwarding, or the boundary was unreachable), so
+  // retrying cannot double-record. The whole window is restart (~40s) plus
+  // one anchor tick (~12s); 6s x 25 attempts gives 150s of patience before
+  // surfacing a real error.
+  async function commitThroughRotation<T>(fn: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const out = await fn();
+        setTeeRestarting(false);
+        return out;
+      } catch (e) {
+        const held = e instanceof Error && e.name === "TeeRestartingError";
+        if (!held || attempt >= 25) { setTeeRestarting(false); throw e; }
+        setTeeRestarting(true);
+        await new Promise((r) => setTimeout(r, 6000));
+      }
+    }
+  }
+
+  // The strategy's once-per-run step (/actor: the enclave's nonce and the one
+  // touch), with its status wired to the proving label. Home's has none.
+  // The default gesture: fuse the file (profile bitgraph-fuse/1) through this
+  // site's own routes, in the browser. The visitor's file is the origin and is
+  // never modified or uploaded; the fused bytes exist in memory only long
+  // enough to be hashed and committed under the slot allocated for them, and
+  // the original plus the signed proof rebuilds them at any time. Held through
+  // the daily rotation like every other commit.
+  // The hold, for every fuse: the pipeline's own "come back in a moment"
+  // refusal becomes the typed error commitThroughRotation retries on. Solo
+  // and set share it, so a set caught by the daily renewal waits the same way.
+  async function heldThroughRotation<T>(fn: () => Promise<T>): Promise<T> {
+    return commitThroughRotation(async () => {
+      try {
+        return await fn();
+      } catch (e) {
+        if (isTeeRestarting(e)) { const held = new Error(restartMessage()); held.name = "TeeRestartingError"; throw held; }
+        throw e;
+      }
+    });
+  }
+  /* ── Making: tree/1, whatever the count (2026-10-03) ──
+     One file is a tree of one and a drop is a tree of N: one position, one
+     commit, every file a leaf, whatever its size (the scan streams every
+     file before any position opens). A file the user keeps AS IS is a leaf
+     with its own digest twice: recorded after the floor block, the bytes
+     themselves not dated. The proof comes back with the tree beside it (the root
+     document, every leaf, each file's evidence), which is everything its
+     export is made of; nothing is indexed by a member's digest. */
+  const treeInputFor = (t: FileItem) => treeInputOf({ file: t.file, digestB64: t.digestB64, placement: t.scan?.placement ?? null, state: t.scan?.state ?? null });
+  async function makeOne(t: FileItem): Promise<{ proof: BitGraphProof; made: MadeTree }> {
+    const made = await heldThroughRotation(() => makeTreeHere([treeInputFor(t)]));
+    keepRecoveryCopy(made, keepRecovery);
+    return { proof: made.proof as unknown as BitGraphProof, made };
+  }
+  async function beginRun(digests: string[]) {
+    if (!strategy.begin) return;
+    try {
+      await strategy.begin(digests, setRecordStatus);
+    } finally {
+      setRecordStatus(null);
+    }
+  }
+
+  // After a run failed partway: a failed WRITE is not a verdict on what was
+  // written. Read the ledger once for every row still marked proving, so a
+  // digest the enclave did mint before the failure shows as recorded (and is
+  // not minted again when the visitor records the rest), and only the others
+  // say Error. If the read itself fails, every pending row says Error, which
+  // is what this view showed before the read existed. Returns how many the
+  // read found recorded.
+  async function settleAfterFailure(pending: FileItem[]): Promise<number> {
+    let found: Record<string, BatchEntry> = {};
+    try {
+      const r = await fetch("/api/proofs/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ digests: [...new Set(pending.map((p) => toUrlSafeB64(p.digestB64)))] }),
+      });
+      if (r.ok) found = batchAnswer(await r.json());
+    } catch { /* unread: see above */ }
+    const recorded = new Map<string, Array<{ proof: BitGraphProof; writeTime?: number | null }>>();
+    for (const p of pending) {
+      const entry = found[toUrlSafeB64(p.digestB64)];
+      // ⚠️ `unavailable` means the ledger could not be read, not that nothing
+      // is there; such a row stays Error rather than being called recorded.
+      const recs = entry && !entry.unavailable
+        ? (entry.proofs || []).filter((x) => x.proof?.version === "bitgraph/1")
+        : [];
+      if (recs.length) recorded.set(p.digestB64, recs);
+    }
+    setItems((prev) => prev.map((i) => {
+      if (i.status !== "proving") return i;
+      const recs = recorded.get(i.digestB64);
+      if (!recs) return { ...i, status: "error" as const };
+      return {
+        ...i,
+        proof: recs[0].proof,
+        proofs: recs.map((x) => x.proof),
+        times: recs.map((x) => recordedMsOf(x.proof) ?? x.writeTime ?? null),
+        valid: true,
+        status: "proved" as const,
+      };
+    }));
+    return recorded.size;
+  }
+
+  // The receipt row's action: fuse by default (home), ordinary recording on
+  // /actor and always as its own compatibility row.
+  function proveRemaining() { return fuseByDefault ? fuseRemaining() : recordRemaining(); }
+
+  async function fuseRemaining(again = false) {
+    // A fresh run takes the rows not yet on record. An again run takes the
+    // rows on record and makes them a NEW tree: one new position, every file
+    // a leaf under its commitment, one new position beside the ones the files
+    // already hold. The group is a unit of meaning, and a new tree is its new
+    // root.
+    const eligible = (i: FileItem) => (again ? isAgainRow(i) : i.status === "new" || i.status === "error");
+    const toProve = items.filter(eligible);
+    if (!toProve.length) return;
+    // Unknown is not new: a row whose recovery lookup did not complete may be
+    // a member of an earlier tree. It is made only when the visitor says so
+    // (an again run already says so).
+    const unknown = again ? [] : toProve.filter((i) => i.recoveryUnknown !== undefined);
+    if (unknown.length > 0 && !unknownOkRef.current) {
+      setUnknownGate({ count: unknown.length, why: unknown[0]!.recoveryUnknown!, proceed: () => { unknownOkRef.current = true; void fuseRemaining(again); } });
+      return;
+    }
+    unknownOkRef.current = false;
+    setStep("proving");
+    setRecordMessage(null);
+    setProveProgress({ current: 0, total: toProve.length });
+    setItems(prev => prev.map(i => eligible(i) ? { ...i, status: "proving" as const } : i));
+    let minted = 0;
+    // Held in an object: the loop assigns it, and a closure's write is
+    // invisible to the narrowing at the navigation check after the loop.
+    const last: { made: MadeTree | null } = { made: null };
+    // The drop's plan, over DISTINCT bytes: the same file dropped twice is
+    // one leaf, and every row carrying its digest flips together. Planning
+    // over rows instead put a duplicate straddling a cut into two sets (the
+    // set/1 days), so the second spent a position no row ever showed. A tree
+    // is ONE BitGraph: one position, one commit, every file ceilinged by it
+    // and every file's committed bytes floored by it (a file the user keeps
+    // as is has the record floor only: recorded after the block, its bytes
+    // themselves not dated). A drop that fits one budget is one
+    // tree; a drop too big for a browser tab becomes consecutive trees, each
+    // its own position (planTrees says where it cuts).
+    const firstOf = new Map<string, FileItem>();
+    for (const t of toProve) if (!firstOf.has(t.digestB64)) firstOf.set(t.digestB64, t);
+    const distinct = [...firstOf.values()];
+    // The plan reads what the scan learned: a file with its saved hasher state
+    // costs no read, and neither does a file as is, so a folder of photos is
+    // ONE tree up to the leaf cap whatever its size; a file that must be read
+    // again fills a tree to a budget set by the scan's own speed, which keeps
+    // the leaf pass well inside the position's window. A file the scan could
+    // not place is placed from its bytes when it is read, by the same rule
+    // every producer uses (trailer/1 for the formats that ignore a trailer,
+    // container/2 for everything else).
+    const rate = scanRateRef.current;
+    const budget = rate === null ? undefined : Math.min(32 * 1024 ** 3, Math.max(512 * 1024 ** 2, rate * 45));
+    const plan = planTrees(distinct.map((t) => ({ size: t.file.size, stateful: !!t.scan?.placement && !!t.scan?.state })), budget);
+    // Progress counts ROWS, so a drop with duplicates still reaches its total.
+    const rowsOf = (digests: Iterable<string>) => { const d = new Set(digests); return toProve.filter((t) => d.has(t.digestB64)).length; };
+    let done = 0;
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+    try {
+      for (const group of plan) {
+        const tree = group.map((k) => distinct[k]!);
+        // All or nothing: a tree commits as one, so no file is ever shown
+        // proved on its own, and a tree already made stays made when a later
+        // one in the same drop fails.
+        //
+        // ⚠️ THE CALLBACK BELOW RUNS ~90,000 TIMES FOR A 30,000 FILE TREE, so
+        // nothing in it may walk the drop. It used to call rowsOf(set.slice(0,
+        // p.done)), which slices, maps, builds a Set and filters every row, on
+        // every event: billions of operations, and the tab simply stops (Mike,
+        // 2026-09-07: "i click and this screen just stays"). Counting once, up
+        // front, makes each event a single array read.
+        const rowsPerDigest = new Map<string, number>();
+        for (const t of toProve) rowsPerDigest.set(t.digestB64, (rowsPerDigest.get(t.digestB64) ?? 0) + 1);
+        const rowsUpTo = new Int32Array(tree.length + 1);
+        for (let i = 0; i < tree.length; i++) rowsUpTo[i + 1] = rowsUpTo[i] + (rowsPerDigest.get(tree[i].digestB64) ?? 0);
+        const treeRows = rowsUpTo[tree.length];
+        // One render per event is the other half of the same mistake: 90,000
+        // state writes is its own freeze, and no one can read a number that
+        // changes 90,000 times. Report a step of the bar, not an event.
+        const step = Math.max(1, Math.floor(treeRows / 200));
+        let lastPhase = "";
+        let lastWalked = -step;
+        let since = Date.now();
+        /**
+         * Where the wall clock actually goes, per phase.
+         *
+         * Reasoning from the code got the last one wrong: a phase that blocks
+         * the thread cannot be timed by watching the screen, because the
+         * screen is the thing that stopped. This measures inside the run and
+         * reports afterwards, when painting works again. Shown only with
+         * ?timing=1 on the URL.
+         */
+        const spent = new Map<string, number>();
+        let phaseStart = Date.now();
+        const chargeTo = (ph: string) => {
+          const now = Date.now();
+          spent.set(ph, (spent.get(ph) ?? 0) + (now - phaseStart));
+          phaseStart = now;
+        };
+        const made = await heldThroughRotation(() => makeTreeHere(tree.map(treeInputFor), {
+          onProgress: (p) => {
+            // ⚠️ The maker holds the position BETWEEN the last check report
+            // and the first leaf, and reports nothing while it waits on the
+            // enclave. The last "hash" event is that wait beginning, so it is
+            // shown as what it is: every file is checked, the position is
+            // what is outstanding (Mike, 2026-09-07, on 50,000 files: "this
+            // screen sits and progress bar sort of stays right there").
+            const phase = p.phase === "hash" && p.done >= p.total ? "slot" : p.phase;
+            const counts = phase === "hash" || phase === "fuse" || phase === "verify";
+            if (phase === lastPhase && counts && p.done < lastWalked + step && p.done < tree.length) return;
+            if (phase !== lastPhase) { if (lastPhase) chargeTo(lastPhase); since = Date.now(); }
+            lastPhase = phase;
+            lastWalked = p.done;
+            // Counted in ROWS of this tree, as the bar is: the phases walk
+            // files, and a file dropped twice is one leaf and two rows.
+            const walked = counts ? rowsUpTo[Math.min(p.done, tree.length)] : 0;
+            const third = treeRows / 3;
+            const at = phase === "hash" ? done + walked / 3
+              // The position wait sits where checking left it: nothing is built yet.
+              : phase === "slot" ? done + third
+              : phase === "fuse" ? done + third + walked / 3
+              : phase === "verify" ? done + 2 * third + walked / 3
+              // tree and commit: every leaf is made and the position is being
+              // taken, so the bar waits where the leaves left it.
+              : done + 2 * third;
+            setProvePhase({ phase, done: walked, total: treeRows, at, since });
+          },
+        }));
+        keepRecoveryCopy(made, keepRecovery);
+        if (lastPhase) chargeTo(lastPhase);
+        setProvePhase(null);
+        if (new URLSearchParams(window.location.search).has("timing")) {
+          const parts = [...spent.entries()].map(([k, ms]) => `${k} ${(ms / 1000).toFixed(1)}s`);
+          const total = [...spent.values()].reduce((a, b) => a + b, 0);
+          setRecordMessage(`${tree.length} files · ${parts.join(" · ")} · total ${(total / 1000).toFixed(1)}s`);
+        }
+        const proof = made.proof as unknown as BitGraphProof;
+        // The rows this tree covers, and ONLY this tree's: the plan holds each
+        // digest once, so the tree's digests name its rows and a row waiting
+        // on a later tree is never flipped by this one.
+        const treeDigests = new Set(tree.map((t) => t.digestB64));
+        const memberOf = new Map(made.members.map((m) => [m.originDigestB64, m] as const));
+        // Every row the tree covers flips to the one shared proof, the new
+        // position first and the positions the row already held behind it
+        // (an again run adds one; a fresh row had none). Nothing here keeps
+        // committed bytes: an export carries none, and the file rebuilds them.
+        setItems(prev => prev.map(i => {
+          const m = i.status === "proving" && treeDigests.has(i.digestB64) ? memberOf.get(i.digestB64) : undefined;
+          return m
+            ? { ...i, proof, proofs: [proof, ...i.proofs], kinds: ["fused" as const, ...(i.kinds ?? i.proofs.map(() => "recorded" as const))], member: i.member ? [null, ...i.member] : i.member, times: undefined, tree: { made, member: m }, valid: true, status: "proved" as const }
+            : i;
+        }));
+        const rows = rowsOf(treeDigests);
+        minted += rows;
+        done += rows;
+        last.made = made;
+        setProveProgress({ current: done, total: toProve.length });
+        void announceRecorded([proof]);
+        await tick();
+      }
+      // One file in, one page out, as a lone drop gets: the page is handed
+      // the proof it shows, and the file it shows.
+      if (items.length === 1 && minted === 1 && last.made !== null) {
+        const p = last.made.proof as unknown as BitGraphProof;
+        const proofDigest = p.artifact.digestB64;
+        const c = p.commit?.counter;
+        const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
+        const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1` : "?fresh=1";
+        void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+        setFreshProof(toUrlSafeB64(proofDigest), {
+          proofs: [{ proof: p }],
+          positions: c ? [{ counter: c, epoch: epoch || null, lowerTime: null, upperTime: null }] : [],
+          causalWindow: null,
+          anchorBlock: null,
+        });
+        saveMinted(dropNameRef.current);
+        router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
+        return;
+      }
+    } catch (e) {
+      setRecordMessage(strategy.errorMessage?.(e, "commit") ?? (e instanceof Error ? e.message : null));
+      setItems(prev => prev.map(i => i.status === "proving" ? { ...i, status: "new" as const } : i));
+    }
+    setProvePhase(null);
+    setStep("results");
+    if (minted > 0) { setPackageNote(null); saveMinted(dropNameRef.current); }
+    // The members of any set/2 a run made before tree/1 are indexed from
+    // their evidence; a tree's members are not (its export, or its recovery
+    // entry, is what shows a member), so a run here leaves nothing pending.
+    if (pendingIndexRef.current.length > 0) void indexSetEvidence();
+    // An again run gives no row a place it did not have; the count is the rows on record.
+    setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + (again ? 0 : minted));
+  }
+
+  async function recordRemaining() {
+    // Errored rows are still unrecorded files, so the button offers them
+    // again; settleAfterFailure has already checked that they were not in
+    // fact minted, so recording them again cannot double-record.
+    const toProve = items.filter(i => i.status === "new" || i.status === "error");
+    if (!toProve.length) return;
+    // Unknown is not new (see fuseRemaining): asked first, made only on a yes.
+    const unknown = toProve.filter((i) => i.recoveryUnknown !== undefined);
+    if (unknown.length > 0 && !unknownOkRef.current) {
+      setUnknownGate({ count: unknown.length, why: unknown[0]!.recoveryUnknown!, proceed: () => { unknownOkRef.current = true; void recordRemaining(); } });
+      return;
+    }
+    unknownOkRef.current = false;
+
+    setStep("proving");
+    setRecordMessage(null);
+    setProveProgress({ current: 0, total: toProve.length });
+    setItems(prev => prev.map(i => i.status === "new" || i.status === "error" ? { ...i, status: "proving" as const } : i));
+
+    // How many this run put on the ledger, for the count in the receipt. Not
+    // assumed from toProve.length: a run can fail partway.
+    let minted = 0;
+    // Whether the failure, if any, came before or after the strategy's
+    // once-per-run step: before it nothing was attempted, and the strategy's
+    // sentence says so.
+    let begun = false;
+    try {
+      // `begin` inside the hold: during the daily key renewal, /actor's touch
+      // waits for a live camera rather than signing a nonce the restart has
+      // already thrown away.
+      await commitThroughRotation(() => beginRun(toProve.map((t) => t.digestB64)));
+      begun = true;
+      if (toProve.length === 1) {
+        const p = await commitThroughRotation(() => strategy.one(toProve[0].digestB64));
+        minted = 1;
+        setItems(prev => prev.map(i =>
+          i.digestB64 === toProve[0].digestB64 ? { ...i, proof: p, proofs: [p], valid: true, status: "proved" as const } : i
+        ));
+        setProveProgress({ current: 1, total: 1 });
+        void announceRecorded([p]);
+        // One file in, one page out, on the record path too: a lone fresh
+        // recording goes straight to its new proof page (only when it was the
+        // whole drop; in a mixed batch the results list is the context).
+        if (items.length === 1) {
+          const proofDigest = p.artifact.digestB64;
+          const c = p.commit?.counter;
+          const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
+          // &fresh=1 → capture flash on arrival (this is a just-made recording).
+          const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1` : "?fresh=1";
+          void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+          saveMinted(dropNameRef.current);
+          router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
+          return;
+        }
+      } else {
+        // Chunked batches so we can show real progress + stay under Vercel's
+        // 60s function timeout. 50 per chunk ≈ 1s of TEE work per request at
+        // ~50 sign/sec, so progress ticks roughly every second. The chunking
+        // is the camera's; what a chunk costs is the strategy's.
+        const CHUNK_SIZE = 50;
+        // Yield to the event loop after each chunk so React paints the
+        // progress update before the next batch starts (same pattern as the
+        // exporting loop). Without this, fast batches can flush together.
+        const tick = () => new Promise((r) => setTimeout(r, 0));
+        for (let offset = 0; offset < toProve.length; offset += CHUNK_SIZE) {
+          const chunk = toProve.slice(offset, offset + CHUNK_SIZE);
+          const digests = chunk.map(t => t.digestB64);
+          const proofs = await commitThroughRotation(() => strategy.chunk(digests, offset));
+          minted += proofs.length;
+          const chunkMap = new Map(chunk.map((t, i) => [t.digestB64, proofs[i]] as const));
+          setItems(prev => prev.map(i => {
+            const p = chunkMap.get(i.digestB64);
+            return p ? { ...i, proof: p, proofs: [p], valid: true, status: "proved" as const } : i;
+          }));
+          setProveProgress({ current: Math.min(offset + CHUNK_SIZE, toProve.length), total: toProve.length });
+          void announceRecorded(proofs);
+          await tick();
+        }
+      }
+    } catch (e) {
+      setRecordMessage(strategy.errorMessage?.(e, begun ? "commit" : "begin") ?? null);
+      if (begun) {
+        // Some of the run may be on the ledger: read before saying Error.
+        minted += await settleAfterFailure(toProve);
+      } else {
+        // Nothing was attempted: the files go back exactly as they were, and
+        // the Record row offers them again.
+        setItems(prev => prev.map(i => i.status === "proving" ? { ...i, status: "new" as const } : i));
+      }
+    }
+
+    setStep("results");
+    if (minted > 0) { setPackageNote(null); saveMinted(dropNameRef.current); }
+    // The members of any set/2 this run made become findable by hash now that
+    // the results are on the page: a later drop of one of them is then a
+    // lookup, not a second recording.
+    if (pendingIndexRef.current.length > 0) void indexSetEvidence();
+
+    // Show the final count directly (see the note in handleFiles): the per-tick
+    // animation re-rendered the whole list each increment and dragged on large
+    // drops.
+    setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + minted);
+  }
+
+  /* ── Export zip with ETH anchors ── */
+
+  /* ── MAKING ENDS IN A FILE ────────────────────────────────────────────────
+   *
+   * ⚠️ THE LEDGER WAS QUIETLY THE BACKUP. Discovery and sharing were
+   * replaceable; durability was not. While every proof is written to the
+   * bucket, a package you forget to save is an inconvenience — the proof is
+   * still ours to hand back. Once only anchors are written, the package IS the
+   * BitGraph, and forgetting to click a link loses evidence whose position
+   * stays minted and consumed forever.
+   *
+   * So there is no second step. A mint hands the file over on its own, and
+   * keeps a copy in the browser as a net (see file-cache.ts). Never a terminal
+   * success state for a BitGraph that is not saved anywhere.
+   *
+   * The rows come from a functional setItems updater rather than from `items`,
+   * because at this moment `items` is still the PRE-MINT list: the chunk loops
+   * above queued their updates and React has not rendered them yet. The
+   * updater is handed the settled state and returns it untouched, so this
+   * costs no extra render and cannot read a stale row.
+   */
+  /* ── What this browser knows about what you hold ──
+     The local ledger. Empty is the NORMAL first state, not a fault: a
+     first-time visitor has no folder, and there is no gate in front of the
+     drop. Connecting is dragging your BitGraphs folder in. */
+  const [ledger, setLedger] = useState<LocalLedger>(emptyLedger);
+  useEffect(() => {
+    // Remembered from a previous visit, so the common case needs no drag and
+    // no permission prompt. A cache of what you showed us, never the
+    // authority — the folder on disk is that.
+    void loadLedger((p) => { try { return fusedMarkerOf(p)?.originDigestB64 ?? null; } catch { return null; } })
+      .then((l) => { if (l.proofs.length) setLedger(l); });
+  }, []);
+
+  /* What was dropped, so the saved file can borrow its name. A folder gives
+     its own name; a drop of loose files has none to borrow, which is the
+     weakest point in the naming scheme and is still open. */
+  const dropNameRef = useRef<string | null>(null);
+  const savingRef = useRef(false);
+
+  /* ⚠️ THIS SAVES THE PROOFS, NOT THE PACKAGE, and that is the whole design.
+     The package carries your original bytes — right for handing to a stranger
+     who has none of them, catastrophic as the thing a make writes to your own
+     disk, because auto-saving a 48,000 photo drop that way rebuilds the entire
+     folder in memory and hands you back gigabytes you already have. What you
+     cannot reconstruct is the signed proofs, and a set is one position sharing
+     one proof, so that folder is three proofs: about 23 KB, instant at any
+     size. See lib/bitgraphs-file.ts. */
+  /* ⚠️ A MAKE MUST NOT END IN A SAVE DIALOG.
+   *
+   * This used to download bitgraphs.json on every make. With Chrome's "ask
+   * where to save each file" on — which Mike has on, as anyone who cares where
+   * their files go does — that is a modal file picker in front of the
+   * product's most common gesture, every single time. He sent a screenshot of
+   * it: "see cause this isnt right". It is not.
+   *
+   * So making writes to THIS BROWSER and nothing else. The copy on disk
+   * becomes a deliberate act you take when you want one, from the folder
+   * modal, one dialog you asked for.
+   *
+   * ⚠️ AND THAT IS NOT AS DURABLE AS IT SOUNDS. navigator.storage.persist()
+   * returns FALSE here — Chromium grants persistence on engagement, not on
+   * request — so this store is evictable and a page cannot make it otherwise.
+   * It is asked for anyway (it is granted later as the site is used), the
+   * modal says plainly when it was refused, and this is the clearest argument
+   * there is for the folder living in a real app rather than a tab.
+   */
+  const saveBitGraphs = (rows: FileItem[], source: string | null) => {
+    const doc = buildBitGraphsFile(
+      [...ledger.proofs.map((pr) => ({ proof: pr, proofs: [pr] })), ...rows], source);
+    if (!doc.proofs.length) return;
+    // Best effort, no prompt: Chromium may grant this once the site has been
+    // used enough, and it costs nothing to keep asking.
+    void navigator.storage?.persist?.().catch(() => {});
+    setLedger((prev) => {
+      const next = addProofs(prev, doc.proofs, source,
+        (pr) => { try { return fusedMarkerOf(pr)?.originDigestB64 ?? null; } catch { return null; } });
+      void saveLedger(next);
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(LEDGER_CHANGED));
+      return next;
+    });
+    /* ❄️ NO NOTICE. A make used to explain itself in a paragraph, on the
+       results card and again on the proof page it navigates to. Mike: "i dont
+       like this" — and he is right twice over. It sat on top of the record you
+       came to look at, and it had already gone stale, telling people to use
+       "the light in the corner" after the light moved under the box. The
+       record is on screen and the light says what this browser holds; a
+       paragraph restating both is furniture. */
+  };
+
+  const saveMinted = (source: string | null) => {
+    setItems((settled) => {
+      // The rows come from the updater, not from `items`: at a mint ending
+      // `items` is still the PRE-mint list, because the chunk loops queued
+      // their updates and React has not rendered them yet. Returning `settled`
+      // untouched costs no extra render.
+      // StrictMode invokes an updater twice in development; the flag keeps
+      // that from becoming two downloads.
+      if (!savingRef.current) {
+        savingRef.current = true;
+        try { saveBitGraphs(settled, source); } finally { savingRef.current = false; }
+      }
+      return settled;
+    });
+  };
+
+  /* `source` lets a caller hand in rows directly instead of waiting for React
+     state. The auto-save below runs the instant a mint returns, when `items`
+     is still the pre-mint list, so it must pass what it just made. */
+  async function downloadZip(source?: FileItem[]) {
+    const all = (source ?? items).filter(i => i.proof);
+    if (!all.length) return;
+
+    /* ⚠️ TWO KINDS OF BITGRAPH, TWO KINDS OF EXPORT (2026-10-03).
+     *
+     * A tree/1 position exports as ONE JSON file, bitgraph-export/1, with
+     * SPEC.md beside it: a tree of one as that file's own export (its leaf and
+     * path), a tree of many as the owner's export (every leaf, every name).
+     * No folder per file, no copy of any file, no proof.json: the export holds
+     * the proof, and the files travel on their own (SPEC.md section 12).
+     *
+     * Every other position keeps the package path below, untouched: the
+     * legacy rows are handed to it with their tree positions taken out, so a
+     * file that holds an older set position AND a new tree position exports
+     * both, each the way its own kind is read. */
+    const legacyView = (i: FileItem): FileItem | null => {
+      const ps = i.proofs.length ? i.proofs : i.proof ? [i.proof] : [];
+      const keep = ps.map((p, k) => [p, k] as const).filter(([p]) => !isTreeTitled(p));
+      if (keep.length === 0) return null;
+      if (keep.length === ps.length && !i.tree) return i;
+      const pick = <T,>(arr: T[] | null | undefined): T[] | null | undefined => (arr ? keep.map(([, k]) => arr[k] as T) : arr);
+      return { ...i, proof: keep[0][0], proofs: keep.map(([p]) => p), member: pick(i.member), kinds: pick(i.kinds) ?? undefined, times: pick(i.times) ?? undefined, tree: undefined };
+    };
+    const withProofs = all.map(legacyView).filter((i): i is FileItem => i !== null);
+    // One job per tree position held by any row, with the tree this drop made
+    // when it made it (the owner's list and every member's evidence).
+    const treeJobs = new Map<string, { proof: BitGraphProof; made: MadeTree | null; rows: FileItem[] }>();
+    const positionKey = (p: BitGraphProof) => `${p.commit?.epochId ?? ""}:${p.commit?.counter ?? ""}:${p.artifact.digestB64}`;
+    for (const i of all) {
+      for (const p of i.proofs.length ? i.proofs : i.proof ? [i.proof] : []) {
+        if (!isTreeTitled(p)) continue;
+        const key = positionKey(p);
+        const job = treeJobs.get(key) ?? { proof: p, made: null, rows: [] };
+        if (i.tree && positionKey(i.tree.made.proof as unknown as BitGraphProof) === key) job.made = i.tree.made;
+        job.rows.push(i);
+        treeJobs.set(key, job);
+      }
+    }
+
+    /**
+     * ⚠️ READ BACK ANY MEMBER ANSWERED FROM A SET'S LIST.
+     *
+     * A set member's position can be answered without reading its object,
+     * from the set's member list, which holds the row's index and count but
+     * NOT its Merkle path. That is everything a results row shows and
+     * nothing an export can ship: `member.json` carries the path, and
+     * without it no reader can place that member under the set's root. The
+     * zip would look complete and be unverifiable.
+     *
+     * So before anything is written, every position that names a member but
+     * carries no evidence is read in full (`members: "full"`, which turns
+     * the shortcut off) and put back. A read that fails leaves the position
+     * as it was: the export is then short a member.json, which is visible,
+     * rather than wrong.
+     */
+    const missing = withProofs.filter((i) =>
+      (i.member?.some((m) => m !== null) ?? false) &&
+      i.proofs.some((p) => memberEvidenceOf(p as unknown as Record<string, unknown>) === null));
+    if (missing.length) {
+      const keys = [...new Set(missing.map((i) => toUrlSafeB64(i.digestB64)))];
+      // ⚠️ The step goes up BEFORE this loop. It used to run ahead of it, so
+      // a set export spent every one of these round trips with no spinner at
+      // all and the click read as dead.
+      setStep("exporting");
+      setExportProgress({ current: 0, total: keys.length, phase: "preparing" });
+      const full: Record<string, BatchEntry> = {};
+      const chunks: string[][] = [];
+      for (let i = 0; i < keys.length; i += BATCH_CHUNK) chunks.push(keys.slice(i, i + BATCH_CHUNK));
+      let nextChunk = 0;
+      let readDone = 0;
+      // ⚠️ CONCURRENT, and it has to be. This ran one chunk at a time, and
+      // every chunk is on the SLOW path by design (members: "full" turns the
+      // member-list shortcut off so each position is really read), so a
+      // 30,000 file set spent about thirty sequential round trips of several
+      // seconds each before the zip began. Same width as the check.
+      await Promise.all(Array.from({ length: Math.min(BATCH_IN_FLIGHT, chunks.length) }, async () => {
+        while (nextChunk < chunks.length) {
+          const mine = chunks[nextChunk++];
+          try {
+            const r = await fetch("/api/proofs/batch", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ digests: mine, environments: "table", members: "full" }),
+            });
+            if (r.ok) Object.assign(full, batchAnswer(await r.json()));
+          } catch (err) { console.error("[export] could not re-read member evidence:", err); }
+          readDone += mine.length;
+          setExportProgress({ current: readDone, total: keys.length, phase: "preparing" });
+        }
+      }));
+      for (const it of missing) {
+        const got = (full[toUrlSafeB64(it.digestB64)]?.proofs ?? []).filter((x) => x.proof?.version === "bitgraph/1");
+        if (!got.length) continue;
+        const ordered = [...got.filter((x) => x.kind !== "fused"), ...got.filter((x) => x.kind === "fused")];
+        it.proofs = ordered.map((x) => x.proof);
+        it.proof = ordered[0].proof;
+      }
+    }
+
+    setStep("exporting");
+    const totalSteps = withProofs.length + treeJobs.size + 2; // files + trees + anchors + zip
+    setExportProgress({ current: 0, total: totalSteps, phase: "packaging" });
+    // A legacy file gets its own folder whenever anything else shares the zip.
+    const multi = withProofs.length > 1 || (withProofs.length > 0 && treeJobs.size > 0);
+
+    // Streaming zip: chunks accumulate as each file is added
+    const chunks: Uint8Array[] = [];
+    let zipDone = false;
+    let zipError: Error | null = null;
+    const z = new Zip((err, chunk, final) => {
+      if (err) { zipError = err; return; }
+      if (chunk) chunks.push(chunk);
+      if (final) zipDone = true;
+    });
+
+    // Helper: yield to event loop so React can repaint progress
+    const tick = () => new Promise(r => setTimeout(r, 0));
+
+    // Add a text entry to the zip
+    const addText = (name: string, text: string) => {
+      const entry = new ZipPassThrough(name);
+      z.add(entry);
+      entry.push(new TextEncoder().encode(text), true);
+    };
+    // And one whose bytes must travel exactly as they are (SPEC.md: its hash is pinned).
+    const addBytes = (name: string, bytes: Uint8Array) => {
+      const entry = new ZipPassThrough(name);
+      z.add(entry);
+      entry.push(bytes, true);
+    };
+
+    // One entry per proof folder, gathered as the zip is built so the pages
+    // can be written at the end without re-fetching anything. `sides` is filled
+    // by addAnchorsFor via the witness it downloads.
+    const built: { dir: string; fileName: string; proof: Record<string, unknown>;
+                   sides: { before: AnchorSide; after: AnchorSide } }[] = [];
+    // One entry per position addAnchorsFor was asked about, so the receipt can
+    // report what actually came back rather than assuming it was everything.
+    const anchorOutcomes: { upper: BoundState; lower: BoundState }[] = [];
+    const sidesFor = new Map<string, { before: AnchorSide; after: AnchorSide }>();
+    const sidesOf = (dir: string) => {
+      let v = sidesFor.get(dir);
+      if (!v) { v = { before: {}, after: {} }; sidesFor.set(dir, v); }
+      return v;
+    };
+
+    // Fetch the two bounding ETH anchors for one recording and add them under
+    // `dir`. The "after" anchor follows the counter (upper time bound), the
+    // "before" anchor precedes it (lower time bound); together they pin the
+    // recording to a public Ethereum time window. Both are required to read
+    // the window: the after-anchor alone is only "existed by now," the same
+    // one-sided bound a plain blockchain timestamp gives.
+    // For one anchor, add a block-header witness so the anchor's Ethereum time
+    // claim is verifiable fully offline: the audit recomputes keccak256(header)
+    // and confirms it equals the anchor's signed block hash, then reads the
+    // block timestamp from the header. The server re-encodes and self-checks
+    // the header, so a witness is only returned when it hashes to the signed
+    // block hash; on any failure we simply omit it (the bundle stays valid,
+    // just without the offline time witness for that anchor).
+    const addWitnessFor = async (name: string, anchor: Record<string, unknown>) => {
+      try {
+        const eth = anchor.ethereum as { blockNumber?: number; blockHash?: string } | undefined;
+        const attr = anchor.attribution as { title?: string; message?: string } | undefined;
+        const blockNumber = eth?.blockNumber ?? (attr?.title?.match(/\/block\/(\d+)/)?.[1] ? parseInt(attr.title.match(/\/block\/(\d+)/)![1], 10) : undefined);
+        const blockHash = eth?.blockHash ?? attr?.message;
+        if (blockNumber === undefined || !blockHash) return;
+        const resp = await fetch(`/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`);
+        if (resp.ok) {
+          const w = await resp.json();
+          addText(name, JSON.stringify(w, null, 2));
+          // The block time lives inside the header, not beside it.
+          const dir = name.slice(0, name.indexOf("ethereum-anchors/"));
+          const side = name.includes("before") ? sidesOf(dir).before : sidesOf(dir).after;
+          side.block = blockNumber;
+          if (w?.headerRlpHex) side.ts = blockTimeFromHeader(w.headerRlpHex) || null;
+        }
+      } catch { /* non-critical: the bundle is valid without the witness */ }
+    };
+
+    /* ⚠️ AN ABSENCE HERE USED TO SAY NOTHING AT ALL.
+     *
+     * Every path that failed to produce an anchor omitted its file and said no
+     * more: the ledger answering "not yet", the ledger answering "never", the
+     * request throwing, and — because the route returned an empty list with a
+     * 200 for all four — the ledger simply being unreadable. So a package that
+     * had no anchor-after.json could not tell its reader whether no upper
+     * bound had been FETCHED or none EXISTED, which are opposite claims about
+     * the same folder. That is the same family as the three bugs found on
+     * 2026-09-07: an absent answer shipping as a complete one.
+     *
+     * The route now says which of those happened (`bound`), and any position
+     * that does not come back fully anchored carries anchors-status.json
+     * saying so. The anchor files themselves are unchanged, so this is purely
+     * additive: nothing that used to be written stops being written.
+     */
+    // The ceiling in time beside each proof (bitgraph-ceiling/1), or a status
+    // note saying why there is none: same wording as the proof page's zip.
+    const addCeilingFor = async (dir: string, proof: Record<string, unknown>) => {
+      let ph = "";
+      try {
+        ph = (proof.proofHash as string | undefined) ?? computeProofHash(proof as never);
+        const safe = ph.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        const r = await fetch(`/api/ceilings/${safe}`);
+        if (r.ok) { addText(`${dir}base-ceiling/ceiling.json`, await r.text()); return; }
+        addText(`${dir}base-ceiling/ceiling-status.json`, JSON.stringify({
+          version: "bitgraph-ceiling-status/1", proofHash: ph,
+          status: r.status === 404 ? "none-found" : "unavailable",
+          note: r.status === 404
+            ? "No ceiling in time was found for this record when this package was built. Records made before 2026-09-29 22:43 UTC have none; a newer record may still be queued for its Base write, so build the package again."
+            : `BitGraph answered ${r.status} when this package was built, so the ceiling was never learned. Build the package again.`,
+        }, null, 2));
+      } catch (e) {
+        addText(`${dir}base-ceiling/ceiling-status.json`, JSON.stringify({
+          version: "bitgraph-ceiling-status/1", ...(ph ? { proofHash: ph } : {}), status: "unavailable",
+          note: `The ceiling was not fetched: the request did not complete (${(e as Error).message}). Build the package again.`,
+        }, null, 2));
+      }
+    };
+
+    // A Base floor (enclave v10) has no Ethereum anchors: its floor is the Base
+    // block the proof signs, and the export carries that block's header in
+    // base-floor/ (bitgraph-floor-header/1, as bitgraph-audit writes it),
+    // checked against the signed floor first. Nothing follows it to fetch.
+    const addBaseFloorFor = async (dir: string, proof: BitGraphProof) => {
+      const f = baseFloorOf(proof);
+      if (f === null) return;
+      try {
+        const header = await fetchBaseFloorHeader(proof as never);
+        addText(`${dir}${PKG_BASE_FLOOR_FILE}`, JSON.stringify(floorHeaderFile(f, header), null, 2));
+      } catch (e) {
+        addText(`${dir}base-floor/floor-status.json`, JSON.stringify({
+          version: "bitgraph-floor-status/1", status: "unavailable", blockNumber: f.blockNumber, blockHash: f.blockHash,
+          note: `The floor block's header was not fetched (${(e as Error).message}). The proof still signs the floor block; its header is at https://bitgraph.ing/api/proofs/floor-header?chain=base&block=${f.blockNumber}&hash=${f.blockHash}, or any Base node. Build the package again.`,
+        }, null, 2));
+      }
+    };
+
+    const addAnchorsFor = async (dir: string, afterCounter: string, beforeCounter: string, epoch: string) => {
+      const anchorDir = `${dir}ethereum-anchors/`;
+      if (!epoch) {
+        // No epoch, so nothing can be looked up: the anchor routes are keyed
+        // by counter AND epoch. Say that rather than write four silent gaps.
+        addText(`${anchorDir}${ANCHOR_STATUS_FILE}`, JSON.stringify(anchorStatusDoc(
+          { epochId: "", counter: afterCounter },
+          { state: "unavailable", note: "This proof names no epoch, so its anchors cannot be looked up: BitGraph's anchor index is keyed by counter within an epoch." },
+          { state: "unavailable", note: "This proof names no epoch, so its anchors cannot be looked up: BitGraph's anchor index is keyed by counter within an epoch." },
+        ), null, 2));
+        anchorOutcomes.push({ upper: "unavailable", lower: "unavailable" });
+        return;
+      }
+      const enc = encodeURIComponent(epoch);
+      // The four ETH anchor files (before/after anchor + their block-header
+      // witnesses) live together in an ethereum-anchors/ subfolder so they
+      // don't clutter the bundle root. Audit discovery is by schema shape,
+      // not filename or path, so nesting is transparent to the verifier.
+      const side = async (url: string, name: string, witnessName: string): Promise<BoundReport> => {
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            return { state: "unavailable", note: resp.status === 503
+              ? "BitGraph's copy could not be read when this package was built. That is a gap in what was asked, not a finding about what it holds."
+              : `BitGraph answered ${resp.status} when this package was built, so this side was never learned.` };
+          }
+          const data = await resp.json();
+          if (data.anchors?.length > 0) {
+            addText(name, JSON.stringify(data.anchors[0], null, 2));
+            await addWitnessFor(witnessName, data.anchors[0]);
+            return { state: "anchored", note: "An Ethereum anchor bounds this position on this side." };
+          }
+          const b = data.bound as { state?: string; note?: string } | undefined;
+          if (!b?.state) {
+            return { state: "unavailable", note: "BitGraph returned no anchor and gave no reason, so nothing can be concluded from this absence." };
+          }
+          return { state: b.state as BoundReport["state"], note: b.note ?? "" };
+        } catch (e) {
+          return { state: "unavailable", note: `This side was not fetched: the request did not complete (${(e as Error).message}). Ask again.` };
+        }
+      };
+      const [upper, lower] = await Promise.all([
+        side(`/api/proofs/anchors?counter=${afterCounter}&epoch=${enc}`, `${anchorDir}anchor-after.json`, `${anchorDir}anchor-after-witness.json`),
+        side(`/api/proofs/anchors?counter=${beforeCounter}&epoch=${enc}&before=1`, `${anchorDir}anchor-before.json`, `${anchorDir}anchor-before-witness.json`),
+      ]);
+      // Collected so the receipt can say what the package went out short of.
+      // Without this, removing the 15s wait would make a package that is
+      // missing its upper bound look exactly like one that is not.
+      anchorOutcomes.push({ upper: upper.state, lower: lower.state });
+      // Only when something is missing: a finished package stays exactly as it
+      // is today, and 2,566 complete recordings do not sprout a file saying
+      // "fine". The file's presence IS the signal.
+      if (!isSettled(upper.state, lower.state)) {
+        addText(`${anchorDir}${ANCHOR_STATUS_FILE}`, JSON.stringify(
+          // beforeCounter differs from afterCounter for the package-level
+          // bracket, which spans the batch: say so rather than let both
+          // reports read as claims about one position.
+          anchorStatusDoc({ epochId: epoch, counter: afterCounter }, upper, lower, new Date(), beforeCounter),
+          null, 2));
+      }
+    };
+
+    // Add files one at a time, updating progress between each
+    const singles: BitGraphProof[] = [];
+    for (let i = 0; i < withProofs.length; i++) {
+      setExportProgress({ current: i + 1, total: totalSteps, phase: "packaging" });
+      await tick();
+      const { file: f, proof: p } = withProofs[i];
+      const base = f.name.replace(/\.[^.]+$/, "");
+      const prefix = multi ? `${base}/` : "";
+      const fileBytes = new Uint8Array(await f.arrayBuffer());
+      // A single recording keeps the flat layout (file + proof.json, covered
+      // by the batch-level anchor window below). Bytes that occupy SEVERAL
+      // causal positions export each recording as its own complete unit,
+      // exactly like separate files in a batch: bitgraph-{counter}/ holds its
+      // own copy of the file, proof.json, and that recording's own bounding
+      // anchors. A shared window spanning distant recordings would be
+      // uselessly loose for the older ones.
+      const allPositions = withProofs[i].proofs.length ? withProofs[i].proofs : p ? [p] : [];
+
+      // A file fused in this drop exports as a package: the original the
+      // visitor keeps and the new file beside it under new-file/. The new
+      // file is virtual everywhere else; the export is the one moment it is
+      // asked for, because that is when the BitGraph leaves the page for
+      // someone who has neither the original nor a tool that rebuilds
+      // (Mike, 2026-09-03). Same shape as a proof page's package.
+      //
+      // It sits INSIDE the export dir of the position that committed it. A
+      // flat export has one dir and that position owns it; a file holding
+      // several positions gives each its own complete unit, and new-file/
+      // beside the set would belong to none of them: a folder dropped back in
+      // reads it as a loose file sitting beside the verdicts, since a check
+      // claims new-file/ only WITHIN an export. Only the flat case can arise
+      // today, since a fuse leaves the file holding exactly the position it
+      // just made, and the placement does not depend on that staying true.
+      //
+      // A member of a set made in this drop exports the same unit, its own:
+      // the original, new-file/ beside it, and proof.json = the SET proof with
+      // its manifest. The member's fused bytes were never kept; they are
+      // rebuilt HERE from the original, the proof's slot record and the row's
+      // placement, and a member that does not rebuild to its listed digest
+      // exports original + proof.json and never a wrong new file.
+      const droppedDigest = await hashBytes(fileBytes);
+      const dirFor = (pos: { artifact?: { digestB64?: string } } | null | undefined) => (pos?.artifact?.digestB64 === droppedDigest ? PKG_COMMITTED_DIR : PKG_ORIGINAL_DIR);
+      const fusedOut = withProofs[i].fused;
+      const setOut = withProofs[i].setMember;
+      const madeHere = fusedOut?.proof ?? setOut?.proof;
+
+      /* ⚠️ A BITGRAPH MADE EARLIER COULD NOT PRODUCE ITS FUSED FILE.
+       *
+       * `madeHere` is only set when the fuse happened in THIS drop, so a file
+       * matched from your own folder exported the original and the proof and
+       * nothing else — no new-file/ — even though everything needed to rebuild
+       * it was in hand: the proof carries the slot commitment and the
+       * placement, and the original bytes are the file you just dropped. Mike:
+       * "bitgraph doesnt have a way to rebuild the new fused copy either".
+       *
+       * It matters more now than it did. While the ledger held every proof,
+       * the fused bytes could always be fetched back through the proof page.
+       * Local-first means the package IS the artifact, so a package that
+       * cannot produce the bytes its own digest describes is incomplete.
+       *
+       * Rebuilt from the origin, exactly as the proof page does. A rebuild
+       * that does not reproduce the committed digest writes NOTHING rather
+       * than a wrong file — the same rule the set-member path already keeps. */
+      if (!madeHere && p && fusedMarkerOf(p)?.originDigestB64) {
+        try {
+          const rebuilt = await rebuildFromOrigin(p, fileBytes, f.name);
+          // fusedBytes is null unless the rebuild actually reproduced the
+          // committed artifact; both are checked so a wrong file is impossible.
+          if (rebuilt.verification.category === "FUSED_FROM_ORIGIN" && rebuilt.fusedBytes) {
+            const entry = new ZipPassThrough(`${prefix}${PKG_COMMITTED_DIR}/${f.name}`);
+            z.add(entry);
+            entry.push(rebuilt.fusedBytes, true);
+          }
+        } catch (e) {
+          console.warn("[export] could not rebuild the fused file:", e);
+        }
+      }
+      if (madeHere) {
+        const own = allPositions.length > 1
+          ? allPositions.find((pos) => pos.commit?.counter === madeHere.commit?.counter &&
+                                       pos.commit?.epochId === madeHere.commit?.epochId)
+          : null;
+        // Its own position, or the export root when the positions do not name
+        // it: a home that is merely imprecise beats dropping the bytes.
+        const dir = own?.commit?.counter ? `${prefix}bitgraph-${own.commit.counter}/` : prefix;
+        const fusedBytes = fusedOut
+          ? fusedOut.fusedBytes
+          : setOut ? (await rebuildSetMember(setOut.proof, fileBytes, f.name, setOut.manifestBytes)).fusedBytes : null;
+        // No Frame: proof.json beside it already carries the same signed proof,
+        // and the manifest a Frame adds is derivable from it apart from the new
+        // file's name, which is this entry (Mike, 2026-09-03). That entry keeps
+        // the original's own name and is told apart by its folder: it is the
+        // same file plus 48 bytes, not a different thing.
+        if (fusedBytes) {
+          const fusedEntry = new ZipPassThrough(`${dir}${PKG_COMMITTED_DIR}/${f.name}`);
+          z.add(fusedEntry);
+          fusedEntry.push(fusedBytes, true);
+        }
+        // A set/2 member's evidence travels beside proof.json: without its
+        // row, index and path no reader can place it under the root.
+        if (setOut?.member.memberProof) addText(`${dir}member.json`, JSON.stringify(setOut.member.memberProof, null, 2));
+      }
+      if (allPositions.length <= 1) {
+        // Named for what the bytes are (2026-10-01): committed/ when this file is the one the
+        // proof's digest names, original/ when the committed file was made from it.
+        const fileEntry = new ZipPassThrough(`${prefix}${dirFor(allPositions[0])}/${f.name}`);
+        z.add(fileEntry);
+        fileEntry.push(fileBytes, true);
+        for (const pos of allPositions) {
+          addText(`${prefix}proof.json`, JSON.stringify(setOut ? withSetManifest(pos, setOut.manifestBytes) : pos, null, 2));
+          await addCeilingFor(prefix, pos as unknown as Record<string, unknown>);
+          const found = setOut ? null : memberEvidenceOf(pos as unknown as Record<string, unknown>);
+          if (found !== null) addText(`${prefix}member.json`, JSON.stringify(found, null, 2));
+          // An Ethereum floor joins the batch's anchor bracket below; a Base floor carries its own header.
+          if (baseFloorOf(pos) !== null) await addBaseFloorFor(prefix, pos);
+          else singles.push(pos);
+          built.push({ dir: prefix.replace(/\/$/, ""), fileName: f.name,
+                       proof: pos as unknown as Record<string, unknown>, sides: sidesOf(prefix) });
+        }
+      } else {
+        for (const pos of allPositions) {
+          const c = pos.commit?.counter;
+          const dir = `${prefix}bitgraph-${c ?? "unknown"}/`;
+          const fileEntry = new ZipPassThrough(`${dir}${dirFor(pos)}/${f.name}`);
+          z.add(fileEntry);
+          fileEntry.push(fileBytes, true);
+          addText(`${dir}proof.json`, JSON.stringify(pos, null, 2));
+          if (baseFloorOf(pos) !== null) await addBaseFloorFor(dir, pos);
+          else if (c) await addAnchorsFor(dir, c, c, pos.commit?.epochId || "");
+          await addCeilingFor(dir, pos as unknown as Record<string, unknown>);
+          built.push({ dir: dir.replace(/\/$/, ""), fileName: f.name,
+                       proof: pos as unknown as Record<string, unknown>, sides: sidesOf(dir) });
+        }
+      }
+    }
+
+    /* ── tree/1: one export/1 file per position, SPEC.md once ──
+       A tree this drop made exports from what the maker handed back: a tree
+       of one as its file's own export, a tree of many as the owner's. A tree
+       position found on record (not made here) has neither in hand: a tree
+       of one is rebuilt from the file itself (its root is its only leaf), and
+       anything else exports the root document alone, which checks the proof
+       and its times and says the file's membership is not carried. The floor
+       header, the Base ceiling and the settlement are read from this site's
+       routes and vetted before they are written (buildTreeExport). */
+    const treeNotes: string[] = [];
+    const usedNames = new Set<string>();
+    const uniqueName = (name: string, proof: BitGraphProof) => {
+      if (!usedNames.has(name)) { usedNames.add(name); return name; }
+      const alt = name.replace(/\.bitgraph\.json$/, ` #${proof.commit?.counter ?? "?"}.bitgraph.json`);
+      usedNames.add(alt);
+      return alt;
+    };
+    const specFor = new Map<string, Uint8Array | null>();
+    let treeStep = withProofs.length;
+    for (const job of treeJobs.values()) {
+      setExportProgress({ current: ++treeStep, total: totalSteps, phase: "packaging" });
+      await tick();
+      const proof = job.proof as unknown as VerifyProof;
+      let tree: Parameters<typeof buildTreeExport>[1];
+      let name: string;
+      if (job.made && job.made.count === 1) {
+        tree = memberTree(job.made.rootDocument, job.made.evidenceOf(0));
+        name = memberExportName(job.rows[0]!.file.name);
+      } else if (job.made) {
+        tree = ownerTree(job.made.rootDocument, job.made.leavesBytes, job.made.names);
+        name = ownerExportName(proof);
+      } else if (job.rows.some((r) => r.recoveredTrees?.some((t) => t.proofKey === treePositionKey(job.proof)))) {
+        // Found by its recovery entry: the entry carries this file's place in the tree.
+        const holder = job.rows.find((r) => r.recoveredTrees?.some((t) => t.proofKey === treePositionKey(job.proof)))!;
+        const rec = holder.recoveredTrees!.find((t) => t.proofKey === treePositionKey(job.proof))!;
+        tree = memberTree(rec.rootDocument, rec.evidence);
+        name = memberExportName(holder.file.name);
+      } else {
+        const bound = bindTree(proof);
+        let evidence: Awaited<ReturnType<typeof treeOfOneEvidence>> = null;
+        let holder: FileItem | null = null;
+        if (bound.ok && bound.tree.count === 1) {
+          for (const r of job.rows) {
+            if (r.fromProofJson) continue;
+            evidence = await treeOfOneEvidenceFromSource(bound.tree, blobSource(r.file));
+            if (evidence) { holder = r; break; }
+          }
+        }
+        if (bound.ok && evidence && holder) {
+          tree = memberTree(bound.tree.rootDocument, evidence);
+          name = memberExportName(holder.file.name);
+        } else if (bound.ok) {
+          tree = rootOnlyTree(bound.tree.rootDocument);
+          name = ownerExportName(proof);
+          treeNotes.push(`BitGraph #${proof.commit?.counter ?? "?"} is a tree of ${bound.tree.count} files and this browser did not make it, so its export carries the proof and its times but no file's membership: that comes with the file's own export, or its recovery entry.`);
+        } else {
+          treeNotes.push(`BitGraph #${proof.commit?.counter ?? "?"} could not be exported: ${bound.reason}.`);
+          continue;
+        }
+      }
+      try {
+        const evidenceParts = await fetchTreeEvidence(proof);
+        const built = await buildTreeExport(proof, tree, evidenceParts);
+        addText(uniqueName(name, job.proof), exportJson(built.exp));
+        treeNotes.push(...built.notes);
+        const pin = typeof proof.attribution?.message === "string" ? proof.attribution.message : "";
+        if (!specFor.has(pin)) specFor.set(pin, await fetchSpecFor(pin));
+      } catch (e) {
+        treeNotes.push(`BitGraph #${proof.commit?.counter ?? "?"} could not be exported: ${(e as Error).message}.`);
+      }
+    }
+    // SPEC.md travels beside the exports, byte for byte the text their proofs pin.
+    for (const [pin, spec] of specFor) {
+      if (spec) addBytes(specFor.size === 1 ? SPEC_FILE_NAME : `SPEC (${pin.slice(0, 8).replace(/[+/]/g, "_")}).md`, spec);
+      else treeNotes.push(`SPEC.md could not be fetched, so it is not beside the export. It is at bitgraph.ing${specFileFor(pin).path}; its SHA-256 is the one the proof pins.`);
+    }
+
+    // Bracket the single-recording proofs with a batch-level anchor window:
+    // "after" follows the highest counter, "before" precedes the lowest.
+    // Multi-recording files already carry per-recording anchors above.
+    setExportProgress({ current: withProofs.length + treeJobs.size + 1, total: totalSteps, phase: "packaging" });
+    await tick();
+    if (singles.length > 0) {
+      const last = singles.reduce((a, b) =>
+        parseInt(b.commit?.counter || "0", 10) > parseInt(a.commit?.counter || "0", 10) ? b : a);
+      const first = singles.reduce((a, b) =>
+        parseInt(b.commit?.counter || "0", 10) < parseInt(a.commit?.counter || "0", 10) ? b : a);
+      await addAnchorsFor("", last.commit?.counter || "0", first.commit?.counter || "0", last.commit?.epochId || "");
+    }
+    // Every proof folder gets its own page; only a collection gets the index
+    // over them. A single recording has nothing to index, and the proof page is
+    // already a link away. Same rule the BitGraph Folder applies.
+    // ❄️ NO index.html, and no contact sheet across the batch. A batch export
+    // used to carry a page per recording plus a sheet linking them; both are
+    // gone, the same cut the Folder took in 1.12.0 and for the same reasons.
+    // They were a second implementation of the proof page that drifted from
+    // it, and the verdict they showed was computed by whoever built the
+    // export rather than by the person reading it. Browsing a batch is a
+    // drop: the whole folder onto bitgraph.ing, checked against the ledger in
+    // the reader's own browser.
+
+    setExportProgress({ current: totalSteps - 1, total: totalSteps, phase: "packaging" });
+    await tick();
+    z.end();
+    // Wait for streaming zip to finish (it's synchronous internally but need to drain)
+    while (!zipDone && !zipError) await tick();
+    if (zipError) throw zipError;
+
+    setExportProgress({ current: totalSteps, total: totalSteps, phase: "packaging" });
+    const totalSize = chunks.reduce((s, c) => s + c.length, 0);
+    const merged = new Uint8Array(totalSize);
+    let offset = 0;
+    for (const c of chunks) { merged.set(c, offset); offset += c.length; }
+    const blob = new Blob([merged.buffer as ArrayBuffer], { type: "application/zip" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    // The Folder's naming, in both arities: one file is `BitGraph (name).zip`
+    // exactly as its export folder would be called, and a batch says what it
+    // holds instead of "batch". Two other schemes lived here before.
+    a.download = all.length === 1
+      ? `BitGraph (${all[0].file.name.replace(/[\x00-\x1f\x7f/]/g, " ").trim()}).zip`
+      : `BitGraph (${all.length} files).zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    /* The net. Downloads is the least durable folder on the machine, and once
+     * only anchors are written this file IS the BitGraph. A copy here turns
+     * "gone forever" into "gone if you also lose this browser profile", which
+     * is a different kind of bad. Best effort by design: it must never be able
+     * to break the download that has already happened. */
+    {
+      const positions = [...new Set(all.flatMap((i) =>
+        (i.proofs.length ? i.proofs : i.proof ? [i.proof] : [])
+          .map((pr) => `${pr.commit?.epochId ?? ""} ${pr.commit?.counter ?? ""}`)))];
+      void putPackageToIDB(positions[0] || String(Date.now()),
+        { name: a.download, blob, savedAt: Date.now(), positions });
+    }
+
+    /* ⚠️ THE PACKAGE MUST SAY WHAT IT WENT OUT SHORT OF.
+     *
+     * Making no longer waits fifteen seconds for the next Ethereum anchor —
+     * the floor is already in the signed body, and waiting was, in Mike's
+     * words, too clever. The upper bound is DEFERRED, not lost: the counter is
+     * in the signed proof and anchors are permanent, so this package completes
+     * whenever anyone drops the folder back in, today or in a year.
+     *
+     * But deferred has to be SAID. The old wait was the interface admitting
+     * the anchor had not landed; removing it and saying nothing would hand
+     * someone an incomplete package that looks complete, which is the very
+     * thing the wait was there to prevent. */
+    const pending = anchorOutcomes.filter((o) => o.upper === "pending").length;
+    const unknown = anchorOutcomes.filter((o) =>
+      o.upper === "unavailable" || o.upper === "undetermined" ||
+      o.lower === "unavailable" || o.lower === "undetermined").length;
+    const said: string[] = [];
+    if (pending > 0) {
+      said.push(`${pending === 1 ? "This BitGraph has" : `${pending} of these BitGraphs have`} no Ethereum anchor after ${pending === 1 ? "it" : "them"} yet — one lands within seconds. Nothing is lost and nothing expires: drop this folder back in whenever you like and the package completes.`);
+    }
+    if (unknown > 0) {
+      said.push(`${unknown} position${unknown === 1 ? "'s anchors" : "s' anchors"} could not be looked up. That is our gap, not a fact about your files. Drop the folder back in to try again.`);
+    }
+    // What each tree's export went out short of, once per sentence.
+    said.push(...new Set(treeNotes));
+    setPackageNote(said.length ? said.join(" ") : null);
+    setStep("results");
+  }
+
+
+  /* ── Export anchors for the dropped folder ──────────────────────────────
+   *
+   * The deferred half of making a BitGraph, done deliberately on a folder you
+   * already hold. Making is instant because the floor is already in the signed
+   * body; the upper bound is fetched later, by anyone, at any time — the
+   * counter is in the signed body and anchors are permanent.
+   *
+   * ONE request pair per POSITION, not per file: the 48,000 file folder is
+   * three sets, so it is three pairs. And ONE file out, because Chromium
+   * prompts "wants to download multiple files" on the second one.
+   *
+   * ⚠️ EVERY OUTCOME SPEAKS. A run that fetched nothing says why — nothing was
+   * missing, or a position has no upper bound yet, or the ledger could not be
+   * reached — because a button that silently produced no file would be this
+   * phase's own bug wearing a different hat.
+   */
+  async function exportAnchors() {
+    if (!anchorPlan || anchorBusy) return;
+    const needs = anchorPlan.needs;
+    if (!needs.length) { setAnchorNote("Every position in this folder already has both of its anchors."); return; }
+    setAnchorNote(null);
+    setAnchorBusy({ current: 0, total: needs.length });
+    try {
+      const summary = await fetchAnchorsFor(needs, (current, total) => setAnchorBusy({ current, total }));
+      const parts: string[] = [];
+      if (summary.fileCount > 0) {
+        const blob = packAnchorZip(summary);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const name = anchorZipName(anchorPlan.dropName);
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(url);
+        // ⚠️ Only say what happened. "0 positions completed" led this line on
+        // a run that fetched a lower bound and honestly reported the upper one
+        // as not-yet — a true outcome announced as a failure.
+        const anchored = summary.positions.filter((p) => p.upper.state === "anchored" && p.lower.state === "anchored").length;
+        if (anchored > 0) parts.push(`${anchored} position${anchored === 1 ? "" : "s"} completed.`);
+        parts.push(`Unzip ${name} beside this folder and merge: it holds only what the folder is missing, so nothing is overwritten.`);
+      }
+      // Never silent, and never cheerful about a gap that is ours.
+      if (summary.pending > 0) {
+        parts.push(`${summary.pending} position${summary.pending === 1 ? " has" : "s have"} no anchor yet: ${summary.pending === 1 ? "it was" : "they were"} recorded too recently for one to have landed. Nothing is lost — drop this folder in again later and ${summary.pending === 1 ? "it completes" : "they complete"}.`);
+      }
+      if (summary.closed > 0) {
+        parts.push(`${summary.closed} position${summary.closed === 1 ? "'s" : "s'"} epoch closed with no anchor after ${summary.closed === 1 ? "it" : "them"}, so no upper bound exists. The lower bound stands.`);
+      }
+      if (summary.unavailable > 0) {
+        parts.push(`${summary.unavailable} position${summary.unavailable === 1 ? "" : "s"} could not be looked up. That is our gap, not a finding about the folder. Try again.`);
+      }
+      if (!parts.length) parts.push("Nothing to fetch: this folder is already complete.");
+      setAnchorNote(parts.join(" "));
+      // What was just written is now in the folder the user will re-drop, but
+      // this tab still holds the plan it started with. Recompute from the run
+      // so the card stops offering work that is done.
+      setAnchorPlan((prev) => prev && ({
+        ...prev,
+        needs: prev.needs.filter((n) => {
+          const got = summary.positions.find((p) => p.need.counter === n.counter && p.need.epochId === n.epochId);
+          return !got || !isSettled(got.upper.state, got.lower.state);
+        }),
+      }));
+    } catch (e) {
+      console.error("[bitgraph] anchors export failed:", e);
+      setAnchorNote("The anchors could not be packaged. Nothing was changed; try again.");
+    } finally {
+      setAnchorBusy(null);
+    }
+  }
+
+  // A visitor supplied a file that hashes to a dropped proof.json's digest. Mark
+  // the row matched and cache the real artifact so opening the proof shows it.
+  function handleMatched(index: number, file: File) {
+    const proof = items[index]?.proof;
+    setItems(prev => prev.map((it, j) => j === index ? { ...it, matchedFile: file } : it));
+    if (proof) cacheArtifactToIDB(file, proof.artifact.digestB64).catch((e) => console.error("[bitgraph] cache error:", e));
+  }
+
+  /* ── Styles ── */
+  /* ── One shared look for every wait state (read / check / prove / package):
+     the same spinner, the same label, and a determinate bar whenever there is a
+     live count to show. Keeps the whole drop→record flow cohesive: one gerund
+     label "{Verb} {n} of {total}", one Unicode ellipsis, no stray percentages. ── */
+  const waitSpinner: React.CSSProperties = { width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" };
+  const waitLabel: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+  const waitTrack: React.CSSProperties = { width: "min(260px, 72vw)", height: 2, borderRadius: "var(--radius-card)", background: "var(--line)", overflow: "hidden" };
+  const waitFill = (pct: number): React.CSSProperties => ({ width: `${pct}%`, height: "100%", background: "var(--accent)", transition: "width 0.15s" });
+
+  return (
+    /* No ground of its own (2026-10-15, Mike: "design error here"): var(--bg) painted a white slab behind the results
+       heading and between the cards on the grey page; the page's grey shows through, the cards keep their white. */
+    <div style={{ color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
+      <style>{`
+        /* Drop step: the same column as /folder and /day, to the pixel —
+           90% up to 800, 40px under the nav, top-aligned. The centered-hero
+           formula (and its /camera morph pairing) is RETIRED with the hero:
+           the page is a tool that starts at the top, like every other page.
+           Mike: "less flashy, more utilitarian". */
+        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 40px 0 80px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; }
+        /* The drop step fills the space under the nav and centres in it, so
+           whatever the frame cannot use (the aspect ratio caps it whenever
+           width binds) is split above and below instead of all falling to the
+           bottom. Symmetric padding, or the content sits 20px high of centre.
+           Scoped off the results view, which is a scrolling list and wants to
+           start at the top. */
+        .bitgraph-wrap:not(.bitgraph-results):not(.bitgraph-flow) { justify-content: center; min-height: var(--bg-wrap-min, auto); padding-bottom: 40px; }
+        /* A page that keeps going under the frame: no viewport centring, and the
+           frame is capped so the first section shows without scrolling for it. */
+        .bitgraph-wrap.bitgraph-flow { padding: 10px 0 30px; }
+        .bitgraph-wrap.bitgraph-flow .bitgraph-camera { max-height: 300px; }
+        /* 40 under the nav, the same as the ledger and the docs pages (it was
+           32, and the results heading sat tight: Mike, 2026-08-19: "should
+           'bitgraphs found' breathe a bit more?"). */
+        .bitgraph-wrap.bitgraph-results { padding-top: 40px; padding-bottom: 48px; }
+        /* ── Results: the box is closed behind one link (Mike, 2026-08-19).
+           At full size it was ~490px of empty dashed rectangle over the list
+           the drop produced, with "BitGraph Found" below the first screen. It
+           was a 176px strip for an hour; Mike's better idea: a link that
+           EXPANDS the box to full size in place. The results lead, nothing
+           leaves the page, and the box is one click away, or no clicks: a
+           file drag entering the window opens it, so the folder gesture (drag
+           is the only way a folder arrives) still lands. Closed means CLOSED:
+           no title, no box, the results start at the top of the page (Mike's
+           mock), and the link sits on the right of the first results heading.
+           Opening brings "the whole thing header included": the hero mounts
+           above the results exactly as the drop step has it. ── */
+        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; }
+        /* The title takes its type from .bg-page-title (globals), the one
+           page-title definition on the site. What is left here is the size
+           exception below and the gap to the frame. */
+        /* ── CENTRED, the title alone (Mike, 2026-08-19, evening: "now i feel
+           like that should be centered"). It went left that afternoon, when
+           the row also carried a link on its right and sat over a left-aligned
+           "BitGraph Found"; with the link gone and home's title now the claim
+           itself, what was left was one sentence over a symmetric box, and a
+           sentence like that reads as a statement, which wants the centre.
+           (Home has carried no headline since 2026-09-08, so this centres
+           nothing today; it is the rule any future title inherits.) Only the title: the box's own
+           copy was always centred, and the block under the box (/actor's
+           "Forget this device") stays where Mike put it, bottom left. ── */
+        .bitgraph-tagline { text-align: center; }
+        /* 36px, taken over from the deck that used to sit between this title
+           and the frame (removed 2026-08-18: it read "a place in space and
+           time", and both halves were wrong). The 12px here before
+           was the title-to-deck gap, binding those two as one block; with the
+           deck gone it would have left the headline three optical pixels above
+           a box that opens a file dialog on a stray hit. 36 is the number that
+           was already tuned against the frame, so the title inherits it rather
+           than a new one being invented.
+
+           No terminal period on the title, matching how it already renders in
+           the tab title, the OpenGraph title and the Twitter card ("BitGraph |
+           A camera for bits"). Docs pages keep theirs: those are prose, this
+           is the app surface. */
+        .bitgraph-tagline { margin: 0 0 36px; }
+        /* The one place on the site that departs from the shared title size.
+           .bg-page-title is clamp(26px, 6vw, 32px), which stops growing at a
+           533px viewport, so on every desktop it is a flat 32px. That was fine
+           while the page was fixed too. It is not now: the frame scales with
+           the window, so the title shrank against it on every larger screen,
+           and at 32px it lost the room to the drop box's own 26px headline,
+           which is longer and sits in a white field.
+
+           40, not 48. 48 cleared the drop box's headline easily but read as
+           marketing-page big, which is the opposite of what this page is. At
+           40 it outranks that headline by type size (40 against 26) and sits
+           near parity with it in width, without shouting.
+
+           The FLOOR moves too, 26 to 34, and this is the part that costs
+           something. Raising only the cap fixed desktop and left the phone
+           worse than before: the drop box's headline barely shrinks (26 to
+           22), so at a 26px title the ratio fell to 1.18 and the title was
+           NARROWER than the headline beneath it (189 against 257). 34 puts the
+           phone at 1.55 and 0.96, matching desktop.
+
+           The cost is real: home's title is now larger than its peers on
+           phones as well as desktops, so the one-size rule is excepted at the
+           size where pages are most often compared, not just where the shared
+           rule had already flatlined. Deliberate, and the number to dial if it
+           ever reads as too much. */
+        /* ⚠️ The 34px floor above was for "A camera for bits" (17 characters).
+           It was then "A BitGraph gives bits a place" (29), which at 34px
+           is ~450px wide and wraps to two lines in a phone's ~350px column
+           (Mike, 2026-08-19: "on mobile it wraps. has to be smaller i suppose
+           on mobile"). So on phones the size follows the viewport: the
+           sentence measures 13.2x its font size in this face, the column is
+           90vw, and 6.6vw keeps it on one line from a 360px viewport up (25.7px
+           at 390, 23.8 at 360; 22 is the floor, which wraps only on 320px
+           devices). Then, the same evening: "maybe it should match docs titles
+           size?" Yes: that retires the one exception to the site's type
+           ladder (.bg-page-title is clamp(26px, 6vw, 32px), a flat 32 on
+           desktop; home had been 34..40 since the frame started scaling with
+           the window). So: the docs size from 433px up, identical to every
+           other title, and below that the floor is 22 rather than 26 only so
+           the sentence holds one line on small phones (23.4px at 390, 22 at
+           360; 26 would wrap at 375). Same rule on both camera pages.
+
+           ⚠️ NOTHING USES THIS TODAY. Home dropped its headline on 2026-09-08
+           and is the only page mounting a camera, so no title prop is passed
+           and this h1 never renders. Kept because the rule is correct for the
+           title it was measured against, and because the measurement below is
+           what a future one needs.
+
+           ⚠️ AND THE NUMBER IS A FUNCTION OF THE TITLE, so re-solve it before
+           reusing it. Measured with canvas measureText in the shipped face: "A
+           BitGraph gives bits a place" is 13.13x its font size (the 13.2 above
+           was right) and "A clock that ticks when you ask it to", which led
+           for a few hours the same day, is 16.3x. One line inside the 90vw
+           column needs 90/ratio vw, so the 37-character line wanted
+           clamp(17px, 5.4vw, 32px) where 6vw wrapped it on every phone with an
+           orphaned "it to". Measure, solve, do not nudge by eye. */
+        .bitgraph-tagline { font-size: clamp(22px, 6vw, 32px); }
+        .bitgraph-tagline .accent { color: inherit; }
+        /* The block under the frame (home's one link, /actor's Rename ·
+           Forget) is the page's: its class and its margin live in the page's
+           own style. Both are 42px over one 16px line box, which is what
+           keeps the two frames the same size (see useCameraFit above). */
+        /* Waiting states (read/check/prove/export) all pin their center to the
+           SAME viewport point the success checkmark uses (fixed, 44% down,
+           horizontally centered), so every wait and the capture moment share
+           one anchor. Fade only: a translate animation would fight the
+           centering transform. */
+        .bitgraph-wait { position: fixed; top: 44%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 16px; width: max-content; max-width: 92vw; animation: popIn 0.3s ease-out; }
+        @keyframes countPop { 0% { transform: scale(0.5); opacity: 0 } 50% { transform: scale(1.15) } 100% { transform: scale(1); opacity: 1 } }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+        @keyframes popIn { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.4 } }
+        @keyframes spin { to { transform: rotate(360deg) } }
+        @keyframes glow { 0%, 100% { box-shadow: none } 50% { box-shadow: none } }
+        /* Freshly-created BitGraph row: slides up while a brand-tinted wash
+           fades out, so the eye lands on the new #number. */
+        @keyframes proveReveal { 0% { opacity: 0; transform: translateY(12px); background: var(--tint) } 55% { background: var(--tint) } 100% { opacity: 1; transform: translateY(0); background: transparent } }
+        /* Success header: the badge pops and the check strokes itself in — the
+           canonical "done" cue — while the count tallies up beside it. */
+        @keyframes headerReveal { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes checkDraw { from { stroke-dashoffset: 26 } to { stroke-dashoffset: 0 } }
+        /* Short viewports: a phone in landscape. At ~380px of height the page
+           broke its own no-scroll promise badly, 121px of overflow with the
+           example link entirely below the fold, because the type and gaps are
+           sized for a tall window and the frame's floor did the rest.
+
+           Everything that is generous at full height gets tightened here, and
+           the title switches from a vw basis to vh, since on a landscape phone
+           the constraint is height, not width. Nothing is hidden: the whole
+           composition still fits, just closer together. */
+        @media (max-height: 520px) {
+          .bitgraph-wrap:not(.bitgraph-results) { padding-top: 12px; padding-bottom: 12px; }
+          .bitgraph-tagline { font-size: clamp(20px, 4.5vh, 30px); margin-bottom: 14px; }
+        }
+      `}</style>
+      {/* Nav is in root layout */}
+
+      {/* The id also rides as a class, so a page can style its own instance
+          without reaching every other page that renders one. */}
+      <div className={`bitgraph-wrap bitgraph-${id}${step !== "drop" ? " bitgraph-results" : !fitViewport ? " bitgraph-flow" : ""}`}>
+
+        {/* ── The camera: the page's title, the box first thing, then the
+            page's block under it. The ledger lives on its own /day page.
+
+            ⚠️ IT STAYS ON THE RESULTS STEP TOO (Mike, 2026-08-19). It used to
+            vanish, on the reasoning that results were a terminal "here is what
+            you did" view and the nav logo was the way back. Once a solo lookup
+            stopped navigating to a proof, the results view became somewhere a
+            drop could LAND rather than only somewhere it finished, with no way
+            to drop again short of a reload. A second drop REPLACES the list:
+            a drop is a batch, and the list is that batch.
+
+            ⚠️ useCameraFit stays gated on step === "drop" and must; see the
+            note at the hook call. ── */}
+        {(step === "drop" || (step === "results" && (!showingResults || boxOpen))) && (
+          <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
+            {/* No page title over a box summoned onto a results page (Mike,
+                2026-08-19: "maybe we remove headings on results pages where
+                youre making MORE bitgraphs. it will also save room and be
+                cleaner"). The reader summoned the box from the results; a
+                title over it is ceremony, and the heading row below it, whose
+                job was to hold the link that opens the box, goes with it.
+                Expanded over results is: the box, then the card and the rows. */}
+            {/* A page that carries its own hero passes no title; the box then
+                opens with its own first line and nothing is said twice. */}
+            {!showingResults && title && <h1 className="bg-page-title bitgraph-tagline">{title}</h1>}
+            {!showingResults && above}
+            <div className="bitgraph-camera">
+              {unknownGate && (
+                <div role="status" style={{ padding: "12px 16px 14px", fontSize: 14, lineHeight: 1.55, borderBottom: "1px solid var(--line-2)" }}>
+                  <p style={{ margin: 0 }}>
+                    {unknownGate.count === 1 ? "One file" : `${unknownGate.count} files`} could not be checked against earlier BitGraphs ({unknownGate.why}). {unknownGate.count === 1 ? "It" : "They"} may already be in one. Make {unknownGate.count === 1 ? "it" : "them"} anyway, or try again later.
+                  </p>
+                  <div style={{ display: "flex", gap: 20, marginTop: 8, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="bg-action-link is-make"
+                      onClick={() => {
+                        const g = unknownGate;
+                        setUnknownGate(null);
+                        g.proceed();
+                      }}
+                    >
+                      <span>Make anyway</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
+                    </button>
+                    <button type="button" className="bg-action-link" onClick={() => setUnknownGate(null)}><span>Not now</span></button>
+                  </div>
+                </div>
+              )}
+              {largeDrop && (
+                <div role="status" style={{ padding: "12px 16px 14px", fontSize: 14, lineHeight: 1.55, borderBottom: "1px solid var(--line-2)" }}>
+                  <p style={{ margin: 0 }}>
+                    This file is {largeDrop.gb} GB. Fusing may take about {largeDrop.seconds} seconds. Continue, or use the command line tool.
+                  </p>
+                  <div style={{ display: "flex", gap: 20, marginTop: 8, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="bg-action-link is-make"
+                      onClick={() => {
+                        const d = largeDrop;
+                        setLargeDrop(null);
+                        for (const f of d.files) largeOkRef.current.add(f);
+                        void handleFiles(d.files);
+                      }}
+                    >
+                      <span>Continue</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
+                    </button>
+                    <a className="bg-action-link" href="/docs/sdk"><span>Use the command line tool</span></a>
+                    <button type="button" className="bg-action-link" onClick={() => setLargeDrop(null)}><span>Not now</span></button>
+                  </div>
+                </div>
+              )}
+              <FileDrop
+                multiple
+                onFile={(f) => { dropNameRef.current = null; void handleFiles([f]); }}
+                onFiles={(fs) => { dropNameRef.current = null; void handleFiles(fs); }}
+                onFolder={handleFolder}
+                onFolderScan={handleFolderScan}
+                // The title names BOTH functions, because the box is one
+                // gesture with two outcomes: a file not on the ledger gets
+                // recorded, one already on it gets looked up, and the user
+                // never picks which. Naming only the first ("Record a
+                // BitGraph") read as though an already-recorded file had no
+                // business here. Plural because a folder makes many at once.
+                // The line under it names both gestures.
+                // The folder half of that line is load-bearing: dragging is
+                // the ONLY way a folder can arrive, since every browser's
+                // click path to one raises a view-files or upload-files
+                // warning on a page whose whole claim is that nothing is
+                // uploaded. See the note in file-drop.tsx before cutting it.
+                headline={dropHeadline}
+                prompt={dropPrompt}
+                hint={dropHint}
+                // "Hashed in your browser, never uploaded." (Mike, 2026-08-26,
+                // replacing "Your file never leaves your device"): name the
+                // mechanism, scope the denial to the file. The digest travels
+                // to the ledger; the file never does, so the line stays true
+                // with the network tab open, where "Nothing is uploaded"
+                // would not have.
+                subhint={dropSubhint}
+                note={frameNote}
+                /* The fourth line: what this browser actually knows. It is the
+                   whole reason minting can still be safe without a hosted
+                   ledger, so it belongs where the gesture happens rather than
+                   in the nav. A count, never a dot; nothing red. */
+                /* ❄️ NO STATE LINE IN THE BOX. It lived here as a fourth line
+                   for a few hours; Mike moved it out — "no dialog in dropbox" —
+                   once the corner light existed. The box is for the gesture;
+                   whether a folder is connected belongs somewhere visible from
+                   every page, which the box is not. See ledger-light.tsx. */
+              />
+            </div>
+            {/* The page's block, under the box, left (Mike, 2026-08-19: "move
+                Forget this device to bottom left on Actor"; home has none).
+                Rendered only when the page gave one, so a page without it
+                adds no height; the fit observes it by class when present. */}
+            {!showingResults && below && <div className={belowClassName}>{below}</div>}
+          </div>
+        )}
+
+        {/* ── Scanning: read the files, then check the ledger. Both use the
+            shared wait look; the bar appears only when there is a live count
+            (always while reading, and for large ledger checks). ── */}
+        {step === "scanning" && (scanPhase === "walking" ? (
+          <div className="bitgraph-wait">
+            <div role="status" aria-label="Reading your folder" className="bg-spinner" style={waitSpinner} />
+            {/* No bar: the size of a folder is not known until it has been
+                read, and a bar that cannot reach its end is worse than none.
+                The count alone is enough to show the work is moving. */}
+            <div style={waitLabel}>
+              {walkCount > 0
+                ? `Reading your folder… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
+                : "Reading your folder…"}
+            </div>
+          </div>
+        ) : scanPhase === "reading" ? (
+          <div className="bitgraph-wait">
+            <div role="status" aria-label="Reading files" className="bg-spinner" style={waitSpinner} />
+            <div style={waitLabel}>Reading {scanProgress.current} of {scanProgress.total}</div>
+            <div style={waitTrack}>
+              <div style={waitFill(scanProgress.total ? (scanProgress.current / scanProgress.total) * 100 : 0)} />
+            </div>
+          </div>
+        ) : (
+          <div className="bitgraph-wait">
+            <div role="status" aria-label="Looking up" className="bg-spinner" style={waitSpinner} />
+            {/* Digest lookups are one round trip and only worth counting when
+                chunked; a folder check is per-export round trips, so its count
+                is live from the first export. */}
+            {recoveryProgress.total > 0 ? (
+              <>
+                <div style={waitLabel}>Looking for earlier recordings: {recoveryProgress.current.toLocaleString("en-US")} of {recoveryProgress.total.toLocaleString("en-US")}</div>
+                <div style={waitTrack}>
+                  <div style={waitFill((recoveryProgress.current / recoveryProgress.total) * 100)} />
+                </div>
+              </>
+            ) : checkProgress.total > 50 || (folderChecking && checkProgress.total > 0) ? (
+              <>
+                <div style={waitLabel}>Checking {checkProgress.current} of {checkProgress.total}</div>
+                <div style={waitTrack}>
+                  <div style={waitFill(checkProgress.total ? (checkProgress.current / checkProgress.total) * 100 : 0)} />
+                </div>
+              </>
+            ) : (
+              <div style={waitLabel}>Checking…</div>
+            )}
+          </div>
+        ))}
+
+        {/* ── Proving: the count is shown whenever there is something to
+            count, and that depends on which operation is running.
+            ⚠️ Making BitGraphs goes ONE FILE AT A TIME (each needs its own
+            slot), so every file is a tick and a batch of any size has a real
+            count. Ordinary recording signs a whole chunk of up to 50 digests
+            in ONE round trip, so under 50 files there is genuinely nothing to
+            report until it is over, and only multi-chunk runs tick.
+            The old rule was the chunk rule applied to both: 50 files made
+            into BitGraphs sat under a bare spinner for a full minute with
+            nothing moving, which is indistinguishable from hung (Mike,
+            2026-09-04: "takes a long time and in fact gets hung"). Same look
+            as reading/checking. ── */}
+        {step === "proving" && (
+          <div className="bitgraph-wait">
+            <div role="status" aria-label="BitGraphing" className="bg-spinner" style={waitSpinner} />
+            {/* The strategy's own wait comes first when it has one: /actor's
+                "Waiting for you" while the touch prompt is up is not
+                BitGraphing yet, and saying so is what tells the visitor why
+                nothing is moving. */}
+            {recordStatus ? (
+              <div style={waitLabel}>{recordStatus}…</div>
+            ) : provePhase ? (
+              /* A set says what is running. hash, fuse and verify each walk
+                 every file and so carry a count; the slot wait, tree and commit
+                 are single steps and carry only their name, because a count of
+                 one is not progress. The bar spans the three walking phases in
+                 order and holds through the others, so it never runs
+                 backwards. */
+              <>
+                <div style={waitLabel}>
+                  {provePhase.phase === "hash" ? `Reading ${provePhase.done} of ${provePhase.total}`
+                    : provePhase.phase === "fuse" ? `BitGraphing ${provePhase.done} of ${provePhase.total}`
+                    : provePhase.phase === "verify" ? `Verifying ${provePhase.done} of ${provePhase.total}`
+                    : /* The three that cannot count say how long they have been
+                         at it instead, once it is long enough to wonder. */
+                      `${provePhase.phase === "slot" ? "Holding a position" : provePhase.phase === "tree" ? "Building the tree" : "Committing the tree"}…${phaseSeconds >= 3 ? ` ${phaseSeconds}s` : ""}`}
+                </div>
+                <div style={waitTrack}>
+                  <div style={waitFill(proveProgress.total ? Math.min(100, (provePhase.at / proveProgress.total) * 100) : 0)} />
+                </div>
+              </>
+            ) : proveProgress.total > (fuseByDefault ? 1 : 50) ? (
+              <>
+                <div style={waitLabel}>BitGraphing {proveAnimCount} of {proveProgress.total}</div>
+                <div style={waitTrack}>
+                  <div style={waitFill(proveProgress.total ? (proveAnimCount / proveProgress.total) * 100 : 0)} />
+                </div>
+              </>
+            ) : (
+              <div style={waitLabel}>BitGraphing…</div>
+            )}
+            {/* Shown only while a commit is held for the daily rotation.
+                The files are hashed and safe; nothing is lost by waiting.
+                One line, quiet gray, same voice as the drop hints. */}
+            {teeRestarting && (
+              <div style={{ fontSize: 13, color: "var(--dim)", textAlign: "center", maxWidth: 420 }}>
+                BitGraph is restarting for its daily key renewal and will be back online in about a minute. Your file is
+                hashed and held; recording resumes automatically.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Exporting: the .zip step count doesn't map to the file count, so
+            it just spins. Same look as the others. ── */}
+        {step === "exporting" && (() => {
+          // Same shape the checking phase uses: a count once there is enough
+          // to count, the bare word when there is not.
+          const word = exportProgress.phase === "preparing" ? "Preparing" : "Packaging";
+          const counted = exportProgress.total > 1;
+          return (
+            <div className="bitgraph-wait">
+              <div role="status" aria-label={word} className="bg-spinner" style={waitSpinner} />
+              <div style={waitLabel}>
+                {counted ? `${word} ${exportProgress.current} of ${exportProgress.total}` : `${word}\u2026`}
+              </div>
+              {counted && (
+                <div style={{ width: "min(320px, 70vw)", height: 3, background: "var(--line)", marginTop: 12 }}>
+                  <div style={{ width: `${Math.round((exportProgress.current / exportProgress.total) * 100)}%`, height: "100%", background: "var(--accent)", transition: "width .2s ease" }} />
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ── Results ── */}
+        {step === "results" && (items.length > 0 || checked.length > 0 || exportRows.length > 0) && (
+          <div style={{ animation: "slideIn 0.3s ease-out", display: "flex", flexDirection: "column", gap: 24 }}>
+
+              {/* The drop box now sits above this (see the camera block), so a
+                  new batch is another drop rather than a trip through the nav.
+                  ⚠️ A second drop REPLACES this list rather than appending,
+                  which is where home still differs from /actor deliberately: a
+                  drop here is a batch, and /actor's rows accumulate because
+                  acting on files one at a time is its whole point.
+                  Historical note: this view used to be terminal, and the
+                  "BitGraph" logo in the nav returned to the drop
+                  screen (it force-reloads home). Matches the proof page, which
+                  also has no camera. */}
+
+              {/* ── The folder's Ledger: a dropped BitGraph folder loads HERE
+                  instead of carrying its own generated sheet (Mike,
+                  2026-08-05: "no index file at all... you drag and drop the
+                  whole folder into the camera and it loads the ledger! and this
+                  viewer can have small thumbs"). Ledger grammar throughout: day
+                  headers over causal order, rows with a small thumb made from
+                  the dropped bytes themselves, the verdict in the two-outcome
+                  colors — blue "matches the ledger", red naming the side that
+                  differed. NO buttons: the drop triggered everything. ── */}
+              {/* ── The anchors card ────────────────────────────────────────
+                  Making is instant and leaves the upper bound deferred; this
+                  is where the folder is completed. Same receipt anatomy as the
+                  drop's own card: the count on the left, one action link on
+                  the right, a line under it when there is something to say.
+
+                  ⚠️ ABOVE the list, not below it. The page itself scrolls and
+                  the list keeps its true height from spacers, so a card under
+                  a 48,000 row folder is 3.8 million pixels down the page.
+
+                  The count is stated even when there is nothing to do, because
+                  "3 positions · all anchored" is a finding: it is the folder
+                  telling you it is finished. */}
+              {anchorPlan && anchorPlan.positions > 0 && (
+                <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
+                  <div style={{ padding: "11px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+                      {anchorPlan.positions} position{anchorPlan.positions === 1 ? "" : "s"}
+                      <span style={{ fontWeight: 400, color: "var(--dim)" }}>
+                        {/* "not fully anchored" rather than "needs anchors":
+                            a position with a lower bound and no upper one has
+                            half its evidence, and the count reads at every
+                            arity ("1 needs anchors" did not). */}
+                        {anchorPlan.needs.length === 0
+                          ? " · all anchored"
+                          : ` · ${anchorPlan.needs.length} not fully anchored`}
+                      </span>
+                    </span>
+                    {anchorBusy ? (
+                      <span style={{ fontSize: 13, color: "var(--dim)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                        Fetching {anchorBusy.current} of {anchorBusy.total}
+                      </span>
+                    ) : anchorPlan.needs.length > 0 ? (
+                      <button type="button" onClick={exportAnchors} className="bg-action-link" style={{ padding: 0 }}>
+                        <span>Export anchors for {anchorPlan.needs.length} position{anchorPlan.needs.length === 1 ? "" : "s"}</span>
+                        <span className="arrow" aria-hidden>&rarr;</span>
+                      </button>
+                    ) : null}
+                  </div>
+                  {/* What the run found, including when it found nothing. A
+                      fetch that produces no file must still say so. */}
+                  {anchorNote && (
+                    <div style={{ borderTop: "1px solid var(--line-2)", padding: "12px 16px", fontSize: 13, lineHeight: 1.55, color: "var(--dim)" }}>
+                      {anchorNote}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {checked.length > 0 && <CheckedList checked={checked} onOpen={openCheckedRow} heading={boxOpen ? null : "BitGraphs in this folder"} aside={openLink} />}
+
+              {/* ── export/1: tree/1 BitGraphs checked from their export ──
+                  One row per file an export covers (checked against its leaf),
+                  or per export dropped without its files; the verdict, then
+                  the floor, the Base ceiling and the Ethereum ceiling, each
+                  on its own line. The files these rows cover are not in the
+                  list below: they are checked, not new. */}
+              {exportRows.length > 0 && (
+                <div>
+                  {!boxOpen && (
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
+                      <div className="bg-page-title">BitGraph{exportRows.length === 1 ? "" : "s"} Checked</div>
+                      {checked.length === 0 && openLink}
+                    </div>
+                  )}
+                  <TreeExportList rows={exportRows} onOpen={openExportRow} />
+                </div>
+              )}
+
+              {/* The whole batch state lives in one receipt card (same anatomy
+                  as the proof page's receipt): count + export in the body, and
+                  when files remain unrecorded, a Record row in the arrow-link
+                  style. No banners anywhere — the drop was the gesture. */}
+              {/* Title sits above the card as a page heading, the same way the
+                  proof page and the ledger title their content. Wrapped so the
+                  column's 24px gap applies below the card, not under the title. */}
+              {items.length > 0 && (<>
+              <div>
+              {carrierDrops.length > 0 && (
+                <div className="bg-carrier-note" style={{ fontSize: 13.5, color: "var(--dim)", margin: "0 0 8px" }}>
+                  {carrierDrops.map((c) => (
+                    <div key={c.name} style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                      <span>
+                        {c.ceiling === "corrupt"
+                          ? `${c.name}: its proof block can't be read (damaged, or a newer format than this page knows), so it was not recorded or checked.`
+                          : c.innerMatches === false
+                            ? `${c.name}: the bytes inside do not match the proof it carries, so they were checked as plain bytes.`
+                            : `${c.name} carries its proof inside.${c.ceiling === "present" && !c.note ? " Its time window is complete." : ""}${c.note ? ` ${c.note}` : ""}`}
+                      </span>
+                      {c.ceiling === "unfetched" && c.innerMatches !== false && c.outer && (
+                        <button
+                          type="button"
+                          className="bg-action-link"
+                          style={{ margin: 0, padding: "2px 10px", fontSize: 13 }}
+                          disabled={carrierFetching !== null}
+                          onClick={() => void fetchClosingAnchor(c.name, c.outer!)}
+                        >
+                          {carrierFetching === c.name ? "Fetching\u2026" : "Fetch the closing anchor"}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* The one title size every page header uses. 20px, not 10:
+                  the proof page's identical title sits in a 10px-gap grid AND
+                  carries a 10px margin, so it clears its card by 20. Here the
+                  wrapper below deliberately absorbs the column gap, so the
+                  margin has to carry the whole distance itself. */}
+              {/* ⚠️ The heading states what the drop DID, which is not always
+                  recording. It says Found until this page has actually minted
+                  something (Mike, 2026-08-19: "make it say found until
+                  something is recorded"). The earlier rule, Found only when
+                  EVERY row was found, put "BitGraphs Recorded" over a batch
+                  that still had its Record row waiting, with nothing recorded
+                  yet. A lookup is not a recording, and neither is a list of
+                  files that could be. */}
+              {/* The heading row is the control row: it holds the link that
+                  opens the box. With the box open it has nothing left to do
+                  and is not rendered (see the note in the hero). */}
+              {!boxOpen && (
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
+                  {/* ⚠️ THE HEADING MAY NOT CLAIM A VERDICT IT DOES NOT HAVE.
+                      It said "BitGraph Found" over "0 of 1 file" whenever a
+                      drop found nothing — harmless when that was rare, and the
+                      FIRST thing a new visitor sees now that minting waits for
+                      a connected folder. Worse, "not found" is not a claim we
+                      can make either: with nothing connected we genuinely do
+                      not know. So when nothing was found and nothing was made,
+                      the heading counts files and says nothing else; the card
+                      below explains. Mike's 2026-08-19 rule (say Found until
+                      something is recorded) still governs the other two. */}
+                  <div className="bg-page-title">
+                    {items.some((i) => i.status === "proved")
+                      ? `BitGraph${items.length === 1 ? "" : "s"} Recorded`
+                      : found.length > 0
+                        ? `BitGraph${items.length === 1 ? "" : "s"} Found`
+                        : `${items.length} File${items.length === 1 ? "" : "s"}`}
+                  </div>
+                  {/* The link to reopen the camera, on the first heading only:
+                      when a folder's Ledger is above this, it carries it. */}
+                  {checked.length === 0 && exportRows.length === 0 && openLink}
+                </div>
+              )}
+              <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
+                <div className="bg-results-head" style={{ padding: "11px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                  {/* Files and positions, both true at once: a set is one
+                      position for many files, a file BitGraphed twice holds
+                      two. Position is the ledger's own word, the one every
+                      row and proof page already uses. */}
+                  <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both" }}>
+                    {animCount} of {items.length} file{items.length === 1 ? "" : "s"}{positionCount > 0 ? ` \u00b7 ${positionCount} position${positionCount === 1 ? "" : "s"}` : ""}
+                  </span>
+                  {/* A set's members become findable by hash after the commit,
+                      so the count says so while it happens. */}
+                  {indexProgress && (
+                    <span style={{ fontSize: 13, fontWeight: 400, color: "var(--dim)", fontVariantNumeric: "tabular-nums" }}>
+                      {` \u00b7 indexing ${indexProgress.current} of ${indexProgress.total}`}
+                    </span>
+                  )}
+                  {found.length > 0 && (
+                    // Same action-link idiom as every other action in the
+                    // product. Paired with the count on its left, so it hangs
+                    // on the right the way "Open →" does on a file row.
+                    // One name everywhere, the same as the proof page's, for
+                    // the same object: the originals, their proofs, each new
+                    // file under new-file/, and the Ethereum anchors. It
+                    // no longer counts files and proofs in the label; the
+                    // package is one thing whatever it holds, and the count
+                    // sits on its left. It was "Download .zip" before that,
+                    // which described the plumbing rather than the contents.
+                    <button onClick={() => void downloadZip()} className="bg-action-link" style={{ padding: 0 }}>
+                      <span>Export</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
+                    </button>
+                  )}
+                </div>
+                {/* The trees this drop made: one BitGraph per tree, whatever
+                    its file count. Said once, above the rows, which each
+                    repeat the tree's one position. */}
+                {madeTrees.length > 0 && (
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "10px 16px", fontSize: 13, lineHeight: 1.55, color: "var(--dim)" }}>
+                    {madeTrees.length === 1
+                      ? `One BitGraph: a tree of ${madeTrees[0].count.toLocaleString("en-US")} file${madeTrees[0].count === 1 ? "" : "s"} at #${Number(madeTrees[0].proof.commit.counter ?? 0).toLocaleString("en-US")}.`
+                      : `${madeTrees.length} BitGraphs, one tree each: ${madeTrees.map((t) => `#${Number(t.proof.commit.counter ?? 0).toLocaleString("en-US")} (${t.count.toLocaleString("en-US")} file${t.count === 1 ? "" : "s"})`).join(", ")}.`}
+                    {madeTrees.length === 1 ? " Export it to keep it: one file for the tree, with SPEC.md beside it." : " Export them to keep them: one file per tree, with SPEC.md beside them."}
+                  </div>
+                )}
+                {/* What the package that just downloaded is short, and what to
+                    do about it. Only ever rendered when something IS short. */}
+                {packageNote && (
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "12px 16px", fontSize: 13, lineHeight: 1.55, color: "var(--dim)" }}>
+                    {packageNote}
+                  </div>
+                )}
+                {/* Files not yet on record get their action as a receipt row:
+                    the same arrow-link voice as "See an example …" on the
+                    drop screen. Writing to the ledger stays deliberate — a
+                    line you read and choose, not a banner that shouts.
+                    ⚠️ ONE action, never two. A "Record N files instead" link
+                    sat beside this one until 2026-09-04, from a reading in
+                    which BitGraph had two ways of recording. It does not:
+                    making a BitGraph is the operation, and the digest-only
+                    commit is an API and MCP compatibility path, not a second
+                    choice put in front of whoever dropped the files. */}
+                {unproven.length > 0 && (
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "8px 16px" }}>
+                    <button type="button" className="bg-action-link is-make" onClick={proveRemaining}>
+                      <span>{fuseByDefault ? "BitGraph" : "Record"} {unproven.length} file{unproven.length === 1 ? "" : "s"}</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
+                    </button>
+                  </div>
+                )}
+                {/* A drop entirely on record can make ONE new set of it: the
+                    group is a unit of meaning (a folder, a delivery), and a
+                    new set is a new set hash and a new position beside the
+                    ones its files hold. Offered only when nothing is new, so
+                    the card never shows two ways to make a BitGraph, and not
+                    after a fresh recording: the files have to be dropped
+                    again first. Still the one operation, at a later place. */}
+                {fuseByDefault && unproven.length === 0 && againRows.length > 0 && (
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "8px 16px" }}>
+                    <button type="button" className="bg-action-link is-make" onClick={() => fuseRemaining(true)}>
+                      <span>{againRows.length === 1 ? "BitGraph this file again" : `BitGraph these ${againRows.length} files again`}</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
+                    </button>
+                  </div>
+                )}
+                {recordMessage && (
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "12px 16px", fontSize: 13, color: "var(--err)" }}>
+                    {recordMessage}
+                  </div>
+                )}
+                {/* Indexing stopped partway: the set is recorded either way, so
+                    this offers exactly what is missing rather than the run. */}
+                {recordMessage && pendingIndexRef.current.length > 0 && !indexProgress && (
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "12px 16px" }}>
+                    <button type="button" className="bg-action-link" onClick={() => { setRecordMessage(null); void indexSetEvidence(); }}>
+                      <span>Retry indexing</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+              </div>
+
+              {/* A proof dropped looking for its file: not a line, it carries
+                  an interactive check, and you drop one at a time. */}
+              {matching.map((item) => {
+                const p = item.proof ?? null;
+                const counter = p?.commit?.counter;
+                return (
+                  <div key={`pj-${item.file.name}`} className="bitgraph-file-card" style={{ border: "1px solid var(--line)", marginBottom: 10 }}>
+                    <div
+                      role={p ? "button" : undefined}
+                      tabIndex={p ? 0 : undefined}
+                      onClick={p ? () => openProof(item, p, 0) : undefined}
+                      onKeyDown={p ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(item, p, 0); } } : undefined}
+                      className={`bitgraph-result-row${p ? " bitgraph-file-row" : ""}`}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: p ? "pointer" : "default" }}
+                    >
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "var(--ink)" }}>{item.file.name}</span>
+                      {counter != null && (
+                        <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: "var(--accent)", fontFamily: "var(--font-mono)" }}>#{Number(counter).toLocaleString()}</span>
+                      )}
+                    </div>
+                    {item.proof && (
+                      <div style={{ padding: "0 16px 14px" }}>
+                        {item.matchedFile ? (
+                          <div style={{ padding: "12px 14px", border: "1px solid var(--accent)", background: "var(--panel)", fontSize: 13, fontWeight: 600, color: "var(--accent)", display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontWeight: 700 }}>&#10003;</span>
+                            <span>This file matches the proof. Open to view it.</span>
+                          </div>
+                        ) : (
+                          /* Indexed against `items`, which is what handleMatched
+                             reads: the old call passed the filtered list's index,
+                             which was the wrong row whenever anything was still
+                             pending. */
+                          <FileMatchCheck proof={item.proof} onMatched={(f) => handleMatched(items.indexOf(item), f)} />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* The list itself: one line per BitGraph, name on the left and
+                  the position it holds on the right. Fixed height, because the
+                  window above and below it is measured in rows. */}
+              {lines.length > 0 && (
+                <div ref={resultListRef} style={{ border: "1px solid var(--line)", background: "var(--panel)" }}>
+                  <div style={{ height: rowFirst * RESULT_ROW_H }} aria-hidden />
+                  {lines.slice(rowFirst, rowLast).map(({ item, p, k, of }, n) => {
+                    const idx = rowFirst + n;
+                    const counter = p?.commit?.counter;
+                    const clickable = !!p;
+                    const when = fmtRowWhen(item.times?.[k]);
+                    // One line of type on the right: the position, its ordinal
+                    // when the same bytes hold more than one, and the anchor
+                    // time. A row with no position yet says its state there.
+                    // ⚠️ `of` is 0 when the answer came from a set's member
+                    // list without the per-digest listing, and the ordinal is
+                    // then omitted: the positions shown are real, but they
+                    // were never counted, so the row says no number.
+                    const right = counter != null
+                      ? `#${Number(counter).toLocaleString()}${of > 1 ? ` (${k + 1}/${of})` : ""}${when ? ` · ${when}` : ""}`
+                      : item.status === "error" ? "error"
+                      : item.status === "proving" ? "BitGraphing…"
+                      : "not yet BitGraphed";
+                    return (
+                      <div
+                        key={`${item.file.name}-${counter ?? "pending"}-${k}`}
+                        role={clickable ? "button" : undefined}
+                        tabIndex={clickable ? 0 : undefined}
+                        onClick={clickable ? () => openProof(item, p, k) : undefined}
+                        onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(item, p, k); } } : undefined}
+                        className={clickable ? "bitgraph-file-row" : undefined}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          height: RESULT_ROW_H, padding: "0 14px", overflow: "hidden",
+                          borderTop: idx > 0 ? "1px solid var(--line-2)" : "none",
+                          cursor: clickable ? "pointer" : "default",
+                        }}
+                      >
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "var(--ink)" }}>{item.file.name}</span>
+                        <span style={{
+                          flexShrink: 0, fontSize: 13, fontVariantNumeric: "tabular-nums",
+                          fontFamily: "var(--font-mono)",
+                          fontWeight: counter != null ? 700 : 400,
+                          color: counter != null ? "var(--accent)" : item.status === "error" ? "var(--err)" : "var(--dim)",
+                        }}>{right}</span>
+                      </div>
+                    );
+                  })}
+                  <div style={{ height: (lines.length - rowLast) * RESULT_ROW_H }} aria-hidden />
+                </div>
+              )}
+            </>)}
+
+          </div>
+        )}
+
+        {/* ❄️ Nothing at the foot of a results page, on either page (Mike:
+            "What is a BitGraph → should simply be absent from results pages";
+            then "make the two pages home and actor match"). The page's block
+            belongs to the camera-alone composition: under the box, and only
+            there. /actor's Forget is one click behind "Record or check more
+            BitGraphs →" on a results page, which is where its box is too. */}
+      </div>
+    </div>
+  );
+}
+
+/* The artifact-bytes handoff moved to lib/file-cache.ts so /folder can hand a
+   clicked row's bytes to the proof page the same way the drop flow does. */
+
+
+/* ── The shelf — /days, translated to a dropped folder. One cell per day,
+   months newest first from now back to the oldest recording; a day is a link
+   when the folder recorded on it, today is the outlined open frame leading
+   back to the live view, and everything else sits grey. Zero data beyond the
+   links, same as the site's. ── */
+
+/* ── Inline file-match check — shown under a dropped proof.json so the visitor
+   can confirm they hold the matching artifact. Hashed in the browser and
+   compared to the proof's digest; nothing is uploaded. Mirrors the proof page's
+   BringYourFile, scaled down to sit inside a results row. ── */
+function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched: (file: File) => void }) {
+  const [state, setState] = useState<"idle" | "checking" | "mismatch" | "tree">("idle");
+  // A tree of more than one file: its size, for the sentence that says how its files are checked.
+  const [treeCount, setTreeCount] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [checkedCount, setCheckedCount] = useState(0);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Many files or whole folders in one drop; the match is found by hashing.
+  // Same behavior as the proof page's BringYourFile.
+  async function check(source: CapturedDrop | File[]) {
+    setState("checking");
+    setProgress({ done: 0, total: 0 });
+    try {
+      /* A tree/1 proof names no file's digest: its artifact is the root
+         document. A tree of ONE needs nothing but the file (its root is its
+         only leaf, rebuilt here from each candidate); a larger tree places a
+         file only with that file's export, which this box says rather than
+         reporting a mismatch it cannot know. */
+      if (isTreeTitled(proof)) {
+        const bound = bindTree(proof);
+        if (!bound.ok || bound.tree.count !== 1) { setState(bound.ok ? "tree" : "mismatch"); setTreeCount(bound.ok ? bound.tree.count : null); return; }
+        const files = Array.isArray(source) ? source : source.entries ? (await walkEntries(source.entries)).map((w) => w.file) : source.files;
+        let n = 0;
+        for (const f of files) {
+          setProgress({ done: ++n, total: files.length });
+          if (await treeOfOneEvidenceFromSource(bound.tree, blobSource(f))) { onMatched(f); return; }
+          await new Promise((r) => setTimeout(r, 0));
+        }
+        setCheckedCount(files.length);
+        setState("mismatch");
+        return;
+      }
+      const { match, checked } = Array.isArray(source)
+        ? await findMatchInFiles(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }))
+        : await findMatchInDrop(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }));
+      setCheckedCount(checked);
+      if (!match) {
+        // A set proof is met with ONE MEMBER in hand: the original a member
+        // was made from, or its new file. Find the file that hashes to any
+        // digest the bound manifest lists, then let the verifier place it:
+        // rebuilt from the original, or the new file read directly.
+        if (isSetProof(proof)) {
+          const bound = await bindSet(proof as unknown as Record<string, unknown>);
+          const digests = new Set<string>();
+          for (const m of bound?.members ?? []) { digests.add(m.originDigestB64); digests.add(m.fusedDigestB64); }
+          if (bound && digests.size) {
+            const hit = Array.isArray(source)
+              ? await findAnyMatchInFiles(source, digests, (done, total) => setProgress({ done, total }))
+              : await findAnyMatchInDrop(source, digests, (done, total) => setProgress({ done, total }));
+            if (hit.match) {
+              const r = await rebuildSetMember(proof, new Uint8Array(await hit.match.arrayBuffer()), hit.match.name, bound.bytes);
+              const c = r.verification.category;
+              if (c === "SET_MEMBER_FROM_ORIGIN" || c === "SET_MEMBER_DIRECT") { onMatched(hit.match); return; }
+            }
+          }
+          setState("mismatch");
+          return;
+        }
+        // A fused proof is usually met with the ORIGINAL in hand. Find the
+        // file that hashes to the signed origin digest, rebuild the fused
+        // bytes with the registered placement, and accept it only when the
+        // reconstruction reproduces the committed digest.
+        const marker = fusedMarkerOf(proof);
+        if (marker?.originDigestB64) {
+          const origin = Array.isArray(source)
+            ? await findMatchInFiles(source, marker.originDigestB64)
+            : await findMatchInDrop(source, marker.originDigestB64);
+          if (origin.match) {
+            const rebuilt = await rebuildFromOrigin(proof, new Uint8Array(await origin.match.arrayBuffer()), origin.match.name);
+            if (rebuilt.verification.category === "FUSED_FROM_ORIGIN") { onMatched(origin.match); return; }
+          }
+        }
+        setState("mismatch");
+        return;
+      }
+      onMatched(match);
+    } catch {
+      setState("mismatch");
+    }
+  }
+
+  const mismatch = state === "mismatch";
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      /* captureDrop synchronously, same rule as the proof page's box: one
+         await later and the folders in a mixed drop are silently invisible. */
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(captureDrop(e.dataTransfer)); }}
+      /* The site's one drop box (globals.css, .dropbox); only its state colour is set here. */
+      className="dropbox"
+      style={{ marginTop: 8, borderColor: mismatch ? "var(--err)" : dragOver ? "var(--accent)" : "var(--faint)", backgroundColor: dragOver ? "var(--tint)" : "var(--panel)" }}
+    >
+      <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
+      {state === "checking" ? (
+        <div className="dropbox-title" style={{ color: "var(--dim)" }}>
+          {progress.total > 1 ? `Checking ${progress.done} of ${progress.total}…` : "Checking…"}
+        </div>
+      ) : mismatch ? (
+        <>
+          <div className="dropbox-title" style={{ color: "var(--err)" }}>
+            {checkedCount > 1
+              ? `None of the ${checkedCount.toLocaleString()} files match this proof`
+              : "These bytes don’t match this proof"}
+          </div>
+          <div className="dropbox-quiet">A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
+        </>
+      ) : state === "tree" ? (
+        <>
+          <div className="dropbox-title" style={{ color: "var(--dim)" }}>
+            {treeCount !== null ? `This BitGraph is a tree of ${treeCount.toLocaleString()} files` : "This BitGraph is a tree of files"}
+          </div>
+          <div className="dropbox-quiet">To check a file in it, drop the file and its export together on the box above.</div>
+        </>
+      ) : (
+        <>
+          <DropPrompt quiet="The match is found by hash, in your browser. Nothing is uploaded.">Have the file? Drag it or a folder here, or <Browse /></DropPrompt>
+          
+        </>
+      )}
+    </div>
+  );
+}
+

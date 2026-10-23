@@ -1,0 +1,14 @@
+BitGraph
+Copyright 2024-2026 Mike Argento
+
+This product includes software from the following third-party projects:
+
+@noble/ed25519
+  Copyright (c) 2019 Paul Miller (https://paulmillr.com)
+  License: MIT
+  https://github.com/paulmillr/noble-ed25519
+
+@noble/hashes
+  Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+  License: MIT
+  https://github.com/paulmillr/noble-hashes
