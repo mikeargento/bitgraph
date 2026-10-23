@@ -5006,7 +5006,7 @@ html:root:root:root:root:root:root body .proves-half { background: var(--well); 
 /* The "What it proves" half ends in a button to the proofs; the half is a column so the button sits at its foot
    whatever the other half's height. */
 html:root:root:root:root:root:root body .proves-half { display: flex; flex-direction: column; }
-html:root:root:root:root:root:root body .proves-half > .proves-actions { margin-top: auto; padding-top: 24px; margin-bottom: 0; display: flex; }
+html:root:root:root:root:root:root body .proves-half > p.proves-actions { margin: auto 0 0 !important; padding-top: 24px; display: flex; }
 html:root:root:root:root:root:root body .proves-half > .proves-actions > .bg-action-link { margin: 0; }
 html:root:root:root:root:root:root body .proves-half h2 { margin-bottom: 16px !important; }
 html:root:root:root:root:root:root body .proves-half > p:not(.home-kicker) { max-width: none !important; margin: 0 0 12px !important; }
