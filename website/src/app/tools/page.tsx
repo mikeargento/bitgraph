@@ -53,8 +53,12 @@ export default function ToolsPage() {
           <article className="tl-card" aria-labelledby="t-mcp">
             <p className="tl-label">For AI agents</p>
             <h3 id="t-mcp">MCP server</h3>
-            <p>Claude Code, Claude Desktop and any MCP client. One line to add it:</p>
-            <Code>{"claude mcp add bitgraph -- npx -y @mikeargento/bitgraph-mcp"}</Code>
+            <p>Works with any MCP client. Add it to the client&rsquo;s server list:</p>
+            <Code>{`{
+  "mcpServers": {
+    "bitgraph": { "command": "npx", "args": ["-y", "@mikeargento/bitgraph-mcp"] }
+  }
+}`}</Code>
             <dl className="tl-verbs">
               <dt><code>bitgraph_record</code></dt>
               <dd>Makes a BitGraph of each file or folder; the proof is saved beside it as <code>&lt;file&gt;.bitgraph.json</code>.</dd>
