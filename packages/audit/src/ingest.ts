@@ -1,0 +1,1369 @@
+// Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
+
+/**
+ * bitgraph-audit ingest
+ *
+ * Streams bundle entries per docs/BUNDLE-FORMAT.md from a directory, a
+ * .tar, or a .tar.gz/.tgz container, classifies every entry, and builds
+ * the observed-proof, artifact, witness, and manifest indexes that the
+ * verification and reconstruction stages consume.
+ *
+ * Discovery is by schema shape, never by filename (the single exception is
+ * the reserved root manifest.json). The version policy is enforced first:
+ * a proof-shaped file whose version is not exactly "bitgraph/1" is rejected
+ * with the stable code "unsupported-version", counted, listed, and excluded
+ * from verification, chain reconstruction, and anomaly analysis.
+ *
+ * An export (bitgraph-export/1, found by its format field) is evidence,
+ * never an artifact: it is listed for the export stage (exports.ts), and the
+ * proof it carries is recorded as an observed proof from the export's path,
+ * exactly like a proof file. A file that declares another bitgraph-export
+ * format, or lacks an export's structure, is listed as rejected.
+ *
+ * A floor header file (bitgraph-floor-header/1, found by its version field)
+ * is evidence too: the header of the Base block a proof signs as its floor
+ * (commit.slotFloor, enclave v10), listed for the temporal stage.
+ *
+ * Memory: archives are never unpacked to disk and never loaded whole.
+ * Every entry is hashed incrementally as it streams. Only small JSON
+ * candidates (at most MAX_CANDIDATE_JSON_BYTES) are buffered for parsing,
+ * and entries that open an export object (at most maxExportJsonBytes);
+ * artifact bytes are hashed and dropped. What ingest retains scales with
+ * the number of entries and the total size of the proof JSONs, not with
+ * artifact payload sizes.
+ *
+ * Untrusted .tar / .tar.gz containers are additionally bounded by
+ * configurable caps (IngestLimits, defaults DEFAULT_INGEST_LIMITS): a total
+ * decompressed-byte ceiling, a maximum entry count, and a maximum size for
+ * metadata entries buffered whole (PAX headers, GNU long names). A crafted
+ * archive that would otherwise exhaust memory (a decompression bomb, an
+ * entry flood, or a header declaring an absurd size) aborts ingest with a
+ * clear error rather than allocating without bound. The defaults sit well
+ * above any legitimate bundle; directory bundles are already on disk and
+ * are not capped here.
+ */
+
+import { createReadStream } from "node:fs";
+import { open, readdir, readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { createGunzip } from "node:zlib";
+import { sha256 } from "@noble/hashes/sha256";
+import { computeProofHash, computeChainHash, EXPORT_FORMAT, parseExport } from "@mikeargento/bitgraph-verify";
+import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
+import { readTarEntries } from "./tar.js";
+import { combineEntryDigests } from "./contents-hash.js";
+import type {
+  AnchorWitnessFile,
+  CeilingFile,
+  FloorHeaderFile,
+  ArtifactRecord,
+  AuditFinding,
+  BundleManifest,
+  ContainerKind,
+  EmbeddedProofHashStatus,
+  ExportFile,
+  IngestCounts,
+  IngestLimits,
+  IngestResult,
+  ManifestReport,
+  MatchedArtifactBytes,
+  ObservedProof,
+  ProofSource,
+  UnsupportedVersionRecord,
+} from "./types.js";
+
+/**
+ * Largest file that is buffered for JSON candidacy. Larger entries are
+ * treated as artifact candidates only (they are hashed, never parsed).
+ * Real proofs, manifests, and witnesses are a few kilobytes; the cap only
+ * bounds transient memory for pathological inputs.
+ */
+const MAX_CANDIDATE_JSON_BYTES = 8 * 1024 * 1024;
+
+/**
+ * An export's JSON may run past MAX_CANDIDATE_JSON_BYTES: the owner's export
+ * of a large tree lists every leaf (65 bytes each, base64) and a name per
+ * leaf, up to 1,000,000 leaves. An entry whose opening bytes open an export
+ * object ({"format": "bitgraph-export/...) is buffered up to this cap
+ * instead (IngestLimits.maxExportJsonBytes); a larger one is reported as an
+ * export too large to check, never silently taken for an ordinary file.
+ */
+const MAX_EXPORT_JSON_BYTES = 192 * 1024 * 1024;
+/** How many opening bytes decide whether an entry opens an export object. */
+const EXPORT_SNIFF_BYTES = 256;
+/** Producers write format first (buildExport); whitespace and one BOM are tolerated. */
+const EXPORT_OPENING = /^\s*\{\s*"format"\s*:\s*"(bitgraph-export\/[^"\\]{0,64})"/;
+
+/**
+ * Default resource caps for untrusted .tar / .tar.gz ingest. Chosen well
+ * above any legitimate bundle (the 50k-proof benchmark bundle decompresses
+ * to a few hundred MiB across ~50k entries, with kilobyte-scale metadata),
+ * so real inputs never approach them while a crafted archive aborts.
+ */
+export const DEFAULT_INGEST_LIMITS: IngestLimits = {
+  maxTotalBytes: 2 * 1024 * 1024 * 1024, // 2 GiB decompressed
+  maxEntryCount: 1_000_000,
+  maxMetadataEntryBytes: 8 * 1024 * 1024, // 8 MiB per PAX/GNU metadata entry
+  maxExportJsonBytes: MAX_EXPORT_JSON_BYTES, // 192 MiB for one export's JSON, every container
+};
+
+const NUL = new Uint8Array([0]);
+const MANIFEST_PATH = "manifest.json";
+const BUNDLE_VERSION = "bitgraph-bundle/1";
+const WITNESS_VERSION = "bitgraph-anchor-witness/1";
+const CEILING_VERSION_TAG = "bitgraph-ceiling/1";
+const CEILING_STATUS_VERSION_TAG = "bitgraph-ceiling-status/1";
+/** A Base floor block's header, beside the proof that signs it (the carrier/3 unpacker writes these). */
+export const FLOOR_HEADER_VERSION = "bitgraph-floor-header/1";
+/** Every export format starts with this; only EXPORT_FORMAT ("bitgraph-export/1") is checked. */
+const EXPORT_FORMAT_PREFIX = "bitgraph-export/";
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Ingest a bundle from a directory, .tar, or .tar.gz/.tgz path.
+ *
+ * Performs no verification; run verifyObservedProofs() on the result.
+ * Performs no network access of any kind.
+ *
+ * @param limits Resource caps for untrusted tar/tar.gz containers; defaults
+ *               to DEFAULT_INGEST_LIMITS. Ignored for directory bundles.
+ * @throws {TypeError} when the path is not one of the accepted container
+ *                     forms. Corrupt archives throw Error from the tar or
+ *                     gzip layer, and an archive that exceeds a cap throws
+ *                     Error rather than exhausting memory.
+ */
+export async function ingestBundle(
+  bundlePath: string,
+  limits: IngestLimits = DEFAULT_INGEST_LIMITS
+): Promise<IngestResult> {
+  const container = await detectContainer(bundlePath);
+  const findings: AuditFinding[] = [];
+  let skippedUnsafePaths = 0;
+  let entriesScanned = 0;
+  const exportCap = limits.maxExportJsonBytes ?? MAX_EXPORT_JSON_BYTES;
+
+  // ---------------------------------------------------------------------
+  // Scan: stream every entry once, hashing incrementally.
+  // ---------------------------------------------------------------------
+  const scanned: ScannedEntry[] = [];
+  const rootTracker = new CommonRootTracker();
+
+  if (container === "directory") {
+    for await (const file of walkDirectory(bundlePath)) {
+      entriesScanned++;
+      const stream = createReadStream(file.absPath);
+      const hashed = await hashEntryStream(file.relPath, undefined, undefined, stream, exportCap);
+      scanned.push(makeScannedEntry(file.relPath, hashed));
+    }
+  } else {
+    const { stream, close } = openContainerByteStream(bundlePath, container);
+    try {
+      for await (const entry of readTarEntries(stream, limits)) {
+        if (entry.kind !== "file") continue;
+        entriesScanned++;
+        const normalized = normalizeEntryPath(entry.path);
+        // Every file entry, safe or not, weighs on the bundle-root
+        // decision: a stripped root exists only when ALL entries in the
+        // archive sit under one common top-level directory.
+        rootTracker.observe(normalized.path);
+        if (normalized.unsafe) {
+          skippedUnsafePaths++;
+          findings.push({
+            code: "unsafe-path",
+            path: entry.path,
+            message: `entry skipped: ${normalized.reason}`,
+          });
+          continue;
+        }
+        const slash = normalized.path.indexOf("/");
+        const strippedVariant = slash === -1 ? undefined : normalized.path.slice(slash + 1);
+        const hashed = await hashEntryStream(normalized.path, strippedVariant, entry.size, entry.body, exportCap);
+        scanned.push(makeScannedEntry(normalized.path, hashed));
+      }
+    } finally {
+      close();
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Finalize paths: tar bundle-root normalization + last-wins duplicates.
+  // ---------------------------------------------------------------------
+  let strippedRootPrefix: string | undefined;
+  if (container !== "directory" && scanned.length > 0) {
+    strippedRootPrefix = rootTracker.commonRoot();
+  }
+
+  return finalizeIngest({
+    bundlePath,
+    container,
+    scanned,
+    strippedRootPrefix,
+    findings,
+    entriesScanned,
+    skippedUnsafePaths,
+  });
+}
+
+/**
+ * One in-memory bundle entry for ingestEntries(): a bundle-root-relative
+ * path (forward slashes) and a way to open its bytes. `open` may be called
+ * more than once (once to scan and hash, again to re-read matched artifact
+ * bytes for full-tier verification), and it may return the bytes whole,
+ * a promise of them, or an async chunk stream, so a browser can hand over
+ * File objects without buffering every artifact up front.
+ */
+export interface BundleEntrySource {
+  path: string;
+  open: () => Uint8Array | Promise<Uint8Array> | AsyncIterable<Uint8Array>;
+}
+
+/**
+ * Per-result registry of entry sources for in-memory ("memory" container)
+ * ingests, so streamMatchedArtifacts can re-read artifact bytes without the
+ * IngestResult carrying functions. Keyed by identity: a structurally cloned
+ * IngestResult loses its sources and yields no artifact bytes, which
+ * downgrades every proof to the integrity tier rather than crashing.
+ */
+const memorySources = new WeakMap<IngestResult, Map<string, BundleEntrySource>>();
+
+/**
+ * Ingest a bundle from in-memory entries: the filesystem-free counterpart
+ * of ingestBundle(), for browsers and embedders that already hold the
+ * bytes. Same discovery, classification, hashing, and matching, so the
+ * result feeds the same verification and reconstruction stages. Entries
+ * are ordered by path before scanning so the result is deterministic
+ * regardless of the order the caller supplied them; paths are normalized
+ * exactly as tar entries are (unsafe paths are skipped and reported).
+ * Performs no verification and no network access.
+ */
+export async function ingestEntries(
+  entries: Iterable<BundleEntrySource>,
+  options?: { label?: string }
+): Promise<IngestResult> {
+  const findings: AuditFinding[] = [];
+  let skippedUnsafePaths = 0;
+  let entriesScanned = 0;
+  const scanned: ScannedEntry[] = [];
+  const sources = new Map<string, BundleEntrySource>();
+
+  const ordered = Array.from(entries).sort((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0
+  );
+  for (const entry of ordered) {
+    entriesScanned++;
+    const normalized = normalizeEntryPath(entry.path);
+    if (normalized.unsafe) {
+      skippedUnsafePaths++;
+      findings.push({
+        code: "unsafe-path",
+        path: entry.path,
+        message: `entry skipped: ${normalized.reason}`,
+      });
+      continue;
+    }
+    const hashed = await hashEntryStream(
+      normalized.path,
+      undefined,
+      undefined,
+      openAsChunks(entry.open()),
+      MAX_EXPORT_JSON_BYTES
+    );
+    scanned.push(makeScannedEntry(normalized.path, hashed));
+    sources.set(normalized.path, entry);
+  }
+
+  const result = finalizeIngest({
+    bundlePath: options?.label ?? "",
+    container: "memory",
+    scanned,
+    strippedRootPrefix: undefined,
+    findings,
+    entriesScanned,
+    skippedUnsafePaths,
+  });
+  memorySources.set(result, sources);
+  return result;
+}
+
+/** Adapt every accepted `open()` return shape to a chunk stream. */
+async function* openAsChunks(
+  opened: Uint8Array | Promise<Uint8Array> | AsyncIterable<Uint8Array>
+): AsyncGenerator<Uint8Array, void, void> {
+  const value = await Promise.resolve(opened as Uint8Array | Promise<Uint8Array>);
+  if (value instanceof Uint8Array) {
+    yield value;
+    return;
+  }
+  // Not a Uint8Array and not a promise of one: an async iterable.
+  for await (const chunk of opened as AsyncIterable<Uint8Array>) yield chunk;
+}
+
+/** Read an in-memory entry whole for artifact re-reads. */
+async function readSourceWhole(source: BundleEntrySource): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for await (const chunk of openAsChunks(source.open())) {
+    chunks.push(chunk);
+    total += chunk.length;
+  }
+  return concatBytes(chunks, total);
+}
+
+interface FinalizeParams {
+  bundlePath: string;
+  container: ContainerKind;
+  scanned: ScannedEntry[];
+  strippedRootPrefix: string | undefined;
+  findings: AuditFinding[];
+  entriesScanned: number;
+  skippedUnsafePaths: number;
+}
+
+/**
+ * The container-independent tail of ingest: path finalization, the
+ * contents hash, classification by schema shape, and content-addressed
+ * artifact matching. Both ingestBundle() and ingestEntries() end here, so
+ * a directory, an archive, and an in-memory entry set that hold the same
+ * bytes at the same paths classify identically.
+ */
+function finalizeIngest(params: FinalizeParams): IngestResult {
+  const { bundlePath, container, scanned, strippedRootPrefix, findings, entriesScanned, skippedUnsafePaths } = params;
+
+  const finalByPath = new Map<string, FinalEntry>();
+  for (const entry of scanned) {
+    let finalPath = entry.rawPath;
+    let entryDigest = entry.entryDigestFull;
+    if (strippedRootPrefix !== undefined) {
+      finalPath = entry.rawPath.slice(strippedRootPrefix.length + 1);
+      entryDigest = entry.entryDigestStripped as Uint8Array;
+    }
+    if (finalByPath.has(finalPath)) {
+      findings.push({
+        code: "duplicate-path",
+        path: finalPath,
+        message: "multiple archive entries normalized to the same path; the last entry wins",
+      });
+    }
+    finalByPath.set(finalPath, {
+      path: finalPath,
+      sha256Hex: entry.sha256Hex,
+      byteLength: entry.byteLength,
+      entryDigest,
+      ...(entry.json !== undefined ? { json: entry.json } : {}),
+      ...(entry.exportTooLarge !== undefined ? { exportTooLarge: entry.exportTooLarge } : {}),
+    });
+  }
+  const finalEntries = Array.from(finalByPath.values());
+
+  // ---------------------------------------------------------------------
+  // Deterministic contents hash over everything except the root manifest.
+  // ---------------------------------------------------------------------
+  const computedContentsHashB64 = combineEntryDigests(
+    finalEntries
+      .filter((entry) => entry.path !== MANIFEST_PATH)
+      .map((entry) => ({ path: entry.path, entryDigest: entry.entryDigest }))
+  );
+
+  // ---------------------------------------------------------------------
+  // Classify.
+  // ---------------------------------------------------------------------
+  const proofs: ObservedProof[] = [];
+  const proofsByHash = new Map<string, ObservedProof>();
+  const unsupportedVersions: UnsupportedVersionRecord[] = [];
+  const witnesses: AnchorWitnessFile[] = [];
+  const ceilings: CeilingFile[] = [];
+  const ceilingStatuses: CeilingFile[] = [];
+  const floorHeaders: FloorHeaderFile[] = [];
+  const exportFiles: ExportFile[] = [];
+  const artifactsByHex = new Map<string, ArtifactRecord>();
+  let manifest: ManifestReport | undefined;
+  let proofFiles = 0;
+  let exactDuplicates = 0;
+  let semanticDuplicates = 0;
+
+  for (const entry of finalEntries) {
+    if (entry.path === MANIFEST_PATH) {
+      manifest = classifyManifest(entry, computedContentsHashB64, findings);
+      continue;
+    }
+
+    // An export too large to parse is still an export: reported, never an
+    // artifact, and never silently checked as nothing.
+    if (entry.exportTooLarge !== undefined) {
+      exportFiles.push({ path: entry.path, fileSha256Hex: entry.sha256Hex, format: entry.exportTooLarge, status: "too-large", json: {} });
+      findings.push({
+        code: "export-too-large",
+        path: entry.path,
+        message: `the file opens an export (${entry.exportTooLarge}) but is ${entry.byteLength} bytes, past the audit's cap for one export's JSON; not checked`,
+        details: { byteLength: entry.byteLength },
+      });
+      continue;
+    }
+
+    // A Frame (profile bitgraph-fuse/1) is the shipped carrier of a fused
+    // recording: { type: "bitgraph-fuse/1", manifest, fusePayload?, proof }.
+    // The nested proof is the member; the wrapper is never an artifact.
+    const framed = unwrapFrame(entry.json);
+    const parsed = framed ?? entry.json;
+    if (parsed !== undefined && isProofShaped(parsed)) {
+      const version = (parsed as Record<string, unknown>)["version"] as string;
+      if (version === "bitgraph/1") {
+        proofFiles++;
+        const outcome = recordMemberProof(entry, parsed as Record<string, unknown>, proofsByHash, proofs, findings);
+        if (outcome === "exact-duplicate") exactDuplicates++;
+        if (outcome === "semantic-duplicate") semanticDuplicates++;
+        continue;
+      }
+      // Version policy: rejected, counted, listed, excluded. The file
+      // remains a candidate artifact per spec section 6.3 (it is not a
+      // member proof).
+      unsupportedVersions.push({
+        code: "unsupported-version",
+        path: entry.path,
+        version,
+        fileSha256Hex: entry.sha256Hex,
+      });
+      findings.push({
+        code: "unsupported-version",
+        path: entry.path,
+        message: `proof-shaped file rejected: version "${version}" is not "bitgraph/1"`,
+        details: { version },
+      });
+      indexArtifact(entry, artifactsByHex);
+      continue;
+    }
+
+    // An export (bitgraph-export/1) is one JSON file that, with the file it
+    // covers, checks a tree/1 BitGraph: { format, spec, proof, tree, floor,
+    // ceiling, settlement }. Found by its format field, never by name. It is
+    // evidence, never an artifact; the proof it carries joins the proof
+    // analysis like any other (counters, chain links, partitions, attestation).
+    const exportFormat = exportFormatOf(parsed);
+    if (exportFormat !== undefined) {
+      const record = classifyExport(entry, parsed as Record<string, unknown>, exportFormat, findings);
+      exportFiles.push(record);
+      const carried = record.status === "ok" ? (parsed as Record<string, unknown>)["proof"] : undefined;
+      if (carried !== undefined && isProofShaped(carried)) {
+        const inner = carried as Record<string, unknown>;
+        const version = inner["version"] as string;
+        if (version === "bitgraph/1") {
+          proofFiles++;
+          const outcome = recordMemberProof(entry, inner, proofsByHash, proofs, findings);
+          if (outcome === "exact-duplicate") exactDuplicates++;
+          if (outcome === "semantic-duplicate") semanticDuplicates++;
+          record.proofHash = computeProofHash(inner);
+        } else {
+          // The same version policy as any proof-shaped input; the export
+          // itself is still checked (its proof claim fails).
+          unsupportedVersions.push({
+            code: "unsupported-version",
+            path: entry.path,
+            version,
+            fileSha256Hex: entry.sha256Hex,
+          });
+          findings.push({
+            code: "unsupported-version",
+            path: entry.path,
+            message: `the proof inside this export is rejected: version "${version}" is not "bitgraph/1"`,
+            details: { version },
+          });
+        }
+      }
+      continue;
+    }
+
+    if (
+      parsed !== undefined &&
+      (parsed as Record<string, unknown>)["version"] === WITNESS_VERSION
+    ) {
+      witnesses.push({
+        path: entry.path,
+        fileSha256Hex: entry.sha256Hex,
+        witness: parsed as Record<string, unknown>,
+      });
+      continue;
+    }
+
+    // A ceiling in time travels beside its proof: evidence, never an artifact.
+    const pv = parsed !== undefined ? (parsed as Record<string, unknown>)["version"] : undefined;
+    // So does a Base floor block's header: evidence for the temporal stage.
+    if (pv === FLOOR_HEADER_VERSION) {
+      floorHeaders.push({ path: entry.path, fileSha256Hex: entry.sha256Hex, json: parsed as Record<string, unknown> });
+      continue;
+    }
+    if (pv === CEILING_VERSION_TAG || pv === CEILING_STATUS_VERSION_TAG) {
+      (pv === CEILING_VERSION_TAG ? ceilings : ceilingStatuses).push({
+        path: entry.path,
+        fileSha256Hex: entry.sha256Hex,
+        json: parsed as Record<string, unknown>,
+      });
+      continue;
+    }
+
+    indexArtifact(entry, artifactsByHex);
+  }
+
+  // ---------------------------------------------------------------------
+  // Content-addressed artifact matching.
+  // ---------------------------------------------------------------------
+  for (const proof of proofs) {
+    const digestHex = strictDigestToHex(
+      (proof.proof as unknown as Record<string, unknown>)["artifact"]
+    );
+    if (digestHex === null) continue;
+    const artifact = artifactsByHex.get(digestHex);
+    if (artifact !== undefined) {
+      artifact.matchedProofHashes.push(proof.proofHash);
+    }
+  }
+
+  const artifacts = Array.from(artifactsByHex.values());
+
+  const counts: IngestCounts = {
+    observed: proofs.length,
+    proofFiles,
+    exactDuplicates,
+    semanticDuplicates,
+    unsupportedVersion: unsupportedVersions.length,
+    artifacts: artifacts.length,
+    witnesses: witnesses.length,
+    ...(floorHeaders.length > 0 ? { floorHeaders: floorHeaders.length } : {}),
+    ceilings: ceilings.length + ceilingStatuses.length,
+    exports: exportFiles.length,
+    skippedUnsafePaths,
+  };
+
+  return {
+    bundlePath,
+    container,
+    ...(strippedRootPrefix !== undefined ? { strippedRootPrefix } : {}),
+    entriesScanned,
+    proofs,
+    unsupportedVersions,
+    artifacts,
+    witnesses,
+    ...(floorHeaders.length > 0 ? { floorHeaders } : {}),
+    ceilings,
+    ceilingStatuses,
+    exports: exportFiles,
+    ...(manifest !== undefined ? { manifest } : {}),
+    computedContentsHashB64,
+    findings,
+    counts,
+  };
+}
+
+/**
+ * Stream the bytes of every artifact that content-matched at least one
+ * proof, one artifact at a time, in deterministic order (first-observation
+ * order for directories, archive order for tars). Peak memory is bounded
+ * by the largest matched artifact, because the canonical verify() API
+ * takes whole byte arrays.
+ *
+ * Bytes are re-read from the container and re-hashed before being yielded;
+ * an entry whose bytes no longer hash to the recorded digest (for example
+ * a file modified on disk between passes) is skipped, never yielded under
+ * the stale digest.
+ */
+export async function* streamMatchedArtifacts(
+  ingest: IngestResult
+): AsyncGenerator<MatchedArtifactBytes, void, void> {
+  yield* streamArtifactsFor(ingest, ingest.artifacts.filter((a) => a.matchedProofHashes.length > 0));
+}
+
+/**
+ * Re-read the bytes of specific artifacts by content hash (lowercase hex),
+ * matched or not, with the same container handling and re-hashing as
+ * streamMatchedArtifacts. A profile whose evidence is a file OTHER than the
+ * committed bytes (the original of a fused artifact, which matches no proof
+ * by digest) reads it through here. Hashes absent from the bundle are simply
+ * not yielded.
+ */
+export async function* streamArtifactsByHash(
+  ingest: IngestResult,
+  sha256Hexes: Iterable<string>
+): AsyncGenerator<MatchedArtifactBytes, void, void> {
+  const wanted = new Set(sha256Hexes);
+  if (wanted.size === 0) return;
+  yield* streamArtifactsFor(ingest, ingest.artifacts.filter((a) => wanted.has(a.sha256Hex)));
+}
+
+async function* streamArtifactsFor(
+  ingest: IngestResult,
+  needed: ArtifactRecord[]
+): AsyncGenerator<MatchedArtifactBytes, void, void> {
+  if (needed.length === 0) return;
+
+  if (ingest.container === "memory") {
+    // In-memory ingest: re-open through the registered sources. A result
+    // whose sources are unknown (cloned, or not from ingestEntries) yields
+    // nothing, so verification falls back to the integrity tier.
+    const sources = memorySources.get(ingest);
+    if (sources === undefined) return;
+    for (const artifact of needed) {
+      for (const relPath of artifact.paths) {
+        const source = sources.get(relPath);
+        if (source === undefined) continue;
+        let bytes: Uint8Array;
+        try {
+          bytes = await readSourceWhole(source);
+        } catch {
+          continue;
+        }
+        if (toHex(sha256(bytes)) !== artifact.sha256Hex) continue;
+        yield { sha256Hex: artifact.sha256Hex, path: relPath, bytes };
+        break;
+      }
+    }
+    return;
+  }
+
+  if (ingest.container === "directory") {
+    for (const artifact of needed) {
+      for (const relPath of artifact.paths) {
+        let bytes: Uint8Array;
+        try {
+          bytes = new Uint8Array(await readFile(join(ingest.bundlePath, ...relPath.split("/"))));
+        } catch {
+          continue;
+        }
+        if (toHex(sha256(bytes)) !== artifact.sha256Hex) continue;
+        yield { sha256Hex: artifact.sha256Hex, path: relPath, bytes };
+        break;
+      }
+    }
+    return;
+  }
+
+  const neededByPath = new Map<string, ArtifactRecord>();
+  for (const artifact of needed) {
+    for (const path of artifact.paths) neededByPath.set(path, artifact);
+  }
+  const satisfied = new Set<string>();
+  const { stream, close } = openContainerByteStream(ingest.bundlePath, ingest.container);
+  try {
+    for await (const entry of readTarEntries(stream, DEFAULT_INGEST_LIMITS)) {
+      if (satisfied.size === needed.length) break;
+      if (entry.kind !== "file") continue;
+      const normalized = normalizeEntryPath(entry.path);
+      if (normalized.unsafe) continue;
+      let finalPath = normalized.path;
+      if (ingest.strippedRootPrefix !== undefined) {
+        if (!finalPath.startsWith(`${ingest.strippedRootPrefix}/`)) continue;
+        finalPath = finalPath.slice(ingest.strippedRootPrefix.length + 1);
+      }
+      const artifact = neededByPath.get(finalPath);
+      if (artifact === undefined || satisfied.has(artifact.sha256Hex)) continue;
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for await (const chunk of entry.body) {
+        chunks.push(chunk.slice());
+        total += chunk.length;
+      }
+      const bytes = concatBytes(chunks, total);
+      if (toHex(sha256(bytes)) !== artifact.sha256Hex) continue;
+      satisfied.add(artifact.sha256Hex);
+      yield { sha256Hex: artifact.sha256Hex, path: finalPath, bytes };
+    }
+  } finally {
+    close();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Container detection and opening
+// ---------------------------------------------------------------------------
+
+async function detectContainer(bundlePath: string): Promise<ContainerKind> {
+  const info = await stat(bundlePath);
+  if (info.isDirectory()) return "directory";
+
+  const lower = bundlePath.toLowerCase();
+  if (lower.endsWith(".tar.gz") || lower.endsWith(".tgz")) return "tar-gz";
+  if (lower.endsWith(".tar")) return "tar";
+
+  // Content sniffing: gzip magic bytes, then tar ustar magic at offset 257.
+  const handle = await open(bundlePath, "r");
+  try {
+    const head = Buffer.alloc(262);
+    const { bytesRead } = await handle.read(head, 0, 262, 0);
+    if (bytesRead >= 2 && head[0] === 0x1f && head[1] === 0x8b) return "tar-gz";
+    if (bytesRead >= 262 && head.subarray(257, 262).toString("latin1") === "ustar") return "tar";
+  } finally {
+    await handle.close();
+  }
+  throw new TypeError(
+    `bitgraph-audit: "${bundlePath}" is not an accepted bundle container ` +
+      `(expected a directory, .tar, .tar.gz, or .tgz)`
+  );
+}
+
+function openContainerByteStream(
+  bundlePath: string,
+  container: ContainerKind
+): { stream: AsyncIterable<Uint8Array>; close: () => void } {
+  const file = createReadStream(bundlePath);
+  if (container === "tar-gz") {
+    const gunzip = createGunzip();
+    file.pipe(gunzip);
+    // Surface file-read errors through the gunzip stream so async
+    // iteration rejects instead of hanging.
+    file.on("error", (err) => gunzip.destroy(err));
+    return {
+      stream: gunzip as AsyncIterable<Uint8Array>,
+      close: () => {
+        gunzip.destroy();
+        file.destroy();
+      },
+    };
+  }
+  return {
+    stream: file as AsyncIterable<Uint8Array>,
+    close: () => file.destroy(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Directory walking
+// ---------------------------------------------------------------------------
+
+async function* walkDirectory(
+  root: string
+): AsyncGenerator<{ relPath: string; absPath: string }, void, void> {
+  yield* walkDir(root, "");
+}
+
+async function* walkDir(
+  root: string,
+  relDir: string
+): AsyncGenerator<{ relPath: string; absPath: string }, void, void> {
+  const absDir = relDir === "" ? root : join(root, ...relDir.split("/"));
+  const entries = await readdir(absDir, { withFileTypes: true });
+  entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  for (const entry of entries) {
+    const rel = relDir === "" ? entry.name : `${relDir}/${entry.name}`;
+    if (entry.isDirectory()) {
+      yield* walkDir(root, rel);
+    } else if (entry.isFile()) {
+      // Symlinks, sockets, and other non-regular files are not bundle
+      // entries and are never followed.
+      yield { relPath: rel, absPath: join(root, ...rel.split("/")) };
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Entry scanning
+// ---------------------------------------------------------------------------
+
+interface ScannedEntry {
+  rawPath: string;
+  sha256Hex: string;
+  byteLength: number;
+  entryDigestFull: Uint8Array;
+  entryDigestStripped?: Uint8Array;
+  json?: unknown;
+  /** The format an entry opening an export declared, when it ran past the export JSON cap. */
+  exportTooLarge?: string;
+}
+
+interface FinalEntry {
+  path: string;
+  sha256Hex: string;
+  byteLength: number;
+  entryDigest: Uint8Array;
+  json?: unknown;
+  exportTooLarge?: string;
+}
+
+interface HashedEntry {
+  sha256Hex: string;
+  byteLength: number;
+  entryDigestFull: Uint8Array;
+  entryDigestStripped?: Uint8Array;
+  buffered?: Uint8Array;
+  exportTooLarge?: string;
+}
+
+/**
+ * Stream an entry's content once, computing in parallel:
+ *   - the plain content SHA-256 (file identity, artifact addressing),
+ *   - the contents-hash entry digest SHA-256(path || 0x00 || content),
+ *   - for tar entries below a potentially stripped root, the same entry
+ *     digest under the stripped path variant,
+ * while buffering the content only if it stays within the JSON candidacy
+ * cap, or, for an entry that opens an export object, within the export cap.
+ */
+async function hashEntryStream(
+  path: string,
+  strippedPathVariant: string | undefined,
+  declaredSize: number | undefined,
+  chunks: AsyncIterable<Uint8Array>,
+  exportCap: number
+): Promise<HashedEntry> {
+  const encoder = new TextEncoder();
+  const contentHasher = sha256.create();
+  const fullHasher = sha256.create();
+  fullHasher.update(encoder.encode(path));
+  fullHasher.update(NUL);
+  const strippedHasher = strippedPathVariant === undefined ? undefined : sha256.create();
+  if (strippedHasher !== undefined) {
+    strippedHasher.update(encoder.encode(strippedPathVariant as string));
+    strippedHasher.update(NUL);
+  }
+
+  // json: buffer within the ordinary cap (past it, keep going only if the
+  // entry opens an export). sniff: declared past the ordinary cap, so only an
+  // export is worth buffering; decided on the opening bytes. export: buffer
+  // within the export cap. off: hash only.
+  let mode: "json" | "sniff" | "export" | "off" =
+    declaredSize === undefined || declaredSize <= MAX_CANDIDATE_JSON_BYTES ? "json" : "sniff";
+  let exportTooLarge: string | undefined;
+  const head = new Uint8Array(EXPORT_SNIFF_BYTES);
+  let headLength = 0;
+  const buffered: Uint8Array[] = [];
+  let total = 0;
+  const stop = (): "off" => {
+    buffered.length = 0;
+    return "off";
+  };
+  const tooLarge = (): "off" => {
+    exportTooLarge = exportOpening(head.subarray(0, headLength)) ?? "bitgraph-export/";
+    return stop();
+  };
+
+  for await (const chunk of chunks) {
+    contentHasher.update(chunk);
+    fullHasher.update(chunk);
+    strippedHasher?.update(chunk);
+    total += chunk.length;
+    if (headLength < head.length) {
+      const take = Math.min(head.length - headLength, chunk.length);
+      head.set(chunk.subarray(0, take), headLength);
+      headLength += take;
+    }
+    if (mode === "off") continue;
+    if (mode === "sniff" && headLength === head.length) {
+      mode = exportOpening(head) === undefined ? stop() : declaredSize !== undefined && declaredSize > exportCap ? tooLarge() : "export";
+      if (mode === "off") continue;
+    }
+    // Copy: tar body chunks are views into the container's stream
+    // buffers and are not stable after iteration continues.
+    buffered.push(chunk.slice());
+    if (mode === "json" && total > MAX_CANDIDATE_JSON_BYTES) {
+      mode = exportOpening(head.subarray(0, headLength)) === undefined ? stop() : "export";
+    }
+    if (mode === "export" && total > exportCap) mode = tooLarge();
+  }
+  if (mode === "sniff") {
+    // Shorter than the sniff window although declared past the ordinary cap.
+    mode = exportOpening(head.subarray(0, headLength)) === undefined || total > exportCap ? stop() : "export";
+  }
+
+  const keep = mode === "json" || mode === "export";
+  return {
+    sha256Hex: toHex(contentHasher.digest()),
+    byteLength: total,
+    entryDigestFull: fullHasher.digest(),
+    ...(strippedHasher !== undefined ? { entryDigestStripped: strippedHasher.digest() } : {}),
+    ...(keep ? { buffered: concatBytes(buffered, total) } : {}),
+    ...(exportTooLarge !== undefined ? { exportTooLarge } : {}),
+  };
+}
+
+/** The export format an entry's opening bytes declare ({"format": "bitgraph-export/..."), or undefined. */
+function exportOpening(head: Uint8Array): string | undefined {
+  const start = head.length >= 3 && head[0] === 0xef && head[1] === 0xbb && head[2] === 0xbf ? 3 : 0;
+  const match = EXPORT_OPENING.exec(Buffer.from(head.subarray(start)).toString("latin1"));
+  return match?.[1];
+}
+
+function makeScannedEntry(rawPath: string, hashed: HashedEntry): ScannedEntry {
+  const json = hashed.buffered === undefined ? undefined : tryParseJsonObject(hashed.buffered);
+  return {
+    rawPath,
+    sha256Hex: hashed.sha256Hex,
+    byteLength: hashed.byteLength,
+    entryDigestFull: hashed.entryDigestFull,
+    ...(hashed.entryDigestStripped !== undefined
+      ? { entryDigestStripped: hashed.entryDigestStripped }
+      : {}),
+    ...(json !== undefined ? { json } : {}),
+    ...(hashed.exportTooLarge !== undefined ? { exportTooLarge: hashed.exportTooLarge } : {}),
+  };
+}
+
+/**
+ * Parse an entry as UTF-8 JSON with a single top-level object. Returns
+ * undefined for anything else (invalid UTF-8, non-JSON, arrays,
+ * primitives). A single leading UTF-8 BOM is tolerated for parsing; hashes
+ * always cover the raw bytes including any BOM.
+ */
+function tryParseJsonObject(bytes: Uint8Array): unknown {
+  let body = bytes;
+  if (body.length >= 3 && body[0] === 0xef && body[1] === 0xbb && body[2] === 0xbf) {
+    body = body.subarray(3);
+  }
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+  } catch {
+    return undefined;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return undefined;
+  }
+  return parsed;
+}
+
+// ---------------------------------------------------------------------------
+// Path handling
+// ---------------------------------------------------------------------------
+
+function normalizeEntryPath(raw: string): { path: string; unsafe: boolean; reason?: string } {
+  if (raw.includes("\0")) {
+    return { path: raw, unsafe: true, reason: "path contains a NUL byte" };
+  }
+  const absolute = raw.startsWith("/");
+  const components = raw.split("/").filter((c) => c !== "" && c !== ".");
+  const normalized = components.join("/");
+  if (absolute) {
+    return { path: normalized, unsafe: true, reason: "absolute path" };
+  }
+  if (components.some((c) => c === "..")) {
+    return { path: normalized, unsafe: true, reason: "path escapes the bundle root" };
+  }
+  if (normalized === "") {
+    return { path: normalized, unsafe: true, reason: "empty path" };
+  }
+  return { path: normalized, unsafe: false };
+}
+
+/**
+ * Tar bundle-root normalization (spec section 4.1): if every entry sits
+ * under one common top-level directory, that directory is the bundle root.
+ * Applies if and only if all entries share the same first path component
+ * and every entry has at least two components. Every file entry counts,
+ * including skipped unsafe ones; an entry outside the candidate root
+ * rules stripping out.
+ */
+class CommonRootTracker {
+  private candidate: string | undefined;
+  private ruledOut = false;
+
+  observe(normalizedPath: string): void {
+    if (this.ruledOut) return;
+    const slash = normalizedPath.indexOf("/");
+    if (slash === -1) {
+      this.ruledOut = true;
+      return;
+    }
+    const first = normalizedPath.slice(0, slash);
+    if (first === "..") {
+      this.ruledOut = true;
+      return;
+    }
+    if (this.candidate === undefined) {
+      this.candidate = first;
+    } else if (this.candidate !== first) {
+      this.ruledOut = true;
+    }
+  }
+
+  commonRoot(): string | undefined {
+    return this.ruledOut ? undefined : this.candidate;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Proof classification
+// ---------------------------------------------------------------------------
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Proof-shaped per spec section 6.1: a string version plus object-valued
+ * artifact, commit, and signer fields.
+ */
+/** The proof carried by a bitgraph-fuse/1 Frame, or undefined when the value is not a Frame carrying a proof-shaped object. */
+function unwrapFrame(value: unknown): Record<string, unknown> | undefined {
+  if (!isPlainObject(value) || value["type"] !== "bitgraph-fuse/1") return undefined;
+  const inner = value["proof"];
+  return isProofShaped(inner) ? (inner as Record<string, unknown>) : undefined;
+}
+
+function isProofShaped(value: unknown): boolean {
+  if (!isPlainObject(value)) return false;
+  return (
+    typeof value["version"] === "string" &&
+    isPlainObject(value["artifact"]) &&
+    isPlainObject(value["commit"]) &&
+    isPlainObject(value["signer"])
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Export classification (bitgraph-export/1)
+// ---------------------------------------------------------------------------
+
+/** The format string of an export-shaped value ("bitgraph-export/..."), or undefined. */
+function exportFormatOf(value: unknown): string | undefined {
+  if (!isPlainObject(value)) return undefined;
+  const format = value["format"];
+  return typeof format === "string" && format.startsWith(EXPORT_FORMAT_PREFIX) ? format : undefined;
+}
+
+/**
+ * Classify one export-shaped file. Structure is decided by bitgraph-verify's
+ * parseExport, so the audit and the verifier agree on what an export is. A
+ * file that declares an export format but is not one is recorded with a
+ * finding and is never an artifact.
+ */
+function classifyExport(
+  entry: FinalEntry,
+  parsed: Record<string, unknown>,
+  format: string,
+  findings: AuditFinding[]
+): ExportFile {
+  const base = { path: entry.path, fileSha256Hex: entry.sha256Hex, format, json: parsed };
+  if (format !== EXPORT_FORMAT) {
+    findings.push({
+      code: "export-unsupported-format",
+      path: entry.path,
+      message: `export-shaped file not checked: format "${format}" is not "${EXPORT_FORMAT}"`,
+      details: { format },
+    });
+    return { ...base, status: "unsupported-format" };
+  }
+  if (parseExport(parsed) === null) {
+    const tree = parsed["tree"];
+    const missing = !isPlainObject(parsed["proof"])
+      ? "a proof object"
+      : "tree.rootDocument (a string)";
+    findings.push({
+      code: "export-malformed",
+      path: entry.path,
+      message: `declares ${EXPORT_FORMAT} but lacks ${missing}; not checked`,
+      details: { hasProof: isPlainObject(parsed["proof"]), hasTree: isPlainObject(tree) },
+    });
+    return { ...base, status: "malformed" };
+  }
+  return { ...base, status: "ok" };
+}
+
+type DuplicateKind = "new" | "exact-duplicate" | "semantic-duplicate";
+
+function recordMemberProof(
+  entry: FinalEntry,
+  parsed: Record<string, unknown>,
+  proofsByHash: Map<string, ObservedProof>,
+  proofs: ObservedProof[],
+  findings: AuditFinding[]
+): DuplicateKind {
+  const proofHash = computeProofHash(parsed);
+  const source: ProofSource = {
+    path: entry.path,
+    fileSha256Hex: entry.sha256Hex,
+    byteLength: entry.byteLength,
+  };
+
+  const embeddedStatus = embeddedProofHashStatus(parsed, proofHash);
+  if (embeddedStatus === "mismatch") {
+    findings.push({
+      code: "proofhash-mismatch",
+      path: entry.path,
+      message: "embedded proofHash does not match the computed canonical proof hash",
+      details: {
+        embedded: parsed["proofHash"],
+        computed: proofHash,
+      },
+    });
+  }
+
+  const existing = proofsByHash.get(proofHash);
+  if (existing !== undefined) {
+    const exact = existing.sources.some((s) => s.fileSha256Hex === source.fileSha256Hex);
+    existing.sources.push(source);
+    if (embeddedStatus === "mismatch") {
+      existing.embeddedProofHash = "mismatch";
+    }
+    findings.push({
+      code: exact ? "exact-duplicate" : "semantic-duplicate",
+      path: entry.path,
+      message: exact
+        ? "byte-identical copy of an already observed proof"
+        : "different byte encoding of an already observed proof (same canonical identity)",
+      details: { proofHash, firstObservedAt: (existing.sources[0] as ProofSource).path },
+    });
+    return exact ? "exact-duplicate" : "semantic-duplicate";
+  }
+
+  const commit = isPlainObject(parsed["commit"]) ? parsed["commit"] : {};
+  const signer = isPlainObject(parsed["signer"]) ? parsed["signer"] : {};
+  const environment = isPlainObject(parsed["environment"]) ? parsed["environment"] : {};
+
+  const counter = asString(commit["counter"]);
+  const epochId = asString(commit["epochId"]);
+  const chainIdRaw = asString(commit["chainId"]);
+
+  const observed: ObservedProof = {
+    proofHash,
+    chainHash: computeChainHash(parsed),
+    proof: parsed as unknown as BitGraphProof,
+    sources: [source],
+    version: "bitgraph/1",
+    ...(counter !== undefined ? { counter } : {}),
+    ...(asString(commit["slotCounter"]) !== undefined
+      ? { slotCounter: asString(commit["slotCounter"]) as string }
+      : {}),
+    ...(asString(commit["prevB64"]) !== undefined
+      ? { prevB64: asString(commit["prevB64"]) as string }
+      : {}),
+    ...(epochId !== undefined ? { epochId } : {}),
+    chainId: chainIdRaw !== undefined && chainIdRaw.length > 0 ? chainIdRaw : "global",
+    ...(asString(signer["publicKeyB64"]) !== undefined
+      ? { publicKeyB64: asString(signer["publicKeyB64"]) as string }
+      : {}),
+    ...(asString(environment["measurement"]) !== undefined
+      ? { measurement: asString(environment["measurement"]) as string }
+      : {}),
+    ...(asString(environment["enforcement"]) !== undefined
+      ? { enforcement: asString(environment["enforcement"]) as string }
+      : {}),
+    hasSlotAllocation: isPlainObject(parsed["slotAllocation"]),
+    hasAttestation: isPlainObject(environment["attestation"]),
+    hasAgency: isPlainObject(parsed["agency"]),
+    hasEpochLink: isPlainObject(commit["epochLink"]),
+    embeddedProofHash: embeddedStatus,
+    chainless: counter === undefined && epochId === undefined,
+  };
+
+  proofsByHash.set(proofHash, observed);
+  proofs.push(observed);
+  return "new";
+}
+
+function embeddedProofHashStatus(
+  parsed: Record<string, unknown>,
+  computed: string
+): EmbeddedProofHashStatus {
+  const embedded = parsed["proofHash"];
+  if (embedded === undefined) return "absent";
+  return typeof embedded === "string" && embedded === computed ? "match" : "mismatch";
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Artifact indexing and matching
+// ---------------------------------------------------------------------------
+
+function indexArtifact(entry: FinalEntry, artifactsByHex: Map<string, ArtifactRecord>): void {
+  const existing = artifactsByHex.get(entry.sha256Hex);
+  if (existing !== undefined) {
+    existing.paths.push(entry.path);
+    return;
+  }
+  artifactsByHex.set(entry.sha256Hex, {
+    sha256Hex: entry.sha256Hex,
+    sha256B64: Buffer.from(entry.sha256Hex, "hex").toString("base64"),
+    byteLength: entry.byteLength,
+    paths: [entry.path],
+    matchedProofHashes: [],
+  });
+}
+
+/**
+ * Strict base64 digest decoding per spec section 6.3: RFC 4648 section 4
+ * alphabet with the round-trip property, decoding to exactly 32 bytes.
+ * Returns the lowercase hex form, or null when the digest is unusable for
+ * matching (the proof's own verification records the precise failure).
+ */
+function strictDigestToHex(artifact: unknown): string | null {
+  if (!isPlainObject(artifact)) return null;
+  const digestB64 = artifact["digestB64"];
+  if (typeof digestB64 !== "string" || digestB64.length === 0) return null;
+  const decoded = Buffer.from(digestB64, "base64");
+  if (decoded.toString("base64") !== digestB64) return null;
+  if (decoded.length !== 32) return null;
+  return decoded.toString("hex");
+}
+
+// ---------------------------------------------------------------------------
+// Manifest classification
+// ---------------------------------------------------------------------------
+
+function classifyManifest(
+  entry: FinalEntry,
+  computedContentsHashB64: string,
+  findings: AuditFinding[]
+): ManifestReport {
+  if (entry.json === undefined) {
+    findings.push({
+      code: "manifest-unparseable",
+      path: entry.path,
+      message: "root manifest.json did not parse as a single JSON object; proceeding as if no manifest were present",
+    });
+    return { path: entry.path, parsed: false, recognized: false, problems: [] };
+  }
+
+  const raw = entry.json as Record<string, unknown>;
+  const version = raw["version"];
+  if (version !== BUNDLE_VERSION) {
+    findings.push({
+      code: "manifest-unrecognized-version",
+      path: entry.path,
+      message: `manifest version ${JSON.stringify(version)} is not "${BUNDLE_VERSION}"; the manifest was not interpreted`,
+      ...(typeof version === "string" ? { details: { version } } : {}),
+    });
+    return {
+      path: entry.path,
+      parsed: true,
+      ...(typeof version === "string" ? { version } : {}),
+      recognized: false,
+      problems: [],
+    };
+  }
+
+  const problems = validateManifestFields(raw);
+  for (const problem of problems) {
+    findings.push({
+      code: "manifest-field-invalid",
+      path: entry.path,
+      message: problem,
+    });
+  }
+
+  const report: ManifestReport = {
+    path: entry.path,
+    parsed: true,
+    version: BUNDLE_VERSION,
+    recognized: true,
+    manifest: raw as BundleManifest,
+    problems,
+  };
+
+  const declared = raw["contentsHashB64"];
+  if (typeof declared === "string" && declared.length > 0) {
+    const match = declared === computedContentsHashB64;
+    report.contentsHash = {
+      declaredB64: declared,
+      computedB64: computedContentsHashB64,
+      match,
+    };
+    if (!match) {
+      findings.push({
+        code: "manifest-contents-hash-mismatch",
+        path: entry.path,
+        message:
+          "manifest contentsHashB64 does not match the computed contents hash; " +
+          "the bundle held is not byte-for-byte the bundle the manifest describes. " +
+          "Advisory: this does not fail any proof.",
+        details: { declared, computed: computedContentsHashB64 },
+      });
+    }
+  }
+
+  return report;
+}
+
+/** Type checks per spec section 7.1. Unknown fields are tolerated. */
+function validateManifestFields(m: Record<string, unknown>): string[] {
+  const problems: string[] = [];
+  const isStringArray = (v: unknown): boolean =>
+    Array.isArray(v) && v.every((x) => typeof x === "string");
+
+  if (m["epochIds"] !== undefined && !isStringArray(m["epochIds"])) {
+    problems.push("manifest.epochIds must be an array of strings when present");
+  }
+  if (m["chainIds"] !== undefined && !isStringArray(m["chainIds"])) {
+    problems.push("manifest.chainIds must be an array of strings when present");
+  }
+  if (
+    m["proofCount"] !== undefined &&
+    (typeof m["proofCount"] !== "number" || !Number.isInteger(m["proofCount"]) || m["proofCount"] < 0)
+  ) {
+    problems.push("manifest.proofCount must be a non-negative integer when present");
+  }
+  if (m["counterRanges"] !== undefined) {
+    const ok =
+      Array.isArray(m["counterRanges"]) &&
+      m["counterRanges"].every(
+        (r) =>
+          isPlainObject(r) &&
+          typeof r["epochId"] === "string" &&
+          typeof r["chainId"] === "string" &&
+          typeof r["min"] === "string" &&
+          typeof r["max"] === "string"
+      );
+    if (!ok) {
+      problems.push(
+        "manifest.counterRanges must be an array of { epochId, chainId, min, max } string fields when present"
+      );
+    }
+  }
+  if (m["generatedAt"] !== undefined && typeof m["generatedAt"] !== "string") {
+    problems.push("manifest.generatedAt must be a string when present");
+  }
+  if (m["contentsHashB64"] !== undefined) {
+    const v = m["contentsHashB64"];
+    let ok = typeof v === "string" && v.length > 0;
+    if (ok) {
+      const decoded = Buffer.from(v as string, "base64");
+      ok = decoded.toString("base64") === v && decoded.length === 32;
+    }
+    if (!ok) {
+      problems.push("manifest.contentsHashB64 must be standard base64 of 32 bytes when present");
+    }
+  }
+  if (m["artifactsIncluded"] !== undefined && typeof m["artifactsIncluded"] !== "boolean") {
+    problems.push("manifest.artifactsIncluded must be a boolean when present");
+  }
+  if (m["openEpochs"] !== undefined) {
+    const ok =
+      Array.isArray(m["openEpochs"]) &&
+      m["openEpochs"].every(
+        (e) =>
+          isPlainObject(e) &&
+          typeof e["epochId"] === "string" &&
+          typeof e["counterAtSnapshot"] === "string"
+      );
+    if (!ok) {
+      problems.push(
+        "manifest.openEpochs must be an array of { epochId, counterAtSnapshot } string fields when present"
+      );
+    }
+  }
+  return problems;
+}
+
+// ---------------------------------------------------------------------------
+// Byte helpers
+// ---------------------------------------------------------------------------
+
+function toHex(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("hex");
+}
+
+function concatBytes(chunks: Uint8Array[], total: number): Uint8Array {
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return out;
+}

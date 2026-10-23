@@ -1,0 +1,718 @@
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
+
+import Foundation
+import SwiftUI
+import AppKit
+import ServiceManagement
+
+/// Everything the window shows, and the only place the app decides what to say.
+///
+/// ⚠️ ONLY FAILURES SPEAK. A folder that is recording says its name and its
+/// counts. A folder with something wrong says what. Nothing here invents a
+/// reassurance: "if you see it, it's a BitGraph".
+///
+/// ⚠️ THE LIGHT IS A DOOR. It is red when something has something to say, and
+/// clicking it is how you get to what. It is not a decoration and it is not in
+/// a title bar.
+@MainActor
+final class AppState: ObservableObject {
+
+    /// SwiftUI's own window opener, handed over by the surfaces that have the
+    /// environment (see WindowOpener in RecorderApp.swift). It is the only
+    /// thing that can rebuild the `box` window scene once it has been closed,
+    /// which AppKit cannot do: a closed window is not in `NSApp.windows` at
+    /// all. nil only before any surface has appeared.
+    var reopenBox: (() -> Void)?
+    @Published private(set) var status: Status?
+    @Published private(set) var activity: String?
+    @Published private(set) var reports: [String: FolderReport] = [:]
+    @Published private(set) var troubles: [Trouble] = []
+    @Published private(set) var coreState: DaemonClient.State = .starting
+    @Published var checking: Set<String> = []
+    @Published var openAtLogin: Bool = false
+
+    // ── the calendar ────────────────────────────────────────────────────────
+    /// Every day with recordings and how many: the spine of the ledger.
+    @Published private(set) var spine: LedgerSpine?
+    /// The days that have been drilled out, and what they hold.
+    @Published private(set) var dayRecordings: [String: [Recording]] = [:]
+    /// The days open in the list.
+    @Published private(set) var expanded: Set<String> = []
+    /// `yyyy-MM-dd`, the day the mini month picked.
+    @Published private(set) var selectedDay: String?
+    /// The month the little month shows. The list itself is every month.
+    @Published var month: Date = Date()
+    /// The little month, open under the header's Calendar button. It is a
+    /// jump, not a second navigator: pick a day and the list goes there.
+    @Published var calendarOpen = false
+    /// A day the list should bring into view, cleared once it has.
+    @Published var scrollTarget: String?
+    /// A drag is over the window. The whole window is the target, and this
+    /// is what draws the frame that says so (Mike, 2026-09-11: "kill the box").
+    @Published var dragOver = false
+    /// Setting up again, over a folder that is already set: from the moved-
+    /// folder dialog's "Start a new one", or the sidebar's "Change folder…".
+    @Published var settingUpAgain = false
+    /// A batch that is listed and waiting to be named and made.
+    @Published var pendingBatch: LookResult?
+
+    // ── search ──────────────────────────────────────────────────────────────
+    /// What the sidebar's field says. Empty is no search: the month's days.
+    @Published var query: String = "" {
+        didSet { if query != oldValue { scheduleSearch() } }
+    }
+    /// What the query found, once the core has answered. nil until it has.
+    @Published private(set) var found: SearchResult?
+    /// Set to put the caret in the search field (⌘F); the field clears it.
+    @Published var focusSearch = false
+    private var searchTask: Task<Void, Never>?
+    /// True while there is a query to answer.
+    var searching: Bool { !trimmedQuery.isEmpty }
+    var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+    /// True while an update is being fetched and checked.
+    @Published var installing = false
+
+    // ── the window ──────────────────────────────────────────────────────────
+    @Published var surface: Surface = .calendar
+    @Published var proofPage: ProofPage? {
+        didSet { armProofReload() }
+    }
+    /// The next look a waiting page has scheduled for itself.
+    var proofReload: Task<Void, Never>?
+    /// What the snackbar says, when it says anything.
+    @Published var toast: String?
+    /// A label and an act beside the snackbar's OK, when one applies.
+    @Published var toastAction: (String, () -> Void)?
+    var toastTask: Task<Void, Never>?
+    /// The newest check of the update feed, once the core has answered.
+    @Published var update: UpdateCheck?
+
+    /// The app's own version, from the bundle build.sh stamped.
+    static let version: String = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.0.0"
+    @Published var dropping: Bool = false {
+        didSet { dropStarted = dropping ? Date() : nil }
+    }
+    @Published var dropProgress: MakeProgress?
+    /// When the work in hand began, so the surface can say how long it has been.
+    @Published var dropStarted: Date?
+
+    /// How far the work in hand is, when its phase can count; nil says "working".
+    ///
+    /// A check keeps the sliding band even though it counts: "when its
+    /// checking a folder i liked that animation you had before" (Mike,
+    /// 2026-09-09). The count still shows beside it.
+    var dropFraction: Double? {
+        guard let p = dropProgress, p.total > 1, p.phase != "check" else { return nil }
+        return Double(p.done) / Double(p.total)
+    }
+    @Published var exporting: Bool = false
+    @Published var exportNote: String?
+    var pendingToken: String?
+    var lastResults: LookResult? {
+        if case .results(let look) = surface { return look }
+        return storedResults
+    }
+    private var storedResults: LookResult?
+
+    struct Trouble: Identifiable, Equatable {
+        let id = UUID()
+        var root: String
+        var reason: String
+        var at: Date
+        var severity: TroubleSeverity = .fault
+    }
+
+    var client: DaemonClient!
+    private var statusTimer: Timer?
+    let live: Bool
+
+    init() {
+        live = true
+        let runtime = Runtime.locate()
+        client = DaemonClient(nodePath: runtime.node, corePath: runtime.core) { [weak self] event in
+            self?.handle(event)
+        }
+        client.$state.assign(to: &$coreState)
+    }
+
+    /// A state with no core behind it, for looking at the surface without
+    /// running anything. Used by the preview harness; never by the app.
+    init(preview status: Status?, reports: [String: FolderReport] = [:], troubles: [Trouble] = [], activity: String? = nil) {
+        live = false
+        self.status = status
+        self.reports = reports
+        self.troubles = troubles
+        self.activity = activity
+        coreState = .running
+    }
+
+    func start() {
+        guard live else { return }
+        openAtLogin = SMAppService.mainApp.status == .enabled
+        client.start()
+        Task { await refresh() }
+        /* ⚠️ THE CORE PUSHES; THE APP DOES NOT POLL HARD. Every made, skipped
+         * and trouble already refreshes this, so the timer is only a backstop
+         * for state that changed with no event. At five seconds it was also
+         * five filesystem touches a second across the synced folders, which on
+         * macOS means a Desktop permission prompt over and over. */
+        statusTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.refresh() }
+        }
+    }
+
+    func stop() {
+        statusTimer?.invalidate()
+        guard live else { return }
+        client.stop()
+    }
+
+    // ── what the light says ─────────────────────────────────────────────────
+
+    /// Red when something has something to say. Never red for work in progress.
+    var everythingIsFine: Bool {
+        if case .stopped = coreState { return false }
+        /* ⚠️ A gap does not turn the light. Not being able to reach the ledger
+         * is not a fault of the folder or of the person holding it, and it is
+         * shown, quietly, either way. */
+        if troubles.contains(where: { $0.severity == .fault }) { return false }
+        for report in reports.values where report.counts.failed > 0 { return false }
+        return true
+    }
+
+    /// One line for the menu bar, when there is one worth having.
+    var summary: String {
+        if case .stopped(let reason) = coreState { return reason }
+        if let first = troubles.last { return first.reason }
+        if let activity { return activity }
+        let folders = status?.folders.count ?? 0
+        if folders == 0 { return "No folders synced yet." }
+        let recorded = status?.folders.compactMap(\.recorded).reduce(0, +) ?? 0
+        return "\(Style.count(recorded)) recorded in \(folders) folder\(folders == 1 ? "" : "s")."
+    }
+
+    // ── doing things ────────────────────────────────────────────────────────
+
+    /// ⚠️ Nothing is recorded before somebody has said where it goes.
+    var isSetUp: Bool {
+        guard let status else { return true }
+        return !status.folder.isEmpty
+    }
+
+    var suggestedLocation: String {
+        guard let status, !status.suggested.isEmpty else { return NSHomeDirectory() }
+        return (status.suggested as NSString).deletingLastPathComponent
+    }
+
+    func setUp(at: String, name: String) async throws {
+        _ = try await client.send("setup", ["at": at, "name": name], as: SetupResult.self)
+        settingUpAgain = false
+        await refresh()
+        showCalendar()
+    }
+
+    /// The folder is not where it was: pick it where it is now. A folder
+    /// that already has Recordings in it is continued, never replaced.
+    func findFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Use this folder"
+        panel.message = "Choose your BitGraph folder. One that already has Recordings in it is continued, never replaced."
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let at = url.deletingLastPathComponent().path
+        let name = url.lastPathComponent
+        Task {
+            do { try await setUp(at: at, name: name) } catch { report(error.localizedDescription) }
+        }
+    }
+
+    /// Something to say that belongs to no folder.
+    private func report(_ reason: String) {
+        troubles.append(Trouble(root: "", reason: reason, at: Date(), severity: .gap))
+    }
+
+    func rememberResults(_ look: LookResult) {
+        storedResults = look
+    }
+
+    /// The spine, re-read from the folders: one readdir per day. The days
+    /// already open are re-read with it, so a recording that just landed shows.
+    func loadLedger() async {
+        guard case .running = coreState else { return }
+        if let spine = try? await client.send("ledger", as: LedgerSpine.self) {
+            self.spine = spine
+            for day in expanded { await loadDay(day) }
+        }
+    }
+
+    /// One day drilled out. Read only when somebody opens it.
+    func loadDay(_ day: String) async {
+        guard case .running = coreState else { return }
+        if let one = try? await client.send("recordings", ["day": day], as: DayRecordings.self) {
+            dayRecordings[day] = one.recordings
+        }
+    }
+
+    func toggleDay(_ day: String) {
+        if expanded.contains(day) { expanded.remove(day) } else { expand(day) }
+    }
+
+    func expand(_ day: String) {
+        expanded.insert(day)
+        if dayRecordings[day] == nil { Task { await loadDay(day) } }
+    }
+
+    /// The mini month picks a day: the list goes to its month and brings it
+    /// into view. Picking it again lets go of it.
+    ///
+    /// ⚠️ NOTHING OPENS A DAY BUT A CLICK ON IT. Mike, 2026-09-09: "all days
+    /// should be retracted unless user clicks".
+    func selectDay(_ day: String?) {
+        selectedDay = day
+        calendarOpen = false
+        guard let day else { return }
+        if surface != .calendar { showCalendar() }
+        if let date = Self.date(of: day) { month = date }
+        scrollTarget = day
+    }
+
+    /// The top of the list: newest first, so today's recordings, or the
+    /// newest day there is when today has none yet.
+    func goToday() {
+        selectedDay = Self.today()
+        month = Date()
+        calendarOpen = false
+        if surface != .calendar { showCalendar() }
+        scrollTarget = spine?.days.first?.day
+    }
+
+    /// The list, a month at a time: ← → jump to the month before or after
+    /// the one the little month shows, among the months that hold anything.
+    func jumpMonth(_ n: Int) {
+        let groups = months
+        guard !groups.isEmpty else { return }
+        let current = Self.monthKey(month)
+        /* Newest first: the month on show, or the nearest older one. */
+        let i = groups.firstIndex(where: { $0.key <= current }) ?? groups.count - 1
+        let j = min(max(i - n, 0), groups.count - 1)
+        let first = groups[j].days[0].day
+        if let d = Self.date(of: first) { month = d }
+        scrollTarget = first
+    }
+
+    /// A month of the list: its days, newest first, under its name.
+    struct MonthGroup: Identifiable, Equatable {
+        let key: String
+        let title: String
+        var days: [DayCount]
+        var id: String { key }
+    }
+
+    /// Every month that holds anything, newest first: the spine, grouped.
+    var months: [MonthGroup] {
+        var out: [MonthGroup] = []
+        for day in spine?.days ?? [] {
+            let key = String(day.day.prefix(7))
+            if out.last?.key == key {
+                out[out.count - 1].days.append(day)
+            } else {
+                out.append(MonthGroup(key: key, title: Self.monthTitle(key), days: [day]))
+            }
+        }
+        return out
+    }
+
+    /// `2026-09` → `September 2026`.
+    static func monthTitle(_ key: String) -> String {
+        let parts = key.split(separator: "-")
+        guard parts.count == 2, let y = Int(parts[0]), let m = Int(parts[1]), (1...12).contains(m) else { return key }
+        return "\(DateFormatter().monthSymbols[m - 1]) \(y)"
+    }
+
+    /// The field's text changed: ask the core, after a moment's pause so a
+    /// word typed at speed is one question, not six.
+    private func scheduleSearch() {
+        searchTask?.cancel()
+        let q = trimmedQuery
+        guard !q.isEmpty else { found = nil; return }
+        /* Typed on a proof page: the list comes back to hold the answer. */
+        if surface != .calendar { showCalendar() }
+        searchTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            await self?.runSearch(q)
+        }
+    }
+
+    /// One question to the core. An answer to a question no longer asked is
+    /// dropped: the field has moved on.
+    func runSearch(_ q: String) async {
+        guard live, case .running = coreState else { return }
+        if let result = try? await client.send("search", ["query": q], as: SearchResult.self), result.query == trimmedQuery {
+            found = result
+        }
+    }
+
+    func clearSearch() {
+        query = ""
+    }
+
+    /// A day out of a search: the search is put away and the day is opened
+    /// in its month, the way the mini month would.
+    func leaveSearch(for day: String) {
+        query = ""
+        selectDay(day)
+        expand(day)
+    }
+
+    /// A dialog is up: the keys that move the calendar are not taken.
+    var dialogUp: Bool {
+        !isSetUp || settingUpAgain || status?.folderMissing == true || status?.folderBlocked == true || pendingBatch != nil
+    }
+
+    /// Escape, wherever it lands: the topmost thing that can be put away
+    /// goes, and nothing else moves. True when something went.
+    @discardableResult
+    func escape() -> Bool {
+        if calendarOpen { calendarOpen = false; return true }
+        if pendingBatch != nil {
+            /* A batch being made is not cancelled by a key; the dialog's own
+             * Cancel is disabled for the same reason. */
+            if !dropping { cancelPendingDrop() }
+            return true
+        }
+        if settingUpAgain { settingUpAgain = false; return true }
+        if toast != nil { dismissToast(); return true }
+        if searching { clearSearch(); return true }
+        if case .proof = surface { back(); return true }
+        if case .new = surface { showCalendar(); return true }
+        return false
+    }
+
+    /// Every day that holds anything, for the mini month's dots.
+    var markedDays: Set<String> {
+        Set(spine?.days.map(\.day) ?? [])
+    }
+
+    static func monthKey(_ date: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM"; return f.string(from: date)
+    }
+
+    static func date(of day: String) -> Date? {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.date(from: day)
+    }
+
+    func refresh() async {
+        guard case .running = coreState else { return }
+        await loadLedger()
+        /* A search stays true to the library: a recording that just landed
+         * and matches shows up without the field being touched. */
+        if searching { await runSearch(trimmedQuery) }
+        do {
+            status = try await client.send("status", as: Status.self)
+        } catch {
+            /* ⚠️ Not being able to ask is not the same as there being nothing
+             * to report, and the previous answer is left standing rather than
+             * being replaced by an empty one. */
+        }
+    }
+
+    func addFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Sync"
+        /* ⚠️ Said before the choice, not after it. Adding a folder records
+         * what is ALREADY in it as well as what arrives later, and a recording
+         * is permanent, so the moment to say so is here. */
+        panel.message = "BitGraph Recorder will record what is already in this folder, and whatever arrives in it later. Nothing is uploaded, copied or moved: your files stay exactly where they are, on this machine."
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task { await watch(url.path) }
+    }
+
+    func watch(_ path: String) async {
+        do {
+            try await client.send("watch", ["root": path])
+            await refresh()
+        } catch {
+            note(root: path, reason: error.localizedDescription)
+        }
+    }
+
+    func unwatch(_ path: String) async {
+        do {
+            try await client.send("unwatch", ["root": path])
+            reports[path] = nil
+            await refresh()
+        } catch {
+            note(root: path, reason: error.localizedDescription)
+        }
+    }
+
+    func pause(_ path: String, paused: Bool) async {
+        do {
+            try await client.send("pause", ["root": path, "paused": paused])
+            await refresh()
+        } catch {
+            note(root: path, reason: error.localizedDescription)
+        }
+    }
+
+    func check(_ path: String) async {
+        checking.insert(path)
+        defer { checking.remove(path) }
+        do {
+            reports[path] = try await client.send("check", ["root": path], as: FolderReport.self)
+        } catch {
+            note(root: path, reason: "the check could not be run: \(error.localizedDescription)")
+        }
+    }
+
+    func fetchAnchors(_ path: String) async {
+        do {
+            _ = try await client.send("anchors", ["root": path], as: AnchorPass.self)
+        } catch {
+            note(root: path, reason: "anchors could not be fetched: \(error.localizedDescription)", severity: .gap)
+        }
+    }
+
+    /// Only the surface tests use this: it moves the state the core would
+    /// otherwise move, so the light's rules can be checked without a core.
+    func applyForTesting(coreState: DaemonClient.State) {
+        self.coreState = coreState
+    }
+
+    func setLedgerForTesting(spine: LedgerSpine, days: [String: [Recording]], expanded: Set<String>) {
+        self.spine = spine
+        self.dayRecordings = days
+        self.expanded = expanded
+    }
+
+    func setDroppingForTesting(_ on: Bool, progress: MakeProgress?) {
+        dropping = on
+        dropProgress = progress
+    }
+
+    /// A search and its answer, placed by hand: the preview harness has no
+    /// core to ask.
+    func setSearchForTesting(query: String, found: SearchResult?) {
+        self.query = query
+        self.found = found
+    }
+
+    /// What this folder has to say. A trouble belongs to a folder or to
+    /// nothing, and the two are shown in different places.
+    func troubles(for path: String) -> [Trouble] {
+        troubles.filter { $0.root == path }.suffix(3).reversed()
+    }
+
+    /// Troubles that belong to no folder: the core could not start, or nothing
+    /// could be reached at all.
+    var loose: [Trouble] {
+        Array(troubles.filter { $0.root.isEmpty }.suffix(2).reversed())
+    }
+
+    func clearTroubles() {
+        troubles.removeAll()
+    }
+
+    /// ⚠️ A watcher that only runs while somebody remembers to start it is not
+    /// a watcher. Opening at login is the difference between a service and a
+    /// thing you have to think about, so it is offered plainly and left to the
+    /// person.
+    func setOpenAtLogin(_ on: Bool) {
+        do {
+            if on {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            openAtLogin = SMAppService.mainApp.status == .enabled
+        } catch {
+            note(root: "", reason: "opening at login could not be changed: \(error.localizedDescription)")
+            openAtLogin = SMAppService.mainApp.status == .enabled
+        }
+    }
+
+    func reveal(_ path: String) {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+    }
+
+    /// Show one file, selected, rather than opening the folder it is in.
+    /// The file, in the app the Mac would open it with. Callers pass the
+    /// recording's own hard link, never the origin.
+    static func openFile(_ path: String) {
+        guard !path.isEmpty else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+
+    func revealFile(_ path: String) {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+
+    // ── what the core tells us ──────────────────────────────────────────────
+
+    private func handle(_ event: DaemonEvent) {
+        switch event {
+        case .ready:
+            Task { await refresh(); await checkForUpdate() }
+        case .update(let check):
+            /* The core's daily check found something newer. */
+            offer(check)
+        case .settling(let root, let files):
+            activity = "\(name(root)): looking at \(files) file\(files == 1 ? "" : "s")…"
+        case .making(let root, let files, let progress):
+            if let p = progress {
+                activity = "\(name(root)): \(p.phase) \(Style.count(p.done))/\(Style.count(p.total))"
+                if dropping { dropProgress = p }
+            } else {
+                activity = "\(name(root)): recording \(Style.count(files)) file\(files == 1 ? "" : "s")…"
+            }
+        case .checking(let root, let done, let total):
+            /* A check fills the same bar a make does. */
+            activity = "\(name(root)): checking \(Style.count(done))/\(Style.count(total))"
+            if dropping || !checking.isEmpty {
+                dropProgress = MakeProgress(phase: "check", done: done, total: total)
+                if dropStarted == nil { dropStarted = Date() }
+            }
+        case .made(let root, let result):
+            activity = "\(name(root)): recorded \(G.count(result.count)) file\(result.count == 1 ? "" : "s") at position \(result.position.counter)."
+            /* A new recording lands on today, so the calendar opens there. */
+            selectDay(Self.today())
+            Task { await refresh() }
+        case .skipped(let root, _, let total, let same):
+            let already = total - same
+            var parts: [String] = []
+            if already > 0 { parts.append("\(already) already recorded") }
+            if same > 0 { parts.append("\(same) the same bytes as another, recorded once") }
+            activity = "\(name(root)): \(parts.joined(separator: ", "))."
+        case .idle:
+            /* ⚠️ Deliberately not "all good". The app says what happened, not
+             * that everything is fine. */
+            activity = nil
+        case .anchors(let root, let pass) where pass.landed > 0:
+            /* No folder name when the folder is the library itself: "Recordings:
+             * 2 anchors arrived" labelled the news with the name of the place
+             * (Mike, 2026-09-10: "a bit crowded yes?"). */
+            let place = (root == status?.library || root == status?.folder) ? "" : "\(name(root)): "
+            activity = "\(place)\(pass.landed) anchor\(pass.landed == 1 ? "" : "s") arrived."
+            /* The one moment the app has news nobody asked for: said with a
+             * notification when the window is not the thing being looked at.
+             * Not while the app is active, where the snackbar already says it. */
+            notifyAnchors(pass)
+            /* The calendar's dots and an open page both show what just landed. */
+            Task { await refresh(); await reloadProofPage() }
+        case .anchors:
+            break
+        case .trouble(let root, let reason, _, let severity):
+            note(root: root, reason: reason, severity: severity)
+        case .watching, .settingsChanged, .unknown:
+            break
+        }
+    }
+
+    func note(root: String, reason: String, severity: TroubleSeverity = .fault) {
+        troubles.append(Trouble(root: root, reason: reason, at: Date(), severity: severity))
+        if troubles.count > 20 { troubles.removeFirst(troubles.count - 20) }
+        say(reason)
+    }
+
+    /// ⚠️ A FAILURE IS SAID WHERE THE PERSON IS LOOKING. Mike, 2026-09-09: a
+    /// ten-file drop's commit threw, the dialog closed, and "it didnt do a
+    /// thing": the reason had gone to the menu bar popover alone. Calendar's
+    /// snackbar, at the bottom of the window, for ten seconds or a click.
+    /// Ask the core once, on launch, with the app's own version. A feed that
+    /// cannot be reached is not news: the daily check will say.
+    func checkForUpdate() async {
+        do {
+            let check = try await client.send("update", ["current": AppState.version], as: UpdateCheck.self)
+            offer(check)
+        } catch {
+            /* Quiet. Nothing on screen depends on this answer. */
+        }
+    }
+
+    /// Show what the check found. Only a NEWER version is said out loud, and
+    /// only once per version, so the same news does not land every day.
+    private func offer(_ check: UpdateCheck) {
+        update = check
+        guard check.available, check.latest != offeredVersion else { return }
+        offeredVersion = check.latest
+        say("BitGraph Recorder \(check.latest) is available.", action: ("Install", { [weak self] in self?.install(check) }))
+    }
+    private var offeredVersion = ""
+
+    static func open(_ url: String) {
+        guard let u = URL(string: url), u.scheme == "https" else { return }
+        NSWorkspace.shared.open(u)
+    }
+
+    func say(_ text: String, action: (String, () -> Void)? = nil) {
+        toast = text
+        toastAction = action
+        toastTask?.cancel()
+        toastTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled else { return }
+            self?.toast = nil
+        }
+    }
+
+    /// The pane where the person gives the app its folder back. The Ventura+
+    /// form first; the older one still resolves on 14 as a fallback.
+    static func openPrivacySettings() {
+        let panes = [
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_FilesAndFolders",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders",
+        ]
+        for pane in panes {
+            if let url = URL(string: pane), NSWorkspace.shared.open(url) { return }
+        }
+    }
+
+    func dismissToast() {
+        toastTask?.cancel()
+        toast = nil
+        toastAction = nil
+    }
+
+    static func today() -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: Date())
+    }
+
+    private func name(_ path: String) -> String {
+        path.isEmpty ? "BitGraph Recorder" : (path as NSString).lastPathComponent
+    }
+}
+
+/// Where the core and the runtime it needs live.
+enum Runtime {
+    struct Paths {
+        var node: String
+        var core: String
+    }
+
+    /// Inside the bundle when shipped; in the tree when this is a development
+    /// run, so the app can be driven without being packaged first.
+    static func locate() -> Paths {
+        let resources = Bundle.main.resourceURL
+        if let resources {
+            let node = resources.appendingPathComponent("node").path
+            let core = resources.appendingPathComponent("core/dist/cli.js").path
+            if FileManager.default.isExecutableFile(atPath: node), FileManager.default.fileExists(atPath: core) {
+                return Paths(node: node, core: core)
+            }
+        }
+        let env = ProcessInfo.processInfo.environment
+        return Paths(
+            node: env["BITGRAPH_FOLDER_NODE"] ?? "/usr/bin/env",
+            core: env["BITGRAPH_FOLDER_CORE"] ?? "bitgraph-recorder"
+        )
+    }
+}

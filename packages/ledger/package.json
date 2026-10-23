@@ -1,0 +1,21 @@
+{
+  "name": "@bitgraph/ledger",
+  "version": "0.1.0",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "main": "src/s3.ts",
+  "scripts": {
+    "rebuild": "tsx src/rebuild.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@noble/hashes": "^1.7.1",
+    "bitgraph": "file:../../",
+    "postgres": "^3.4.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0"
+  }
+}

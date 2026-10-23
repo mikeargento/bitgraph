@@ -1,0 +1,1816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BitGraph: Proof as a Reachability Property</title>
+<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$'],['\\[','\\]']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre']},startup:{ready(){MathJax.startup.defaultReady();MathJax.startup.promise.then(()=>{document.querySelectorAll('mjx-container:not([display="true"])').forEach(el=>{if(el.offsetWidth>el.parentElement.clientWidth+2){const w=document.createElement('div');w.style.cssText='overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%';el.parentNode.insertBefore(w,el);w.appendChild(el);}});});}}};</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+<style>
+:root{--sidebar-w:260px;--nav-h:58px}
+*{margin:0;padding:0;box-sizing:border-box;max-width:100%}
+mjx-container *,mjx-container svg{max-width:none}
+html{overflow-x:hidden;width:100%;color-scheme:light dark}
+body{font-family:'Inter',-apple-system,sans-serif;font-size:14px;line-height:1.65;color:#202122;background:#fff;overflow-x:hidden;width:100%}
+a{color:#3366cc}
+a:hover{text-decoration:underline}
+
+/* Dynamic left padding: clears sidebar when viewport is narrow, matches homepage when wide */
+.content-wrap nav,.content-wrap .nav-wrap,.content-wrap .main{padding-left:max(24px, calc(var(--sidebar-w) + 24px - (100vw - 1060px) / 2))}
+
+/* Nav (centered like homepage) */
+nav{max-width:1060px;margin:0 auto;padding:20px 24px;display:flex;align-items:center;justify-content:space-between}
+.nav-brand{font-size:16px;font-weight:700;color:#202122;text-decoration:none;text-transform:uppercase;letter-spacing:0.05em;display:inline-flex;align-items:center;gap:6px}
+.nav-brand:hover{text-decoration:none}
+.nav-links{display:flex;gap:16px}
+.nav-links a{font-size:13px}
+.hamburger{display:none}
+.nav-rule{border:none;border-top:1px solid #a2a9b1;margin:0}
+.nav-wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+
+/* Search in sidebar */
+.sidebar-search{padding:12px 16px;border-bottom:1px solid #c8ccd1;margin-bottom:10px}
+.sidebar-search .search-title{font-size:13px;font-weight:600;color:#54595d;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px}
+.sidebar-search input{width:100%;padding:6px 10px;border:1px solid #c8ccd1;background:#fff;color:#202122;font-family:'Inter',-apple-system,sans-serif;font-size:12px;outline:none}
+.sidebar-search input:focus{border-color:#a2a9b1}
+.sidebar-search input::placeholder{color:#a2a9b1}
+.search-results{margin-top:8px;font-size:12px}
+.search-results a{display:block;padding:3px 0;color:#3366cc;text-decoration:none;border-bottom:1px solid #c8ccd1}
+.search-results a:hover{color:#202122}
+
+/* Layout */
+
+/* Sidebar TOC */
+.sidebar{position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;background:#f8f9fa;overflow-y:auto;padding:20px 0;z-index:100;scrollbar-width:thin;border-right:1px solid #c8ccd1}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:#c8ccd1;border-radius:0}
+.sidebar .doc-title{padding:0 16px 12px;font-size:13px;font-weight:600;color:#54595d;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #c8ccd1;margin-bottom:10px}
+.sidebar .toc-list{list-style:none;padding:0 8px}
+.sidebar .toc-list ul,.sidebar .toc-list .toc-list{list-style:none;padding-left:12px}
+.sidebar .toc-list li{margin:0}
+.sidebar .toc-list a{display:block;padding:3px 8px;color:#3366cc;text-decoration:none;font-size:12px;line-height:1.4;border-left:2px solid transparent;transition:all .15s}
+.sidebar .toc-list a:hover{color:#202122;background:rgba(0,0,0,0.03)}
+.sidebar .toc-list a.active{color:#202122;border-left-color:#202122;font-weight:600;background:rgba(0,0,0,0.05)}
+.sidebar .toc-list .toc-list a{font-size:11.5px;color:#54595d;padding:2px 8px}
+
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:998}
+.sidebar-overlay.active{display:block}
+
+/* Main content */
+.main{max-width:1060px;margin:0 auto;padding:40px 24px 80px;background:#fff;color:#202122}
+.main a{color:#3366cc}
+.main h3{color:#202122}
+
+/* Title */
+.doc-h1{font-size:16px;font-weight:600;line-height:1.3;margin:0 0 20px;color:#202122;white-space:normal}
+.subtitle{font-size:14px;color:#54595d;margin-bottom:20px;text-align:center;font-style:normal;padding-bottom:20px;border-bottom:1px solid #c8ccd1}
+.subtitle a{color:#3366cc;text-decoration:none}
+
+/* Section headings */
+h1,.level1>h1{font-size:16px;font-weight:600;color:#202122;margin:32px 0 14px}
+.level1:first-of-type>h1{margin-top:0}
+h2,.level2>h2{font-size:16px;font-weight:600;color:#202122;margin:28px 0 10px}
+h3{font-size:14px;font-weight:600;color:#202122;margin:22px 0 6px}
+
+/* Body text */
+p{margin:0 0 13px;text-align:left;hyphens:none;-webkit-hyphens:none}
+ul,ol{margin:0 0 13px 22px}
+li{margin-bottom:3px}
+
+/* Abstract box */
+#abstract{background:#f8f9fa;border:1px solid #c8ccd1;border-radius:0;padding:22px 28px;margin-bottom:32px}
+#abstract div[style*="uppercase"]{color:#54595d !important;font-family:'Inter',-apple-system,sans-serif !important;letter-spacing:2px !important}
+
+/* Theorem-like environments */
+.definition,.invariant,.property,.remark,.nongoal,.proposition,.proof,.theorem{margin:18px 0;padding:14px 18px;border-left:4px solid;border-radius:0}
+.definition{background:#f8f9fa;border-color:#72777d}
+.invariant{background:#f8f9fa;border-color:#54595d}
+.property{background:#f8f9fa;border-color:#72777d}
+.remark{background:#f8f9fa;border-color:#a2a9b1}
+.nongoal{background:#f8f9fa;border-color:#a2a9b1}
+.proposition{background:#f8f9fa;border-color:#54595d}
+.proof{background:#f8f9fa;border-color:#c8ccd1}
+.theorem{background:#f8f9fa;border-color:#54595d}
+
+/* Tables */
+table{border-collapse:collapse;margin:18px 0;font-size:13px;width:100%}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #c8ccd1}
+th{font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#54595d;background:#f8f9fa;border-bottom:2px solid #c8ccd1}
+
+/* Math display */
+.main mjx-container[display="true"]{background:#f8f9fa;border-left:3px solid #c8ccd1;padding:10px 16px;margin:12px 0;border-radius:0}
+
+/* Diagrams */
+.diagram{margin:28px 0;padding:24px;background:#f8f9fa;border:1px solid #c8ccd1;border-radius:0;overflow-x:auto}
+.diagram-flex{display:flex;align-items:flex-start;justify-content:center;gap:32px;flex-wrap:wrap}
+.diagram-divider{display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:100px}
+.diagram .fig-cap{font-size:13px;color:#54595d;margin-top:16px;font-style:italic;text-align:left}
+.diagram .fig-cap b{font-style:normal;color:#202122}
+.diagram-mobile{display:none}
+
+/* Scroll offset */
+[id]{scroll-margin-top:20px}
+
+/* Sidebar nav links (mobile) */
+.sidebar-nav-links{display:none;padding:12px 16px 4px;border-bottom:1px solid #c8ccd1;margin-bottom:8px}
+.sidebar-nav-links a{display:block;padding:6px 0;color:#3366cc;text-decoration:none;font-size:13px;border:none}
+.sidebar-nav-links a:hover{color:#202122}
+
+/* Footer */
+footer{padding-bottom:120px}
+
+/* Responsive */
+@media(max-width:900px){
+.page-body{display:block;padding-left:0}
+.sidebar{display:none}
+.sidebar.open{display:block;width:280px;z-index:999}
+.content-wrap nav,.content-wrap .nav-wrap,.content-wrap .main{padding-left:24px !important}
+.main{padding:24px 20px 60px;width:100%;max-width:100%;margin-left:0;margin-right:0}
+.sidebar-nav-links{display:block}
+.main table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.doc-h1{font-size:clamp(1.2em, 5vw, 2em)}
+.definition,.invariant,.property,.remark,.nongoal,.proposition,.proof,.theorem{overflow-x:auto}
+mjx-container{max-width:100%;overflow-x:auto}
+mjx-container[display="true"]{overflow-x:auto;max-width:100%;display:block;padding:10px 14px;margin:12px 0}
+img{max-width:100%;height:auto}
+.diagram{overflow-x:auto}
+.diagram-flex > div{min-width:0 !important;width:200px}
+.hamburger{display:block;background:none;border:none;cursor:pointer;color:#202122}
+.hamburger svg{display:block}
+.nav-links{display:none;position:absolute;top:48px;left:0;right:0;flex-direction:column;background:#fff;padding:12px 24px;gap:8px;border-bottom:1px solid #a2a9b1}
+.nav-links.open{display:flex}
+}
+@media(max-width:640px){
+.diagram-desktop{display:none}.diagram-mobile{display:block}
+}
+@media(max-width:520px){
+.diagram-divider{display:none}
+.diagram-flex > div{width:100% !important}
+.main{padding:16px 12px 48px}
+}
+/* ── Dark mode ── */
+/* Theme toggle */
+.theme-toggle{background:none;border:1px solid #c8ccd1;border-radius:6px;padding:4px 8px;cursor:pointer;color:#54595d;font-size:16px;line-height:1}
+html.dark .theme-toggle{border-color:#333;color:#888}
+
+@media(prefers-color-scheme:dark){html:not(.light){color-scheme:dark}}
+html.dark{color-scheme:dark}
+html.dark body{background:#111;color:#a0a0a0}
+html.dark .main{background:#111;color:#a0a0a0}
+html.dark .main a{color:#a0a0a0;text-decoration-color:#333}
+html.dark h1,html.dark h2,html.dark h3,html.dark .doc-h1,html.dark strong,html.dark .main h3{color:#e0e0e0 !important}
+html.dark a{color:#a0a0a0}
+html.dark .nav-brand{color:#e0e0e0}
+html.dark .nav-rule{border-color:#222}
+html.dark .sidebar{background:#0a0a0a;border-color:#222}
+html.dark .sidebar .doc-title{color:#666;border-color:#222}
+html.dark .sidebar .toc-list a{color:#888}
+html.dark .sidebar .toc-list a:hover{color:#e0e0e0;background:rgba(255,255,255,0.03)}
+html.dark .sidebar .toc-list a.active{color:#e0e0e0;border-left-color:#e0e0e0;background:rgba(255,255,255,0.05)}
+html.dark .sidebar .toc-list .toc-list a{color:#666}
+html.dark .sidebar-search input{background:#111;border-color:#333;color:#a0a0a0}
+html.dark .sidebar-search input::placeholder{color:#555}
+html.dark .sidebar-search .search-title{color:#666}
+html.dark .search-results a{color:#888;border-color:#222}
+html.dark .subtitle{color:#666;border-color:#222}
+html.dark .subtitle a{color:#888}
+html.dark #abstract{background:rgba(255,255,255,0.02) !important;border-color:#222 !important}
+html.dark #abstract div[style*="uppercase"]{color:#555 !important}
+html.dark .definition,html.dark .invariant,html.dark .property,html.dark .remark,html.dark .nongoal,html.dark .proposition,html.dark .proof,html.dark .theorem{background:rgba(255,255,255,0.02);border-color:#333}
+html.dark table th{background:rgba(255,255,255,0.02);color:#666;border-color:#222}
+html.dark table td{border-color:#222}
+html.dark .main mjx-container[display="true"]{background:rgba(255,255,255,0.02);border-color:#333}
+html.dark mjx-container{color:#e0e0e0 !important}
+html.dark .diagram{background:rgba(255,255,255,0.02);border-color:#222}
+html.dark .fig-cap{color:#666 !important}
+html.dark .fig-cap b{color:#e0e0e0 !important}
+html.dark .header-section-number{color:#555}
+html.dark .sidebar-nav-links a{color:#888}
+html.dark .hamburger{color:#e0e0e0}
+@media(max-width:900px){html.dark .nav-links{background:#111;border-color:#222}}
+</style>
+</head>
+<body>
+<script>
+// Apply saved theme or system preference
+(function(){
+  var t=localStorage.getItem('wp-theme');
+  if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){
+    document.documentElement.classList.add('dark');
+  }
+})();
+</script>
+<div class="sidebar">
+<div class="doc-title">Documentation</div>
+<div class="sidebar-nav-links">
+<a href="/docs">Docs</a>
+<a href="/explorer">Explorer</a>
+<a href="https://github.com/mikeargento/bitgraph" target="_blank">GitHub</a>
+</div>
+<ul class="toc-list">
+<li><a href="#abstract">Abstract</a></li>
+<li><a href="#sec-introduction"><span class="toc-section-number">1</span> Introduction</a></li>
+<li><a href="#sec-the-problem"><span class="toc-section-number">2</span> The Problem: Uncontrolled Digital State Creation</a>
+<ul class="toc-list">
+<li><a href="#sec-concrete-example"><span class="toc-section-number">2.1</span> A Concrete Example: Why Attestation Is Not Enough</a></li>
+<li><a href="#sec-provenance-example"><span class="toc-section-number">2.2</span> A Second Example: Provenance Without Enforcement</a></li>
+<li><a href="#sec-ledger-example"><span class="toc-section-number">2.3</span> A Third Example: Ledger Registration Without Creation Constraint</a></li>
+</ul></li>
+<li><a href="#sec-definitions"><span class="toc-section-number">3</span> Definitions and Terminology</a></li>
+<li><a href="#sec-invariants"><span class="toc-section-number">4</span> System Invariants</a></li>
+<li><a href="#sec-tota"><span class="toc-section-number">5</span> Trusted Origin Token Architecture</a>
+<ul class="toc-list">
+<li><a href="#sec-functional-properties"><span class="toc-section-number">5.1</span> Functional Properties</a></li>
+<li><a href="#sec-limits-token"><span class="toc-section-number">5.2</span> Limits of Token-Based Enforcement</a></li>
+</ul></li>
+<li><a href="#sec-bitgraph"><span class="toc-section-number">6</span> BitGraph and Atomic Causality</a>
+<ul class="toc-list">
+<li><a href="#sec-atomic-causality"><span class="toc-section-number">6.1</span> Atomic Causality</a></li>
+<li><a href="#sec-not-attestation"><span class="toc-section-number">6.2</span> Why This Is Not Attested Execution</a></li>
+<li><a href="#sec-token-equivalence"><span class="toc-section-number">6.3</span> Token-Equivalence of Boundary-Fresh Generation</a></li>
+</ul></li>
+<li><a href="#sec-formal"><span class="toc-section-number">7</span> Formal Model</a>
+<ul class="toc-list">
+<li><a href="#sec-state-space"><span class="toc-section-number">7.1</span> State Space and Transition System</a></li>
+<li><a href="#sec-core-invariants"><span class="toc-section-number">7.2</span> Core Invariants</a></li>
+<li><a href="#sec-closure-algebra"><span class="toc-section-number">7.3</span> Authenticated State as Closure Algebra</a></li>
+<li><a href="#sec-duality"><span class="toc-section-number">7.4</span> Token–Nonce Duality</a></li>
+</ul></li>
+<li><a href="#sec-security"><span class="toc-section-number">8</span> Adversarial Model and Security Game</a>
+<ul class="toc-list">
+<li><a href="#sec-threat-model"><span class="toc-section-number">8.1</span> Threat Model</a></li>
+<li><a href="#sec-forgery-game"><span class="toc-section-number">8.2</span> Security Game: Origin Forgery</a></li>
+<li><a href="#sec-falsifiers"><span class="toc-section-number">8.3</span> Falsifiable Distinctions</a></li>
+</ul></li>
+<li><a href="#sec-architecture"><span class="toc-section-number">9</span> Architecture</a>
+<ul class="toc-list">
+<li><a href="#sec-state-transition"><span class="toc-section-number">9.1</span> State Transition Model</a></li>
+<li><a href="#sec-finalization-protocol"><span class="toc-section-number">9.2</span> Atomic Finalization Protocol</a></li>
+<li><a href="#sec-verification-model"><span class="toc-section-number">9.3</span> Verification Model</a></li>
+<li><a href="#sec-enforcement-verification"><span class="toc-section-number">9.4</span> Enforcement and Verification Are Separate Architectural Layers</a></li>
+<li><a href="#sec-verification-independence"><span class="toc-section-number">9.5</span> Verification Independence from Proof Transport</a></li>
+<li><a href="#sec-boundary-compromise"><span class="toc-section-number">9.6</span> Boundary Compromise and Recovery</a></li>
+<li><a href="#sec-security-properties"><span class="toc-section-number">9.7</span> Security Properties</a></li>
+</ul></li>
+<li><a href="#sec-related"><span class="toc-section-number">10</span> Related Work</a>
+<ul class="toc-list">
+<li><a href="#sec-tees"><span class="toc-section-number">10.1</span> Attested Execution and Trusted Execution Environments</a></li>
+<li><a href="#sec-provenance-systems"><span class="toc-section-number">10.2</span> Content Provenance and Credential Systems</a></li>
+<li><a href="#sec-reference-monitors"><span class="toc-section-number">10.3</span> Reference Monitors and Access Control</a></li>
+<li><a href="#sec-capability"><span class="toc-section-number">10.4</span> Capability-Based Security</a></li>
+<li><a href="#sec-ifc"><span class="toc-section-number">10.5</span> Information Flow Control</a></li>
+<li><a href="#sec-blockchain"><span class="toc-section-number">10.6</span> Blockchain and Distributed Consensus</a></li>
+<li><a href="#sec-dtn"><span class="toc-section-number">10.7</span> Delay-Tolerant Networking and Interplanetary Protocols</a></li>
+<li><a href="#sec-structural-distinctions"><span class="toc-section-number">10.8</span> Summary of Structural Distinctions</a></li>
+</ul></li>
+<li><a href="#sec-examples"><span class="toc-section-number">11</span> Worked Examples</a>
+<ul class="toc-list">
+<li><a href="#sec-media-capture"><span class="toc-section-number">11.1</span> Secure Media Capture</a></li>
+<li><a href="#sec-ai-pipeline"><span class="toc-section-number">11.2</span> AI Output Export Pipeline</a></li>
+</ul></li>
+<li><a href="#sec-instantiations"><span class="toc-section-number">12</span> Instantiations of the Atomic Boundary</a>
+<ul class="toc-list">
+<li><a href="#sec-enforcement-tiers"><span class="toc-section-number">12.1</span> Enforcement Tier Semantics</a></li>
+</ul></li>
+<li><a href="#sec-admission"><span class="toc-section-number">13</span> Admission of Pre-Existing Data</a>
+<ul class="toc-list">
+<li><a href="#sec-provenance-chains"><span class="toc-section-number">13.1</span> Enforced Provenance Chains</a></li>
+</ul></li>
+<li><a href="#sec-implementation"><span class="toc-section-number">14</span> Implementation Considerations</a></li>
+<li><a href="#sec-deployment"><span class="toc-section-number">15</span> Deployment and Adoption</a></li>
+<li><a href="#sec-applications"><span class="toc-section-number">16</span> Applications</a></li>
+<li><a href="#sec-birth-death"><span class="toc-section-number">17</span> Birth–Death Semantics</a>
+<ul class="toc-list">
+<li><a href="#sec-bd-construction"><span class="toc-section-number">17.1</span> Construction</a></li>
+<li><a href="#sec-bd-single-successor"><span class="toc-section-number">17.2</span> Single-Successor Property</a></li>
+<li><a href="#sec-bd-double-spend"><span class="toc-section-number">17.3</span> Relationship to Double-Spend</a></li>
+<li><a href="#sec-bd-trust-envelope"><span class="toc-section-number">17.4</span> Trust Envelope</a></li>
+</ul></li>
+<li><a href="#sec-value-transfer"><span class="toc-section-number">18</span> Single-Transfer Value Without Consensus</a></li>
+<li><a href="#sec-conclusion"><span class="toc-section-number">19</span> Conclusion</a></li>
+<li><a href="#sec-references">References</a></li>
+</ul>
+<div class="sidebar-search">
+<div class="search-title">Search</div>
+<input type="text" id="toc-search" placeholder="Search the paper..." />
+<div class="search-results" id="search-results"></div>
+</div>
+</div>
+<div class="content-wrap">
+<nav>
+<a href="/" class="nav-brand"><span style="position:relative;top:1px">BitGraph</span></a>
+<div class="nav-links">
+<a href="/docs">Docs</a>
+<a href="/explorer">Explorer</a>
+<a href="https://github.com/mikeargento/bitgraph" target="_blank">GitHub</a>
+<button class="theme-toggle" onclick="document.documentElement.classList.toggle('dark');localStorage.setItem('wp-theme',document.documentElement.classList.contains('dark')?'dark':'light')" title="Toggle theme">☀</button>
+</div>
+<button class="hamburger" aria-label="Menu" onclick="document.querySelector('.nav-links').classList.toggle('open')">
+<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+<line x1="3" y1="6" x2="17" y2="6"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="14" x2="17" y2="14"/>
+</svg>
+</button>
+</nav>
+<div class="nav-wrap"><hr class="nav-rule"></div>
+<div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('active')"></div>
+<main class="main">
+<h1 class="doc-h1">BitGraph: Proof as a Reachability Property</h1>
+
+<div id="abstract" style="background:#fafafa;border:1px solid #ccc;border-radius:0;padding:20px 28px;margin-bottom:32px">
+<div style="font-family:'Inter',-apple-system,sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.5px;color:#888;margin-bottom:12px">Abstract</div>
+<p>Modern computing systems permit durable digital state to be created freely and attempt to establish trust only after that state already exists. This architecture introduces fundamental weaknesses in provenance, AI outputs, sensor data, logs, and media, because authenticity is optional and structurally bypassable. All existing approaches—signatures, metadata, watermarking, registries, and provenance standards—operate after content has been instantiated and therefore cannot constrain the creation path itself.</p>
+<p>This paper introduces a different enforcement model. <strong>BitGraph</strong> relocates trust to the commit path. Authenticated durable state is reachable only through enforced finalization via a protected commit interface. An artifact is authenticated if and only if cryptographic binding and authorization occur inside an atomic execution boundary at the moment durable state is created.</p>
+<p>We first present the <strong>Trusted Origin Token Architecture</strong>, in which authenticated creation requires consumption of a pre-existing single-use authorization unit at finalization. We then generalize this into BitGraph, in which equivalent origin control is achieved without pre-existing tokens by generating boundary-fresh cryptographic output inside the atomic execution boundary. The enforcement principle that links authorization, binding, and durable commit into a single indivisible event is called <strong>Atomic Causality</strong>.</p>
+<p>We provide a formal model based on labeled transition systems and closure algebras, define a security game capturing the adversarial model, and systematically distinguish this architecture from existing approaches including attested execution, post-hoc provenance, and content credential systems. We show that BitGraph defines a new enforcement primitive: authentication as a <em>reachability property</em> of system structure, not a property attached to artifacts after creation.</p>
+</div>
+
+<!-- ================================================================ -->
+<!-- 1. INTRODUCTION -->
+<!-- ================================================================ -->
+<section id="sec-introduction">
+<h1><span class="header-section-number">1</span> Introduction</h1>
+
+<p>Digital systems increasingly mediate information relied upon for scientific, legal, medical, financial, and political decisions. At the same time, synthetic generation, automated manipulation, and adversarial pipelines have become routine. Despite this shift, most computing systems retain an architectural model in which creation is unrestricted and trust is applied only after the fact.</p>
+
+<p>Files are written, messages are emitted, and model outputs are exported without intrinsic authentication. Trust is later inferred through signatures, metadata, watermarking, or registry lookups. These mechanisms can indicate that an artifact has not been modified since some point in time, but they cannot prove that the artifact originated from an enforced creation process. Post-hoc trust systems permit syntactically indistinguishable artifacts to exist both with and without provenance guarantees. Downstream systems must therefore rely on voluntary compliance with provenance mechanisms.</p>
+
+<p>Several concurrent developments have made this structural gap acutely consequential. Generative AI systems now produce synthetic artifacts at scale that are indistinguishable from human-authored or sensor-captured content. Regulatory frameworks—including the EU AI Act and evolving compliance mandates—increasingly require that AI-generated and machine-mediated outputs be structurally identifiable, not merely voluntarily labeled. Automated decision pipelines in finance, healthcare, and public administration increasingly consume digital artifacts without human intermediation, removing the informal gatekeeping that previously compensated for weak provenance. These pressures converge on a single architectural deficiency: the absence of structural enforcement at the point where digital state is created.</p>
+
+<p>This paper proposes that the architectural response to this problem is not better verification of existing artifacts, but <em>structural enforcement at the point where digital state becomes durable or externally visible</em>. Trust must be enforced at creation, not inferred afterward.</p>
+
+<p>A corollary of this principle is that enforcement and verification are architecturally distinct: enforcement determines whether authenticated state exists; verification determines whether that status can be demonstrated to a third party. This separation is developed formally in <a href="#sec-enforcement-verification">Section 9.4</a>.</p>
+
+<p>BitGraph is not a replacement for attestation, provenance, or access control. It is a <em>lower-layer enforcement primitive</em> that existing systems can adopt to close the structural gap between trusted code execution and controlled state creation. Systems that already implement TEEs, content credentials, or hardware roots of trust can implement BitGraph to strengthen the enforcement guarantees those mechanisms provide.</p>
+
+<div class="nongoal">
+<p><strong>Non-Goal.</strong> This architecture does not attempt to establish the semantic truth, correctness, or factual validity of content. It enforces only whether content has been admitted into authenticated durable state through protected finalization semantics.</p>
+</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- 2. PROBLEM STATEMENT -->
+<!-- ================================================================ -->
+<section id="sec-the-problem">
+<h1><span class="header-section-number">2</span> The Problem: Uncontrolled Digital State Creation</h1>
+
+<p>In contemporary computing systems, any process capable of reaching commit paths—writes to persistent storage, publications to output channels, exports of artifacts—can create durable digital state. Authentication mechanisms are typically external to these creation paths and are applied only if the producing system elects to use them.</p>
+
+<p>This architectural pattern creates several failure modes that no amount of improved verification can resolve:</p>
+
+<h3>No enforced origin point.</h3>
+<p>The first instance of an artifact has no cryptographically constrained birth event. Content enters the world without any structural evidence of how, where, or under what conditions it was created.</p>
+
+<h3>Post-hoc wrapping is indistinguishable from legitimate origin.</h3>
+<p>Synthetic or replayed data can be introduced and later wrapped in authenticity claims—signatures, attestations, metadata—that are structurally indistinguishable from claims attached at genuine creation time.</p>
+
+<h3>Trusted pipelines are bypassable.</h3>
+<p>Even when secure creation paths exist, alternative unauthenticated paths typically remain available. Untrusted components can bypass trusted capture or generation pipelines while still producing durable outputs that appear valid to downstream systems.</p>
+
+<h3>Authenticity is optional.</h3>
+<p>Because creation is unrestricted, authenticity signals are voluntary. Systems degrade into environments where authenticated and unauthenticated artifacts coexist, and downstream consumers cannot reliably distinguish them by structural properties.</p>
+
+<p>The common thread across these failure modes is that <em>post-hoc provenance secures history but does not constrain birth</em>. The question is not whether we can build better verification after the fact, but whether we can enforce the conditions under which authenticated digital state is permitted to exist at all.</p>
+
+<!-- 2.1 -->
+<section id="sec-concrete-example">
+<h2><span class="header-section-number">2.1</span> A Concrete Example: Why Attestation Is Not Enough</h2>
+
+<p>To make these failure modes precise, consider a system that appears to solve the problem using current best practices but does not.</p>
+
+<p>A secure camera device contains a Trusted Execution Environment. The camera pipeline feeds sensor data into the TEE. Inside the TEE, trusted code hashes the image, signs the hash with a hardware-protected key, and emits a signed manifest alongside the image file. A verifier can confirm that the image was processed by trusted code running on authentic hardware. This is a well-designed attestation system.</p>
+
+<p>Now consider the attack. The adversary does not compromise the TEE. Instead, the adversary feeds synthetic frames into the camera pipeline's input buffer—upstream of the TEE, at the sensor interface. The TEE faithfully processes the synthetic data: it hashes the synthetic image, signs the hash, and emits a valid signed manifest. From the verifier's perspective, the attestation is correct. Trusted code did execute on authentic hardware. The signature is valid. But the image is synthetic.</p>
+
+<p>The attestation answered the question it was designed to answer: <em>"Did trusted code produce this signed output?"</em> Yes. But the system failed because attestation does not answer a different question: <em>"Could signed output have been produced for content that did not originate from the intended source?"</em> The attested pipeline was not bypassed—it was correctly traversed with adversarial input, because alternative input paths to the attested process were not closed.</p>
+
+<p>This is not a flaw in the TEE or in the attestation protocol. It is a structural gap in the system architecture. The commit path—the path by which authenticated state comes into existence—was not exclusively controlled. The TEE enforced the integrity of its own execution but did not enforce that the only way to reach authenticated output was through a creation path that included genuine sensor capture.</p>
+</section>
+
+<!-- 2.2 -->
+<section id="sec-provenance-example">
+<h2><span class="header-section-number">2.2</span> A Second Example: Provenance Without Enforcement</h2>
+
+<p>Consider a parallel failure in provenance systems. A photographer captures an image with a C2PA-enabled camera. The camera attaches a signed content credential manifest describing the capture device, timestamp, and edit history. A news platform verifies the manifest and publishes the image with provenance intact.</p>
+
+<p>A social media platform then ingests the published image, strips the C2PA manifest (as most platforms currently do), and redistributes it. A downstream consumer receives the image without provenance metadata. Under C2PA, the image is now indistinguishable from an unsigned image. The provenance was real but impermanent—it depended on the manifest traveling with the artifact through every intermediary. When the manifest was stripped, the provenance guarantee evaporated.</p>
+
+<p>The underlying issue is the same as the camera example: the system authenticated an artifact at one point in time but did not structurally constrain how authenticated state persists or is verified across distribution. Provenance was a property of the packaging, not a property of the artifact's relationship to its genesis event.</p>
+</section>
+
+<!-- 2.3 -->
+<section id="sec-ledger-example">
+<h2><span class="header-section-number">2.3</span> A Third Example: Ledger Registration Without Creation Constraint</h2>
+
+<p>Consider a document notarization service backed by a blockchain or append-only ledger. A user submits a document hash to the service. The service records the hash with a consensus-verified timestamp, producing an immutable ledger entry proving that the hash existed at a specific time. A verifier can later confirm that the document's hash was registered and has not been altered since registration.</p>
+
+<p>Now consider the gap. The adversary generates a synthetic document—fabricated financial records, a forged legal instrument, or AI-generated imagery—and submits its hash to the same notarization service. The ledger faithfully records the hash with an accurate timestamp. The notarization is genuine: the hash was indeed registered at the stated time. But the document is fabricated.</p>
+
+<p>The ledger answered the question it was designed to answer: <em>"Did this hash exist at this time?"</em> Yes. But it did not answer a different question: <em>"Was this document produced through an authorized creation process?"</em> The notarization system provides strong <em>history</em> guarantees—immutability, ordering, non-repudiation of registration—but imposes no constraint on how the artifact came into existence before registration. Any content, from any source, produced by any process, can be notarized. The creation path is uncontrolled.</p>
+
+<p>These three examples—in attestation, provenance, and ledger-based notarization—illustrate the same architectural gap from different angles. The security-relevant question is not whether a trusted process ran, whether a manifest was attached, or whether a hash was recorded. It is whether <em>authenticated state is structurally unreachable except through authorized creation paths</em>, and whether that relationship between artifact and genesis can survive distribution.</p>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 3. DEFINITIONS -->
+<!-- ================================================================ -->
+<section id="sec-definitions">
+<h1><span class="header-section-number">3</span> Definitions and Terminology</h1>
+
+<div class="definition">
+<p><strong>Definition 3.1</strong> (Atomic Execution Boundary). A protected execution domain that enforces isolation and ordering constraints for finalization, such that cryptographic computation, authorization, and durable commit occur as one indivisible operation or not at all. If the operation fails, no authenticated durable artifact is produced.</p>
+</div>
+
+<div class="definition">
+<p><strong>Definition 3.2</strong> (Protected Commit Interface). The sole interface permitted to finalize authenticated durable state. Untrusted code cannot produce authenticated durable state except by invoking this interface, which transfers control into the atomic execution boundary.</p>
+</div>
+
+<div class="definition">
+<p><strong>Definition 3.3</strong> (Boundary-Held Capability). A capability available only inside the boundary and required to complete authenticated finalization. Possession of data outside the boundary is insufficient to reproduce or invoke it.</p>
+</div>
+
+<div class="definition">
+<p><strong>Definition 3.4</strong> (Boundary-Fresh Cryptographic Computation). Cryptographic computation performed inside the boundary using one or more freshness sources (secure randomness, monotonic counters, protected clocks, or boundary-internal state), such that the resulting output was not available before the finalization event and cannot be feasibly reproduced outside the boundary. Freshness may be expressed using logical time (epochs or counters) or protected physical clocks. No global wall-clock synchronization is required.</p>
+</div>
+
+<div class="definition">
+<p><strong>Definition 3.5</strong> (Candidate Digital State). Transient, internal, mutable representations of content prior to finalization. Candidate state may be created freely and may be adversarial.</p>
+</div>
+
+<div class="definition">
+<p><strong>Definition 3.6</strong> (Authenticated Durable State). Externally visible or persistent digital state whose authenticated form includes verification material evidencing enforced finalization through a protected commit interface.</p>
+</div>
+
+<div class="definition">
+<p><strong>Definition 3.7</strong> (Binding). A cryptographic construction that combines boundary-fresh output with a content-dependent value (e.g., a hash of the artifact bytes) to produce verification material.</p>
+</div>
+
+<div class="definition">
+<p><strong>Definition 3.8</strong> (Verification Material). Data bound to content and to boundary-fresh output that enables a verifier to distinguish authenticated durable state from unauthenticated state using pre-distributed trust anchors, without querying an external registry of artifacts.</p>
+</div>
+
+<div class="definition">
+<p><strong>Definition 3.9</strong> (Authorization). Successful use of a boundary-held capability via the protected commit interface to complete authenticated finalization. Authorization here refers to enforced finalization capability, not to post-hoc policy claims attached to content.</p>
+</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- 4. SYSTEM INVARIANTS -->
+<!-- ================================================================ -->
+<section id="sec-invariants">
+<h1><span class="header-section-number">4</span> System Invariants</h1>
+
+<p>If BitGraph is correctly implemented, the following invariants hold:</p>
+
+<div class="invariant">
+<p><strong>Invariant 4.1</strong> (Authenticated Reachability). Authenticated durable state exists if and only if a successful finalization event occurred inside an approved atomic execution boundary.</p>
+</div>
+
+<div class="invariant">
+<p><strong>Invariant 4.2</strong> (Binding Evidence). Every authenticated artifact has associated verification material—produced at genesis—that binds its content to boundary-fresh cryptographic output and to a specific boundary identity. This material may be co-located with the artifact, held at a reference point, or both. (A reference point stores verification evidence produced at genesis; it does not confer authenticated status and plays no role in enforcement. See <a href="#sec-verification-independence">Section 9.5</a>.)</p>
+</div>
+
+<div class="invariant">
+<p><strong>Invariant 4.3</strong> (Policy-Anchored Verification). An artifact verifies if and only if its verification material validates under accepted trust anchors and applicable policy constraints.</p>
+</div>
+
+<div class="invariant">
+<p><strong>Invariant 4.4</strong> (Distinguishability). Durable state not produced via boundary finalization cannot satisfy verification and is therefore distinguishable from authenticated durable state.</p>
+</div>
+
+<div class="invariant">
+<p><strong>Invariant 4.5</strong> (Authenticity as Reachability). Authenticated durable state is defined by enforced state transitions, not by post-hoc claims, metadata, or byte-level identity.</p>
+</div>
+
+<p>The significance of Invariant 4.5 deserves emphasis. In conventional systems, authenticity is a <em>label</em>: a property that can be attached to, claimed about, or inferred from an artifact after it exists. Under BitGraph, authenticity is a <em>reachability property</em>: a consequence of the state transitions that produced the artifact. An artifact does not become authenticated by having the right metadata. It is authenticated because it could only have come into existence through a path that enforced authorization, cryptographic binding, and durable commit as a single indivisible event. The authenticated state space is closed under authorized genesis—nothing else can produce it.</p>
+
+<p>This is the central claim of the paper: if authenticated digital state can only come into existence through a controlled creation path, then the existence of an authenticated artifact is itself proof that the creation path was traversed. Authentication becomes a reachability property of system architecture—a consequence of how state transitions are structured—rather than a label applied to artifacts after the fact.</p>
+
+<p>Returning to the camera example from <a href="#sec-concrete-example">Section 2.1</a>: under BitGraph, the system would not merely attest that trusted code ran. It would enforce that authenticated image output is <em>structurally unreachable</em> except through a commit path that includes sensor capture within the atomic execution boundary. The adversary's synthetic frames would not produce authenticated output, because the commit path would require that sensor acquisition, hashing, binding, and durable commit all occur within the same indivisible boundary event. Feeding synthetic data to the input buffer would bypass the authorized creation path entirely, and the protected commit interface would never be invoked through the sensor-capture path for that data. The result: no authenticated artifact is produced.</p>
+
+<p>Returning to the provenance example from <a href="#sec-provenance-example">Section 2.2</a>: under BitGraph with reference-based verification (described in <a href="#sec-verification-independence">Section 9.5</a>), the downstream consumer could still verify the stripped image by computing its content hash and querying a reference point for the verification material produced at genesis. Authentication would survive distribution because it was established by the artifact's structural relationship to its creation event, not by metadata co-traveling with the artifact.</p>
+</section>
+
+<!-- ================================================================ -->
+<!-- 5. TOTA -->
+<!-- ================================================================ -->
+<section id="sec-tota">
+<h1><span class="header-section-number">5</span> Trusted Origin Token Architecture</h1>
+
+<p>We begin with a concrete model that makes the enforcement principle tangible before generalizing.</p>
+
+<p>The Trusted Origin Token Architecture addresses uncontrolled digital state creation by introducing a pre-creation authorization requirement. Authenticated creation requires consumption of a pre-existing single-use authorization unit—a <em>Trusted Origin Token</em>—at the moment of finalization. Tokens are generated in advance, tracked as unused or consumed, and cannot be reused.</p>
+
+<p>Under this model, a system may prepare candidate data freely, but finalization into authenticated durable form is permitted only if a valid unused token is consumed during the same atomic operation that commits the artifact.</p>
+
+<p>The key insight is best understood through analogy. Before digital cameras, a photograph could only exist if film existed first. The film did not merely record the image—it <em>enforced</em> whether the image could exist at all. No film, no photograph, regardless of the camera, the scene, or the photographer's intent. The Trusted Origin Token Architecture enforces the same constraint digitally: no token, no authenticated artifact.</p>
+
+<section id="sec-functional-properties">
+<h2><span class="header-section-number">5.1</span> Functional Properties</h2>
+
+<div class="property">
+<p><strong>Property 5.1</strong> (Scarcity). Each authenticated artifact corresponds to exactly one token that existed prior to creation.</p>
+</div>
+
+<div class="property">
+<p><strong>Property 5.2</strong> (Non-Replay). Tokens cannot be reused. Each token authorizes exactly one finalization event.</p>
+</div>
+
+<div class="property">
+<p><strong>Property 5.3</strong> (Non-Retroactivity). Tokens cannot be applied after durable state already exists. Authorization must occur at the moment of finalization, not afterward.</p>
+</div>
+
+<div class="property">
+<p><strong>Property 5.4</strong> (Commit-Path Enforcement). Token consumption and finalization occur within the same indivisible operation.</p>
+</div>
+
+<p>The Trusted Origin Token Architecture ensures that authenticated durable state cannot exist unless a pre-authorized unit is irreversibly consumed at birth.</p>
+</section>
+
+<section id="sec-limits-token">
+<h2><span class="header-section-number">5.2</span> Limits of Token-Based Enforcement</h2>
+
+<p>While the token model provides a clear and intuitive model of origin control, it introduces operational complexity. Tokens must be generated, stored, distributed, tracked, and reconciled across systems. Registries or equivalent state-tracking mechanisms must exist to enforce single-use guarantees. Offline operation requires reconciliation logic, and token provisioning becomes infrastructure-coupled to production systems.</p>
+
+<p>More importantly, <em>tokens are not the fundamental source of trust</em>. What matters is not the consumption of a specific pre-existing object, but that an irreversible, non-repeatable authorization event occurred at the moment of finalization and could not be replayed or forged. This observation motivates a more general enforcement principle.</p>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 6. BitGraph AND ATOMIC CAUSALITY -->
+<!-- ================================================================ -->
+<section id="sec-bitgraph">
+<h1><span class="header-section-number">6</span> BitGraph and Atomic Causality</h1>
+
+<p>The Trusted Origin Token Architecture reveals a structural principle that is more general than tokens. What enforced origin control in TOTA was not the token itself—it was the fact that authenticated state was structurally unreachable without traversing a protected commit path that combined authorization, binding, and commit into a single indivisible event. Tokens enforced this by requiring consumption of a pre-existing resource. But any mechanism that makes authenticated state unreachable without an irreversible authorization event at the commit boundary achieves the same enforcement.</p>
+
+<p>BitGraph generalizes this principle. Instead of consuming a pre-generated token, the enforcement component generates a <em>boundary-fresh cryptographic value</em> \(N\) during the atomic finalization event. Cryptographic unpredictability and negligible collision probability prevent precomputation, reuse, or accidental duplication.</p>
+
+<p>The reader should note what changed and what did not. What changed is the mechanism: tokens are replaced by boundary-fresh generation. What did <em>not</em> change is the enforcement invariant: authenticated durable state remains structurally unreachable without an irreversible authorization event inside the atomic execution boundary. The invariant is the primitive. The mechanism is an implementation detail.</p>
+
+<p>This value serves the same functional role as a consumed authorization unit:</p>
+<ul>
+<li>It could not have existed prior to the finalization event.</li>
+<li>It could not have been predicted or precomputed.</li>
+<li>It cannot be recreated after the event.</li>
+<li>Its existence constitutes cryptographic evidence that a specific, irreversible finalization event occurred.</li>
+</ul>
+
+<!-- Figure 1: Token-Nonce Duality -->
+<div class="diagram">
+<div class="diagram-desktop">
+<div class="diagram-flex">
+  <div style="text-align:center;width:200px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:12px;font-family:'Inter',-apple-system,sans-serif">TOTA: Token Consumption</div>
+    <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:8px 16px;font-size:13px;margin-bottom:8px">Token Pool <span style="color:#888;font-size:11px">T₁, T₂, … Tₙ</span></div>
+    <div style="color:#888;font-size:18px">↓</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:16px 12px;margin:4px 0">
+      <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:6px 14px;font-size:13px;margin-bottom:8px">Consume T<sub>k</sub></div>
+      <div style="color:#888;font-size:14px">↓</div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:6px 14px;font-size:13px;margin:8px 0">Bind (H, T<sub>k</sub>)</div>
+      <div style="color:#888;font-size:14px">↓</div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:6px 14px;font-size:13px;margin-top:8px">Commit</div>
+    </div>
+    <div style="color:#888;font-size:18px">↓</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 16px;font-size:13px;margin-top:4px">Authenticated<br>Artifact</div>
+    <div style="color:#888;font-size:11px;margin-top:4px">1 token → 1 artifact</div>
+  </div>
+  <div class="diagram-divider">
+    <div style="font-size:28px;font-weight:300">≡</div>
+    <div style="font-size:11px;color:#888;text-align:center;margin-top:2px">same injective<br>genesis</div>
+  </div>
+  <div style="text-align:center;width:200px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:12px;font-family:'Inter',-apple-system,sans-serif">BitGraph: Boundary-Fresh Generation</div>
+    <div style="background:rgba(0,0,0,0.06);border:1px solid #ccc;border-radius:0;padding:8px 16px;font-size:13px;margin-bottom:8px">Freshness Source <span style="color:#888;font-size:11px">CSPRNG</span></div>
+    <div style="color:#888;font-size:18px">↓</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:16px 12px;margin:4px 0">
+      <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:6px 14px;font-size:13px;margin-bottom:8px">Generate N</div>
+      <div style="color:#888;font-size:14px">↓</div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:6px 14px;font-size:13px;margin:8px 0">Bind (H, N)</div>
+      <div style="color:#888;font-size:14px">↓</div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:6px 14px;font-size:13px;margin-top:8px">Commit</div>
+    </div>
+    <div style="color:#888;font-size:18px">↓</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 16px;font-size:13px;margin-top:4px">Authenticated<br>Artifact</div>
+    <div style="color:#888;font-size:11px;margin-top:4px">1 nonce → 1 artifact</div>
+  </div>
+</div>
+</div>
+<div class="diagram-mobile">
+  <div style="font-weight:700;font-size:13px;margin-bottom:10px;font-family:'Inter',-apple-system,sans-serif;text-align:center">TOTA: Token Consumption</div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:20px">
+    <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:8px 16px;font-size:13px;width:100%;text-align:center">Token Pool <span style="color:#888;font-size:11px">T&#x2081;, T&#x2082;, &#x2026; T&#x2099;</span></div>
+    <div style="color:#888">&#x2193;</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:12px;width:100%;text-align:center">
+      <div style="font-size:13px;margin-bottom:6px">Consume T<sub>k</sub></div>
+      <div style="color:#888">&#x2193;</div>
+      <div style="font-size:13px;margin:6px 0">Bind (H, T<sub>k</sub>)</div>
+      <div style="color:#888">&#x2193;</div>
+      <div style="font-size:13px;margin-top:6px">Commit</div>
+    </div>
+    <div style="color:#888">&#x2193;</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 16px;font-size:13px;width:100%;text-align:center">Authenticated Artifact</div>
+    <div style="font-size:11px;color:#888">1 token &#x2192; 1 artifact</div>
+  </div>
+  <div style="text-align:center;font-size:22px;font-weight:300;color:#888;margin:4px 0">&#x2261;</div>
+  <div style="text-align:center;font-size:11px;color:#888;margin-bottom:16px">same injective genesis</div>
+  <div style="font-weight:700;font-size:13px;margin-bottom:10px;font-family:'Inter',-apple-system,sans-serif;text-align:center">BitGraph: Boundary-Fresh Generation</div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+    <div style="background:rgba(0,0,0,0.06);border:1px solid #ccc;border-radius:0;padding:8px 16px;font-size:13px;width:100%;text-align:center">Freshness Source <span style="color:#888;font-size:11px">CSPRNG</span></div>
+    <div style="color:#888">&#x2193;</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:12px;width:100%;text-align:center">
+      <div style="font-size:13px;margin-bottom:6px">Generate N</div>
+      <div style="color:#888">&#x2193;</div>
+      <div style="font-size:13px;margin:6px 0">Bind (H, N)</div>
+      <div style="color:#888">&#x2193;</div>
+      <div style="font-size:13px;margin-top:6px">Commit</div>
+    </div>
+    <div style="color:#888">&#x2193;</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 16px;font-size:13px;width:100%;text-align:center">Authenticated Artifact</div>
+    <div style="font-size:11px;color:#888">1 nonce &#x2192; 1 artifact</div>
+  </div>
+</div>
+<div class="fig-cap"><b>Figure 1.</b> Token–Nonce duality. TOTA (left) consumes a pre-existing token from a finite pool. BitGraph (right) generates a boundary-fresh value from a cryptographic source. Both enforce the same invariant: each authenticated artifact corresponds to exactly one irreversible authorization event (injective genesis). Collision resistance makes boundary-fresh generation operationally equivalent to token consumption.</div>
+</div>
+
+<p>The equivalence shown in Figure 1 is structural, not operational. The reader should resist the interpretation that BitGraph merely replaces physical tokens with virtual ones. The insight is the reverse: TOTA is a special case of BitGraph in which the authorization event happens to be reified as a consumable object. BitGraph reveals that the underlying enforcement primitive is not the token but the structural constraint—that authenticated state is unreachable without an irreversible authorization event at the commit boundary. Tokens enforce this by depletion; boundary-fresh generation enforces it by cryptographic causality. The primitive is the constraint, not the mechanism.</p>
+
+<p>Similarly, the boundary-fresh value \(N\) should not be understood as merely a "nonce for replay protection." In conventional protocols, nonces prevent message replay. In BitGraph, the boundary-fresh value is <em>the authorization event itself</em>—its generation inside the boundary constitutes the irreversible act that gates the creation of authenticated state. Producing valid verification material is proof that this act occurred, not merely that a unique value was included.</p>
+
+<!-- 6.1 Atomic Causality -->
+<section id="sec-atomic-causality">
+<h2><span class="header-section-number">6.1</span> Atomic Causality</h2>
+
+<p>Under Atomic Causality, three operations are linked into a single indivisible event inside an atomic execution boundary, completed only through a protected commit interface requiring a boundary-held capability:</p>
+<ol>
+<li><strong>Authorization</strong>: A boundary-held capability is exercised.</li>
+<li><strong>Cryptographic binding</strong>: Boundary-fresh output is bound to a content-dependent value.</li>
+<li><strong>Durable commit</strong>: The authenticated artifact is committed to persistent storage or an output channel.</li>
+</ol>
+
+<p>Authenticated durable state is reachable only if these operations occur together, in order, within the same atomic execution boundary. If any step fails, no authenticated artifact is produced.</p>
+
+<!-- Figure 2: Atomic Causality -->
+<div class="diagram">
+<div class="diagram-desktop">
+<div style="display:flex;align-items:flex-start;justify-content:center;gap:48px;flex-wrap:wrap">
+  <div style="text-align:center;min-width:180px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:12px;font-family:'Inter',-apple-system,sans-serif">BitGraph: Atomic Causality</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:16px 12px">
+      <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:8px 20px;font-size:13px;margin-bottom:8px">1. Authorize</div>
+      <div style="color:#888;font-size:14px">↓</div>
+      <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:8px 20px;font-size:13px;margin:8px 0">2. Bind</div>
+      <div style="color:#888;font-size:14px">↓</div>
+      <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:8px 20px;font-size:13px;margin-top:8px">3. Commit</div>
+    </div>
+    <div style="font-size:11px;color:#888;margin-top:6px">single atomic operation</div>
+    <div style="color:#555;font-size:20px;margin-top:4px">✓</div>
+  </div>
+  <div style="text-align:center;min-width:180px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:12px;font-family:'Inter',-apple-system,sans-serif">Non-BitGraph: Separated Steps</div>
+    <div style="padding:16px 12px">
+      <div style="background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.15);border-radius:0;padding:8px 20px;font-size:13px">1. Authorize</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0">
+        <span style="color:#888;font-size:14px">↓</span>
+        <span style="font-size:11px;color:#888;border-left:2px dashed rgba(0,0,0,0.3);padding-left:8px">← observable gap</span>
+      </div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.15);border-radius:0;padding:8px 20px;font-size:13px">2. Bind</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0">
+        <span style="color:#888;font-size:14px">↓</span>
+        <span style="font-size:11px;color:#888;border-left:2px dashed rgba(0,0,0,0.3);padding-left:8px">← observable gap</span>
+      </div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.15);border-radius:0;padding:8px 20px;font-size:13px">3. Commit</div>
+    </div>
+    <div style="color:#888;font-size:20px;margin-top:4px">✗</div>
+  </div>
+</div>
+</div>
+<div class="diagram-mobile">
+  <div style="display:flex;flex-direction:column;gap:20px;font-size:13px">
+    <div style="text-align:center">
+      <div style="font-weight:700;font-size:13px;margin-bottom:12px;font-family:'Inter',-apple-system,sans-serif">BitGraph: Atomic Causality</div>
+      <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:16px 12px">
+        <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:8px 20px;font-size:13px;margin-bottom:8px">1. Authorize</div>
+        <div style="color:#888">&#x2193;</div>
+        <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:8px 20px;font-size:13px;margin:8px 0">2. Bind</div>
+        <div style="color:#888">&#x2193;</div>
+        <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:8px 20px;font-size:13px;margin-top:8px">3. Commit</div>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:6px">single atomic operation &#x2713;</div>
+    </div>
+    <div style="border-top:1px solid #ddd;padding-top:20px;text-align:center">
+      <div style="font-weight:700;font-size:13px;margin-bottom:12px;font-family:'Inter',-apple-system,sans-serif">Non-BitGraph: Separated Steps</div>
+      <div style="padding:8px 12px">
+        <div style="border:1px dashed #bbb;border-radius:0;padding:8px 20px;font-size:13px;margin-bottom:8px;color:#888">Authorize</div>
+        <div style="color:#888">&#x2193; (separate call)</div>
+        <div style="border:1px dashed #bbb;border-radius:0;padding:8px 20px;font-size:13px;margin:8px 0;color:#888">Bind</div>
+        <div style="color:#888">&#x2193; (separate call)</div>
+        <div style="border:1px dashed #bbb;border-radius:0;padding:8px 20px;font-size:13px;margin-top:8px;color:#888">Commit</div>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:6px">gap allows bypass &#x2717;</div>
+    </div>
+  </div>
+</div>
+<div class="fig-cap"><b>Figure 2.</b> Atomic Causality versus separated operations. In BitGraph (left), authorization, binding, and commit occur as a single indivisible event inside the boundary with no externally observable intermediate states. In non-BitGraph systems (right), these are separate operations with observable gaps exploitable by adversaries.</div>
+</div>
+</section>
+
+<!-- 6.2 -->
+<section id="sec-not-attestation">
+<h2><span class="header-section-number">6.2</span> Why This Is Not Attested Execution</h2>
+
+<p>This enforcement model is not equivalent to conventional attested execution followed by signing. The distinction is precise and consequential.</p>
+
+<p>Attestation-based systems can demonstrate that particular trusted code executed and produced particular signed outputs. This answers the question: <em>"Was this artifact produced by trusted code?"</em> But attestation does not answer a different and more fundamental question: <em>"Could an artifact not produced by trusted code have entered this trust domain through any available commit path?"</em></p>
+
+<p>In most attestation-based systems, enforcement is advisory. Trusted processes may produce signed outputs, while untrusted processes may still produce durable state that enters downstream systems through alternative commit paths. The enforcement gap is not in the attested path—it is in the unattested paths that remain open.</p>
+
+<p>BitGraph closes this gap. Authenticated durable state is reachable <em>only</em> through protected commit paths that enforce atomic binding, authorization, and durable commit at the moment of finalization. Valid verification material implies not merely that trusted code ran, but that <em>no alternative path to authenticated state exists</em>. This is a structural property of the commit architecture, not a property of any single attested process.</p>
+</section>
+
+<!-- 6.3 -->
+<section id="sec-token-equivalence">
+<h2><span class="header-section-number">6.3</span> Token-Equivalence of Boundary-Fresh Generation</h2>
+
+<p>Token-equivalence does not arise from uniqueness alone. It arises from atomic, attested finalization that combines several properties: boundary isolation ensures the fresh output is generated only inside the atomic execution boundary; unpredictability prevents adversaries from predicting or precomputing valid values; binding ties the fresh output to a content-dependent value before commit; a boundary-held authorization capability gates finalization; and attestation or signing produces verification material validatable under accepted trust anchors.</p>
+
+<p>Together, these properties ensure that producing valid verification material implies that a specific authorization event occurred inside the boundary at finalization time. The fresh value \(N\) functions as a consumed authorization unit whose existence is cryptographic evidence of an irreversible finalization event—not merely a unique identifier. To be precise: the fresh value alone does not constitute authorization. Authorization arises from the indivisible combination of boundary isolation, capability-gated access, atomic binding, and freshness—no single property is sufficient, and removing any one breaks the enforcement guarantee.</p>
+
+<p>Functionally, the space of possible boundary-fresh outputs acts as an effectively inexhaustible universe of unused authorization units, and generating one during finalization constitutes irreversible consumption. Each accepted artifact necessarily corresponds to exactly one irreducible authorization event, making boundary-fresh outputs operationally equivalent to single-use tokens even without explicit allocation or tracking.</p>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 7. FORMAL MODEL -->
+<!-- ================================================================ -->
+<section id="sec-formal">
+<h1><span class="header-section-number">7</span> Formal Model</h1>
+
+<p>We formalize BitGraph using a labeled transition system and closure algebra. This formalization captures the essential properties of the architecture and enables precise comparison with existing enforcement models.</p>
+
+<section id="sec-state-space">
+<h2><span class="header-section-number">7.1</span> State Space and Transition System</h2>
+
+<div class="definition">
+<p><strong>Definition 7.1</strong> (BitGraph System). A BitGraph system is a labeled transition system \((\Sigma, \rightarrow, E)\) where:</p>
+<ul>
+<li>\(\Sigma\) is the state space, partitioned into \(\Sigma_{\text{auth}} \cup \Sigma_{\text{unauth}}\).</li>
+<li>\(\rightarrow \,\subseteq \Sigma \times E \times \Sigma\) is the transition relation labeled by events \(E\).</li>
+<li>\(E_{\text{auth}} \subseteq E\) is the set of authorization events.</li>
+<li>\(\mathcal{C} \subseteq \Sigma \times E_{\text{auth}} \times \Sigma_{\text{auth}}\) is the <em>genesis constructor relation</em>.</li>
+</ul>
+</div>
+
+<p>The genesis constructor relation \(\mathcal{C}\) captures the protected commit interface: it is the only relation that produces elements of \(\Sigma_{\text{auth}}\). Candidate state in \(\Sigma_{\text{unauth}}\) may be created freely by any process.</p>
+</section>
+
+<section id="sec-core-invariants">
+<h2><span class="header-section-number">7.2</span> Core Invariants</h2>
+
+<p>A BitGraph-compliant system enforces three invariants:</p>
+
+<div class="invariant">
+<p><strong>Invariant 7.2</strong> (Constructibility — Closure Property).
+\[\forall\, s' \in \Sigma_{\text{auth}} : s' \in \mathrm{Cl}_{\mathcal{C}}(E_{\text{auth}})\]
+where \(\mathrm{Cl}_{\mathcal{C}}(E_{\text{auth}}) = \{ s' \mid \exists\, s \in \Sigma,\, e \in E_{\text{auth}} : (s, e, s') \in \mathcal{C} \}\).</p>
+<p>Every element of the authenticated state space was produced by a genesis constructor under an authorized event.</p>
+</div>
+
+<div class="invariant">
+<p><strong>Invariant 7.3</strong> (Constructor Completeness — Unforgeability).
+\[\forall\, s, s', e :\; (s \xrightarrow{e} s' \;\wedge\; s' \in \Sigma_{\text{auth}}) \;\Rightarrow\; (e \in E_{\text{auth}} \;\wedge\; (s, e, s') \in \mathcal{C})\]</p>
+<p>All transitions into the authenticated state space are genesis constructors under authorized events. There is no transition into \(\Sigma_{\text{auth}}\) that bypasses \(\mathcal{C}\).</p>
+</div>
+
+<div class="invariant">
+<p><strong>Invariant 7.4</strong> (Atomic Causality — Indivisibility).
+\[\forall\, (s, e, s') \in \mathcal{C} :\; \text{authorize}(e),\; \text{bind}(e),\; \text{commit}(s')\]
+occur in a single atomic transition with no intermediate states observable outside the protected boundary.</p>
+<p>Authorization, cryptographic binding, and durable commit are inseparable within the atomic execution boundary.</p>
+</div>
+</section>
+
+<section id="sec-closure-algebra">
+<h2><span class="header-section-number">7.3</span> Authenticated State as Closure Algebra</h2>
+
+<p>The authenticated state space \(\Sigma_{\text{auth}}\) forms a <em>closure space</em> generated by authorization events through genesis constructors. Formally, define the closure operator:
+\[\mathrm{Auth} : \mathcal{P}(\Sigma) \rightarrow \mathcal{P}(\Sigma), \quad \mathrm{Auth}(S) = \{ s' \mid \exists\, e \in E_{\text{auth}},\; s \in S : (s, e, s') \in \mathcal{C} \}\]</p>
+
+<p>The invariant \(\Sigma_{\text{auth}} = \mathrm{Cl}_{\mathcal{C}}(E_{\text{auth}})\) states that the authenticated state space is exactly the closure under authorized genesis. This makes authentication a <em>topological property</em> of the system's state space rather than a local property of individual artifacts.</p>
+
+<p>This formulation connects to existing mathematical structures:</p>
+<ul>
+<li><strong>Order theory</strong>: \(\Sigma_{\text{auth}}\) forms a Moore family (closed under arbitrary intersections of compliant subsets).</li>
+<li><strong>Type theory</strong>: Genesis constructors are the sole constructors of an abstract data type; \(\Sigma_{\text{auth}}\) has private constructors.</li>
+<li><strong>Provenance</strong>: Unlike provenance semirings [8], which annotate data with origin information, BitGraph <em>enforces</em> that authenticated state can only exist if it has authorized genesis—enforcement, not annotation.</li>
+</ul>
+</section>
+
+<section id="sec-duality">
+<h2><span class="header-section-number">7.4</span> Token–Nonce Duality</h2>
+
+<p>The Trusted Origin Token Architecture and BitGraph enforce the same injective genesis invariant through dual mechanisms:</p>
+
+<div class="definition">
+<p><strong>Definition 7.5</strong> (Injective Genesis). A system enforces injective genesis if and only if the map \(\varphi : E_{\text{auth}} \rightarrow \Sigma_{\text{auth}}\) defined by \(\varphi(e) = s'\) where \((s, e, s') \in \mathcal{C}\) is an injection. Each authorization event produces at most one authenticated artifact, and each authenticated artifact corresponds to exactly one authorization event.</p>
+</div>
+
+<p><strong>Token Conservation (TOTA).</strong> Authorization events are reified as consumable tokens. Consumption tracking enforces \(|\text{tokens consumed}| = |\Sigma_{\text{auth}}|\). This is a <em>depletable resource</em> model analogous to affine types in linear logic.</p>
+
+<p><strong>Boundary-Fresh Uniqueness (BitGraph).</strong> Authorization events are boundary-generated values whose cryptographic freshness ensures uniqueness. Each value appears in exactly one authenticated artifact. This is a <em>unique generator</em> model analogous to existential types with freshness guarantees.</p>
+
+<p>Under perfect cryptography and uncompromised boundary assumptions, these mechanisms are <em>cryptographic duals</em>: they enforce the same cardinality constraint \(|E_{\text{auth}}| = |\Sigma_{\text{auth}}|\) through isomorphic algebraic structures—consumable resources versus generative uniqueness. The token model makes injectivity definitional; the boundary-fresh model makes injectivity derived from collision resistance and freshness guarantees.</p>
+
+<div class="remark">
+<p><strong>Remark 7.6</strong> (Structural Non-Reusability). Injective genesis ensures that no authorization event can contribute to more than one authenticated artifact, and no authenticated artifact can exist without a unique authorization event. Authorization events are irreversible state transitions—once an event has produced an authenticated artifact, it is permanently consumed by that production and cannot be replayed, redirected, or shared. This is a structural property of the genesis constructor, not a bookkeeping constraint enforced by external tracking.</p>
+
+<p>Readers familiar with distributed ledger systems may recognize an analogy to double-spend prevention. The invariant is similar—\(|E_{\text{auth}}| = |\Sigma_{\text{auth}}|\) ensures one-to-one correspondence—but the enforcement mechanism is fundamentally different. In ledger systems, double-spend prevention requires global consensus over a shared transaction history. In BitGraph, non-reusability is enforced locally by the atomic execution boundary: boundary-fresh generation produces a value that is cryptographically bound to exactly one artifact at exactly one finalization event, with no external coordination required.</p>
+</div>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 8. SECURITY GAME -->
+<!-- ================================================================ -->
+<section id="sec-security">
+<h1><span class="header-section-number">8</span> Adversarial Model and Security Game</h1>
+
+<p>We define a security game that captures the adversarial setting in which BitGraph operates.</p>
+
+<section id="sec-threat-model">
+<h2><span class="header-section-number">8.1</span> Threat Model</h2>
+
+<p>The adversary \(\mathcal{A}\) is assumed to possess:</p>
+<ul>
+<li>Full control of application code executing outside the atomic execution boundary.</li>
+<li>Control of storage systems and network transport.</li>
+<li>The ability to replay, substitute, or synthesize candidate data.</li>
+<li>Access to all previously produced authenticated artifacts and their verification material.</li>
+</ul>
+
+<p>The adversary does <em>not</em> possess:</p>
+<ul>
+<li>The ability to execute code inside the atomic execution boundary.</li>
+<li>Access to boundary-held capabilities (signing keys, capability tokens).</li>
+<li>The ability to predict or reproduce boundary-fresh cryptographic output.</li>
+</ul>
+</section>
+
+<section id="sec-forgery-game">
+<h2><span class="header-section-number">8.2</span> Security Game: Origin Forgery</h2>
+
+<div class="definition">
+<p><strong>Definition 8.1</strong> (Origin Forgery Game). The game \(\mathrm{Forge}_{\mathcal{A}}^{\mathrm{BitGraph}}(\lambda)\) proceeds as follows, where \(\lambda\) is the security parameter:</p>
+<ol>
+<li><strong>Setup.</strong> The challenger initializes a BitGraph system with boundary identity \(\mathit{id}\), trust anchors \(\mathit{TA}\), and security parameter \(\lambda\).</li>
+<li><strong>Query phase.</strong> The adversary \(\mathcal{A}\) may submit candidate data to the protected commit interface and observe the resulting authenticated artifacts and verification material. The adversary may make polynomially many such queries.</li>
+<li><strong>Forgery.</strong> The adversary outputs a candidate artifact \(a^*\) and verification material \(v^*\).</li>
+<li><strong>Win condition.</strong> \(\mathcal{A}\) wins if:
+<ul>
+<li>\((a^*, v^*)\) verifies under trust anchors \(\mathit{TA}\), and</li>
+<li>\((a^*, v^*)\) was not produced by any query to the protected commit interface.</li>
+</ul></li>
+</ol>
+</div>
+
+<div class="definition">
+<p><strong>Definition 8.2</strong> (BitGraph Security). A BitGraph system is <em>secure</em> if for all probabilistic polynomial-time adversaries \(\mathcal{A}\):
+\[\Pr[\mathrm{Forge}_{\mathcal{A}}^{\mathrm{BitGraph}}(\lambda) = 1] \leq \mathrm{negl}(\lambda)\]</p>
+</div>
+
+<div class="proposition">
+<p><strong>Proposition 8.3</strong> (Security Reduction). If the signature scheme is existentially unforgeable under chosen-message attack (EUF-CMA) and the freshness source is collision-resistant, then the BitGraph system is secure under Definition 8.1.</p>
+</div>
+
+<div class="proof">
+<p><strong>Proof sketch.</strong> Suppose adversary \(\mathcal{A}\) wins the Origin Forgery Game with non-negligible probability. Then \(\mathcal{A}\) has produced verification material \((a^*, v^*)\) that validates under trust anchors \(\mathit{TA}\) without invoking the protected commit interface. The verification material includes a signature over a binding of boundary-fresh output \(N^*\) and a content-dependent value \(H^*\). Since \(\mathcal{A}\) did not invoke the boundary, either: (a) \(\mathcal{A}\) forged the signature, contradicting EUF-CMA security; or (b) \(\mathcal{A}\) reused a boundary-fresh value \(N\) from a previous query with different content, contradicting binding integrity; or (c) \(\mathcal{A}\) replayed an exact \((a, v)\) pair from a previous query, which fails the win condition. Therefore no PPT adversary wins with non-negligible probability.</p>
+</div>
+
+<p>This reduction relies on two distinct classes of assumption: cryptographic assumptions (EUF-CMA signature security, collision resistance of the freshness source) and architectural assumptions (boundary isolation, non-extractability of signing keys, atomicity of the commit operation). The cryptographic assumptions are standard and reducible to well-studied hardness problems. The architectural assumptions define the trusted computing base and must be enforced by the boundary implementation; they are not modeled cryptographically but are explicit preconditions of the threat model defined in <a href="#sec-security">Section 8</a>.</p>
+</section>
+
+<section id="sec-falsifiers">
+<h2><span class="header-section-number">8.3</span> Falsifiable Distinctions</h2>
+
+<p>The following tests distinguish BitGraph-compliant systems from systems that appear similar but fail to enforce origin control.</p>
+
+<h3>F1: Post-hoc Annotation.</h3>
+<p>If there exists a function \(f: \Sigma_{\text{unauth}} \rightarrow \Sigma_{\text{auth}}\) that promotes unauthenticated state to authenticated state while preserving content, the system is not BitGraph-compliant. This test fails for any system where content is created first and authentication is applied afterward—signing, blockchain registration, provenance database entry, or metadata attachment. These are <em>annotation systems</em>, not origin enforcement.</p>
+
+<h3>F2: Unconfined Constructor.</h3>
+<p>If the genesis constructor can be invoked from contexts outside the protected boundary, the system violates constructor completeness. This test fails when signing keys are accessible to application code, when the commit interface is a public API without boundary isolation, or when trusted and untrusted code share execution context.</p>
+
+<h3>F3: Authorization Forgery.</h3>
+<p>If an adversary without boundary access can produce events \(e\) satisfying \(\mathrm{authorized}(e) = \mathrm{true}\), the system violates unforgeability. This test fails when signing keys are extractable, when tokens can be synthesized without authority, or when capabilities can be delegated outside the boundary.</p>
+
+<h3>F4: Observable Atomicity Break.</h3>
+<p>If the genesis transition can be decomposed into externally observable intermediate steps—authorization at time \(t_1\), binding at \(t_2 > t_1\), commit at \(t_3 > t_2\)—the system violates Atomic Causality. This test fails for systems where authorization checking, signing, and storage commit are separate API calls, creating time-of-check-to-time-of-use vulnerabilities.</p>
+
+<h3>F5: Retroactive Authentication.</h3>
+<p>If durable state can be created first and then promoted to authenticated form by any post-hoc operation that preserves content, the system is implementing annotation, not origin control. This is the most direct test: if the content bytes can exist before the authorization event, the system does not enforce BitGraph.</p>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 9. ARCHITECTURE -->
+<!-- ================================================================ -->
+<section id="sec-architecture">
+<h1><span class="header-section-number">9</span> Architecture</h1>
+
+<section id="sec-state-transition">
+<h2><span class="header-section-number">9.1</span> State Transition Model</h2>
+
+<p>BitGraph distinguishes between candidate digital state and authenticated durable state. Candidate state may exist anywhere and may be adversarial. Authenticated durable state consists of externally visible or persistent artifacts whose authenticated form includes verification material produced by enforced finalization.</p>
+
+<p>The transition from candidate to authenticated occurs at <em>commit paths</em>: file writes, storage uploads, message publication, model output export, sensor data release, and log entry creation.</p>
+
+<p>This transition is mediated by four architectural components: an atomic execution boundary, boundary-fresh cryptographic computation, a protected commit interface, and a boundary-held capability. Outside the boundary, systems may generate arbitrary data. The authenticated durable form is unreachable without successful finalization.</p>
+
+<!-- Figure 3: State Transition Model -->
+<div class="diagram">
+<div class="diagram-desktop">
+<div style="display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap;position:relative">
+  <div style="border:1px solid #ccc;border-radius:0;padding:12px 20px;font-size:13px;text-align:center;background:#f0f0f0">
+    Candidate<br>Digital State
+    <div style="font-size:10px;color:#888;margin-top:4px">(created freely)</div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:center;padding:0 8px">
+    <div style="font-size:10px;color:#888;margin-bottom:2px">submit</div>
+    <div style="color:#888;font-size:18px">→</div>
+  </div>
+  <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:20px 16px;text-align:center">
+    <div style="font-weight:700;font-size:11px;color:#888;margin-bottom:8px;font-family:'Inter',-apple-system,sans-serif">ATOMIC EXECUTION BOUNDARY</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:10px 18px;font-size:13px;background:#fafafa">Protected Commit<br>Interface</div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:center;padding:0 8px">
+    <div style="font-size:10px;color:#888;margin-bottom:2px">finalize</div>
+    <div style="color:#888;font-size:18px">→</div>
+  </div>
+  <div style="border:1px solid #ccc;border-radius:0;padding:12px 20px;font-size:13px;text-align:center;background:#f0f0f0">
+    Authenticated<br>Durable State
+    <div style="font-size:10px;color:#888;margin-top:4px">(includes verification material)</div>
+  </div>
+</div>
+<div style="text-align:center;margin-top:12px;font-size:12px;color:#888;font-style:italic">
+  ✗ no direct path from candidate state to authenticated state
+</div>
+</div>
+<div class="diagram-mobile">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px;font-size:13px">
+    <div style="border:1px solid #ccc;border-radius:0;padding:12px 20px;background:#f0f0f0;width:100%;text-align:center">Candidate Digital State<br><span style="font-size:10px;color:#888">(created freely)</span></div>
+    <div style="color:#888;font-size:11px">submit &#x2193;</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:16px;width:100%;text-align:center">
+      <div style="font-weight:700;font-size:11px;color:#888;margin-bottom:8px;font-family:'Inter',-apple-system,sans-serif">ATOMIC EXECUTION BOUNDARY</div>
+      <div style="border:1px solid #ccc;border-radius:0;padding:10px;font-size:13px;background:#fafafa">Protected Commit Interface</div>
+    </div>
+    <div style="color:#888;font-size:11px">finalize &#x2193;</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:12px 20px;background:#f0f0f0;width:100%;text-align:center">Authenticated Durable State<br><span style="font-size:10px;color:#888">(includes verification material)</span></div>
+    <div style="color:#888;font-size:12px;font-style:italic;text-align:center;margin-top:4px">&#x2717; no direct path from candidate to authenticated state</div>
+  </div>
+</div>
+<div class="fig-cap"><b>Figure 3.</b> State transition model. Authenticated durable state is reachable only through the protected commit interface inside the atomic execution boundary. No direct path from candidate state to authenticated state exists.</div>
+</div>
+</section>
+
+<section id="sec-finalization-protocol">
+<h2><span class="header-section-number">9.2</span> Atomic Finalization Protocol</h2>
+
+<p>Atomic finalization proceeds as a single ordered operation:</p>
+<ol>
+<li>Candidate state is prepared outside the boundary.</li>
+<li>The request enters the protected commit interface and crosses into the atomic execution boundary.</li>
+<li>Boundary-fresh cryptographic output \(N\) is generated.</li>
+<li>A content-dependent value \(H\) is computed (e.g., a cryptographic hash of the artifact).</li>
+<li>Binding material is produced over \((H, N)\).</li>
+<li>Authorization is performed using a boundary-held capability.</li>
+<li>Authenticated durable state and verification material are committed.</li>
+</ol>
+
+<p>If any step fails, no authenticated durable state is produced. The system is <em>fail-closed</em>: failures prevent authenticated creation rather than producing ambiguous or partially authenticated outputs.</p>
+</section>
+
+<section id="sec-verification-model">
+<h2><span class="header-section-number">9.3</span> Verification Model</h2>
+
+<p>Verification relies on cryptographic attestation produced by the atomic execution boundary over the binding between content and boundary-fresh output. Concretely, the boundary produces verification material covering: the content-dependent value \(H\), the boundary-fresh output \(N\), and optional policy or context metadata. This material is signed or attested using boundary-held cryptographic keys.</p>
+
+<p>Verifiers accept artifacts only if the verification material validates under approved trust anchors, which may include pinned boundary public keys, manufacturer or platform roots certifying boundary identities, or signed domain policy manifests specifying acceptable boundary identities, epochs, and validity windows.</p>
+
+<p>No registry of artifacts is required. Verifiers need not identify the producing application—only that the artifact could not have been finalized outside an approved boundary under accepted policy.</p>
+</section>
+
+<section id="sec-enforcement-verification">
+<h2><span class="header-section-number">9.4</span> Enforcement and Verification Are Separate Architectural Layers</h2>
+
+<p>A distinction fundamental to BitGraph must be stated explicitly. Enforcement determines whether authenticated durable state <em>exists</em>. Verification determines whether a third party can <em>demonstrate</em> that authenticated durable state exists. These are different properties operating at different architectural layers.</p>
+
+<p>Enforcement is irrevocable. Once candidate state has been finalized through the protected commit interface—once authorization, binding, and durable commit have occurred as a single atomic event inside the boundary—the resulting artifact is authenticated. This is a historical fact about the artifact's genesis, not a claim that depends on the continued availability of any proof material.</p>
+
+<p>Verification is operationally contingent. A verifier can confirm an artifact's authenticated status only if verification material is accessible—either co-traveling with the artifact or retrievable from a reference point. If all copies of verification material are lost, the artifact becomes <em>unverifiable</em> but does not become <em>unauthenticated</em>. The genesis event still occurred. The enforcement invariants still held at the moment of creation. The artifact's authenticated status is a property of its creation path, not a property of currently available evidence.</p>
+
+<p>This separation is what distinguishes BitGraph from verification systems, provenance frameworks, and attestation protocols. Those systems define authenticity in terms of what can currently be checked. BitGraph defines authenticity in terms of what was structurally enforced at creation. Verification is one mechanism for observing the consequences of enforcement, but it is not the enforcement itself.</p>
+</section>
+
+<section id="sec-verification-independence">
+<h2><span class="header-section-number">9.5</span> Verification Independence from Proof Transport</h2>
+
+<p>A critical architectural property of BitGraph is that the enforcement invariants described in <a href="#sec-invariants">Section 4</a> hold at genesis and are not contingent on any subsequent verification event, proof transport mechanism, or reference infrastructure availability. Verification is a mechanism for demonstrating that enforcement occurred. It is not a component of enforcement.</p>
+
+<p>The verification model is therefore independent of how verification material reaches the verifier. BitGraph supports multiple verification models, and the choice among them is a deployment decision, not an architectural constraint. No verification model choice affects whether the enforcement invariants hold.</p>
+
+<h3>Portable proof.</h3>
+<p>Verification material travels with the artifact—embedded in file metadata, carried in a sidecar file, or included in a manifest bundle. This is compatible with existing provenance formats such as C2PA and enables self-contained verification without external dependencies.</p>
+
+<h3>Reference-based verification.</h3>
+<p>Verification material is held at one or more canonical reference points operated by the producing boundary, a trusted third party, or a federated network. When a verifier encounters an artifact without co-traveling proof, the verifier computes the artifact's content hash and queries the reference point to obtain the verification material produced at genesis. The artifact carries nothing. Its content hash is its lookup key.</p>
+
+<h3>Hybrid verification.</h3>
+<p>Artifacts carry verification material when the distribution channel preserves it. Reference points serve as authoritative fallback for stripped, reformatted, or re-distributed artifacts. Both modes validate against the same trust anchors and enforce the same invariants.</p>
+
+<!-- Figure 4: Verification Independence -->
+<div class="diagram">
+<div class="diagram-desktop">
+<div style="font-weight:700;font-size:13px;text-align:center;margin-bottom:16px;font-family:'Inter',-apple-system,sans-serif">Verification Independence from Proof Transport</div>
+<div style="display:flex;align-items:flex-start;justify-content:center;gap:12px;flex-wrap:wrap;font-size:13px">
+  <div style="text-align:center">
+    <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:10px 14px">BitGraph Boundary<br><span style="font-size:11px;color:#888">(genesis)</span></div>
+    <div style="display:flex;gap:24px;margin-top:8px">
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <div style="color:#888;font-size:11px">store proof</div>
+        <div style="color:#888">↓</div>
+        <div style="background:rgba(0,0,0,0.04);border:1px solid #777;border-radius:0;padding:8px 12px;font-size:12px">Reference Point<br><span style="font-family:'Inter',-apple-system,sans-serif;font-size:11px">(H, N, σ)</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <div style="color:#888;font-size:11px">finalize</div>
+        <div style="color:#888">↓</div>
+        <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px">Artifact<br><span style="font-size:11px;color:#888">(content bytes)</span></div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:16px">
+    <div style="color:#888;font-size:11px">distribute</div>
+    <div style="color:#888;font-size:18px">→</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px;padding-top:10px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="border:1px solid #ccc;border-radius:0;padding:6px 12px;font-size:12px">Copy (with proof)</div>
+      <span style="color:#888">→</span>
+      <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:6px 12px;font-size:12px">Verify<br><span style="font-size:11px">(portable proof)</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="border:1px solid #ccc;border-radius:0;padding:6px 12px;font-size:12px">Copy (stripped)</div>
+      <span style="color:#888">→</span>
+      <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:6px 12px;font-size:12px">Verify<br><span style="font-size:11px">(reference lookup)</span></div>
+    </div>
+  </div>
+</div>
+</div>
+<div class="diagram-mobile">
+  <div style="font-size:13px">
+    <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:10px 14px;text-align:center;margin-bottom:12px">BitGraph Boundary<br><span style="font-size:11px;color:#888">(genesis)</span></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+        <div style="font-size:11px;color:#888">store proof</div>
+        <div style="color:#888">&#x2193;</div>
+        <div style="background:rgba(0,0,0,0.04);border:1px solid #777;border-radius:0;padding:8px;font-size:12px;text-align:center;width:100%">Reference Point<br><span style="font-family:'Inter',-apple-system,sans-serif;font-size:11px">(H, N, &#x3C3;)</span></div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+        <div style="font-size:11px;color:#888">finalize</div>
+        <div style="color:#888">&#x2193;</div>
+        <div style="border:1px solid #ccc;border-radius:0;padding:8px;font-size:12px;text-align:center;width:100%">Artifact<br><span style="font-size:11px;color:#888">(content bytes)</span></div>
+      </div>
+    </div>
+    <div style="color:#888;text-align:center;margin-bottom:8px">&#x2193; distribute</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+        <div style="border:1px solid #ccc;border-radius:0;padding:6px 8px;flex:1;text-align:center">Copy (with proof)</div>
+        <span style="color:#888">&#x2192;</span>
+        <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:6px 8px;flex:1;text-align:center">Verify &#x2713;<br><span style="font-size:10px">(portable)</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+        <div style="border:1px solid #ccc;border-radius:0;padding:6px 8px;flex:1;text-align:center">Copy (stripped)</div>
+        <span style="color:#888">&#x2192;</span>
+        <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:6px 8px;flex:1;text-align:center">Verify &#x2713;<br><span style="font-size:10px">(ref lookup)</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="fig-cap"><b>Figure 4.</b> Verification independence from proof transport. Artifacts may carry verification material (top path) or be verified by reference lookup using the content hash (bottom path). Both paths validate against the same trust anchors. Authentication survives metadata stripping, format conversion, and redistribution.</div>
+</div>
+
+<p>This property has significant practical consequences. BitGraph-authenticated artifacts can be freely copied, reformatted, compressed, transcoded, or distributed through channels that strip metadata—and their authenticated status is permanent regardless of what happens to metadata during distribution. <em>Verifiability</em>—the ability for a third party to confirm authenticated status—requires that either co-traveling proof or a reference point is available and that the content-preserving hash can be recomputed. But the artifact's authenticated status, as defined by the enforcement invariants, is an irrevocable consequence of its genesis and does not depend on proof availability. This is a structural advantage over systems that embed provenance in format-specific metadata, which is routinely stripped by social media platforms, content delivery networks, messaging applications, and file conversion tools.</p>
+
+<p>This property is particularly consequential in delay-tolerant and interplanetary networks, where verification material must travel with the data and no return channel to the origin may exist at verification time.</p>
+
+<p>A clarification regarding content transforms is warranted. Verification depends on recomputing a content-dependent hash that matches the hash bound at genesis. Lossless operations that preserve byte-identical content—copying, re-hosting, metadata stripping, container rewrapping—leave this hash intact and verification proceeds directly. Lossy transforms—recompression, transcoding, cropping, resolution scaling—alter the content bytes and therefore invalidate the original binding. Under BitGraph, a lossy transform produces new candidate state. If the transformed output must itself be authenticated, it requires a new finalization event at a protected transform boundary, producing fresh verification material for the new content. This is not a limitation but a correct application of the enforcement model: the transformed artifact is a different artifact with a different origin. Systems requiring verification across lossy transforms may define robust or perceptual digest schemes as the content-dependent value \(H\), but such schemes introduce their own security trade-offs and are a deployment choice, not an architectural requirement. The enforcement invariant is the same regardless of digest construction.</p>
+
+<p>A reference point is not an artifact registry. A registry implies centralized control over all authenticated artifacts and creates a single point of failure for the entire system. A reference point is a service that holds verification material produced by a specific boundary and can be replicated, federated, or operated by the producing boundary itself. Multiple reference points can hold verification material for the same artifact. The trust model does not change: verifiers validate against trust anchors, not against the reference point's authority. Reference points play no role in the enforcement layer. They do not participate in genesis, do not confer authenticated status, and their unavailability does not retroactively affect the authenticated status of any artifact. They are verification infrastructure, not enforcement infrastructure.</p>
+
+<!-- Figure 5: Verification Structure -->
+<div class="diagram">
+<div class="diagram-desktop">
+<div style="display:flex;align-items:flex-start;justify-content:center;gap:32px;flex-wrap:wrap;font-size:13px">
+  <div style="min-width:220px">
+    <div style="font-weight:700;font-size:12px;text-transform:uppercase;color:#888;background:#fafafa;border:1px solid #ccc;padding:8px 14px;text-align:center;font-family:'Inter',-apple-system,sans-serif;border-radius:0">Authenticated Artifact</div>
+    <div style="border:1px solid #ccc;border-top:none;padding:8px 14px;font-size:12px">content bytes</div>
+    <div style="font-weight:700;font-size:12px;text-transform:uppercase;color:#888;background:#fafafa;border:1px solid #ccc;border-top:none;padding:8px 14px;text-align:center;font-family:'Inter',-apple-system,sans-serif">Verification Material</div>
+    <div style="border:1px solid #ccc;border-top:none;padding:6px 14px;font-size:12px;background:rgba(0,0,0,0.04);font-family:'Inter',-apple-system,sans-serif">H = hash(content)</div>
+    <div style="border:1px solid #ccc;border-top:none;padding:6px 14px;font-size:12px;background:rgba(0,0,0,0.06);font-family:'Inter',-apple-system,sans-serif">N = boundary-fresh value</div>
+    <div style="border:1px solid #ccc;border-top:none;padding:6px 14px;font-size:12px;background:rgba(0,0,0,0.04);font-family:'Inter',-apple-system,sans-serif">boundary_id, epoch, policy</div>
+    <div style="border:1px solid #ccc;border-top:none;padding:6px 14px;font-size:12px;background:rgba(0,0,0,0.05);font-family:'Inter',-apple-system,sans-serif;border-radius:0">σ = Sign<sub>sk</sub>(H, N, metadata)</div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:60px;color:#888">→</div>
+  <div style="min-width:220px;padding-top:4px">
+    <div style="font-weight:700;font-size:12px;text-align:center;color:#888;margin-bottom:10px;font-family:'Inter',-apple-system,sans-serif">Verifier</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px;font-size:12px;margin-bottom:6px">1. Recompute hash of content</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px;font-size:12px;margin-bottom:6px">2. Verify H matches recomputed hash</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px;font-size:12px;margin-bottom:6px">3. Validate signature under trusted key</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px;font-size:12px;margin-bottom:10px">4. Check policy constraints</div>
+    <div style="text-align:center;color:#888">↓</div>
+    <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:8px 14px;font-size:13px;font-weight:700;text-align:center;margin-top:4px">Accept / Reject</div>
+  </div>
+</div>
+</div>
+<div class="diagram-mobile">
+  <div style="font-size:13px">
+    <div style="font-weight:700;font-size:12px;text-transform:uppercase;color:#888;background:#fafafa;border:1px solid #ccc;padding:8px 14px;text-align:center;font-family:'Inter',-apple-system,sans-serif;border-radius:0">Authenticated Artifact</div>
+    <div style="border:1px solid #ccc;border-top:none;padding:8px 14px;font-size:12px">content bytes</div>
+    <div style="font-weight:700;font-size:12px;text-transform:uppercase;color:#888;background:#fafafa;border:1px solid #ccc;border-top:none;padding:8px 14px;text-align:center;font-family:'Inter',-apple-system,sans-serif">Verification Material</div>
+    <div style="border:1px solid #ccc;border-top:none;padding:6px 14px;font-size:12px;background:rgba(0,0,0,0.04);font-family:'Inter',-apple-system,sans-serif">H = hash(content)</div>
+    <div style="border:1px solid #ccc;border-top:none;padding:6px 14px;font-size:12px;background:rgba(0,0,0,0.06);font-family:'Inter',-apple-system,sans-serif">N = boundary-fresh value</div>
+    <div style="border:1px solid #ccc;border-top:none;padding:6px 14px;font-size:12px;background:rgba(0,0,0,0.04);font-family:'Inter',-apple-system,sans-serif">boundary_id, epoch, policy</div>
+    <div style="border:1px solid #ccc;border-top:none;padding:6px 14px;font-size:12px;background:rgba(0,0,0,0.05);font-family:'Inter',-apple-system,sans-serif;border-radius:0">&#x3C3; = Sign<sub>sk</sub>(H, N, metadata)</div>
+    <div style="text-align:center;color:#888;margin:12px 0">&#x2193; verify</div>
+    <div style="font-weight:700;font-size:12px;text-align:center;color:#888;margin-bottom:10px;font-family:'Inter',-apple-system,sans-serif">Verifier</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px;font-size:12px;margin-bottom:6px">1. Recompute hash of content</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px;font-size:12px;margin-bottom:6px">2. Verify H matches recomputed hash</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px;font-size:12px;margin-bottom:6px">3. Validate signature under trusted key</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px;font-size:12px;margin-bottom:10px">4. Check policy constraints</div>
+    <div style="background:rgba(0,0,0,0.06);border:1px solid #555;border-radius:0;padding:8px 14px;font-size:13px;font-weight:700;text-align:center">Accept / Reject</div>
+  </div>
+</div>
+<div class="fig-cap"><b>Figure 5.</b> Verification structure (portable proof model). In this depiction, an authenticated artifact carries its verification material. In the reference-based model (Figure 4), verification material is held separately and retrieved by content hash. The verification checks are identical in both cases.</div>
+</div>
+</section>
+
+<section id="sec-boundary-compromise">
+<h2><span class="header-section-number">9.6</span> Boundary Compromise and Recovery</h2>
+
+<p>If the atomic execution boundary or its signing keys are compromised, the system cannot distinguish forged authenticated artifacts from legitimate ones under that boundary identity. Trust collapses to the compromised boundary, not to the entire system. Recovery is handled operationally by revoking or rotating trust anchors, introducing new boundary identities, and enforcing epoch or policy constraints on acceptable verification material. No artifact registry or retroactive correction mechanism is required.</p>
+
+<p>The critical architectural property is that <em>enforcement strength scales with key isolation strength</em>. Software boundaries provide enforcement convenience and deployment accessibility but are inherently weaker against key extraction. Hardware-backed boundaries—secure enclaves, HSMs, trusted execution environments—provide structural guarantees by enforcing both key non-extractability and constrained usage semantics.</p>
+</section>
+
+<section id="sec-security-properties">
+<h2><span class="header-section-number">9.7</span> Security Properties</h2>
+
+<div class="property">
+<p><strong>Property 9.1</strong> (Non-Retroactivity). Authenticated durable state cannot be produced after the fact for pre-existing data.</p>
+</div>
+
+<div class="property">
+<p><strong>Property 9.2</strong> (Creation-Path Exclusivity). Authenticated durable state is structurally reachable only through the protected commit interface and cannot be produced by any alternative code path or post-hoc process.</p>
+</div>
+
+<div class="property">
+<p><strong>Property 9.3</strong> (Content Integrity). Verification material binds authenticated state to specific content bytes.</p>
+</div>
+
+<div class="property">
+<p><strong>Property 9.4</strong> (Replay Resistance). Boundary-fresh cryptographic output prevents reuse of prior authorization events.</p>
+</div>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 10. RELATED WORK -->
+<!-- ================================================================ -->
+<section id="sec-related">
+<h1><span class="header-section-number">10</span> Related Work</h1>
+
+<p>BitGraph intersects with several established areas of security and systems research. This section distinguishes BitGraph from the most closely related approaches and identifies the specific enforcement gap each leaves open.</p>
+
+<section id="sec-tees">
+<h2><span class="header-section-number">10.1</span> Attested Execution and Trusted Execution Environments</h2>
+
+<p>Trusted Execution Environments (TEEs) such as Intel SGX, Intel TDX, and ARM Confidential Compute Architecture (CCA) provide hardware-isolated execution with remote attestation. The DICE (Device Identifier Composition Engine) architecture establishes device identity through layered measurements. The IETF RATS (Remote ATtestation procedureS) framework standardizes attestation evidence formats and verification workflows.</p>
+
+<p>These systems answer the question: <em>"Did specific trusted code execute?"</em> BitGraph asks a different question: <em>"Is authenticated durable state reachable only through enforced commit paths?"</em> Attestation authenticates a pipeline. BitGraph constrains the commit architecture so that alternative pipelines cannot produce authenticated state. TEEs are one possible implementation substrate for BitGraph boundaries, but attestation alone does not close unprotected commit paths that exist alongside the attested process.</p>
+</section>
+
+<section id="sec-provenance-systems">
+<h2><span class="header-section-number">10.2</span> Content Provenance and Credential Systems</h2>
+
+<p>The Coalition for Content Provenance and Authenticity (C2PA) and related provenance standards define how to represent claims about an artifact's origin, edits, and attribution, and how to transport that information across tools and platforms. When a signed artifact is present, these standards make integrity and lineage verifiable and interoperable.</p>
+
+<p>BitGraph targets a different architectural layer. Provenance standards are a <em>packaging and disclosure layer</em>: they define what claims look like and how to verify them. BitGraph is an <em>enforcement layer</em>: it determines whether authenticated durable state can be finalized at all unless creation-time conditions were met. The distinction matters because provenance ecosystems are voluntary at the edges. A signed artifact can be verified, but an unsigned artifact can still be created, circulated, and injected into downstream systems that do not strictly require provenance at every boundary. Provenance improves traceability without guaranteeing exclusion.</p>
+
+<p>BitGraph and provenance are complementary. BitGraph strengthens provenance by making provenance verifiability a prerequisite for admission into protected domains. Provenance remains the interoperability layer that carries claims across ecosystems; BitGraph supplies the mechanism by which systems enforce that only authenticated artifacts become trusted durable state. Under BitGraph with reference-based verification, provenance survives even when manifests are stripped during distribution (see the provenance example in <a href="#sec-provenance-example">Section 2.2</a> and the verification model in <a href="#sec-verification-independence">Section 9.5</a>).</p>
+</section>
+
+<section id="sec-reference-monitors">
+<h2><span class="header-section-number">10.3</span> Reference Monitors and Access Control</h2>
+
+<p>The classical reference monitor concept (Anderson, 1972) mediates all operations on existing objects: every access is checked against a policy before it is permitted. BitGraph is strictly stronger in one dimension: it controls not merely which <em>operations</em> on objects are permitted, but which <em>objects are permitted to exist</em> in authenticated form. Classical access control assumes object creation is uncontrolled and focuses on subsequent access. BitGraph constrains creation itself.</p>
+
+<p>Formally, a reference monitor enforces:
+\[\forall\, \mathit{op} \in \mathit{Operations},\; \forall\, \mathit{obj} \in \mathit{Objects} : \mathit{execute}(\mathit{op}, \mathit{obj}) \Rightarrow \mathit{authorized}(\mathit{subject}, \mathit{op}, \mathit{obj})\]
+A genesis monitor (BitGraph) enforces:
+\[\forall\, \mathit{obj} \in \Sigma_{\text{auth}} : \mathit{obj} \in \Sigma \Rightarrow \exists\, e \in E_{\text{auth}} : \mathit{genesis}(\mathit{obj}) = \mathcal{C}(e, \mathit{data})\]
+The key difference: a reference monitor assumes objects exist and mediates access. A genesis monitor constrains which authenticated objects can exist at all. This is <em>mandatory constructor security</em>, analogous to mandatory access control but applied to object generation rather than object access.</p>
+</section>
+
+<section id="sec-capability">
+<h2><span class="header-section-number">10.4</span> Capability-Based Security</h2>
+
+<p>Object-capability models (Dennis &amp; Van Horn, 1966; Miller, 2006) enforce that access to objects requires possession of an unforgeable capability. Membrane patterns in capability systems create revocable boundaries around object graphs.</p>
+
+<p>BitGraph shares the emphasis on structural enforcement through unforgeable references but applies it at a different layer. Capabilities control <em>reachability of existing objects</em>. BitGraph controls <em>constructibility of new authenticated state</em>. The boundary-held capability in BitGraph is a capability-security mechanism, but the enforcement target—preventing existence rather than preventing access—distinguishes BitGraph from classical capability models.</p>
+</section>
+
+<section id="sec-ifc">
+<h2><span class="header-section-number">10.5</span> Information Flow Control</h2>
+
+<p>Mandatory information flow control (Goguen &amp; Meseguer, 1982; Myers &amp; Liskov, 1997) constrains how information propagates through a system. BitGraph enforces a related but distinct property: it constrains how authenticated state is <em>generated</em>, not how information flows between existing states. In information flow terms, BitGraph enforces a mandatory creation policy: authenticated state can only be generated through specific channels (the protected commit interface), analogous to noninterference applied to creation rather than observation.</p>
+</section>
+
+<section id="sec-blockchain">
+<h2><span class="header-section-number">10.6</span> Blockchain and Distributed Consensus</h2>
+
+<p>Blockchain systems enforce that state changes require consensus among distributed participants. The architectural parallel to BitGraph is real: both create structural bottlenecks through which state transitions must pass. However, blockchain achieves consensus through economic coordination among mutually distrustful parties, while BitGraph achieves origin enforcement through boundary isolation and cryptographic causality at a single enforcement point. BitGraph generalizes the structural bottleneck principle to arbitrary protected boundaries without requiring distributed consensus, economic incentives, or global coordination.</p>
+</section>
+
+<section id="sec-dtn">
+<h2><span class="header-section-number">10.7</span> Delay-Tolerant Networking and Interplanetary Protocols</h2>
+
+<p>The Bundle Protocol (RFC 9171) and DTN architecture provide store-and-forward transport for environments with extreme latency and intermittent connectivity. Bundle security (BPSec, RFC 9172) provides integrity and confidentiality at the bundle layer but does not constrain how authenticated payloads are created—it secures transport, not genesis. BitGraph complements DTN by enforcing that bundle payloads finalized through a protected commit interface carry portable verification material validatable offline against pre-distributed trust anchors, with no return path to the origin required. BitGraph proofs map onto BP extension blocks, enabling authenticated bundles to traverse existing DTN infrastructure without routing modifications.</p>
+</section>
+
+<section id="sec-structural-distinctions">
+<h2><span class="header-section-number">10.8</span> Summary of Structural Distinctions</h2>
+
+<p>Table 1 summarizes the structural properties that distinguish BitGraph from related approaches. Each property is defined by the system invariants and falsifiability tests in <a href="#sec-invariants">Sections 4</a> and <a href="#sec-falsifiers">8.3</a>. Entries reflect architectural constraints, not implementation quality.</p>
+
+<table>
+<caption>Table 1: Structural property comparison across enforcement paradigms.</caption>
+<thead>
+<tr><th>Property</th><th>Digital Signing</th><th>TEE / Attested Exec.</th><th>Provenance (C2PA)</th><th>Blockchain / Ledger</th><th>BitGraph</th></tr>
+</thead>
+<tbody>
+<tr><td>Enforces creation-path exclusivity</td><td>No</td><td>No<sup>a</sup></td><td>No</td><td>No</td><td><strong>Yes</strong></td></tr>
+<tr><td>Prevents post-hoc auth. wrapping</td><td>No</td><td>No</td><td>No</td><td>No</td><td><strong>Yes</strong></td></tr>
+<tr><td>Binds authorization to commit atomically</td><td>No</td><td>Partial<sup>b</sup></td><td>No</td><td>Partial<sup>c</sup></td><td><strong>Yes</strong></td></tr>
+<tr><td>Proof survives metadata stripping</td><td>No</td><td>No</td><td>No</td><td>Yes<sup>d</sup></td><td><strong>Yes</strong><sup>e</sup></td></tr>
+<tr><td>Requires registry or ledger infrastructure</td><td>No</td><td>No</td><td>No</td><td>Yes</td><td><strong>No</strong></td></tr>
+<tr><td>Enforces admission control (not traceability)</td><td>No</td><td>No</td><td>No</td><td>No</td><td><strong>Yes</strong></td></tr>
+</tbody>
+</table>
+<div style="font-size:12.5px;color:#888;margin-top:8px;line-height:1.6">
+<sup>a</sup>&thinsp;TEEs attest that trusted code executed but do not close alternative commit paths to durable state (<a href="#sec-concrete-example">Section 2.1</a>).<br>
+<sup>b</sup>&thinsp;Authorization and execution are attested, but binding and durable commit are typically separate operations.<br>
+<sup>c</sup>&thinsp;Consensus binds state transitions but does not constrain artifact genesis prior to ledger submission.<br>
+<sup>d</sup>&thinsp;Ledger entries persist independently, but the artifact-to-ledger binding is established post-creation.<br>
+<sup>e</sup>&thinsp;Under reference-based verification (<a href="#sec-verification-independence">Section 9.5</a>).
+</div>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 11. WORKED EXAMPLES -->
+<!-- ================================================================ -->
+<section id="sec-examples">
+<h1><span class="header-section-number">11</span> Worked Examples</h1>
+
+<p>We present two worked examples demonstrating BitGraph in distinct domains. In each case, the same architectural pattern applies: candidate data is prepared freely; authenticated durable state is produced only through the protected commit interface; and any artifact not finalized through the boundary is rejected as unauthenticated.</p>
+
+<section id="sec-media-capture">
+<h2><span class="header-section-number">11.1</span> Secure Media Capture</h2>
+
+<p>Consider a device capturing photos or video for evidentiary or provenance-sensitive use.</p>
+
+<p>Candidate image or video data is produced by the camera sensor and image processing pipeline. This data may exist in memory or temporary buffers. It is not authenticated.</p>
+
+<p>When a capture is to be finalized, the device invokes the protected commit interface for media output. Inside the atomic execution boundary:</p>
+<ol>
+<li>A boundary-fresh value \(N\) is generated.</li>
+<li>A hash \(H\) of the media content is computed.</li>
+<li>Verification material is produced by signing over \((H, N)\) together with device identity and capture metadata.</li>
+<li>Authorization is performed using a boundary-held capability.</li>
+<li>The media file and verification material are committed to durable storage.</li>
+</ol>
+
+<p>Downstream verifiers validate the content hash against the received media, check verification material under approved device or platform trust anchors, and enforce any applicable policy constraints on capture devices or environments.</p>
+
+<p>Any media not finalized through this boundary cannot produce valid verification material and is rejected as unauthenticated—even if it is visually or byte-identical to an authenticated capture. Critically, the system architecture ensures that no other code path—including the application layer, the operating system, or the storage subsystem—can produce artifacts that satisfy verification. The boundary is not merely the preferred creation path; it is the only creation path for authenticated media.</p>
+</section>
+
+<section id="sec-ai-pipeline">
+<h2><span class="header-section-number">11.2</span> AI Output Export Pipeline</h2>
+
+<p>Consider an AI inference service exporting model outputs to downstream consumers.</p>
+
+<p>Candidate outputs are produced by model execution and may exist in memory or temporary buffers. They are not authenticated.</p>
+
+<p>When an output is to be released, the system invokes the protected commit interface for output export. Inside the atomic execution boundary:</p>
+<ol>
+<li>A boundary-fresh value \(N\) is generated.</li>
+<li>A hash \(H\) of the output is computed.</li>
+<li>Verification material is produced by signing over \((H, N)\) together with model identity and policy metadata.</li>
+<li>Authorization is performed using a boundary-held capability.</li>
+<li>The output and verification material are committed.</li>
+</ol>
+
+<p>Downstream verifiers validate the content hash, check verification material under approved trust anchors, and enforce policy constraints on acceptable model identities and metadata.</p>
+
+<p>Any AI output not finalized through this boundary cannot produce valid verification material and is rejected as unauthenticated—even if it is byte-identical to an authenticated output. The system architecture ensures that no alternative export path—including direct database writes, API bypasses, or file system access—can produce outputs that satisfy verification. This is particularly relevant for regulatory compliance frameworks such as the EU AI Act, which require AI-generated content to be identifiable. BitGraph provides an enforcement mechanism rather than a voluntary labeling scheme.</p>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 12. INSTANTIATIONS -->
+<!-- ================================================================ -->
+<section id="sec-instantiations">
+<h1><span class="header-section-number">12</span> Instantiations of the Atomic Boundary</h1>
+
+<p>The atomic execution boundary is an architectural abstraction. Concrete implementations vary by platform, deployment environment, and assurance requirements. Possible instantiations include:</p>
+<ul>
+<li><strong>Device-level TEEs or secure enclaves</strong> gating camera output, sensor release, or local file creation.</li>
+<li><strong>Kernel-mediated commit paths</strong> controlling writes to protected namespaces.</li>
+<li><strong>HSM-backed services</strong> finalizing logs, media, or datasets in backend systems.</li>
+<li><strong>Operating system services</strong> that mediate all protected commit paths, centralizing admission policy and proof generation.</li>
+<li><strong>Gateway or pipeline enforcement</strong> at ingestion points where data enters trusted domains.</li>
+<li><strong>Secure pipeline stages</strong> in CI/CD or regulated data ingestion workflows.</li>
+</ul>
+
+<p>These mechanisms differ in construction, but the enforcement invariant is the same: authenticated durable state can be finalized only through a protected commit interface that performs boundary-fresh cryptographic binding and authorization inside an atomic execution boundary.</p>
+
+<p>What is required is not a particular trust anchor or hardware feature, but structural enforcement of finalization ordering and exclusivity. The architecture does not prescribe implementations—it defines the invariant that implementations must satisfy.</p>
+
+<p>In practical terms, the protected commit interface presents a narrow surface: the caller submits candidate content and policy metadata; the boundary performs hashing, binding, authorization, and signing internally; and the caller receives the authenticated artifact and its verification material (or a confirmation that verification material has been stored at a reference point keyed by content hash). The caller never handles signing keys, never observes intermediate cryptographic state, and cannot influence the boundary-fresh value. Whether this interface is realized as a system call, a hardware enclave entry point, an HSM API, or a cloud service endpoint, the enforcement properties are identical.</p>
+
+<p>BitGraph does not prevent the construction of unauthorized boundaries. Any party can build a boundary and produce verification material. However, artifacts produced by unauthorized boundaries fail verification under accepted trust anchors, because those boundaries' identities are not in the approved set. Trust is mediated by trust anchor policy, not by preventing the existence of alternative boundaries.</p>
+
+<p>In practice, layered deployment is common. A device may generate creation-time verification material, while a gateway enforces admission policy and rejects unauthenticated artifacts. Both layers implement the same enforcement principle at different points in the system.</p>
+
+<section id="sec-enforcement-tiers">
+<h2><span class="header-section-number">12.1</span> Enforcement Tier Semantics</h2>
+
+<p>Concrete instantiations of the atomic execution boundary differ in the strength of the enforcement guarantee they provide. Not all boundaries are equivalent: a software boundary running in process memory and a hardware enclave with remote attestation both produce cryptographically valid verification material, but they provide fundamentally different assurance that the enforcement invariants actually held. This distinction must be made explicit in the proof structure itself.</p>
+
+<p>BitGraph proofs carry two orthogonal attestations. The first is a <em>cryptographic attestation</em>: the signature and public key establish who signed and that the signed content was unaltered. This is machine-checkable by any party with the public key and is unconditionally verifiable offline. The second is an <em>enforcement attestation</em>: the boundary's identity measurement and optional platform attestation report establish <em>under what conditions</em> signing was permitted — whether the commit gate, key management, nonce generation, and signing occurred inside a verified hardware boundary or merely inside a software process. Atomic causality lives in the second attestation, not the first. A signature proves who signed; the enforcement context proves whether the creation-time constraints of BitGraph actually held.</p>
+
+<p>Three enforcement tiers capture the practically relevant points in this assurance space:</p>
+
+<div class="definition">
+<p><strong>Definition 12.1</strong> (Enforcement Tiers). Let $B$ be a boundary implementation. The <em>enforcement tier</em> of $B$ is a declaration of the structural properties of its atomic execution boundary:</p>
+<ul>
+<li><strong>Software-only</strong> ($\tau_\text{sw}$). The commit gate, signing key, nonce source, and counter are all held in ordinary process memory. No hardware isolation separates them from application code. The signing key may be extractable by any code with sufficient privilege. Verification material is cryptographically valid but provides no hardware boundary guarantee. Suitable for development and integration testing; does not satisfy the Boundary Isolation invariant (Definition 4.1) against a privileged-process adversary.</li>
+<li><strong>Hardware-bound key</strong> ($\tau_\text{hw}$). The signing key is held in a hardware security boundary (Secure Enclave, TPM, HSM) and is non-exportable. However, the commit gate — the logic that decides which candidate data is eligible for signing — runs outside the measured boundary. The host process feeds content digests to the hardware for signing; the hardware signs whatever it is asked. This provides hardware-bound identity: the signing key cannot be extracted, so signatures are unforgeable. But it does not provide causal enforcement: a compromised host can submit arbitrary digests and receive valid signatures without passing through the protected commit interface. The enforcement invariant holds for key security but not for commit-path exclusivity.</li>
+<li><strong>Measured TEE</strong> ($\tau_\text{tee}$). The commit gate, key management, nonce generation, monotonic counter, and signing all execute inside the attested enclave boundary. The host is treated as untrusted and cannot influence the commit decision or observe intermediate cryptographic state. The enclave's identity is a hardware-measured value — a cryptographic hash of the enclave binary computed by the hardware boot chain — that cannot be forged by user-space code or produced by a different binary. A verifier who pins acceptable measurements to a known-good enclave image and validates the attestation report is guaranteed, under the hardware trust model, that the enforcement invariants held at genesis.</li>
+</ul>
+</div>
+
+<p>A critical subtlety distinguishes tamper-evidence from self-authentication. The enforcement tier is included in the signed body of every BitGraph proof, making it tamper-evident in transit: an adversary who intercepts a proof and attempts to substitute a higher-assurance tier will break the signature. However, the tier field is <em>self-reported</em> by the boundary adapter. A malicious or misconfigured adapter can declare any tier. The signed field prevents downgrade attacks during transmission; it does not prevent a lying producer.</p>
+
+<p>Actual trust in a declared tier therefore requires independent corroboration. For $\tau_\text{tee}$, this means: (1) pinning acceptable measurements to a known-good enclave image hash published by the boundary operator or auditor, and (2) validating a hardware attestation report — a vendor-signed document generated by the hardware itself, bound to the specific commit, that certifies the enclave measurement matches a known image. Signature verification establishes cryptographic integrity. Measurement pinning establishes identity. Attestation report validation establishes that the identity was produced by real hardware under the declared conditions. All three are necessary; any two leave a gap. A verifier who checks the signature and trusts the self-reported tier without verifying measurement and attestation has verified fact (A) — who signed — but not fact (B) — whether the BitGraph invariants actually held.</p>
+
+<div class="remark">
+<p><strong>Remark 12.2</strong> (Hardware-Bound Key is Not Causal Enforcement). The $\tau_\text{hw}$ tier corresponds to devices such as mobile Secure Enclaves, TPMs, or HSMs where the signing key is hardware-protected but the commit gate runs in application code. Such systems provide meaningful security against key extraction — an adversary cannot steal the private key — but do not satisfy commit-path exclusivity. Application code feeding arbitrary digests to the hardware signer can produce valid signatures for any content without traversal of the protected commit interface. This is useful as an identity anchor and may be sufficient for some deployment contexts, but it is architecturally distinct from $\tau_\text{tee}$ and does not satisfy BitGraph's Atomic Causality invariant (Definition 6.1) against a compromised-host adversary.</p>
+</div>
+
+<p>This taxonomy is not a quality ranking among implementations — a $\tau_\text{sw}$ boundary is fully correct for development environments where the adversary model does not include privileged process access. It is a structural classification that makes the adversary model explicit in the proof itself. Verifiers select the tier they require based on their own threat model. A local development tool may accept $\tau_\text{sw}$. A regulated ingestion gateway may require $\tau_\text{tee}$ with measurement pinning and attestation validation. The same proof format and verification protocol supports all three, with enforcement strength determined by verifier policy rather than proof format version.</p>
+
+</section>
+
+<!-- ================================================================ -->
+<!-- 13. ADMISSION -->
+<!-- ================================================================ -->
+<section id="sec-admission">
+<h1><span class="header-section-number">13</span> Admission of Pre-Existing Data</h1>
+
+<p>BitGraph defines authenticity in terms of enforced finalization events, not in terms of historical existence of content bytes.</p>
+
+<p>Candidate data may exist prior to authenticated finalization and may be externally sourced, duplicated, replayed, or synthesized. Such prior existence is outside the trust model and carries no authenticity semantics.</p>
+
+<p>Authenticated durable state is created only when candidate data is finalized through the protected commit interface and bound to boundary-fresh cryptographic output produced inside the atomic execution boundary. Without this enforced finalization event, no artifact can enter authenticated state, regardless of its prior history or method of creation.</p>
+
+<p>The same content may be finalized multiple times in separate authorization events, each producing distinct verification material. Each such event constitutes an independent origin—a distinct enforced admission into authenticated durable state.</p>
+
+<p>Authenticity therefore reflects structural reachability through enforced commit paths, not claims about when or how content bytes first came into existence.</p>
+
+<section id="sec-provenance-chains">
+<h2><span class="header-section-number">13.1</span> Enforced Provenance Chains</h2>
+
+<p>When content traverses multiple BitGraph-enforced boundaries, each boundary produces independent verification material for the same content. The result is a structurally enforced provenance chain: an ordered sequence of admission events, each cryptographically bound to the content at its respective boundary. Unlike voluntary provenance annotations, each link in this chain is the product of an enforced finalization event and could not have been produced without traversing the corresponding boundary.</p>
+
+<!-- Figure 6: Enforced Provenance Chains -->
+<div class="diagram">
+<div class="diagram-desktop">
+<div style="display:flex;align-items:flex-start;justify-content:center;gap:6px;flex-wrap:wrap;font-size:13px">
+  <div style="text-align:center;padding-top:8px">
+    <div style="border:1px solid #ccc;border-radius:0;padding:10px 14px">Pre-existing<br>content</div>
+    <div style="font-size:10px;color:#888;margin-top:2px">(unauthenticated)</div>
+  </div>
+  <div style="padding-top:20px;color:#888">→</div>
+  <div style="text-align:center">
+    <div style="font-weight:700;font-size:11px;margin-bottom:4px;font-family:'Inter',-apple-system,sans-serif">Boundary A</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:10px 14px;font-size:12px">Ingest</div>
+    <div style="color:#888;font-size:12px;margin-top:4px">↓</div>
+    <div style="background:rgba(0,0,0,0.04);border:1px solid #777;border-radius:0;padding:4px 10px;font-size:11px;font-family:'Inter',-apple-system,sans-serif">(H, N₁, σ₁)</div>
+    <div style="font-size:10px;color:#888">origin₁</div>
+  </div>
+  <div style="padding-top:20px;color:#888">→</div>
+  <div style="text-align:center">
+    <div style="font-weight:700;font-size:11px;margin-bottom:4px;font-family:'Inter',-apple-system,sans-serif">Boundary B</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:10px 14px;font-size:12px">Process</div>
+    <div style="color:#888;font-size:12px;margin-top:4px">↓</div>
+    <div style="background:rgba(0,0,0,0.04);border:1px solid #777;border-radius:0;padding:4px 10px;font-size:11px;font-family:'Inter',-apple-system,sans-serif">(H′, N₂, σ₂)</div>
+    <div style="font-size:10px;color:#888">origin₂</div>
+  </div>
+  <div style="padding-top:20px;color:#888">→</div>
+  <div style="text-align:center">
+    <div style="font-weight:700;font-size:11px;margin-bottom:4px;font-family:'Inter',-apple-system,sans-serif">Boundary C</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:10px 14px;font-size:12px">Publish</div>
+    <div style="color:#888;font-size:12px;margin-top:4px">↓</div>
+    <div style="background:rgba(0,0,0,0.04);border:1px solid #777;border-radius:0;padding:4px 10px;font-size:11px;font-family:'Inter',-apple-system,sans-serif">(H″, N₃, σ₃)</div>
+    <div style="font-size:10px;color:#888">origin₃</div>
+  </div>
+  <div style="padding-top:20px;color:#888">→</div>
+  <div style="text-align:center;padding-top:8px">
+    <div style="border:1px solid #ccc;border-radius:0;padding:10px 14px">Authenticated<br>artifact</div>
+    <div style="font-size:10px;color:#888;margin-top:2px">(3 enforced origins)</div>
+  </div>
+</div>
+<div style="text-align:center;margin-top:10px;font-size:12px;color:#333;font-style:italic">
+  enforced provenance chain — each link is an independent BitGraph finalization
+</div>
+</div>
+<div class="diagram-mobile">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px">
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px;width:100%;text-align:center">Pre-existing content<br><span style="font-size:10px;color:#888">(unauthenticated)</span></div>
+    <div style="color:#888">&#x2193;</div>
+    <div style="width:100%;border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:10px 14px;text-align:center">
+      <div style="font-weight:700;font-size:11px;margin-bottom:4px;font-family:'Inter',-apple-system,sans-serif">Boundary A &#x2192; Ingest</div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid #777;border-radius:0;padding:4px 10px;font-size:11px;font-family:'Inter',-apple-system,sans-serif;display:inline-block">(H, N&#x2081;, &#x3C3;&#x2081;)</div>
+      <div style="font-size:10px;color:#888;margin-top:2px">origin&#x2081;</div>
+    </div>
+    <div style="color:#888">&#x2193;</div>
+    <div style="width:100%;border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:10px 14px;text-align:center">
+      <div style="font-weight:700;font-size:11px;margin-bottom:4px;font-family:'Inter',-apple-system,sans-serif">Boundary B &#x2192; Process</div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid #777;border-radius:0;padding:4px 10px;font-size:11px;font-family:'Inter',-apple-system,sans-serif;display:inline-block">(H&#x2032;, N&#x2082;, &#x3C3;&#x2082;)</div>
+      <div style="font-size:10px;color:#888;margin-top:2px">origin&#x2082;</div>
+    </div>
+    <div style="color:#888">&#x2193;</div>
+    <div style="width:100%;border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:10px 14px;text-align:center">
+      <div style="font-weight:700;font-size:11px;margin-bottom:4px;font-family:'Inter',-apple-system,sans-serif">Boundary C &#x2192; Publish</div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid #777;border-radius:0;padding:4px 10px;font-size:11px;font-family:'Inter',-apple-system,sans-serif;display:inline-block">(H&#x2033;, N&#x2083;, &#x3C3;&#x2083;)</div>
+      <div style="font-size:10px;color:#888;margin-top:2px">origin&#x2083;</div>
+    </div>
+    <div style="color:#888">&#x2193;</div>
+    <div style="border:1px solid #ccc;border-radius:0;padding:8px 14px;width:100%;text-align:center">Authenticated artifact<br><span style="font-size:10px;color:#888">(3 enforced origins)</span></div>
+    <div style="text-align:center;font-size:12px;color:#333;font-style:italic;margin-top:4px">enforced provenance chain</div>
+  </div>
+</div>
+<div class="fig-cap"><b>Figure 6.</b> Enforced provenance chains. Pre-existing content traverses multiple BitGraph boundaries, each producing independent verification material. Each admission is a separate enforced finalization event. The resulting chain is structurally guaranteed—not voluntarily annotated—because each link requires traversal of a protected commit interface.</div>
+</div>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 14. IMPLEMENTATION CONSIDERATIONS -->
+<!-- ================================================================ -->
+<section id="sec-implementation">
+<h1><span class="header-section-number">14</span> Implementation Considerations</h1>
+
+<h3>Latency.</h3>
+<p>Creation-time enforcement must be fast enough to run on capture and export paths without degrading user experience or pipeline throughput. Efficient proof generation and verification are engineering constraints, not architectural limitations. Modern signing operations (Ed25519, ECDSA P-256) complete in microseconds on current hardware.</p>
+
+<h3>Offline operation.</h3>
+<p>Environments requiring offline creation can generate proofs locally and defer admission into trusted domains until connectivity is available. Trusted domains then enforce verification at ingestion. This provides bounded issuance guarantees rather than continuous supervision—analogous to how physical secure instruments (e.g., pre-signed checks) operate with deferred clearing. In extreme cases—interplanetary missions, remote sensor networks, or disconnected autonomous systems—offline operation may span hours to days, with proofs verified only upon eventual receipt at a ground station or gateway operating under the same trust anchors.</p>
+
+<h3>Failure handling.</h3>
+<p>Systems must define failure behavior. For high-assurance domains, fail-closed behavior is required: if proof generation fails, finalization is blocked. For consumer deployments, staged enforcement may begin with fail-open at selected boundaries and evolve toward fail-closed as operational confidence increases.</p>
+
+<h3>Verification material formats and transport.</h3>
+<p>Verification material may be embedded within the artifact, carried in a sidecar file, included in a bundle manifest, transmitted as an authenticated envelope, or held at a reference point for query-based verification (see <a href="#sec-verification-independence">Section 9.5</a>). The key requirement is that verification material is bound to the artifact in a way that can be validated independently and cannot be retroactively attached without detection. The choice of transport mechanism is a deployment decision; the enforcement invariant is the same regardless of how verification material reaches the verifier.</p>
+
+<h3>Key rotation and revocation.</h3>
+<p>Operational deployments require key rotation policies and revocation mechanisms. When a boundary is compromised, trust anchors can be revoked or rotated, new boundary identities introduced, and epoch constraints enforced on acceptable verification material. No artifact registry is required for rotation or recovery.</p>
+
+<h3>Interoperability with provenance systems.</h3>
+<p>BitGraph coexists with provenance and credentialing systems that focus on post-creation traceability. Provenance chains can be attached to artifacts finalized under BitGraph, providing richer downstream traceability. The admission decision remains anchored in enforced finalization, while provenance provides the interoperability layer for distribution and audit.</p>
+</section>
+
+<!-- ================================================================ -->
+<!-- 15. DEPLOYMENT -->
+<!-- ================================================================ -->
+<section id="sec-deployment">
+<h1><span class="header-section-number">15</span> Deployment and Adoption</h1>
+
+<p>BitGraph is best understood as an enforcement primitive that can be introduced incrementally. Most environments cannot transition from fully permissive creation to strict admissibility in a single step.</p>
+
+<h3>Phased rollout.</h3>
+<p>A practical deployment begins with visibility: attaching verification material when available and surfacing authenticated versus unauthenticated status. The next phase requires authenticated finalization for selected high-assurance workflows while allowing unauthenticated outputs in a separate untrusted lane. Over time, enforcement expands to additional repositories, export paths, and regulated domains. Each phase requires engineering integration with existing commit paths, and the phased model is designed to contain this cost by limiting initial enforcement to high-value boundaries.</p>
+
+<h3>Policy-driven boundaries.</h3>
+<p>The decisive question in most deployments is not whether an artifact can be produced, but whether it can be admitted into a domain that confers legitimacy, downstream impact, or compliance standing. BitGraph can be applied selectively at these boundaries: ingestion into training corpora, publication to official channels, archival in compliance systems, or persistence into audit-grade logs.</p>
+
+<h3>Institutional adoption incentives.</h3>
+<p>Adoption is accelerated when benefits are concrete: reduced downstream moderation burden, improved auditability, clearer liability boundaries, and the ability to define and enforce admissible content policies. In high-volume environments, the ability to reject unauthenticated artifacts at ingestion is more valuable than attempting to detect or classify them after the fact. Organizations already subject to compliance mandates—regulated data processors, evidentiary systems, and entities operating under frameworks such as the EU AI Act—are natural early adopters, as they face the strongest immediate demand for structural authenticity guarantees.</p>
+
+<h3>End state.</h3>
+<p>The end state is not universal prevention of unauthenticated creation, but reliable exclusion of unauthenticated durable state from the systems and pipelines where legitimacy, compliance, and downstream impact are determined.</p>
+</section>
+
+<!-- ================================================================ -->
+<!-- 16. APPLICATIONS -->
+<!-- ================================================================ -->
+<section id="sec-applications">
+<h1><span class="header-section-number">16</span> Applications</h1>
+
+<p>BitGraph applies wherever systems must distinguish admissible durable outputs from arbitrary durable outputs produced outside trusted pipelines. The common architectural pattern is a protected commit path that gates admission into authenticated durable state. The pattern arises across domains:</p>
+
+<ol>
+<li><strong>AI training and inference pipelines</strong>, where only authenticated outputs may be admitted into datasets or downstream automation.</li>
+<li><strong>Media capture and evidentiary systems</strong>, where admissibility depends on verified creation conditions.</li>
+<li><strong>Compliance logging and telemetry</strong>, where audit records must resist post-hoc fabrication.</li>
+<li><strong>Scientific instruments and simulations</strong>, where experimental results must be traceable to controlled execution environments.</li>
+<li><strong>Regulated data processing</strong> in finance, healthcare, safety monitoring, and government systems.</li>
+<li><strong>Digital identity and credential issuance</strong>, where credentials must be structurally unforgeable.</li>
+<li><strong>Supply chain verification</strong>, where provenance must be enforced at each handoff rather than reconstructed afterward.</li>
+<li><strong>Authorization transfer and ledger-independent scarcity</strong>, where transfer of digital value or authority is enforced by a single atomic transition that both irreversibly de-authorizes the sender capability and generates the receiver capability within a protected execution boundary. This is a direct application of the birth–death semantics described in <a href="#sec-birth-death">Section 17</a>: the prior authority undergoes verifiable death, and the successor undergoes verifiable birth, within a single atomic event. This preserves scarcity invariants structurally and implies double-spend resistance without global ledgers, distributed consensus, or registry-based settlement infrastructure. The settlement and monetary implications are substantial and are explored separately.</li>
+<li><strong>Interplanetary and delay-tolerant systems</strong>, where authentication must be non-interactive, verification must occur offline, and proofs must travel with data across store-and-forward networks with minutes-to-hours latency. BitGraph's non-interactive finalization, compact portable proofs, and hardware-rooted trust align with the operational constraints of DTN/Bundle Protocol environments, where real-time protocols, centralized registries, and consensus mechanisms are infeasible.</li>
+</ol>
+
+<p>Across these domains, trust derives from enforced admission into authenticated state at commit time, not from retrospective provenance reconstruction. When admissibility matters, origin enforcement necessarily moves into the creation and finalization paths of the system.</p>
+</section>
+
+<!-- ================================================================ -->
+<!-- 17. BIRTH-DEATH SEMANTICS -->
+<!-- ================================================================ -->
+<section id="sec-birth-death">
+<h1><span class="header-section-number">17</span> Birth–Death Semantics</h1>
+
+<p>BitGraph enforces what we term <em>birth–death semantics</em> for digital state. Under this model, every authoritative state transition has exactly one verifiable moment of creation (birth), and every transfer or succession requires cryptographic evidence that the prior authority has been irreversibly consumed (death).</p>
+
+<p>Traditional provenance systems operate in a <em>detect-after</em> model: artifacts are produced freely, and conflicts such as replay, duplication, or double-spend are identified retrospectively through logs, ledgers, or consensus. BitGraph instead constrains the execution path such that invalid successor states are structurally unreachable within the enforcing boundary.</p>
+
+<!-- Figure: Birth-Death Semantics -->
+<div class="diagram">
+<div class="diagram-desktop">
+<div class="diagram-flex">
+  <div style="text-align:center;width:240px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:12px;font-family:'Inter',-apple-system,sans-serif">Detect-After Model</div>
+    <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:10px 16px;font-size:13px;margin-bottom:8px">Authority S<sub>0</sub></div>
+    <div style="display:flex;justify-content:center;gap:40px;margin:4px 0">
+      <div style="color:#888;font-size:18px">↙</div>
+      <div style="color:#888;font-size:18px">↘</div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:12px;margin:4px 0">
+      <div style="background:rgba(0,0,0,0.04);border:1px solid rgba(192,57,43,0.3);border-radius:0;padding:8px 12px;font-size:12px">S<sub>1</sub> <span style="color:#888;font-size:10px">valid</span></div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid rgba(192,57,43,0.3);border-radius:0;padding:8px 12px;font-size:12px">S<sub>1</sub>′ <span style="color:#888;font-size:10px">valid</span></div>
+    </div>
+    <div style="color:#888;font-size:18px;margin:6px 0">↓</div>
+    <div style="background:rgba(248,81,73,0.08);border:1px dashed rgba(0,0,0,0.3);border-radius:0;padding:8px 14px;font-size:12px;color:#888">Conflict detected<br><span style="font-size:11px;color:#888">retrospective resolution</span></div>
+    <div style="color:#888;font-size:11px;margin-top:8px">fork now, detect later</div>
+  </div>
+  <div class="diagram-divider">
+    <div style="font-size:28px;font-weight:300">→</div>
+    <div style="font-size:11px;color:#888;text-align:center;margin-top:2px">BitGraph<br>enforces</div>
+  </div>
+  <div style="text-align:center;width:240px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:12px;font-family:'Inter',-apple-system,sans-serif">Birth–Death Semantics</div>
+    <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:10px 16px;font-size:13px;margin-bottom:8px">Authority S<sub>0</sub></div>
+    <div style="color:#888;font-size:18px">↓</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:14px 12px;margin:4px 0">
+      <div style="display:flex;justify-content:center;gap:8px;align-items:center;margin-bottom:6px">
+        <div style="background:rgba(192,57,43,0.1);border:1px solid rgba(192,57,43,0.3);border-radius:0;padding:5px 10px;font-size:12px;color:#888">Death</div>
+        <div style="color:#888;font-size:11px">S<sub>0</sub> consumed</div>
+      </div>
+      <div style="color:#888;font-size:14px">↓</div>
+      <div style="display:flex;justify-content:center;gap:8px;align-items:center;margin-top:6px">
+        <div style="background:rgba(45,106,45,0.12);border:1px solid rgba(45,106,45,0.3);border-radius:0;padding:5px 10px;font-size:12px;color:#555">Birth</div>
+        <div style="color:#888;font-size:11px">S<sub>1</sub> committed</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:40px;margin:6px 0">
+      <div>
+        <div style="color:#555;font-size:18px">↓</div>
+        <div style="background:rgba(0,0,0,0.06);border:1px solid rgba(45,106,45,0.3);border-radius:0;padding:8px 12px;font-size:12px">S<sub>1</sub> <span style="color:#888;font-size:10px">valid</span></div>
+      </div>
+      <div>
+        <div style="color:#aaa;font-size:18px">↓</div>
+        <div style="background:rgba(139,115,85,0.06);border:1px dashed #bbb;border-radius:0;padding:8px 12px;font-size:12px;color:#aaa;text-decoration:line-through">S<sub>1</sub>′</div>
+      </div>
+    </div>
+    <div style="color:#888;font-size:11px;margin-top:8px">fork structurally unreachable</div>
+  </div>
+</div>
+</div>
+<div class="diagram-mobile">
+  <div style="font-weight:700;font-size:13px;margin-bottom:10px;font-family:'Inter',-apple-system,sans-serif;text-align:center">Detect-After Model</div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:16px">
+    <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:8px 16px;font-size:13px;width:100%;text-align:center">Authority S&#x2080;</div>
+    <div style="display:flex;justify-content:center;gap:12px">
+      <div style="color:#888">&#x2199;</div>
+      <div style="color:#888">&#x2198;</div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:8px">
+      <div style="background:rgba(0,0,0,0.04);border:1px solid rgba(192,57,43,0.3);border-radius:0;padding:6px 10px;font-size:12px">S&#x2081; valid</div>
+      <div style="background:rgba(0,0,0,0.04);border:1px solid rgba(192,57,43,0.3);border-radius:0;padding:6px 10px;font-size:12px">S&#x2081;&#x2032; valid</div>
+    </div>
+    <div style="color:#888">&#x2193;</div>
+    <div style="background:rgba(248,81,73,0.08);border:1px dashed rgba(0,0,0,0.3);border-radius:0;padding:8px 14px;font-size:12px;color:#888;width:100%;text-align:center">Conflict detected</div>
+    <div style="font-size:11px;color:#888">fork now, detect later</div>
+  </div>
+  <div style="text-align:center;font-size:22px;font-weight:300;color:#888;margin:4px 0">&#x2193;</div>
+  <div style="text-align:center;font-size:11px;color:#888;margin-bottom:16px">BitGraph enforces</div>
+  <div style="font-weight:700;font-size:13px;margin-bottom:10px;font-family:'Inter',-apple-system,sans-serif;text-align:center">Birth&#x2013;Death Semantics</div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+    <div style="background:rgba(0,0,0,0.04);border:1px solid #ccc;border-radius:0;padding:8px 16px;font-size:13px;width:100%;text-align:center">Authority S&#x2080;</div>
+    <div style="color:#888">&#x2193;</div>
+    <div style="border:2px solid #bbb;background:#f0f0f0;border-radius:0;padding:12px;width:100%;text-align:center">
+      <div style="font-size:12px;color:#888;margin-bottom:4px">Death &#x2014; S&#x2080; consumed</div>
+      <div style="color:#888">&#x2193;</div>
+      <div style="font-size:12px;color:#555;margin-top:4px">Birth &#x2014; S&#x2081; committed</div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:16px">
+      <div style="text-align:center">
+        <div style="color:#555">&#x2193;</div>
+        <div style="background:rgba(0,0,0,0.06);border:1px solid rgba(45,106,45,0.3);border-radius:0;padding:6px 10px;font-size:12px">S&#x2081; valid</div>
+      </div>
+      <div style="text-align:center">
+        <div style="color:#aaa">&#x2193;</div>
+        <div style="background:rgba(139,115,85,0.06);border:1px dashed #bbb;border-radius:0;padding:6px 10px;font-size:12px;color:#aaa;text-decoration:line-through">S&#x2081;&#x2032;</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#888">fork structurally unreachable</div>
+  </div>
+</div>
+<div class="fig-cap"><b>Figure 7.</b> Detect-after vs. birth–death enforcement. Traditional systems (left) permit both successor states to be produced and detect conflicts retrospectively. Under birth–death semantics (right), the prior authority is irreversibly consumed within the atomic boundary, and exactly one successor is committed. The alternative fork is not merely unlikely—it is structurally unreachable within the enforcing boundary.</div>
+</div>
+
+<h2 id="sec-bd-construction"><span class="header-section-number">17.1</span> Construction</h2>
+
+<p>Within a verifier-accepted measured boundary (e.g., a Trusted Execution Environment or equivalent protected constructor), a valid BitGraph commit requires the atomic execution of the following steps:</p>
+
+<ul>
+<li>Policy authorization of the requested operation</li>
+<li>Generation and atomic consumption of a fresh, non-replayable commitment value (either an unpredictable nonce or a strictly monotonic counter)</li>
+<li>Collision-resistant binding of the artifact digest to the consumed value</li>
+<li>Durable commit of the resulting signed proof</li>
+</ul>
+
+<p>No intermediate state is externally observable, and partial completion yields no valid proof. The consumed value establishes a forward-only lineage: any valid successor must reference a strictly later state within the boundary's monotonic domain.</p>
+
+<h2 id="sec-bd-single-successor"><span class="header-section-number">17.2</span> Single-Successor Property</h2>
+
+<p>Given correct enforcement of measurement and monotonicity within the boundary, BitGraph guarantees:</p>
+
+<div class="property">
+<p><strong>Property (Single-Successor).</strong> At most one valid successor can be produced from any given parent authority within the verifier-accepted measurement and monotonicity domain of the enforcing boundary.</p>
+</div>
+
+<p>If two purported successors are observed downstream, at least one of the following must hold:</p>
+
+<ul>
+<li>The enforcing boundary was compromised or misconfigured</li>
+<li>Monotonic state or anti-rollback guarantees were violated</li>
+<li>The verifier accepted an out-of-policy measurement</li>
+<li>The usage context exceeded the declared trust model</li>
+</ul>
+
+<p>This reframes failure analysis from probabilistic conflict resolution to deterministic boundary integrity verification.</p>
+
+<h2 id="sec-bd-double-spend"><span class="header-section-number">17.3</span> Relationship to Double-Spend</h2>
+
+<p>Birth–death semantics targets the core primitive underlying double-spend failures: the ability to produce multiple valid successor states from a single authority. By making such forks structurally unreachable at commit time within the stated trust envelope, BitGraph reduces reliance on global ordering for single-holder and provenance-sensitive workflows.</p>
+
+<p>BitGraph does not claim global uniqueness across mutually distrustful, permissionless environments without additional coordination. Instead, it provides strong local authority guarantees that higher-level systems may compose with federation or consensus where global agreement is required.</p>
+
+<h2 id="sec-bd-trust-envelope"><span class="header-section-number">17.4</span> Trust Envelope</h2>
+
+<p>The guarantees above hold only within the verifier-accepted measurement and monotonicity domain of the enforcing boundary. In particular:</p>
+
+<ul>
+<li>A protected execution boundary is required for enforcement</li>
+<li>Monotonic state must be resistant to rollback within that boundary</li>
+<li>Verifiers must enforce measurement policy and counter monotonicity</li>
+<li>BitGraph does not prevent byte-level copying of artifacts outside the authority model</li>
+</ul>
+
+<p>Within this envelope, birth–death semantics converts post-facto detection problems into construction-time exclusion properties.</p>
+</section>
+
+<!-- ================================================================ -->
+<!-- 18. SINGLE-TRANSFER VALUE WITHOUT CONSENSUS -->
+<!-- ================================================================ -->
+<section id="sec-value-transfer">
+<h1><span class="header-section-number">18</span> Single-Transfer Value Without Consensus</h1>
+
+<p>BitGraph enables single-transfer digital value by binding authority to a consumptive, cryptographically enforced state transition rather than to a ledger entry. This is a concrete instantiation of the birth–death semantics described in <a href="#sec-birth-death">Section 17</a>: each transfer atomically consumes (kills) the prior holder's authority and produces (births) a new verifiable successor. Each artifact carries a proof that can only be produced through a protected commit path, where authorization, binding, and durable commit occur atomically inside a trusted execution boundary. When value is transferred, the prior holder's permission is provably consumed and the new state is independently verifiable offline using public keys and hash lineage. The bytes themselves may be copied, but the authoritative right cannot be duplicated, because the single-successor property guarantees that only one unspent lineage can exist at a time within the enforcing boundary. In this model, uniqueness and transfer integrity come from enforced execution semantics instead of global consensus, allowing blockchain-free, verifiable digital handoff.</p>
+</section>
+
+<!-- ================================================================ -->
+<!-- 19. CONCLUSION -->
+<!-- ================================================================ -->
+<section id="sec-conclusion">
+<h1><span class="header-section-number">19</span> Conclusion</h1>
+
+<p>The Trusted Origin Token Architecture demonstrates that origin control can be enforced by consuming authorization units at finalization. BitGraph generalizes this result by showing that equivalent enforcement is achieved using boundary-fresh cryptographic computation and protected commit paths, without requiring tracked tokens.</p>
+
+<p>Atomic Causality links authorization, cryptographic binding, and durable commit into a single indivisible event. Authenticated durable state is defined by structural reachability—by the state transitions that produced it—not by historical claims, metadata, or post-hoc annotation.</p>
+
+<p>The formal model presented here shows that BitGraph defines a new enforcement primitive: a <em>genesis access control mechanism</em> that constrains which authenticated objects are permitted to exist, rather than mediating operations on objects that already exist. This is strictly stronger than classical reference monitors and formally distinct from attested execution, information flow control, and capability-based security.</p>
+
+<p>By securing creation rather than history, BitGraph establishes an architectural primitive for trustworthy digital systems. It does not replace provenance, verification, or access control. It provides the structural foundation that makes those mechanisms enforceable at the boundaries where legitimacy is conferred.</p>
+</section>
+
+<!-- ================================================================ -->
+<!-- REFERENCES -->
+<!-- ================================================================ -->
+<section id="sec-references">
+<h1>References</h1>
+<div style="font-size:14.5px;line-height:1.7">
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[1] J.&thinsp;P. Anderson, "Computer security technology planning study," Tech. Rep. ESD-TR-73-51, Electronic Systems Division, AFSC, 1972.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[2] W.&thinsp;Y. Arms, "Digital libraries," MIT Press, 2000.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[3] Coalition for Content Provenance and Authenticity (C2PA), "C2PA Technical Specification v2.1," 2024.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[4] V. Costan and S. Devadas, "Intel SGX explained," IACR Cryptology ePrint Archive, Report 2016/086, 2016.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[5] J.&thinsp;B. Dennis and E.&thinsp;C. Van Horn, "Programming semantics for multiprogrammed computations," <em>Communications of the ACM</em>, vol.&thinsp;9, no.&thinsp;3, pp.&thinsp;143–155, 1966.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[6] Trusted Computing Group, "DICE Layered Architecture," 2020.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[7] J.&thinsp;A. Goguen and J. Meseguer, "Security policies and security models," in <em>Proc. IEEE Symposium on Security and Privacy</em>, pp.&thinsp;11–20, 1982.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[8] T.&thinsp;J. Green, G. Karvounarakis, and V. Tannen, "Provenance semirings," in <em>Proc. ACM SIGMOD-SIGACT-SIGART Symposium on Principles of Database Systems (PODS)</em>, pp.&thinsp;31–40, 2007.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[9] IETF, "Remote ATtestation procedureS (RATS) Architecture," RFC 9334, 2023.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[10] C.&thinsp;B. Jones, "Tentative steps toward a development method for interfering programs," <em>ACM Transactions on Programming Languages and Systems</em>, vol.&thinsp;5, no.&thinsp;4, pp.&thinsp;596–619, 1983.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[11] B.&thinsp;W. Lampson, "Protection," in <em>Proc. 5th Princeton Symposium on Information Sciences and Systems</em>, pp.&thinsp;437–443, 1971.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[12] M.&thinsp;S. Miller, "Robust composition: Towards a unified approach to access control and concurrency control," Ph.D. dissertation, Johns Hopkins University, 2006.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[13] A.&thinsp;C. Myers and B. Liskov, "A decentralized model for information flow control," in <em>Proc. 16th ACM Symposium on Operating Systems Principles (SOSP)</em>, pp.&thinsp;129–142, 1997.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[14] G.&thinsp;C. Necula, "Proof-carrying code," in <em>Proc. 24th ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL)</em>, pp.&thinsp;106–119, 1997.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[15] S. Burleigh, K. Fall, and V. Cerf, "Delay-Tolerant Networking Architecture," RFC 4838, 2007.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[16] K. Scott, S. Burleigh, et&thinsp;al., "Bundle Protocol Version 7," RFC 9171, 2022.</p>
+
+<p style="padding-left:28px;text-indent:-28px;margin-bottom:10px">[17] E. Birrane III and K. McKeever, "Bundle Protocol Security (BPSec)," RFC 9172, 2022.</p>
+
+</div>
+</section>
+
+</main>
+<footer></footer>
+</div>
+<script>
+const links=document.querySelectorAll('.sidebar a[href^="#"]');
+const secs=[];
+links.forEach(l=>{const id=l.getAttribute('href').slice(1);const el=document.getElementById(id);if(el)secs.push({el,link:l})});
+let t=false;
+function upd(){let c=secs[0];for(const s of secs)if(s.el.getBoundingClientRect().top<=80)c=s;links.forEach(l=>l.classList.remove('active'));if(c)c.link.classList.add('active');t=false}
+window.addEventListener('scroll',()=>{if(!t){requestAnimationFrame(upd);t=true}});
+upd();
+if(window.innerWidth<=900)links.forEach(l=>l.addEventListener('click',()=>document.querySelector('.sidebar').classList.remove('open')));
+</script>
+<script>
+(function(){
+var input=document.getElementById('toc-search');
+var resultsDiv=document.getElementById('search-results');
+var sections=document.querySelectorAll('section[id], #abstract');
+input.addEventListener('input',function(){
+var q=input.value.toLowerCase().trim();
+resultsDiv.innerHTML='';
+if(!q||q.length<2)return;
+var found=0;
+sections.forEach(function(sec){
+if(found>=12)return;
+var text=sec.textContent.toLowerCase();
+if(text.indexOf(q)===-1)return;
+var h=sec.querySelector('h1,h2,h3');
+var title=h?h.textContent:sec.id;
+var a=document.createElement('a');
+a.href='#'+sec.id;
+a.textContent=title;
+resultsDiv.appendChild(a);
+found++;
+});
+if(!found){resultsDiv.innerHTML='<div style="color:#aaa;padding:4px 0">No results</div>';}
+});
+})();
+</script>
+</body>
+</html>

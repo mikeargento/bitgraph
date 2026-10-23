@@ -1,0 +1,571 @@
+/**
+ * ⚠️ SINCE 2026-10-03 THE SITE MAKES tree/1 ONLY (makeTreeHere, below, over
+ * fuse-tree-make.ts): one file or a hundred thousand, one position, files over
+ * the in-browser cap as leaves as is. Everything else in this module is the
+ * READING half for BitGraphs made before then (a single fused file, set/1,
+ * set/2), which keep verifying forever. fuseFile and fuseFiles below are the
+ * old making half and nothing on the site calls them any more.
+ *
+ * The public drop's Fuse pipeline, run entirely in the browser (profile
+ * bitgraph-fuse/1). The visitor's file is the origin; it is never modified and
+ * never uploaded. In memory, on the visitor's machine: hash the origin,
+ * allocate an unused slot, derive the slot commitment, build the fused bytes
+ * with the registered placement, hash them, and consume that exact slot with
+ * the fused digest. The fused bytes are held only until the visitor leaves or
+ * downloads them: the durable evidence is the original plus the signed proof,
+ * which carries the placement id and the origin digest, and the same
+ * registered placement rebuilds the exact fused bytes from those at any time.
+ *
+ * A multi-file drop makes ONE set (placement set/1): one slot, one commit,
+ * every member's fused bytes carrying the shared commitment, and the canonical
+ * manifest of member digests as the committed artifact. A member's fused bytes
+ * are virtual: nothing here keeps them after the commit, and rebuildSetMember
+ * is the one producer of them afterwards, from the original, the proof's slot
+ * record and the row's placement.
+ */
+import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseSetMember as CoreSetMember, type FuseSetProgress, type FuseTransport } from "@mikeargento/bitgraph";
+import { finishState } from "./scan-hash";
+export type { FuseSetProgress } from "@mikeargento/bitgraph";
+import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest, SetMemberProof, SetRoot } from "@mikeargento/bitgraph-verify";
+import { paintFrame, PAINT_EVERY_MS } from "./paint-frame";
+import { SET_METADATA_KEY, base64ToBytes, buildFrame, commitmentForProof, bytesToBase64, getPlacement, isCarryEncoding, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
+import { fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
+import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
+import { makeTree, type MadeTree, type TreeInput, type TreeProgress } from "./fuse-tree-make";
+import { isTreeTitled } from "./fuse-tree";
+export type { MadeTree, MadeTreeMember, TreeInput, TreeProgress } from "./fuse-tree-make";
+export { planTrees, SITE_MAX_TREE_LEAVES } from "./fuse-tree-make";
+
+// The site keeps its own looser proof type (version: string); the verify
+// package narrows it. Every cast between the two lives in this file.
+const asVerify = (proof: SiteProof): BitGraphProof => proof as unknown as BitGraphProof;
+const asSite = (proof: BitGraphProof): SiteProof => proof as unknown as SiteProof;
+
+/** True when the marker says the commitment is in the artifact's own bytes rather than placed by a recipe. */
+export function isInlineProof(proof: SiteProof | null | undefined): boolean {
+  if (!proof) return false;
+  const m = readFuseAttribution(asVerify(proof));
+  return m !== null && isCarryEncoding(m.placement);
+}
+
+/**
+ * An inline marker says the commitment is inside the artifact's own bytes.
+ * With the bytes in hand that stops being a claim and becomes a check:
+ * verifyFuse re-verifies the proof against them, recomputes the commitment
+ * from the proof's own slot record, and locates it. No network.
+ */
+export async function checkInline(proof: SiteProof, bytes: Uint8Array): Promise<{ category: string; offset: number | null; commitmentB64: string | null }> {
+  const r = await verifyFuse({ proof: asVerify(proof), bytes });
+  // base64url, always: this is the string that is IN the artifact, so it has to
+  // be the string a reader can copy out of the page and search the file for.
+  const commitmentB64 = r.slotCommitmentB64 === null ? null : r.slotCommitmentB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return { category: r.category, offset: r.offsets[0] ?? null, commitmentB64 };
+}
+
+export interface FusedOutcome {
+  placement: SitePlacement;
+  originDigestB64: string;
+  artifactDigestB64: string;
+  /** The nested bitgraph/1 proof, exactly as the boundary returned it. */
+  proof: SiteProof;
+  frame: FuseFrame;
+  frameName: string;
+  fusedName: string;
+  /** The exact fused bytes. Transient: in memory until downloaded or dropped. */
+  fusedBytes: Uint8Array;
+  recovered: boolean;
+  verification: FuseVerifyResult;
+}
+
+/** True for the boundary's "come back in a moment" refusals (rotation, first anchor pending). */
+export function isTeeRestarting(e: unknown): boolean {
+  return typeof e === "object" && e !== null && (e as { code?: unknown }).code === "tee-restarting";
+}
+
+/** Fuse one dropped file through this site's own routes. */
+export async function fuseFile(file: File, opts: { agency?: unknown } = {}): Promise<FusedOutcome> {
+  const original = new Uint8Array(await file.arrayBuffer());
+  const placement = placementFor(original);
+  const { fusedName, frameName } = fusedNames(file.name, placement);
+  const r = await fuse(builderFor(placement, original), {
+    placement,
+    original,
+    fusedFile: fusedName,
+    keepFused: true,
+    ...(opts.agency !== undefined ? { agency: opts.agency } : {}),
+    transport: { baseUrl: window.location.origin },
+  });
+  if (r.originDigestB64 === null || r.fusedBytes === undefined) throw new Error("the fuse pipeline returned no origin digest or fused bytes");
+  return {
+    placement,
+    originDigestB64: r.originDigestB64,
+    artifactDigestB64: r.artifactDigestB64,
+    proof: asSite(r.proof),
+    frame: r.frame,
+    frameName,
+    fusedName,
+    fusedBytes: r.fusedBytes,
+    recovered: r.recovered,
+    verification: r.verification,
+  };
+}
+
+/**
+ * The signed fused marker on a proof, or null for an ordinary recording.
+ * ⚠️ A tree/1 marker names no origin: its 32-byte message is SPEC.md's hash
+ * (see fusedOriginDigestOf in fuse-core.ts), and each member's origin is in
+ * its leaf. Every caller indexes or matches the origin this returns, so a
+ * tree must come back without one.
+ */
+export function fusedMarkerOf(proof: SiteProof): { placement: string | null; originDigestB64: string | null } | null {
+  const m = readFuseAttribution(asVerify(proof));
+  if (m === null) return null;
+  if (isTreeTitled(proof)) return { placement: m.placement, originDigestB64: null };
+  return { placement: m.placement, originDigestB64: m.originDigest ? btoa(String.fromCharCode(...m.originDigest)) : null };
+}
+
+/* ── tree/1: what the site makes (2026-10-03) ── */
+
+/**
+ * Make ONE tree/1 BitGraph of these files through this site's own routes,
+ * handing the browser a frame now and then (the maker's loop is mostly pure
+ * computation; see fuse-tree-make.ts and the freeze note in fuseFiles below).
+ * Every file is a leaf: fused when it fits in memory, as is when it does not.
+ */
+export async function makeTreeHere(inputs: TreeInput[], opts: { onProgress?: (p: TreeProgress) => void; agency?: unknown } = {}): Promise<MadeTree> {
+  return makeTree(inputs, {
+    transport: { baseUrl: window.location.origin },
+    paint: paintFrame,
+    paintEveryMs: PAINT_EVERY_MS,
+    ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}),
+    ...(opts.agency !== undefined ? { agency: opts.agency } : {}),
+  });
+}
+
+/** A scanned file as the maker takes it: no placement or state means "decide from the bytes when they are read". */
+export function treeInputOf(f: { file: File; digestB64: string; placement?: SitePlacement | null; state?: Uint8Array | null; asIs?: boolean }): TreeInput {
+  return { file: f.file, name: f.file.name, digestB64: f.digestB64, placement: f.placement ?? null, state: f.state ?? null, ...(f.asIs === true ? { asIs: true } : {}) };
+}
+
+export interface Rebuilt {
+  verification: FuseVerifyResult;
+  /** Present only when the original rebuilt the committed artifact byte for byte. */
+  fusedBytes: Uint8Array | null;
+  frame: FuseFrame | null;
+  placement: string | null;
+  fusedName: string | null;
+  frameName: string | null;
+}
+
+/**
+ * The commitment the proof's signed marker binds: fuse/1 none, fuse/2 the
+ * signed Ethereum anchor (commit.slotAnchor), fuse/3 the signed Base floor
+ * (commit.slotFloor), read through the verifier's signedFloorOf. Null when the
+ * marker's floor is missing or the proof signs two floors: nothing is rebuilt.
+ */
+function markerCommitment(proof: BitGraphProof, slot: NonNullable<BitGraphProof["slotAllocation"]>): Uint8Array | null {
+  try {
+    return commitmentForProof(proof, slot);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verify a fused proof from the ORIGINAL bytes by reconstruction, and hand
+ * back the rebuilt fused bytes and a Frame when the reconstruction matches
+ * the signed artifact digest. Nothing here touches the network.
+ */
+export async function rebuildFromOrigin(siteProof: SiteProof, original: Uint8Array, originalName: string): Promise<Rebuilt> {
+  const proof = asVerify(siteProof);
+  const verification = await verifyFuse({ proof, bytes: original });
+  const none: Rebuilt = { verification, fusedBytes: null, frame: null, placement: verification.placement ?? null, fusedName: null, frameName: null };
+  if (verification.category !== "FUSED_FROM_ORIGIN" || !verification.placement) return none;
+  const placement = getPlacement(verification.placement);
+  const slot = proof.slotAllocation;
+  if (placement === undefined || slot === undefined) return none;
+  const originDigest = new Uint8Array(await crypto.subtle.digest("SHA-256", original as BufferSource));
+  const commitment = markerCommitment(proof, slot);
+  if (commitment === null) return none;
+  const fusedBytes = placement.build({ original, originDigest, commitment });
+  const artifactDigest = base64ToBytes(proof.artifact.digestB64);
+  if (artifactDigest === null) return none;
+  const names = fusedNames(originalName, placement.id as SitePlacement);
+  const frame = buildFrame({ proof, placement: placement.id as PlacementId, artifactDigest, originDigest, fusedFile: names.fusedName });
+  return { verification, fusedBytes, frame, placement: placement.id, fusedName: names.fusedName, frameName: names.frameName };
+}
+
+export interface Unpacked {
+  verification: FuseVerifyResult;
+  /** The original carried inside the new file, when the placement carries it. */
+  originalBytes: Uint8Array | null;
+  originalName: string | null;
+  frame: FuseFrame | null;
+  frameName: string | null;
+}
+
+/**
+ * The original's name from the new file's: `photo.fused.jpg` was made from
+ * `photo.jpg`; a container's original keeps the stem alone, since the
+ * container does not record the extension.
+ */
+export function originalNameOf(fusedFileName: string, placement: string): string {
+  const stem = fusedFileName.replace(/\.fused(\.[^.]+)?$/, "");
+  return placement === "trailer/1" ? fusedFileName.replace(/\.fused(?=\.[^.]+$)/, "") : stem;
+}
+
+/**
+ * The package parts when the file in hand IS the new file: verify it directly,
+ * then take the original back out of it (both registered placements carry the
+ * original whole) and build the Frame. The original's name follows
+ * originalNameOf.
+ */
+export async function unpackNewFile(siteProof: SiteProof, fused: Uint8Array, fusedFileName: string): Promise<Unpacked> {
+  const proof = asVerify(siteProof);
+  const verification = await verifyFuse({ proof, bytes: fused });
+  const none: Unpacked = { verification, originalBytes: null, originalName: null, frame: null, frameName: null };
+  if (verification.category !== "FUSED_DIRECT" || !verification.placement) return none;
+  const placement = getPlacement(verification.placement);
+  const located = placement?.locate(fused);
+  const artifactDigest = base64ToBytes(proof.artifact.digestB64);
+  if (placement === undefined || !located?.originalBytes || artifactDigest === null) return none;
+  const originalBytes = located.originalBytes;
+  const originDigest = located.originDigest ?? new Uint8Array(await crypto.subtle.digest("SHA-256", originalBytes as BufferSource));
+  const originalName = originalNameOf(fusedFileName, placement.id);
+  const frame = buildFrame({ proof, placement: placement.id as PlacementId, artifactDigest, originDigest, fusedFile: fusedFileName });
+  return { verification, originalBytes, originalName, frame, frameName: `${originalName}.bitgraph-fuse.json` };
+}
+
+/* ── Sets: N files under one slot ── */
+
+/**
+ * One row of a set manifest as the site reads it: the ordinal in the
+ * CANONICAL manifest (never input order), the member count, both digests in
+ * standard base64, and the placement that carries the commitment. The same
+ * shape fuse-set.ts exports as SetMemberRow.
+ */
+export interface SetMemberRow {
+  index: number;
+  count: number;
+  originDigestB64: string;
+  fusedDigestB64: string;
+  placement: string;
+}
+
+/** The row a member verdict names, or null before the manifest is bound. */
+function rowOf(v: FuseMemberResult): SetMemberRow | null {
+  const m = v.set?.member ?? null;
+  if (v.set === null || m === null) return null;
+  return { index: m.index, count: v.set.memberCount, originDigestB64: m.originDigestB64, fusedDigestB64: m.fusedDigestB64, placement: m.placement };
+}
+
+const isSitePlacement = (id: string): id is SitePlacement => id === "trailer/1" || id === "container/1" || id === "container/2";
+
+async function sha256B64(bytes: Uint8Array): Promise<string> {
+  return bytesToBase64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource)));
+}
+
+export interface FusedSetMember {
+  /** The first File carrying this (origin, placement). */
+  file: File;
+  /** Index into the members sent. */
+  index: number;
+  /** The row's ordinal in the canonical manifest; equals verification.set.member.index. */
+  manifestIndex: number;
+  /** placementFor(original): the site's policy, never the core default. */
+  placement: SitePlacement;
+  /** Standard base64; equals the camera's item.digestB64 for this file. */
+  originDigestB64: string;
+  artifactDigestB64: string;
+  fusedName: string;
+  /**
+   * Present only when the set was made with the core's verifyMembers, which
+   * the site never asks for: every member is bound to the proof by its row
+   * in the committed manifest, and the export and the drop check read a
+   * member with the verifier when they hold its bytes.
+   */
+  verification?: FuseMemberResult;
+  /** set/2 only: the member's evidence (row, leaf index, count, path), which a reader needs beside the proof. */
+  memberProof?: SetMemberProof;
+}
+
+export interface FusedSet {
+  /** "set/1": the manifest of every member is the committed artifact. "set/2": a Merkle root over the rows is, and each member carries its evidence. */
+  set: "set/1" | "set/2";
+  /** The set proof, carrying metadata["bitgraph-fuse/1"] whatever the boundary echoed. */
+  proof: SiteProof;
+  /** SHA-256 of manifestBytes; the committed artifact. */
+  artifactDigestB64: string;
+  slotCommitmentB64: string;
+  manifestBytes: Uint8Array;
+  manifest: SetManifest | SetRoot;
+  manifestEchoed: boolean;
+  recovered: boolean;
+  /** verifyFuse over manifestBytes: FUSED_DIRECT under set/1. */
+  verification: FuseVerifyResult;
+  /** Frames given back to the browser during the fuse pass, and what they cost. Diagnostic. */
+  paints?: { count: number; ms: number };
+  /** In the order sent. */
+  members: FusedSetMember[];
+}
+
+/** A dropped file as the scan left it: hashed once, its placement read from the bytes, and for a trailer/1 file the hasher's saved state. */
+export interface ScannedFile {
+  file: File;
+  /** SHA-256 of the file, standard base64; the member's origin digest. */
+  digestB64: string;
+  placement: SitePlacement;
+  /** The saved hasher state after the placement's prefix and the file's last byte; null when the scan had none (a container/1 file, or a scan without the state-saving hasher). */
+  state: Uint8Array | null;
+}
+
+export interface SetPlan {
+  sets: ScannedFile[][];
+  tooLarge: ScannedFile[];
+}
+
+/**
+ * Bytes a set may need to READ AGAIN while its slot is held: the container/1
+ * members, and any trailer/1 member the scan left without a state. A member
+ * with a state costs no read at all. The budget keeps the set's fuse phase
+ * well inside the slot's 120 s TTL; the camera passes one from the scan's
+ * measured speed, and this is the fallback when it has none.
+ */
+export const DEFAULT_REREAD_BUDGET = 4 * 1024 * 1024 * 1024;
+
+/**
+ * The most members one set/2 the site makes: the fuse phase finishes every
+ * saved state in well under the slot window at this size, and the evidence
+ * is indexed afterwards in SET_INDEX_CHUNK rows a request. The protocol's
+ * own cap is far higher (MAX_SET2_MEMBERS).
+ */
+export const SITE_MAX_SET2_MEMBERS = 100_000;
+
+/**
+ * Partition a drop into sets (superseded by planTrees in fuse-tree-make.ts):
+ * files fill sets greedily in drop order, a new set whenever adding a file
+ * would exceed MAX_SET_MEMBERS or the re-read budget. A drop of photos
+ * scanned with their states is one set up to the member cap, whatever its
+ * size. No file is set aside by size: the protocol has none (SPEC 7.5).
+ */
+export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUDGET): SetPlan {
+  const sets: ScannedFile[][] = [];
+  const tooLarge: ScannedFile[] = [];
+  let current: ScannedFile[] = [];
+  let reread = 0;
+  // Up to MAX_SET_MEMBERS fusable files make a set/1, whose proof carries the
+  // whole list; more make a set/2, one position for the whole drop up to the
+  // site's own cap, each member carrying its path instead.
+  const fusable = files.length;
+  const cap = fusable > MAX_SET_MEMBERS ? SITE_MAX_SET2_MEMBERS : MAX_SET_MEMBERS;
+  for (const f of files) {
+    const cost = f.state !== null ? 0 : f.file.size;
+    if (current.length > 0 && (current.length >= cap || reread + cost > rereadBudget)) {
+      sets.push(current);
+      current = [];
+      reread = 0;
+    }
+    current.push(f);
+    reread += cost;
+  }
+  if (current.length > 0) sets.push(current);
+  return { sets, tooLarge };
+}
+
+/**
+ * Fuse ONE set of scanned files through this site's own routes: one slot,
+ * one commit, and no file read before the slot is held. A file scanned with
+ * its state is a hashed member: its fused digest is the saved state finished
+ * with its placement's suffix for the slot, so its bytes are never read
+ * again. Any other file is a loaded member: read when it is that member's
+ * turn, checked against the scan's digest, fused, hashed and released. Every
+ * file of any size streams; there must be 1 to MAX_SET_MEMBERS of them
+ * (callers plan first). The same original under the same placement
+ * is sent once, the first File carrying the member. A FuseError from the
+ * pipeline passes through untouched. No fused bytes are kept.
+ */
+export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; transport?: FuseTransport; onProgress?: (progress: FuseSetProgress) => void; set?: "set/1" | "set/2" } = {}): Promise<FusedSet> {
+  if (files.length === 0) throw new FuseError("bad-input", "a set lists at least one file");
+  // The kind follows the count unless the caller says: the list up to
+  // MAX_SET_MEMBERS, the tree beyond it.
+  const setKind = opts.set ?? (files.length > MAX_SET_MEMBERS ? "set/2" : "set/1");
+  const cap = setKind === "set/1" ? MAX_SET_MEMBERS : SITE_MAX_SET2_MEMBERS;
+  if (files.length > cap) throw new FuseError("bad-input", `a ${setKind} set lists at most ${cap} files (got ${files.length})`);
+  const sent: ScannedFile[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const key = `${f.placement}:${f.digestB64}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sent.push(f);
+  }
+  /**
+   * Hand the browser a frame back, now and then.
+   *
+   * ⚠️ WITHOUT THIS THE PAGE FREEZES FOR THE WHOLE FUSE PASS. A member scanned
+   * with its state fuses synchronously: fusedDigest below finishes a saved
+   * hash state and returns a value, not a promise, so the core's `await` on it
+   * resolves as a microtask and the loop never returns to the event loop.
+   * 44,000 of those in a row is twelve seconds in which nothing repaints, no
+   * timer fires and every onProgress update is computed and thrown away
+   * unseen. The page sat on whichever label was painted last, which made the
+   * slot allocation look like it took twelve seconds when it takes 0.19
+   * (Mike, 2026-09-07: "each ONLY showed static ... no indication of progress
+   * between the 2"). The tell was the elapsed counter never appearing: a timer
+   * that cannot tick says the thread is blocked, not that the step is slow.
+   *
+   * Time-based, not every-nth-member: a yield costs a few milliseconds, so
+   * one per member would cost minutes, while one per 50ms of work repaints at
+   * about 20fps for roughly a second of overhead across a set this size.
+   */
+  let lastYield = performance.now();
+  // Counted, because the last two attempts at this were argued rather than
+  // measured. fuseFiles reports them so the caller can show what they cost.
+  let yieldCount = 0;
+  let yieldMs = 0;
+  const breathe = async (): Promise<void> => {
+    // A quarter second between frames: four visible updates a second is
+    // plenty to show a count moving, and it keeps the cost to roughly four
+    // frames a second rather than twenty.
+    if (performance.now() - lastYield < PAINT_EVERY_MS) return;
+    const t0 = performance.now();
+    await paintFrame();
+    yieldMs += performance.now() - t0;
+    yieldCount++;
+    lastYield = performance.now();
+  };
+
+  const members: CoreSetMember[] = sent.map((f) => {
+    const originDigest = base64ToBytes(f.digestB64);
+    if (originDigest === null || originDigest.length !== 32) throw new FuseError("bad-input", `${f.file.name}: the scan left no 32-byte digest`);
+    const placement = getPlacement(f.placement);
+    if (f.state !== null && placement?.frame !== undefined) {
+      const state = f.state;
+      const frame = placement.frame.bind(placement);
+      const originalSize = f.file.size;
+      return {
+        originDigest, placement: f.placement, name: f.file.name,
+        fusedDigest: async ({ commitment }) => {
+          await breathe();
+          return finishState(state, frame({ originalSize, originDigest, commitment }).suffix);
+        },
+      };
+    }
+    return {
+      load: async () => { await breathe(); return new Uint8Array(await f.file.arrayBuffer()); },
+      originDigest, placement: f.placement, name: f.file.name,
+    };
+  });
+  const r = await fuseSet(members, {
+    set: setKind,
+    keepFused: false,
+    ...(opts.agency !== undefined ? { agency: opts.agency } : {}),
+    ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}),
+    transport: opts.transport ?? { baseUrl: window.location.origin },
+  });
+  // A boundary that drops metadata on a held-slot commit returns the proof
+  // without its manifest. The site's route attaches it; so does this, so a
+  // proof held in the browser always carries what its export needs.
+  const proof = r.proof;
+  if (readSetMetadata(proof) === null) {
+    const manifest = JSON.parse(new TextDecoder().decode(r.manifestBytes)) as SetManifest | SetRoot;
+    const prior = proof.metadata;
+    const base = typeof prior === "object" && prior !== null && !Array.isArray(prior) ? prior : {};
+    proof.metadata = { ...base, [SET_METADATA_KEY]: manifest };
+  }
+  const out: FusedSetMember[] = r.members.map((m) => {
+    const s = sent[m.index];
+    return {
+      file: s.file,
+      index: m.index,
+      manifestIndex: m.manifestIndex,
+      placement: s.placement,
+      originDigestB64: m.originDigestB64,
+      artifactDigestB64: m.artifactDigestB64,
+      fusedName: m.fusedName ?? fusedNames(s.file.name, s.placement).fusedName,
+      ...(m.verification !== undefined ? { verification: m.verification } : {}),
+      ...(m.memberProof !== undefined ? { memberProof: m.memberProof } : {}),
+    };
+  });
+  return {
+    set: r.set,
+    proof: asSite(proof),
+    artifactDigestB64: r.artifactDigestB64,
+    slotCommitmentB64: r.slotCommitmentB64,
+    manifestBytes: r.manifestBytes,
+    manifest: r.manifest,
+    manifestEchoed: r.manifestEchoed,
+    recovered: r.recovered,
+    verification: r.verification,
+    members: out,
+    paints: { count: yieldCount, ms: Math.round(yieldMs) },
+  };
+}
+
+export interface RebuiltMember {
+  verification: FuseMemberResult;
+  /** Present only when the original rebuilt this member's listed fused digest byte for byte. */
+  fusedBytes: Uint8Array | null;
+  placement: string | null;
+  fusedName: string | null;
+  member: SetMemberRow | null;
+  memberCount: number | null;
+}
+
+/**
+ * Verify a set proof from ONE member's ORIGINAL bytes by reconstruction, and
+ * hand back the rebuilt fused bytes when they hash to the row's listed
+ * digest. Explicit manifest bytes win over proof.metadata. The only producer
+ * of a member's fused bytes on the site; nothing here touches the network.
+ */
+export async function rebuildSetMember(siteProof: SiteProof, original: Uint8Array, originalName: string, manifest?: Uint8Array | null, evidence?: unknown): Promise<RebuiltMember> {
+  const proof = asVerify(siteProof);
+  // set/2: the member's evidence is passed when in hand; otherwise the verifier reads it from the proof copy's own metadata.
+  const verification = await verifyFuseMember({ proof, bytes: original, manifest: manifest ?? null, ...(evidence !== undefined && evidence !== null ? { member: evidence } : {}) });
+  const member = rowOf(verification);
+  const none: RebuiltMember = { verification, fusedBytes: null, placement: verification.placement ?? null, fusedName: null, member, memberCount: verification.set?.memberCount ?? null };
+  if (verification.category !== "SET_MEMBER_FROM_ORIGIN" || member === null) return none;
+  const placement = getPlacement(member.placement);
+  const slot = proof.slotAllocation;
+  if (placement === undefined || slot === undefined) return none;
+  const id = placement.id;
+  if (!isSitePlacement(id)) return none;
+  const originDigest = new Uint8Array(await crypto.subtle.digest("SHA-256", original as BufferSource));
+  const commitment = markerCommitment(proof, slot);
+  if (commitment === null) return none;
+  let fusedBytes: Uint8Array;
+  try {
+    fusedBytes = placement.build({ original, originDigest, commitment });
+  } catch {
+    return none;
+  }
+  if ((await sha256B64(fusedBytes)) !== member.fusedDigestB64) return none;
+  return { ...none, fusedBytes, placement: id, fusedName: fusedNames(originalName, id).fusedName };
+}
+
+export interface UnpackedMember {
+  verification: FuseMemberResult;
+  /** The original carried inside the member's new file. */
+  originalBytes: Uint8Array | null;
+  originalName: string | null;
+  member: SetMemberRow | null;
+}
+
+/**
+ * The package parts when the file in hand IS a member's new file: verify it
+ * directly, then take the original back out of it (both registered
+ * placements carry the original whole). The original's name follows
+ * originalNameOf.
+ */
+export async function unpackSetMember(siteProof: SiteProof, fused: Uint8Array, fusedFileName: string, manifest?: Uint8Array | null, evidence?: unknown): Promise<UnpackedMember> {
+  const proof = asVerify(siteProof);
+  const verification = await verifyFuseMember({ proof, bytes: fused, manifest: manifest ?? null, ...(evidence !== undefined && evidence !== null ? { member: evidence } : {}) });
+  const member = rowOf(verification);
+  const none: UnpackedMember = { verification, originalBytes: null, originalName: null, member };
+  if (verification.category !== "SET_MEMBER_DIRECT" || member === null) return none;
+  const placement = getPlacement(member.placement);
+  const located = placement?.locate(fused);
+  if (placement === undefined || !located?.originalBytes) return none;
+  return { verification, originalBytes: located.originalBytes, originalName: originalNameOf(fusedFileName, placement.id), member };
+}

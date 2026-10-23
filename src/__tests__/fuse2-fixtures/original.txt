@@ -1,0 +1,1 @@
+BitGraph fuse/2 fixture: an original file that already exists.

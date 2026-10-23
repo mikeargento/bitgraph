@@ -1,0 +1,648 @@
+// Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
+
+/**
+ * verifyCarrier: the offline read path for a BitGraphed file (bitgraph-carrier/1,
+ * /2, /3 or /4), one result per claim, each saying what it rests on.
+ *
+ * Given the file and nothing else, it strips the block by structure and checks:
+ *
+ *   the bytes       SHA-256 of the committed bytes is the digest the proof names; on v4
+ *                   (one member of a tree/1 BitGraph) it is the leaf's artifact digest, a
+ *                   placed leaf's bytes carry the commitment, the path reaches the root, and
+ *                   the root document carries that root and the position's commitment and
+ *                   hashes to the signed digest (verifyTreeMember), under a spec it knows
+ *   the proof       Ed25519 signature, the position record and its bindings, the
+ *                   fused commitment rebuilt (bitgraph-fuse/1, /2 or /3), proofHash
+ *   the attestation ES384 signature, the certificate chain to the AWS Nitro root
+ *                   (641A0321…), validity at the document's own instant, PCR0 against
+ *                   the proof's measurement, user_data against the signed body; and,
+ *                   on a v2 block, the openssl-checkable witness against the document
+ *   the floor       v1, v2: the anchor proof named by the signed slotAnchor, verified over
+ *                   its own message, matched by identity; its Ethereum header recomputed.
+ *                   v3: the Base header, checked against the signed slotFloor (hash,
+ *                   number, time, Base mainnet's schedule). Either way the floor's time
+ *                   is a bound only when no later than the attestation document.
+ *   the ceilings    in position (v1, v2): the next anchor, same checks; v3 has none, its
+ *                   order is the chain of proof hashes; in time (v2, v3): the Base
+ *                   sidecar's whole chain of custody (verifyCeiling); settled (v2): the
+ *                   Ethereum block that committed the batch data (verifySettlementPointer)
+ *   the pins        what the file declares it was made under, against the verifier's own
+ *
+ * Two LEVELS. Offline, every claim above holds by mathematics and the AWS root,
+ * with the two block headers taken as the ones matching their hashes. CONFIRMED
+ * needs one question answered by any node the caller names: is that header the
+ * chain's own block? The lookups are injected; this module never fetches.
+ *
+ *   TRUE          every carried claim passed. A claim not carried (no ceiling yet,
+ *                 no settlement yet) is stated as NOT_CARRIED, never as failure.
+ *   FALSE         evidence contradicts a claim: wrong bytes, a bad signature, a floor
+ *                 that is not the signed one, a ceiling that does not follow the commit.
+ *   UNDETERMINED  the block is unreadable (corrupted, not forged), the version is
+ *                 unknown, or the bytes carry no block at all.
+ *
+ * The reading is written HERE, from the results, never read from the file.
+ */
+
+import { verify, verifyProofIntegrity, createVerificationContext } from "./verifier.js";
+import { verifyFuse } from "./fuse-verify.js";
+import { readFuseAttribution, signedFloorOf, hexToBytes as treeHex, type SignedFloor } from "./fuse.js";
+import { verifyTreeMember, TREE_MEMBER_CATEGORIES, type TreeVerifyResult } from "./tree.js";
+import { computeProofHash, computeSignedBodyHash } from "./proof-hash.js";
+import { verifyNitroAttestation, witnessMatchesAttestation, awsNitroRootSha256, type AttestationWitness } from "./nitro.js";
+import { baseTimeIsBound, checkFloorHeader, floorTimeIsBound, verifyCeiling, checkCeilingOnline, type CeilingSidecar } from "./ceiling.js";
+import { hexToBytes as evmHex } from "./ceiling-evm.js";
+import { PUBLISHED_PCR0S, publishedMeasurement } from "./measurements.js";
+import { verifySettlementPointer, checkSettlementOnline, BASE_MAINNET_SETTLEMENT_PINS, type SettlementPointer, type SettlementPins } from "./settlement.js";
+import type { BitGraphProof } from "./types.js";
+import { sha256 } from "@noble/hashes/sha256";
+import {
+  parseCarrier, checkFloorBinding, checkCeilingBinding, anchorMessageBytes,
+  verifyWitnessHeader, carrierBounds, innerDigestMatches, carrierVersionOf, CARRIER_VERSION_4,
+  type CarrierBounds, type CarrierPayload,
+} from "./carrier.js";
+
+/** BitGraph's published ceiling writer on Base mainnet: the default pin a verifier compares with. */
+export const BITGRAPH_CEILING_WRITER = "0xf3972408D853c975F86351C311f4310220bbF2a3";
+export const BASE_MAINNET_CHAIN_ID = 8453;
+
+export type ClaimResult = "TRUE" | "FALSE" | "UNDETERMINED" | "NOT_CARRIED";
+
+export interface CarrierClaim {
+  /** Stable id, dotted: "bytes.digest", "proof.signature", "attestation.root", "floor.header", "ceiling.time.inclusion", "confirmed.floor" ... */
+  id: string;
+  /** One line a reader can print. */
+  name: string;
+  result: ClaimResult;
+  /** What the claim rests on when TRUE: "SHA-256", "Ed25519", "the AWS Nitro root (641A0321…)", "Ethereum block N, header as given", ... */
+  restsOn: string;
+  detail: string;
+  level: "offline" | "confirmed";
+}
+
+export interface CarrierLookups {
+  /** Ethereum mainnet: the chain's block hash at a height, or null. */
+  ethereumBlockHash?: (blockNumber: number) => Promise<string | null>;
+  /** Base mainnet: the chain's block hash at a height, or null. */
+  baseBlockHash?: (blockNumber: number) => Promise<string | null>;
+}
+
+export interface CarrierVerifyOptions {
+  /** The one online question per chain, answered by nodes the caller names. Without them the confirmed level is UNDETERMINED. */
+  lookups?: CarrierLookups;
+  /** The verifier's own pins. The file's declared pins are compared with these, never used as these. */
+  /** v4: spec hashes (base64) to accept beside the ones this verifier knows (KNOWN_TREE_SPEC_HASHES). */
+  extraSpecHashes?: readonly string[];
+  pins?: {
+    /**
+     * PCR0 values the verifier accepts. Default: BitGraph's published images
+     * (SPEC section 16). An empty list accepts nothing and leaves the claim,
+     * and so the verdict, undetermined.
+     */
+    pcr0?: readonly string[];
+    ceilingWriter?: string;
+    baseChainId?: number;
+    settlement?: SettlementPins;
+    /** Another attestation trust root, DER, for a verifier that pins its own (tests use this). Default: the embedded AWS Nitro root. */
+    rootDer?: Uint8Array;
+  };
+}
+
+export interface CarrierVerifyResult {
+  verdict: "TRUE" | "FALSE" | "UNDETERMINED";
+  /** Why the Base block's time is not stated as a bound, when it is not (see baseTimeIsBound). */
+  baseTimeWithheld?: string | null;
+  /** Why the floor block's time is not stated as a bound, when it is not: it is stamped after the attestation document (see floorTimeIsBound). */
+  floorTimeWithheld?: string | null;
+  /** "ok" | "none" | "corrupt" — whether the bytes carried a readable block at all. */
+  carrier: "ok" | "none" | "corrupt";
+  version: 1 | 2 | 3 | 4 | null;
+  /** v4: the leaf the committed bytes are, once its path reached the signed root; null otherwise (and on v1 to v3). */
+  member?: TreeVerifyResult["member"];
+  /** v4: "content" when the bytes carry the commitment (a placed leaf), "record" when kept as is; null when the bytes were not matched or not in hand. */
+  floorCovers?: TreeVerifyResult["floorCovers"];
+  /** Every failed or undetermined check, in the order met. Empty on a clean TRUE. */
+  reasons: string[];
+  /** Stated only when the block was readable. notAfter null = NOT FETCHED, in those words. */
+  bounds: CarrierBounds | null;
+  /** The ceiling in position: "none" on v3, where none exists (order is the chain of proof hashes). */
+  ceiling: "present" | "unfetched" | "none" | null;
+  claims: CarrierClaim[];
+  /** Plain language, written from the claims. */
+  reading: string;
+  payload: CarrierPayload | null;
+  /** The committed bytes, for callers that go on to placement or origin recovery. */
+  inner: Uint8Array | null;
+}
+
+export async function verifyCarrier(bytes: Uint8Array, opts: CarrierVerifyOptions = {}): Promise<CarrierVerifyResult> {
+  const parsed = parseCarrier(bytes);
+  if (parsed.kind === "none") {
+    const claim: CarrierClaim = { id: "block", name: "A proof block at the end of the file", result: "UNDETERMINED", restsOn: "", detail: "no carrier block: these bytes do not carry a proof inside", level: "offline" };
+    return { verdict: "UNDETERMINED", carrier: "none", version: null, reasons: [claim.detail], bounds: null, ceiling: null, claims: [claim], reading: "These bytes carry no proof block.", payload: null, inner: null };
+  }
+  if (parsed.kind === "corrupt") {
+    const detail = `carrier block found but unreadable: ${parsed.reason}. A corrupted block, not a forgery.`;
+    const claim: CarrierClaim = { id: "block", name: "A proof block at the end of the file", result: "UNDETERMINED", restsOn: "", detail, level: "offline" };
+    return { verdict: "UNDETERMINED", carrier: "corrupt", version: null, reasons: [detail], bounds: null, ceiling: null, claims: [claim], reading: "The file ends in a proof block this reader cannot read. That is a damaged or newer block, not a verdict on the file.", payload: null, inner: null };
+  }
+  const result = await verifyCarrierPayload(parsed.payload, parsed.inner, opts);
+  return { ...result, reading: `${result.reading} ${envelopeSentence(bytes, parsed.inner, parsed.payload.carrier === CARRIER_VERSION_4)}` };
+}
+
+/**
+ * THE ENVELOPE RULE, said out loud (outside review, 2026-10-02: "confirm the verify output
+ * says plainly that the bitgraphed file's own SHA-256 is not the committed digest, since
+ * that file travels without the README"). A reader who hashes the file they were handed
+ * and compares it with the proof would otherwise conclude the proof is wrong.
+ */
+function envelopeSentence(outer: Uint8Array, inner: Uint8Array, member = false): string {
+  const hex = (b: Uint8Array) => Array.from(sha256(b), (x) => x.toString(16).padStart(2, "0")).join("");
+  if (member) return `This file's own SHA-256 (${hex(outer)}) is not the committed digest and is not meant to be: the proof block at its end is part of this file's bytes. The proof names the tree's root document; the bytes before that block (SHA-256 ${hex(inner)}) are the tree member the block names, and those are the bytes checked here.`;
+  return `This file's own SHA-256 (${hex(outer)}) is not the committed digest and is not meant to be: the proof block at its end is part of this file's bytes. The proof names the bytes before that block (SHA-256 ${hex(inner)}), and those are the bytes checked here.`;
+}
+
+/**
+ * The same claims over a payload already in hand, with the committed bytes or
+ * without them. A proof page holds the payload's parts (the proof, the anchors,
+ * the headers, the Base sidecar) and often not the file, so with `inner` null the
+ * two claims that need the bytes (the digest, the fused commitment) are stated
+ * as not carried, and everything else is judged exactly as for a file.
+ */
+export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8Array | null, opts: CarrierVerifyOptions = {}): Promise<CarrierVerifyResult> {
+  const claims: CarrierClaim[] = [];
+  const add = (id: string, name: string, result: ClaimResult, restsOn: string, detail: string, level: "offline" | "confirmed" = "offline") =>
+    claims.push({ id, name, result, restsOn, detail, level });
+  // Every part is read defensively below; a malformed part that still throws
+  // is a FALSE claim, never an exception.
+  try {
+    return await verifyCarrierPayloadChecks(payload, inner, opts, claims, add);
+  } catch (e) {
+    const detail = `a part of this proof block is malformed: ${e instanceof Error ? e.message : String(e)}`;
+    add("wellformed", "Every part of the proof block is well formed", "FALSE", "", detail);
+    let version: 1 | 2 | 3 | 4 | null = null;
+    try { version = carrierVersionOf(payload); } catch { /* unreadable */ }
+    const ceilingStatus = (payload as { ceiling?: { status?: unknown } } | null)?.ceiling?.status;
+    return {
+      verdict: "FALSE",
+      baseTimeWithheld: null,
+      carrier: "ok",
+      version,
+      reasons: claims.filter((c) => c.result === "FALSE").map((c) => `${c.name}: ${c.detail}`),
+      bounds: null,
+      ceiling: ceilingStatus === "present" || ceilingStatus === "unfetched" || ceilingStatus === "none" ? ceilingStatus : null,
+      claims,
+      reading: `This file does not verify: ${detail}. Nothing here is a verdict on what the bytes say, only that the evidence does not hold together.`,
+      payload,
+      inner,
+    };
+  }
+}
+
+async function verifyCarrierPayloadChecks(
+  payload: CarrierPayload,
+  inner: Uint8Array | null,
+  opts: CarrierVerifyOptions,
+  claims: CarrierClaim[],
+  add: (id: string, name: string, result: ClaimResult, restsOn: string, detail: string, level?: "offline" | "confirmed") => number,
+): Promise<CarrierVerifyResult> {
+  const version = carrierVersionOf(payload);
+  const proof = payload.proof as unknown as BitGraphProof;
+  const pinnedWriter = opts.pins?.ceilingWriter ?? BITGRAPH_CEILING_WRITER;
+  const baseChainId = opts.pins?.baseChainId ?? BASE_MAINNET_CHAIN_ID;
+
+  if (inner !== null) add("block", "A proof block at the end of the file", "TRUE", "the block's own structure", `bitgraph-carrier/${version}, found from the end of the file and stripped exactly once`);
+  const isMember = version === 4;
+
+  // 1. The committed bytes are the ones the proof names. On v4 they are a
+  //    tree member's, checked against its leaf in step 3.
+  if (isMember) {
+    // below, with the tree
+  } else if (inner !== null) {
+    const digestOk = innerDigestMatches(inner, payload);
+    add("bytes.digest", "The committed bytes are the ones the proof names", digestOk ? "TRUE" : "FALSE", "SHA-256", digestOk ? "SHA-256 of the bytes before the block equals the proof's artifact digest" : "the committed bytes do not hash to the carried proof's artifact digest");
+  } else {
+    add("bytes.digest", "The committed bytes are the ones the proof names", "NOT_CARRIED", "", `the file is not in hand; the proof names SHA-256 ${String((proof.artifact as { digestB64?: string } | undefined)?.digestB64 ?? "")}`);
+  }
+
+  // 2. The proof itself, under the existing bitgraph/1 algorithm. A fresh
+  //    context: a carrier is judged alone, not against this process's history.
+  //    Without the bytes, the integrity half runs (verify() without bytes).
+  //    On v4 the signed digest names the root document, never the bytes, so
+  //    the integrity half runs and the tree binds the bytes (step 3).
+  const proofResult = inner !== null && !isMember
+    ? await verify({ proof, bytes: inner, context: createVerificationContext() })
+    : await verifyProofIntegrity({ proof, context: createVerificationContext() });
+  add("proof.signature", "The proof is signed and its position record is bound to it", proofResult.valid ? "TRUE" : "FALSE", "Ed25519", proofResult.valid ? "the enclave's Ed25519 signature over the canonical signed body verifies; the position record's own signature, its hash in the commit, the nonce and the counter order all agree" : `the carried proof does not verify: ${proofResult.reason ?? "unspecified"}`);
+
+  const ph = (payload.proof as { proofHash?: unknown }).proofHash;
+  if (typeof ph === "string") {
+    const ok = computeProofHash(proof) === ph;
+    add("proof.hash", "The ledger's proofHash is this proof's", ok ? "TRUE" : "FALSE", "SHA-256", ok ? "recomputed over the signed-body subset and equal" : "the proofHash field is not the hash of this proof's signed-body subset");
+  }
+
+  // 3. Fused: the commitment inside the bytes, rebuilt from the signed record (fuse/2 and fuse/3: and the signed floor block).
+  //    v4: the tree. The spec the proof pins, the root document against the
+  //    signed digest and the position's commitment, the path, the bytes
+  //    against the leaf, and for a placed leaf the commitment in the bytes.
+  const marker = readFuseAttribution(proof);
+  let tr: TreeVerifyResult | null = null;
+  if (isMember) {
+    tr = await memberClaims(payload, proof, inner, opts, add);
+  } else if (marker !== null && inner === null) {
+    add("proof.fused", "The bytes carry the position commitment", "NOT_CARRIED", "", `the file is not in hand; its bytes carry a bitgraph-fuse/${marker.version ?? 1} commitment to check`);
+  } else if (marker !== null && inner !== null) {
+    const f = await verifyFuse({ proof, bytes: inner });
+    const good = f.category === "FUSED_DIRECT" || f.category === "CARRIED_INLINE";
+    add("proof.fused", "The bytes carry the position commitment", good ? "TRUE" : "FALSE",
+      (marker.version ?? 1) >= 2 ? "SHA-256 over the signed position record, its nonce and the signed floor block hash" : "SHA-256 over the signed position record and its nonce",
+      good ? `${f.category}: ${(marker.version ?? 1) >= 2 ? "the commitment binds the floor block, so the bytes could not have been finished before that block existed" : "the commitment was made from the position record before the bytes were finished"}` : `${f.category}${f.reason ? `: ${f.reason}` : ""}`);
+  } else {
+    add("proof.fused", "The bytes carry the position commitment", "NOT_CARRIED", "", "an ordinary recording: the position was taken after the bytes existed, and no commitment is inside them");
+  }
+
+  // 4. The attestation: the hardware's word on which image signed, bound to this proof.
+  const env = (proof as { environment?: { measurement?: unknown; attestation?: { format?: unknown; reportB64?: unknown } } }).environment;
+  const measurement = typeof env?.measurement === "string" && /^[0-9a-fA-F]+$/.test(env.measurement) ? env.measurement.toLowerCase() : null;
+  let attestedAtMs: number | null = null;
+  const att = env?.attestation;
+  if (att && att.format === "aws-nitro" && typeof att.reportB64 === "string") {
+    const n = verifyNitroAttestation(att.reportB64, { ...(measurement !== null ? { expectedPcr0: measurement } : {}), expectedUserDataB64: computeSignedBodyHash(proof), ...(opts.pins?.rootDer ? { rootDer: opts.pins.rootDer } : {}) });
+    const byName = (prefix: string) => n.checks.find((c) => c.name.startsWith(prefix));
+    const sig = byName("AWS signature"), chain = byName("Certificate chain"), root = byName("Chains to") ?? byName("Trust root"), validity = byName("Certificate validity"), pcr0 = byName("PCR0"), bound = byName("Bound to this proof");
+    const r = (c: { pass: boolean } | undefined): ClaimResult => (c === undefined ? "UNDETERMINED" : c.pass ? "TRUE" : "FALSE");
+    // Not a Nitro document at all: that contradicts the proof's own claim to carry one.
+    if (n.doc === null) add("attestation.signature", "AWS hardware signed the attestation", "FALSE", "", `the attestation does not decode as an AWS Nitro document (${n.checks[0]?.detail ?? "unreadable"})`);
+    else add("attestation.signature", "AWS hardware signed the attestation", r(sig), "ES384 (P-384)", sig?.detail ?? "not reached");
+    add("attestation.chain", "The certificate chain holds together", r(chain), "ES384 (P-384)", chain?.detail ?? "not reached");
+    add("attestation.root", "The chain reaches the AWS Nitro root", r(root), `the AWS Nitro Enclaves Root CA G1 (${n.rootSha256.slice(0, 8)}…)`, root?.detail ?? "not reached");
+    add("attestation.validity", "Every certificate was valid at the document's own instant", r(validity), "the document's signed timestamp", validity?.detail ?? "not reached");
+    if (measurement === null) add("attestation.pcr0", "The attested image is the one the proof names", "FALSE", "", "the proof's environment.measurement is not a hex string, so it names no image");
+    else add("attestation.pcr0", "The attested image is the one the proof names", r(pcr0), "PCR0 inside the signed document", pcr0?.detail ?? "not reached");
+    add("attestation.binding", "The attestation is bound to this proof", r(bound), "user_data inside the signed document", bound?.detail ?? "not reached");
+    // The hardware's word, whole: signature, chain, root, validity, PCR0 and binding all verified.
+    const hardwareOk = n.doc !== null && measurement !== null && [sig, chain, root, validity, pcr0, bound].every((c) => c?.pass === true);
+    if (sig?.pass && chain?.pass && root?.pass && typeof n.doc?.timestampMs === "number") attestedAtMs = n.doc.timestampMs;
+    // The image judged is the one the DOCUMENT attests; the proof's declared measurement is a claim, not evidence.
+    const docPcr0 = (n.doc?.pcrs as Record<number, unknown> | undefined)?.[0];
+    const measured = typeof docPcr0 === "string" ? docPcr0.toLowerCase() : null;
+    const usingDefault = opts.pins?.pcr0 === undefined;
+    const policy = (opts.pins?.pcr0 ?? PUBLISHED_PCR0S).map((x) => String(x).toLowerCase());
+    if (!hardwareOk || measured === null) {
+      add("attestation.pins", "The image is one the verifier accepts", "UNDETERMINED", "", "not judged: the attestation did not verify in full, and a declared measurement is not hardware evidence");
+    } else if (policy.length === 0) {
+      add("attestation.pins", "The image is one the verifier accepts", "UNDETERMINED", "", `no accepted images were given: PCR0 is ${measured}; any AWS Nitro enclave can produce a valid attestation, and only a measurement policy says whose this is`);
+    } else {
+      const ok = policy.includes(measured);
+      const pub = publishedMeasurement(measured);
+      add("attestation.pins", "The image is one the verifier accepts", ok ? "TRUE" : "FALSE",
+        usingDefault ? "BitGraph's published enclave images (SPEC section 16)" : "the verifier's own list",
+        ok
+          ? usingDefault && pub ? `PCR0 ${measured.slice(0, 16)}… is BitGraph's published ${pub.version} image (since ${pub.since})` : `PCR0 ${measured.slice(0, 16)}… is on the verifier's list`
+          : usingDefault ? `PCR0 ${measured.slice(0, 16)}… is not an image BitGraph published, so this proof is not BitGraph's` : `PCR0 ${measured.slice(0, 16)}… is not on the verifier's list`);
+    }
+    if (version >= 2 && payload.attestation) {
+      const w = witnessMatchesAttestation(payload.attestation as unknown as AttestationWitness, att.reportB64);
+      add("attestation.witness", "The openssl witness is what the document decodes to", w.ok ? "TRUE" : "FALSE", "recomputed from the attestation document", w.detail);
+    }
+  } else {
+    add("attestation.signature", "AWS hardware signed the attestation", "NOT_CARRIED", "", "the proof carries no aws-nitro attestation");
+  }
+
+  // 5. The floor. One floor per proof (signedFloorOf); a proof that signs two is ambiguous and floors nothing.
+  let signed: SignedFloor | null = null;
+  let ambiguous: string | null = null;
+  try {
+    signed = signedFloorOf(proof);
+  } catch (e) {
+    ambiguous = (e as Error).message;
+  }
+  let floorTs: number | null = null;
+  let floorChain: "ethereum" | "base" = "ethereum";
+  if (payload.floor.basis === "base-header") {
+    // v3: the Base header itself, checked against the signed slotFloor. No anchor proof stands under it.
+    floorChain = "base";
+    const header = payload.floor.header;
+    let raw: Uint8Array | null = null;
+    try { raw = evmHex(header); } catch { raw = null; }
+    const fh = ambiguous !== null || signed === null || raw === null ? null : checkFloorHeader(signed, raw, "base");
+    const why = ambiguous ?? (signed === null ? "the proof signs no floor block (commit.slotFloor)" : raw === null ? "the floor header is not hex" : fh && !fh.ok ? fh.reason : "");
+    add("floor.binding", "The floor is the Base block the enclave fixed for this position", fh?.ok ? "TRUE" : "FALSE", "the proof's signed commit.slotFloor",
+      fh?.ok ? "the header's block number, hash and time equal the signed slotFloor, on Base mainnet's schedule" : why);
+    if (fh?.ok) {
+      floorTs = fh.header.timestamp;
+      add("floor.header", "The floor block's header is the one with that hash", "TRUE", `Base block ${fh.header.number}, header as given`, `keccak-256 of the header equals the signed block hash; its time is ${iso(fh.header.timestamp)}`);
+    } else {
+      add("floor.header", "The floor block's header is the one with that hash", "FALSE", "", `floor header: ${why}`);
+    }
+  } else {
+    // v1, v2: the anchor proof verifies over its own signed message, and it
+    // is the anchor the enclave fixed at allocation, matched by identity.
+    const floorMsg = anchorMessageBytes(payload.floor.anchor);
+    if (floorMsg.error !== null) add("floor.anchor", "The floor anchor is a genuine anchor proof", "FALSE", "", `floor anchor: ${floorMsg.error}`);
+    else {
+      const floorResult = await verify({ proof: payload.floor.anchor as unknown as BitGraphProof, bytes: floorMsg.bytes, context: createVerificationContext() });
+      add("floor.anchor", "The floor anchor is a genuine anchor proof", floorResult.valid ? "TRUE" : "FALSE", "Ed25519", floorResult.valid ? "the anchor proof verifies over its own signed block-hash message, under the same key" : `the floor anchor proof does not verify: ${floorResult.reason ?? "unspecified"}`);
+    }
+    const floorBind = ambiguous !== null ? [ambiguous]
+      : signed?.chain === "base" ? ["the proof signs a Base floor (commit.slotFloor), and this block carries an Ethereum anchor as its floor"]
+      : checkFloorBinding(payload.proof, payload.floor);
+    add("floor.binding", "The floor is the anchor the enclave fixed for this position", floorBind.length === 0 ? "TRUE" : "FALSE", "the proof's signed commit.slotAnchor", floorBind.length === 0 ? "the anchor's counter, block number and block hash equal the signed slotAnchor" : floorBind.join("; "));
+    const floorWitness = verifyWitnessHeader(payload.floor.witness);
+    floorTs = floorWitness.ok ? floorWitness.timestamp : null;
+    add("floor.header", "The floor block's header is the one with that hash", floorWitness.ok ? "TRUE" : "FALSE", `Ethereum block ${payload.floor.witness.blockNumber}, header as given`, floorWitness.ok ? `keccak-256 of the header equals the signed block hash; its time is ${iso(floorWitness.timestamp)}` : `floor witness: ${floorWitness.error}`);
+  }
+  // The floor's time is a bound only when it is no later than the attestation document (review, 2026-10-06).
+  let floorTimeWithheld: string | null = null;
+  if (floorTs !== null) {
+    const bound = floorTimeIsBound(floorTs, attestedAtMs);
+    if (!bound.ok) floorTimeWithheld = bound.reason;
+  }
+
+  // 6. The ceiling in position: v1 and v2 when the carrier claims one; v3 has none.
+  if (payload.ceiling.status === "none") {
+    add("ceiling.position", "A closing anchor follows the record", "NOT_CARRIED", "", "none exists for a Base-floor BitGraph: anchors ended with the cutover, and its order among BitGraphs is the chain of proof hashes");
+  } else if (payload.ceiling.status === "present") {
+    const ceilMsg = anchorMessageBytes(payload.ceiling.anchor);
+    if (ceilMsg.error !== null) add("ceiling.position.anchor", "The closing anchor is a genuine anchor proof", "FALSE", "", `ceiling anchor: ${ceilMsg.error}`);
+    else {
+      const ceilResult = await verify({ proof: payload.ceiling.anchor as unknown as BitGraphProof, bytes: ceilMsg.bytes, context: createVerificationContext() });
+      add("ceiling.position.anchor", "The closing anchor is a genuine anchor proof", ceilResult.valid ? "TRUE" : "FALSE", "Ed25519", ceilResult.valid ? "the anchor proof verifies over its own signed block-hash message, under the same key" : `the ceiling anchor proof does not verify: ${ceilResult.reason ?? "unspecified"}`);
+    }
+    const cb = checkCeilingBinding(payload.proof, payload.ceiling);
+    add("ceiling.position.binding", "The record was committed before the closing anchor", cb.length === 0 ? "TRUE" : "FALSE", "the enclave's counter order", cb.length === 0 ? "the anchor's counter follows the commit counter on the same chain, epoch and key: a bound in position, not a clock time" : cb.join("; "));
+    const cw = verifyWitnessHeader(payload.ceiling.witness);
+    add("ceiling.position.header", "The closing block's header is the one with that hash", cw.ok ? "TRUE" : "FALSE", `Ethereum block ${payload.ceiling.witness.blockNumber}, header as given`, cw.ok ? `keccak-256 of the header equals the anchor's block hash; its time is ${iso(cw.timestamp)}` : `ceiling witness: ${cw.error}`);
+  } else {
+    add("ceiling.position.binding", "The record was committed before the closing anchor", "NOT_CARRIED", "", "closing anchor not fetched: the floor stands on its own");
+  }
+
+  // 7. v2 and v3: the ceiling in time, the Base block the record existed by.
+  let ceilingTime: { blockNumber: number; blockHash: string; blockTimestamp: number; status: string } | null = null;
+  let baseTimeWithheld: string | null = null;
+  let sidecar: CeilingSidecar | null = null;
+  if (version >= 2) {
+    const ct = payload.ceilingInTime;
+    if (ct && ct.status === "present") {
+      sidecar = ct.sidecar as unknown as CeilingSidecar;
+      const c = await verifyCeiling(proof, sidecar, { writerAddress: pinnedWriter, chainId: baseChainId, proofAlreadyVerified: proofResult.valid });
+      const byName = (n: string) => c.checks.find((x) => x.name === n);
+      const r = (x: { ok: boolean } | undefined): ClaimResult => (x === undefined ? "UNDETERMINED" : x.ok ? "TRUE" : "FALSE");
+      add("ceiling.time.record", "The record is under the root the ceiling names", r(byName("merkle")), "SHA-256 (RFC 9162 tree)", byName("merkle")?.detail ?? c.reason ?? "not reached");
+      add("ceiling.time.payload", "The transaction carries that root", r(byName("payload")), "the 84-byte BGC1 payload", byName("payload")?.detail ?? c.reason ?? "not reached");
+      add("ceiling.time.sender", "The transaction was signed by the ceiling writer", r(byName("sender")), `secp256k1; the writer pin ${pinnedWriter.slice(0, 8)}…`, byName("sender")?.detail ?? c.reason ?? "not reached");
+      add("ceiling.time.inclusion", "The transaction is in the Base block", r(byName("inclusion")), `Merkle-Patricia proof; Base block ${sidecar.anchor?.blockNumber ?? "?"}, header as given`, byName("inclusion")?.detail ?? c.reason ?? "not reached");
+      add("ceiling.time.floor", "The floor header the ceiling carries is the signed floor", r(byName("floor")), floorChain === "base" ? "the proof's signed commit.slotFloor" : "the proof's signed commit.slotAnchor", byName("floor")?.detail ?? "the sidecar carries no floor header");
+      const win = c.ok ? c.window?.ceiling : undefined;
+      if (win) {
+        // The inclusion holds either way; a stamp that cannot be a bound is withheld as a time.
+        const stamp = baseTimeIsBound(win.blockTimestamp, { floorTimestampSec: floorTs ?? c.window?.floor.blockTimestamp ?? null, attestedAtMs });
+        if (stamp.ok) ceilingTime = { blockNumber: win.blockNumber, blockHash: win.blockHash, blockTimestamp: win.blockTimestamp, status: c.status ?? "included" };
+        else baseTimeWithheld = stamp.reason;
+      }
+      if (!c.ok && c.reason) add("ceiling.time", "The ceiling in time holds together", "FALSE", "", c.reason);
+      add("ceiling.time.status", "How far Base had settled the block", "UNDETERMINED", "", `the sidecar says "${sidecar.status}", as BitGraph's Base node reported when the file was written; not proven by the file. Settlement below is the proof, when carried.`);
+    } else {
+      add("ceiling.time.record", "The record existed by a Base block", "NOT_CARRIED", "", ct?.status === "unfetched" ? "the ceiling in time was not fetched when this file was made" : "no ceiling in time is stated");
+    }
+
+    // 8. v2 and v3: settlement on Ethereum, when carried.
+    const st = payload.settlement;
+    if (st && st.status === "present") {
+      const pointer = st.pointer as unknown as SettlementPointer;
+      const sp = verifySettlementPointer(pointer, opts.pins?.settlement ?? BASE_MAINNET_SETTLEMENT_PINS);
+      const byName = (n: string) => sp.checks.find((x) => x.name === n);
+      const r = (x: { ok: boolean } | undefined): ClaimResult => (x === undefined ? "UNDETERMINED" : x.ok ? "TRUE" : "FALSE");
+      add("settlement.header", "The Ethereum block's header is the one with that hash", r(byName("header")), `Ethereum block ${pointer.l1?.blockNumber ?? "?"}, header as given`, byName("header")?.detail ?? sp.reason ?? "not reached");
+      add("settlement.inclusion", "Base's batch transaction is in that Ethereum block", r(byName("inclusion")), "Merkle-Patricia proof", byName("inclusion")?.detail ?? sp.reason ?? "not reached");
+      add("settlement.blobs", "The transaction lists the blobs that carry the batch", r(byName("blobs")), "secp256k1; the batcher and inbox pins; KZG versioned hashes", byName("blobs")?.detail ?? sp.reason ?? "not reached");
+      if (sidecar && pointer.baseBlockHash && sidecar.anchor && pointer.baseBlockHash.toLowerCase() !== sidecar.anchor.blockHash.toLowerCase()) {
+        add("settlement.base", "The settlement is for the ceiling's Base block", "FALSE", "", "the pointer names a different Base block than the ceiling");
+      }
+      add("settlement.blobs.decoded", "The ceiling transaction's bytes are in the blob data", "UNDETERMINED", "", "blob bytes are checked by bitgraph-audit with the blobs kept beside the package (KZG, channel decode); this reader holds only the pointer");
+    } else if (ceilingTime !== null) {
+      add("settlement.header", "The Base block's batch data is on Ethereum", "NOT_CARRIED", "", st?.status === "unfetched" ? "settlement not fetched when this file was made" : "no settlement is stated");
+    }
+
+    // 9. The declared pins, compared with the verifier's.
+    if (payload.pins) {
+      const notes: string[] = [];
+      if (payload.pins.pcr0 && String(payload.pins.pcr0).toLowerCase() !== String(proof.environment?.measurement).toLowerCase()) notes.push("the declared PCR0 is not the proof's measurement");
+      if (payload.pins.ceilingWriter && payload.pins.ceilingWriter.toLowerCase() !== pinnedWriter.toLowerCase()) notes.push(`the declared ceiling writer ${payload.pins.ceilingWriter} is not the verifier's pin`);
+      if (payload.pins.chains?.base !== undefined && payload.pins.chains.base !== baseChainId) notes.push(`the declared Base chain ${payload.pins.chains.base} is not the verifier's`);
+      add("pins", "What the file says it was made under agrees with this verifier's pins", notes.length === 0 ? "TRUE" : "FALSE", "the verifier's own pins", notes.length === 0 ? "declared pins match; they were never used as authority" : notes.join("; "));
+    }
+  }
+
+  // 10. Confirmed: the block hashes against nodes the caller named. The floor
+  //     is asked of its own chain, by height: the chain's block at N must be
+  //     the one the header hashes to.
+  const lk = opts.lookups;
+  const nb = carrierBounds(payload).notBefore;
+  const floorAsk = floorChain === "base" ? lk?.baseBlockHash : lk?.ethereumBlockHash;
+  const floorChainName = floorChain === "base" ? "Base" : "Ethereum";
+  if (floorAsk) {
+    const h = (await safe(() => floorAsk(nb.blockNumber)))?.toLowerCase();
+    const ok = h === nb.blockHash;
+    add("confirmed.floor", `The floor block is ${floorChainName}'s own`, h ? (ok ? "TRUE" : "FALSE") : "UNDETERMINED", `the ${floorChainName} node the caller named`, h ? (ok ? `${floorChainName} block ${nb.blockNumber} matches the node` : `the node's block ${nb.blockNumber} is ${h}, not this header`) : "the node did not answer", "confirmed");
+  } else {
+    add("confirmed.floor", `The floor block is ${floorChainName}'s own`, "UNDETERMINED", "", `no ${floorChainName} node given: the header is taken as the one matching its hash; confirm block ${nb.blockNumber} against any node or explorer`, "confirmed");
+  }
+  if (lk?.ethereumBlockHash) {
+    const pc = payload.ceiling;
+    if (pc.status === "present") {
+      const h2 = (await safe(() => lk.ethereumBlockHash!(pc.witness.blockNumber)))?.toLowerCase();
+      const ok2 = h2 === pc.witness.blockHash.toLowerCase();
+      add("confirmed.ceiling.position", "The closing block is Ethereum's own", h2 ? (ok2 ? "TRUE" : "FALSE") : "UNDETERMINED", "the Ethereum node the caller named", h2 ? (ok2 ? `Ethereum block ${pc.witness.blockNumber} matches the node` : `the node's block is ${h2}, not this header`) : "the node did not answer", "confirmed");
+    }
+    const st = payload.settlement;
+    if (st && st.status === "present") {
+      const r = await checkSettlementOnline(st.pointer as unknown as SettlementPointer, lk.ethereumBlockHash);
+      add("confirmed.settlement", "The settling Ethereum block is Ethereum's own", r.ok ? "TRUE" : "FALSE", "the Ethereum node the caller named", r.detail, "confirmed");
+    }
+  }
+  if (sidecar) {
+    if (lk?.baseBlockHash) {
+      const r = await checkCeilingOnline(sidecar, lk.baseBlockHash);
+      add("confirmed.ceiling.time", "The ceiling block is Base's own", r.onChain === null ? "UNDETERMINED" : r.onChain ? "TRUE" : "FALSE", "the Base node the caller named", r.detail, "confirmed");
+    } else {
+      add("confirmed.ceiling.time", "The ceiling block is Base's own", "UNDETERMINED", "", `no Base node given: confirm block ${sidecar.anchor?.blockNumber ?? "?"} against any node or explorer`, "confirmed");
+    }
+  }
+
+  const reasons = claims.filter((c) => c.result === "FALSE").map((c) => `${c.name}: ${c.detail}`);
+  // TRUE needs the image to be one the verifier accepts: an attestation alone
+  // says only that some AWS Nitro enclave signed.
+  const pins = claims.find((c) => c.id === "attestation.pins");
+  if (reasons.length === 0 && pins?.result !== "TRUE") reasons.push(pins ? `${pins.name}: ${pins.detail}` : "The image is one the verifier accepts: the proof carries no attestation, so no image was established");
+  // v4: a tree this verifier could not judge (a spec it does not know) is not judged, never TRUE.
+  const treeUnjudged = isMember ? claims.filter((c) => TREE_CLAIM_IDS.includes(c.id) && c.result === "UNDETERMINED") : [];
+  if (reasons.length === 0) for (const c of treeUnjudged) reasons.push(`${c.name}: ${c.detail}`);
+  const verdict: CarrierVerifyResult["verdict"] = claims.some((c) => c.result === "FALSE") ? "FALSE" : pins?.result === "TRUE" && treeUnjudged.length === 0 ? "TRUE" : "UNDETERMINED";
+  const bounds = carrierBounds(payload);
+  // The ceiling in time reaches callers only as verified here, and only when its stamp is a bound.
+  bounds.existedBy = ceilingTime ? { chain: "base", blockNumber: ceilingTime.blockNumber, blockHash: ceilingTime.blockHash, timestamp: ceilingTime.blockTimestamp } : null;
+  // So does the floor's time: from a verified header, and only when it is a bound.
+  bounds.notBefore.timestamp = floorTimeWithheld === null ? floorTs : null;
+  return {
+    verdict,
+    baseTimeWithheld,
+    floorTimeWithheld,
+    carrier: "ok",
+    version,
+    reasons,
+    bounds,
+    ceiling: payload.ceiling.status,
+    claims,
+    member: tr?.member ?? null,
+    floorCovers: tr && (TREE_MEMBER_CATEGORIES as readonly string[]).includes(tr.category) ? tr.floorCovers : null,
+    reading: writeReading(verdict, claims, bounds, proof, ceilingTime, bounds.notBefore.timestamp, baseTimeWithheld, floorTimeWithheld, tr),
+    payload,
+    inner,
+  };
+}
+
+/** The claims a v4 block adds in place of the digest and fused lines; their verdict weight is checked by id. */
+const TREE_CLAIM_IDS: readonly string[] = ["spec.pin", "tree.root", "tree.member", "bytes.digest"];
+
+/**
+ * v4: the bytes, as one member of the tree the proof commits. Five claims, in
+ * export/1's words: the spec pin, the root document, the member's path, the
+ * bytes against the leaf, and (as proof.fused, the content floor) the
+ * commitment inside a placed leaf's bytes. A leaf kept as is carries no
+ * commitment: recorded after the floor block, the bytes themselves are not
+ * dated. The bytes must be the leaf's COMMITTED bytes: an original that would
+ * rebuild them is not what a BitGraphed file carries, and is refused.
+ */
+async function memberClaims(
+  payload: CarrierPayload,
+  proof: BitGraphProof,
+  inner: Uint8Array | null,
+  opts: CarrierVerifyOptions,
+  add: (id: string, name: string, result: ClaimResult, restsOn: string, detail: string, level?: "offline" | "confirmed") => number,
+): Promise<TreeVerifyResult> {
+  const t = payload.tree!;
+  const rootDocument = treeHex(t.rootDocument) ?? new Uint8Array(0);
+  // The proof's own check is its own claim (step 2); the tree is judged on its own evidence.
+  const tr = await verifyTreeMember({
+    proof,
+    ...(inner !== null ? { bytes: inner } : {}),
+    member: t.member,
+    rootDocument,
+    ...(opts.extraSpecHashes ? { extraSpecHashes: opts.extraSpecHashes } : {}),
+    proofAlreadyVerified: true,
+  });
+  const unknownSpec = tr.category === "UNKNOWN_SPEC";
+  const notTree = tr.category === "NOT_TREE";
+  const specOk = !unknownSpec && !notTree && tr.category !== "INVALID_TREE_MARKER";
+  add("spec.pin", "The proof pins a spec this verifier knows", specOk ? "TRUE" : unknownSpec ? "UNDETERMINED" : "FALSE", "the signed attribution.message",
+    specOk ? `SPEC.md SHA-256 ${tr.specHashB64}` : notTree ? `the carried proof is not a tree/1 proof (${tr.reason}); a ${CARRIER_VERSION_4} block carries one member of a tree` : unknownSpec ? `${tr.reason}; a verifier that knows that spec can judge the tree` : tr.reason);
+  const rootOk = tr.tree !== null;
+  add("tree.root", "The root document is the signed one and carries this position's commitment", rootOk ? "TRUE" : unknownSpec ? "UNDETERMINED" : "FALSE",
+    "SHA-256 over the signed position record, its nonce and the signed floor block hash",
+    rootOk ? `a tree of ${tr.tree!.count} leaves, root ${tr.tree!.rootHex.slice(0, 16)}…; SHA-256 of the root document is the proof's artifact digest` : unknownSpec ? "not judged: the proof follows a spec this verifier does not know" : tr.reason);
+  const pathOk = tr.member !== null;
+  add("tree.member", "The member's leaf is in the committed tree", pathOk ? "TRUE" : rootOk ? "FALSE" : "UNDETERMINED", "SHA-256 (RFC 9162 path)",
+    pathOk ? `leaf ${tr.member!.index} of ${tr.member!.count} (${tr.member!.placement === "as-is" ? "kept as is" : tr.member!.placement}); a path proves this leaf only, not the order of the others` : rootOk ? tr.reason : "not judged: the root it would reach is not established");
+  const where = tr.member ? `leaf ${tr.member.index} of ${tr.member.count}` : `leaf ${t.member.index} of ${t.member.count}`;
+  const asIs = tr.member?.placement === "as-is" || /^00/.test(t.member.leaf);
+  if (inner === null) {
+    add("bytes.digest", "The bytes are this member's committed bytes", "NOT_CARRIED", "", `the file is not in hand; the block names ${where}, SHA-256 ${t.member.leaf.slice(2, 66)}`);
+    add("proof.fused", "The committed bytes carry the position commitment", "NOT_CARRIED", "", asIs
+      ? "the member was kept as is: the bytes carry no commitment, so the bytes themselves are not dated"
+      : "the file is not in hand; its bytes carry the position commitment to check");
+    return tr;
+  }
+  const isMember = (TREE_MEMBER_CATEGORIES as readonly string[]).includes(tr.category);
+  if (tr.category === "TREE_MEMBER_FROM_ORIGIN") {
+    add("bytes.digest", "The bytes are this member's committed bytes", "FALSE", "SHA-256",
+      `the bytes before the block are ${where}'s original, not its committed bytes: a BitGraphed file carries the bytes the leaf names, with the commitment placed in them`);
+  } else {
+    add("bytes.digest", "The bytes are this member's committed bytes", isMember ? "TRUE" : pathOk ? "FALSE" : "UNDETERMINED", "SHA-256",
+      isMember ? `SHA-256 of the bytes before the block is the artifact digest of ${where}` : pathOk ? `${tr.category}: ${tr.reason}` : "not judged: the member's place in the tree did not verify");
+  }
+  if (tr.category === "TREE_MEMBER_DIRECT") {
+    add("proof.fused", "The committed bytes carry the position commitment", "TRUE", "SHA-256 over the signed position record, its nonce and the signed floor block hash",
+      `${tr.member!.placement}: the commitment binds the floor block, so these bytes could not have been finished before that block existed; the original inside them is not dated by it`);
+  } else if (tr.category === "TREE_MEMBER_AS_IS" || asIs) {
+    add("proof.fused", "The committed bytes carry the position commitment", "NOT_CARRIED", "", "the member was kept as is: the bytes carry no commitment, so the bytes themselves are not dated (the record floor only)");
+  } else if (tr.category === "INVALID_SLOT_COMMITMENT" || tr.category === "INVALID_ORIGIN") {
+    add("proof.fused", "The committed bytes carry the position commitment", "FALSE", "", `${tr.category}: ${tr.reason}`);
+  } else {
+    add("proof.fused", "The committed bytes carry the position commitment", "NOT_CARRIED", "", "not reached: the bytes before the block are not this leaf's committed bytes");
+  }
+  return tr;
+}
+
+async function safe<T>(f: () => Promise<T>): Promise<T | null> {
+  try { return await f(); } catch { return null; }
+}
+
+function iso(ts: number | null): string {
+  return ts === null ? "unknown" : new Date(ts * 1000).toISOString().replace(".000Z", "Z");
+}
+
+/**
+ * The reading, from the results. It names what the file proves and what that
+ * rests on, and says what removes each reliance. Never stored in the file.
+ */
+function writeReading(
+  verdict: CarrierVerifyResult["verdict"],
+  claims: CarrierClaim[],
+  bounds: CarrierBounds,
+  proof: BitGraphProof,
+  ceilingTime: { blockNumber: number; blockHash: string; blockTimestamp: number } | null,
+  floorTs: number | null,
+  baseTimeWithheld: string | null = null,
+  floorTimeWithheld: string | null = null,
+  tr: TreeVerifyResult | null = null,
+): string {
+  const get = (id: string) => claims.find((c) => c.id === id);
+  if (verdict === "FALSE") {
+    const failed = claims.filter((c) => c.result === "FALSE").map((c) => c.name.toLowerCase());
+    return `This file does not verify: ${failed.join("; ")}. Nothing here is a verdict on what the bytes say, only that the evidence does not hold together.`;
+  }
+  const position = proof.commit?.counter ?? "?";
+  const epoch = (proof.commit?.epochId ?? "").replace(/=+$/, "").slice(0, 8);
+  const fused = get("proof.fused");
+  const floorChain = bounds.notBefore.chain === "base" ? "Base" : "Ethereum";
+  const after = floorTs !== null ? `Recorded after ${floorChain} block ${bounds.notBefore.blockNumber} (${iso(floorTs)})` : `Recorded after ${floorChain} block ${bounds.notBefore.blockNumber}`;
+  const by = ceilingTime ? `, and existed by Base block ${ceilingTime.blockNumber} (${iso(ceilingTime.blockTimestamp)})` : "";
+  const settled = bounds.settledBy ? `, whose batch data Ethereum committed in block ${bounds.settledBy.blockNumber} (${iso(bounds.settledBy.timestamp)})` : "";
+  const before = bounds.notAfter
+    ? `; committed before the anchoring of Ethereum block ${bounds.notAfter.blockNumber}, a bound in position`
+    : get("ceiling.position") ? "; its order among BitGraphs is the chain of proof hashes" : "";
+  const digest = get("bytes.digest");
+  // Two floors (SPEC 8.6): every record has the record floor; only bytes that
+  // carry the commitment have the content floor. Without it, the bytes
+  // themselves are not dated.
+  // v4: the same two floors, said of one member of the tree (SPEC 8.6, export/1's words).
+  const leafWords = tr?.member ? `leaf ${tr.member.index} of ${tr.member.count} in the committed tree` : null;
+  const subject = tr !== null
+    ? digest?.result !== "TRUE"
+      ? leafWords ? `The tree this proof names was committed under this position, and ${leafWords.replace(/ in the committed tree$/, "")} is in it.` : "The tree this proof names was committed under this position."
+      : fused?.result === "TRUE"
+        ? `These exact bytes are ${leafWords} and carry the commitment, so they were finished after the floor block (the content floor); an original inside them is not dated by it.`
+        : `These exact bytes are ${leafWords}, kept as is: they carry no commitment, so the bytes themselves are not dated (the record floor only).`
+    : digest?.result !== "TRUE"
+    ? "The bytes this proof names were committed under this position."
+    : fused?.result === "TRUE"
+      ? (fused.restsOn.includes("floor block") ? "These exact bytes carry the commitment, so they were finished after the floor block (the content floor)." : "These exact bytes carry the commitment, so they were finished after their position was opened (the content floor).")
+      : "These exact bytes carry no commitment, so the bytes themselves are not dated (the record floor only).";
+  const att = get("attestation.root");
+  const rests: string[] = ["SHA-256", "Ed25519"];
+  if (att?.result === "TRUE") rests.push(`the AWS Nitro root (${awsNitroRootSha256().slice(0, 8)}…)`);
+  rests.push(`${floorChain} block ${bounds.notBefore.blockNumber}`);
+  if (ceilingTime) rests.push(`Base block ${ceilingTime.blockNumber}`);
+  if (bounds.settledBy) rests.push(`Ethereum block ${bounds.settledBy.blockNumber}`);
+  const confirmed = claims.filter((c) => c.level === "confirmed");
+  const allConfirmed = confirmed.length > 0 && confirmed.every((c) => c.result === "TRUE");
+  const tail = allConfirmed
+    ? "Every block was confirmed against a node, so nothing here rests on a header taken as given."
+    : "Offline, the blocks are taken from their headers, each of which hashes to the hash the evidence names; confirm them against any node or explorer to remove that reliance.";
+  const pins = get("attestation.pins");
+  const pinLine = pins?.result === "TRUE" ? ` ${pins.detail.replace(/^PCR0 [0-9a-f]+… is /, "The enclave image is ")}.` : pins?.result === "UNDETERMINED" ? ` ${pins.detail}.` : !pins ? " The proof carries no attestation, so which enclave image signed it is not established." : "";
+  const withheld = (floorTimeWithheld ? ` The floor block's time is not used as a bound: ${floorTimeWithheld}.` : "")
+    + (baseTimeWithheld ? ` The record is in a Base block, but its time is not used as a bound: ${baseTimeWithheld}.` : "");
+  const lead = verdict === "UNDETERMINED" ? "Not judged in full. " : "";
+  return `${lead}${subject} ${after}${by}${settled}${before}. Position ${position} of epoch ${epoch}…. Rests on: ${rests.join(", ")}. ${tail}${withheld}${pinLine}`;
+}

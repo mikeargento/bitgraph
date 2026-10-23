@@ -1,0 +1,54 @@
+{
+  "name": "@mikeargento/bitgraph-audit",
+  "version": "0.11.0",
+  "description": "Offline audit of a folder of BitGraph proofs: each proof checked, the counter order rebuilt, gaps and conflicts reported.",
+  "keywords": [
+    "bitgraph",
+    "audit",
+    "offline",
+    "proof-bundle",
+    "verification",
+    "ai-audit",
+    "cli"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "bitgraph-audit": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "rm -rf dist && tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test src/__tests__/*.test.ts",
+    "bench": "node scripts/bench-audit.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@mikeargento/bitgraph-verify": "^1.18.0",
+    "@noble/hashes": "^1.4.0",
+    "@paulmillr/trusted-setups": "0.3.0",
+    "micro-eth-signer": "0.20.1"
+  },
+  "devDependencies": {
+    "@noble/ed25519": "^2.1.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}

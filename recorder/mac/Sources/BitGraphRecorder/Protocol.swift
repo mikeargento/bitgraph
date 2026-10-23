@@ -1,0 +1,484 @@
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
+
+import Foundation
+
+/// What the core says about a folder.
+///
+/// ⚠️ `recorded` and `positions` come from the folder's index, which is a
+/// convenience and not the authority. They are counts of what was last written
+/// down. A check is what says whether it is all still true, and the app never
+/// dresses one up as the other.
+struct FolderStatus: Decodable, Identifiable, Equatable {
+    var path: String
+    /// ⚠️ Not there any more: deleted, renamed or unplugged. Not a fault, and
+    /// every recording made from it is untouched in the library.
+    var missing: Bool = false
+    var paused: Bool
+    var watching: Bool
+    var busy: Bool
+    var recorded: Int?
+    var positions: Int?
+    var indexDamagedLines: Int?
+
+    var id: String { path }
+    var name: String { (path as NSString).lastPathComponent }
+}
+
+struct Status: Decodable, Equatable {
+    var baseUrl: String
+    var supportDir: String
+    /// The BitGraph folder. EMPTY until somebody has set the app up.
+    var folder: String
+    /// What setup offers when nobody has chosen.
+    var suggested: String
+    /// `<folder>/Recordings`. Where recordings live.
+    var library: String
+    /// How many recordings it holds, and how many files across them.
+    var recordings: Int
+    var recorded: Int
+    /// True when the chosen folder is not on disk any more: it moved, or a drive is unplugged.
+    var folderMissing: Bool?
+    /// True when macOS refuses this app the folder: a privacy grant is missing.
+    /// The window says so and opens the settings pane; the counts are not trusted.
+    var folderBlocked: Bool?
+    /// Folders that feed the box. Each says what came out of IT, never the library's totals.
+    var folders: [FolderStatus]
+}
+
+struct Position: Decodable, Equatable, Hashable {
+    var epochId: String
+    var counter: String
+}
+
+/// ⚠️ Only what the app actually uses is required.
+///
+/// A required field the app never reads turns one added or renamed value in
+/// the core into a whole event this side silently drops, and a dropped `made`
+/// event is a BitGraph the person is never told about.
+struct MadeFile: Decodable, Equatable {
+    var path: String
+    var name: String
+    var evidencePath: String
+    var bytes: Int?
+    var placement: String?
+    var originDigestB64: String?
+    var artifactDigestB64: String?
+    var manifestIndex: Int?
+}
+
+struct MakeResult: Decodable, Equatable {
+    var kind: String
+    /// The first few hundred; `total` says how many there are.
+    var files: [MadeFile]
+    var total: Int?
+    var position: Position
+    var count: Int { total ?? files.count }
+}
+
+struct SkippedFile: Decodable, Equatable {
+    var name: String
+    var attached: Bool
+    /// `already-recorded`, or `same-bytes` as another file in the drop.
+    var reason: String?
+}
+
+struct CheckProgress: Decodable, Equatable {
+    var done: Int
+    var total: Int
+}
+
+struct MakeProgress: Decodable, Equatable {
+    var phase: String
+    var done: Int
+    var total: Int
+}
+
+struct CheckCounts: Decodable, Equatable {
+    var verified: Int
+    var failed: Int
+    var undetermined: Int
+    var unrecorded: Int
+}
+
+/// ⚠️ Only files with something to say are in `speaking`. A verified file is
+/// not a row in a list here; it is part of a count.
+struct CheckedFile: Decodable, Equatable, Identifiable {
+    var rel: String
+    var name: String?
+    var status: String
+    var reason: String?
+    var failedOn: String?
+    var category: String?
+    /// What a pass does NOT establish, in the verifier's words.
+    var limit: String?
+    var enclave: String?
+    var method: String?
+    var position: Position?
+    var bounds: [CheckedBound]?
+    /// Every position around this recording the folder can name, in order.
+    var neighbourhood: [NeighbourRow]?
+    var attestation: AttestationReport?
+    var id: String { rel }
+}
+
+/// What the hardware itself said, opened and checked offline against the AWS
+/// Nitro root.
+///
+/// ⚠️ `pcr0` is what the ATTESTATION says. The proof's own
+/// `environment.measurement` is a claim in a document. `matchesDeclared` is
+/// whether they agree, and it is the only one of the three that means anything
+/// on its own.
+struct AttestationReport: Decodable, Equatable {
+    struct Step: Decodable, Equatable, Identifiable {
+        var name: String
+        var pass: Bool
+        var detail: String
+        var id: String { name }
+    }
+    var valid: Bool
+    var pcr0: String?
+    var matchesDeclared: Bool
+    var moduleId: String?
+    var certChainLength: Int?
+    var failure: String?
+    var checks: [Step]
+}
+
+/// One side of a position's Ethereum window, and what is known about it.
+///
+/// ⚠️ `blockTime` is set ONLY when keccak256(header) matched the hash the
+/// anchor signed. A time read off an unverified header would be a time
+/// asserted from an untrusted source.
+struct CheckedBound: Decodable, Equatable, Identifiable {
+    var side: String
+    var state: String
+    var note: String
+    var etherscanUrl: String?
+    var blockNumber: Int?
+    var blockTime: String?
+    var contradiction: String?
+    /// The position this anchor's commit took, and the one its slot took.
+    var counter: String?
+    var slotCounter: String?
+    /// This anchor's own BitGraph, derived from the block hash it signed.
+    var proofUrl: String?
+    var id: String { side }
+}
+
+/// One position around a recording, in counter order.
+///
+/// ⚠️ `timeNote` IS WHY THERE IS NO TIME, AND IT IS NOT DECORATION. A block
+/// number with a blank beside it reads as "this block has no time". Whenever
+/// `blockTime` is nil on an anchor, this says which kind of absence it is.
+struct NeighbourRow: Decodable, Equatable, Identifiable {
+    var counter: String
+    /// anchor · anchor-slot · mine-slot · mine-commit · unidentified
+    var kind: String
+    var blockNumber: Int?
+    var blockTime: String?
+    var timeNote: String?
+    var etherscanUrl: String?
+    var proofUrl: String?
+    var floor: Bool?
+    var id: String { counter }
+
+    var isMine: Bool { kind == "mine-slot" || kind == "mine-commit" }
+}
+
+struct FolderReport: Decodable, Equatable {
+    var root: String
+    var counts: CheckCounts
+    var speaking: [CheckedFile]
+    var positions: Int
+    /// ⚠️ True when the check stopped early. Nothing claims a count it did not count.
+    var partial: Bool
+}
+
+/// One file a drop found, with what the folder already knows about it.
+struct Looked: Decodable, Equatable, Identifiable {
+    var path: String
+    var name: String
+    var rel: String
+    var bytes: Int
+    var originDigestB64: String
+    var placement: String
+    var position: Position?
+    var evidencePath: String?
+    /// The earlier file in this drop holding the same bytes, when there is one.
+    var duplicateOf: String?
+    /// What a recording IN THE DROP said about these bytes, when one covers
+    /// them or the file sits inside one. A file with an answer other than
+    /// "unrecorded" is not new, whatever the answer was.
+    var check: LookCheck?
+
+    var id: String { path }
+    var isRecorded: Bool { position != nil }
+    /// Answered by a recording in the drop: verified, failed or undetermined.
+    var isAnswered: Bool { check != nil && check?.status != "unrecorded" }
+}
+
+/// A check's answer as a row carries it.
+struct LookCheck: Decodable, Equatable {
+    var status: String
+    var reason: String?
+    var failedOn: String?
+    var category: String?
+    /// What a pass does NOT establish, in the verifier's words. Carried when
+    /// the commitment sits inside the file's own bytes.
+    var limit: String?
+}
+
+struct LookResult: Decodable, Equatable {
+    var root: String
+    /// A SAMPLE of the files, at most a few hundred. `total` is the real count.
+    var files: [Looked]
+    /// How many files were looked at, whatever is in `files`.
+    var total: Int
+    /// How many of the total this folder already holds.
+    var recorded: Int
+    /// True when `files` is a sample rather than the lot.
+    var truncated: Bool
+    /// How many of the total are the same bytes as an earlier file in the drop.
+    var duplicates: Int?
+    /// How many recording folders the drop held. Zero for a plain drop of files.
+    var recordings: Int?
+    /// Of the total, how many a recording in the drop answered for, by what it said.
+    var verified: Int?
+    var failed: Int?
+    var undetermined: Int?
+    /// How many are new: what Record would record. Older cores do not send it.
+    var fresh: Int?
+}
+
+/// What a drop turned out to be.
+///
+///   open   these bytes already have a BitGraph here, or in the drop.
+///   made   one new file, and the drop was the shutter.
+///   ready  listed and waiting: two or more files, or anything dropped
+///          alongside a recording. A drop that holds a BitGraph is never
+///          recorded without being asked. The token is absent when nothing
+///          in it is new.
+struct DropAnswer: Decodable, Equatable {
+    var action: String
+    var root: String
+    var look: LookResult
+    var token: String?
+    var made: MakeResult?
+    var skipped: [SkippedFile]?
+    var opened: Looked?
+}
+
+/// One recording in the library, as a day lists it.
+struct Recording: Decodable, Equatable, Identifiable {
+    var path: String
+    var name: String
+    var day: String
+    var files: Int
+    var writtenAt: String
+    var waitingOnAnchors: Bool
+    /// The folder it was dropped or synced from, when the index remembers.
+    var from: String?
+    var id: String { path }
+}
+
+/// A day in the ledger's spine: the date and how many recordings it holds.
+struct DayCount: Decodable, Equatable, Identifiable {
+    var day: String
+    var count: Int
+    var id: String { day }
+}
+
+/// The library's spine: every day that holds recordings, newest first. Read
+/// from the folders themselves, never the index, and nothing opened.
+struct LedgerSpine: Decodable, Equatable {
+    var days: [DayCount]
+    var total: Int
+}
+
+/// One day drilled out.
+/// What a search found: the query it answers, the recordings whose names
+/// hold it, newest first, and whether the core stopped at its limit.
+struct SearchResult: Decodable, Equatable {
+    var query: String
+    var recordings: [Recording]
+    var truncated: Bool
+}
+
+struct DayRecordings: Decodable, Equatable {
+    var day: String
+    var recordings: [Recording]
+}
+
+/// Everything the proof view shows, read off the disk. Nothing fetched.
+struct Described: Decodable, Equatable {
+    /// The file the page is about, on disk. For a recording, inside it.
+    var filePath: String?
+    var evidence: Evidence?
+    /// The evidence file verbatim. For a set/2 member the inclusion path in
+    /// here is the only thing putting this file in that set.
+    var evidenceRaw: String?
+    var proof: JSONValue?
+    /// The proof as written on disk, verbatim: what Raw shows.
+    var proofRaw: String? = nil
+    var committedB64: String?
+    var positions: [Position]
+    /// A recording's files, the first 500. The page lists them and opens any of them.
+    var members: [MemberInfo]?
+    var memberCount: Int?
+}
+
+struct MemberInfo: Decodable, Equatable, Identifiable {
+    var name: String
+    var rel: String
+    var bytes: Int
+    var originDigestB64: String
+    var id: String { rel }
+}
+
+struct Evidence: Decodable, Equatable {
+    struct FileInfo: Decodable, Equatable {
+        var name: String
+        var bytes: Int
+    }
+    struct Member: Decodable, Equatable {
+        var index: Int
+        var count: Int
+    }
+    var file: FileInfo
+    var placement: String
+    var originDigestB64: String
+    var artifactDigestB64: String
+    var position: Position
+    var set: String?
+    var member: Member?
+    var writtenAt: String
+}
+
+struct AnchorPass: Decodable, Equatable {
+    var positions: Int
+    var landed: Int
+    var open: [String: Int]
+    var partial: Bool
+}
+
+/// ⚠️ A gap is not a fault.
+///
+/// `fault`  something is wrong and somebody has to act.
+/// `gap`    something could not be done and nothing is wrong: the ledger could
+///          not be reached, a make could not finish. Nothing was lost.
+///
+/// Painting a gap the same colour as a fault says a thing happened that did
+/// not, which is the same overstatement as calling a failed read an absence.
+enum TroubleSeverity: String, Decodable {
+    case fault
+    case gap
+}
+
+/// One line the core sent that was not an answer to anything.
+/// What the update feed said, checked by the core. The app is TOLD; it never
+/// installs. `url` is the notarized DMG, opened in the browser on the person's
+/// click, where Gatekeeper checks it like any download.
+struct UpdateCheck: Decodable, Equatable {
+    var current: String
+    var latest: String
+    var available: Bool
+    var url: String
+    var notes: String
+    var sha256: String
+    var checkedAt: String
+}
+
+enum DaemonEvent: Equatable {
+    case ready(supportDir: String)
+    /// The daily check found something newer.
+    case update(UpdateCheck)
+    case watching(root: String)
+    case settling(root: String, files: Int)
+    case making(root: String, files: Int, progress: MakeProgress?)
+    case checking(root: String, done: Int, total: Int)
+    case made(root: String, result: MakeResult)
+    /// `files` is the first few hundred; `total` and `same` are the counts.
+    case skipped(root: String, files: [SkippedFile], total: Int, same: Int)
+    case anchors(root: String, pass: AnchorPass)
+    case idle(root: String)
+    case trouble(root: String, reason: String, recoverable: Bool, severity: TroubleSeverity)
+    case settingsChanged
+    case unknown(kind: String)
+
+    var root: String? {
+        switch self {
+        case .watching(let r), .settling(let r, _), .making(let r, _, _), .checking(let r, _, _), .made(let r, _),
+             .skipped(let r, _, _, _), .anchors(let r, _), .idle(let r), .trouble(let r, _, _, _):
+            return r
+        case .ready, .update, .settingsChanged, .unknown:
+            return nil
+        }
+    }
+}
+
+extension DaemonEvent: Decodable {
+    private enum Keys: String, CodingKey {
+        case kind, root, files, progress, result, pass, reason, recoverable, supportDir, severity, update, total, same
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        let kind = try c.decode(String.self, forKey: .kind)
+        let root = try c.decodeIfPresent(String.self, forKey: .root) ?? ""
+        switch kind {
+        case "ready":
+            self = .ready(supportDir: try c.decodeIfPresent(String.self, forKey: .supportDir) ?? "")
+        case "watching":
+            self = .watching(root: root)
+        case "settling":
+            self = .settling(root: root, files: try c.decodeIfPresent(Int.self, forKey: .files) ?? 0)
+        case "making":
+            self = .making(
+                root: root,
+                files: try c.decodeIfPresent(Int.self, forKey: .files) ?? 0,
+                progress: try c.decodeIfPresent(MakeProgress.self, forKey: .progress)
+            )
+        case "checking":
+            let p = try c.decodeIfPresent(CheckProgress.self, forKey: .progress)
+            self = .checking(root: root, done: p?.done ?? 0, total: p?.total ?? 0)
+        case "made":
+            self = .made(root: root, result: try c.decode(MakeResult.self, forKey: .result))
+        case "skipped":
+            let files = try c.decodeIfPresent([SkippedFile].self, forKey: .files) ?? []
+            self = .skipped(
+                root: root,
+                files: files,
+                total: try c.decodeIfPresent(Int.self, forKey: .total) ?? files.count,
+                same: try c.decodeIfPresent(Int.self, forKey: .same) ?? files.filter { $0.reason == "same-bytes" }.count
+            )
+        case "anchors":
+            self = .anchors(root: root, pass: try c.decode(AnchorPass.self, forKey: .pass))
+        case "idle":
+            self = .idle(root: root)
+        case "trouble":
+            self = .trouble(
+                root: root,
+                reason: try c.decodeIfPresent(String.self, forKey: .reason) ?? "something went wrong and did not say what.",
+                recoverable: try c.decodeIfPresent(Bool.self, forKey: .recoverable) ?? true,
+                /* ⚠️ An unlabelled trouble is treated as a FAULT. Reading an
+                 * unknown thing as the quieter of two possibilities is how a
+                 * real problem gets shown in grey. */
+                severity: (try? c.decodeIfPresent(TroubleSeverity.self, forKey: .severity)) as? TroubleSeverity ?? .fault
+            )
+        case "update":
+            self = .update(try c.decode(UpdateCheck.self, forKey: .update))
+        case "settings":
+            self = .settingsChanged
+        default:
+            self = .unknown(kind: kind)
+        }
+    }
+}
+
+
+/// The core's sentence for a macOS privacy block, so the window can add the
+/// way to the settings pane. The prefix is `BLOCKED_PREFIX` in core/src/blocked.ts.
+enum Blocked {
+    static let prefix = "macOS is blocking BitGraph Recorder from "
+    static func isBlock(_ text: String) -> Bool { text.hasPrefix(prefix) }
+}

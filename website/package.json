@@ -1,0 +1,52 @@
+{
+  "name": "website",
+  "version": "0.1.0",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "scripts": {
+    "copy-c2pa-assets": "mkdir -p public/c2pa && cp node_modules/c2pa/dist/assets/wasm/toolkit_bg.wasm public/c2pa/ && cp node_modules/c2pa/dist/c2pa.worker.min.js public/c2pa/ && cp node_modules/@contentauth/toolkit/pkg/toolkit_bg.wasm public/c2pa/toolkit_core.wasm",
+    "dev": "npm run copy-c2pa-assets && next dev",
+    "build": "npm run copy-c2pa-assets && next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test:fuse": "node --test src/lib/__tests__/fuse.test.ts src/lib/__tests__/fuse-set.test.ts src/lib/__tests__/fuse-placement.test.ts src/lib/__tests__/scan-hash.test.ts src/lib/__tests__/version-client-parity.test.ts src/lib/__tests__/digest-filter.test.ts src/lib/__tests__/anchor-kind.test.ts src/lib/__tests__/proof-environment.test.ts src/lib/__tests__/set-members.test.ts src/lib/__tests__/anchor-export.test.ts src/lib/__tests__/bitgraphs-file.test.ts src/lib/__tests__/local-ledger.test.ts src/lib/__tests__/carrier-parity.test.ts src/lib/__tests__/carrier-member.test.ts src/lib/__tests__/fuse2.test.ts src/lib/__tests__/package-readme.test.ts src/lib/__tests__/tree1-make.test.ts src/lib/__tests__/tree1-route.test.ts src/lib/__tests__/tree1-spec.test.ts src/lib/__tests__/tree1-folder-check.test.ts src/lib/__tests__/tree1-rebuild.test.ts src/lib/__tests__/fuse2-set.test.ts src/lib/__tests__/recovery.test.ts src/lib/__tests__/recovery-store.test.ts src/lib/__tests__/recovery-queue.test.ts src/lib/__tests__/recovery-fold.test.ts src/lib/__tests__/recovery-parity.test.ts src/lib/__tests__/recovery-server.test.ts src/lib/__tests__/commitment-art.test.ts src/lib/__tests__/commitment-art-v9.test.ts src/lib/__tests__/commitment-art-v10.test.ts src/lib/__tests__/commitment-art-v11.test.ts src/lib/__tests__/commitment-art-v12.test.ts src/lib/__tests__/commitment-art-v13.test.ts src/lib/__tests__/commitment-art-v14.test.ts src/lib/__tests__/commitment-art-v15.test.ts src/lib/__tests__/commitment-art-v16.test.ts src/lib/__tests__/commitment-art-v17.test.ts src/lib/__tests__/commitment-art-v18.test.ts src/lib/__tests__/commitment-art-v19.test.ts src/lib/__tests__/art-position.test.ts src/lib/__tests__/art-print.test.ts src/lib/__tests__/hosted-files.test.ts",
+    "test:ledger": "node --test src/lib/__tests__/ledger-archive.test.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1021.0",
+    "@mikeargento/bitgraph": "^1.14.1",
+    "@mikeargento/bitgraph-verify": "^1.22.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@noble/curves": "^2.0.1",
+    "@noble/ed25519": "^3.0.0",
+    "@noble/hashes": "^1.8.0",
+    "@vercel/analytics": "^2.0.1",
+    "c2pa": "^0.30.17",
+    "cbor-x": "^1.6.4",
+    "fflate": "^0.8.2",
+    "hash-wasm": "4.12.0",
+    "heic2any": "^0.0.4",
+    "katex": "^0.16.38",
+    "mcp-handler": "^2.1.0",
+    "next": "16.1.6",
+    "qrcode.react": "^4.2.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "resend": "^6.10.0",
+    "shiki": "^4.4.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5",
+    "vercel": "^50.41.0"
+  }
+}

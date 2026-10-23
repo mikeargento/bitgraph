@@ -1,0 +1,32 @@
+{
+  "name": "@bitgraph/adapter-nitro",
+  "version": "1.0.0",
+  "description": "AWS Nitro Enclaves adapter for BitGraph",
+  "author": "Argento Computing Inc. (https://bitgraph.ing)",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cbor2": "^1.0.0",
+    "bitgraph": "file:../../"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "private": true
+}

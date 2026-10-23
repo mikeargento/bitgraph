@@ -1,0 +1,989 @@
+import { unstable_cache } from "next/cache";
+import { anchorMarkOf, isAnchorProof } from "@mikeargento/bitgraph-verify";
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { dayIndexKey, pageKey, publicRows, type DayIndex, type DayPage, type LedgerFilter } from "./ledger-archive";
+import { setCountOf } from "./fuse-set";
+import { recordedMsOf } from "./recorded-time";
+
+/* The ledger feed, shared by the API route and the server-rendered /day page.
+
+   This lived inside app/api/explorer/route.ts until the day page needed the
+   same first page at request time. A route handler can only be reached over
+   HTTP, so server-rendering the first 25 rows through it would have meant the
+   page fetching itself. The logic moved here instead and route.ts became a
+   thin adapter over it; behaviour, cache headers and the disclosure surface
+   are unchanged.
+
+   Read-only, CURRENT epoch. Returns aggregate, safe per-entry fields only
+   (counter, type, short hash, link digest, anchor block, recorded time). Never
+   returns attestation documents, signatures, agency, or any operator detail.
+   The one value read out of the attestation is its timestamp, the row's time,
+   which is in every proof and led with on every proof page. See the
+   disclosure audit: the per-proof page already carries the rest; this surface
+   deliberately exposes only the spine.
+
+   ⚠️ ANCHORS ONLY, NEVER A RECORDING (Mike, 2026-10-09: "We don't want that
+   ledger."). This feed used to list every recording too, by day, with its
+   digest, and the /ledger page shipped those rows inside its HTML even while
+   it showed only anchors. With the paintings redrawn on the proof page from
+   the proof alone, that list was a gallery of everyone's work for anyone who
+   asked. A record is now found only by someone who already holds its file,
+   its digest or a link its maker shared. Every path below reads anchors (the
+   anchors/{epoch}/ index, or an archived day's rows through publicRows), and
+   every row is checked again on the way out, so a recording cannot ride along
+   even if an index is wrong. The files-only mode (?files=1) is gone with it;
+   the route ignores the parameter. */
+
+const region = (process.env.LEDGER_REGION || "us-east-2").trim();
+const bucket = (process.env.LEDGER_BUCKET || "occ-ledger-prod").trim();
+const s3 = new S3Client({ region });
+
+const PAGE = 25;
+const pad = (n: number) => String(n).padStart(12, "0");
+const toSafe = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+// ── tiny in-memory caches (warm-instance scoped) ───────────────────────────
+let epochCache: { epoch: string; at: number } | null = null;
+const EPOCH_TTL = 60_000;
+
+/** Current epoch: ask the enclave (it mints epochs; one call), fall back to a
+ *  PAGINATED newest-born scan of the ledger while the boundary is rotating.
+ *  The old single-page MaxKeys:200 listing was a time bomb under daily epoch
+ *  rotation: past 200 epoch prefixes (~2027-01) the current epoch could sort
+ *  off the page and the ledger would silently pin to a stale epoch. */
+async function getCurrentEpoch(now: number): Promise<string | null> {
+  if (epochCache && now - epochCache.at < EPOCH_TTL) return epochCache.epoch;
+  try {
+    const r = await fetch("https://nitro.occproof.com/key", { signal: AbortSignal.timeout(4000) });
+    if (r.ok) {
+      const k = (await r.json()) as { epochId?: string };
+      if (k.epochId) {
+        const epoch = k.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        epochCache = { epoch, at: now };
+        return epoch;
+      }
+    }
+  } catch { /* rotating or unreachable: fall through */ }
+  const prefixes: string[] = [];
+  let token: string | undefined;
+  do {
+    const pe = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: "proofs/", Delimiter: "/", ContinuationToken: token }));
+    for (const cp of pe.CommonPrefixes || []) if (cp.Prefix) prefixes.push(cp.Prefix);
+    token = pe.NextContinuationToken;
+  } while (token);
+  const born = await Promise.all(prefixes.map(async (pfx) => {
+    const first = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: pfx, MaxKeys: 1 }));
+    return { epoch: pfx.replace("proofs/", "").replace(/\/$/, ""), born: first.Contents?.[0]?.LastModified?.getTime() ?? 0 };
+  }));
+  let best: { epoch: string; born: number } | null = null;
+  for (const b of born) if (!best || b.born > best.born) best = b;
+  if (!best) return null;
+  epochCache = { epoch: best.epoch, at: now };
+  return best.epoch;
+}
+
+/* getHead() lived here. It walked keys-only LIST pages to find the epoch's
+   highest counter and, when the walk hit its page cap, fell through to a
+   ~20-probe binary search — and on 2026-08-09 the day's epoch outgrew the cap,
+   so it did BOTH: 3,261ms to learn one number, the answer from the walk thrown
+   away first. Nothing calls it now. The live path takes the head from the same
+   cached pass that produces its rows, and the day path takes its bounds from
+   the anchors-by-time segments. */
+
+type Entry = {
+  counter: number;
+  type: "proof" | "anchor" | "interval";
+  digest: string;
+  hashShort: string;
+  blockNumber: number | null;
+  etherscanUrl: string | null;
+  // The anchored block's hash, from the signed mark. The anchors page shows it
+  // and the export carries it, so an anchor can be matched against Etherscan
+  // without opening its proof. Absent on archive rows and pre-v7 anchors.
+  blockHash?: string;
+  isNew?: true;
+  // The recorded time, epoch ms: the proof's own attestation timestamp, the
+  // TEE's signed clock, the same time its proof page leads with (Mike,
+  // 2026-09-27: "make it consistent"). It was S3 LastModified until then, the
+  // storage clock, which ran about a second behind. That stays only as the
+  // fallback for a proof whose attestation cannot be read.
+  at?: number;
+  // URL-safe epochId. Counters repeat across epochs, so day days (which can
+  // span epochs) need it for row identity and to pin proof links to the exact
+  // position. Present on every entry; the live feed just doesn't need it.
+  ep?: string;
+  // A set proof's member count (N files under one slot), so the row can say
+  // "set of N". A display count read off the ledger's own copy of the
+  // manifest, not a verdict; 0 when the set's manifest is absent.
+  set?: number;
+};
+
+// File rows arrive stamped "new!" while their ledger write is under this old;
+// the client drops the tag on its own 30s timer. This age still comes from S3
+// LastModified, already in the LIST responses (no extra calls): "new" is about
+// the ledger's copy arriving. The row's shown time is the proof's own (see
+// `at`). Files only for "new!": anchors and intervals are the clock.
+const NEW_MS = 30_000;
+
+function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | null {
+  const commit = (p.commit as Record<string, unknown>) || {};
+  const artifact = (p.artifact as Record<string, unknown>) || {};
+  const attribution = (p.attribution as Record<string, unknown>) || {};
+  const counter = parseInt(String(commit.counter ?? "0"), 10);
+  if (!counter) return null;
+  // The signed commit.anchor first, the attribution name only for the pre-v7
+  // history that has nothing else. See bitgraph-verify's anchor.ts for why both.
+  const isAnchor = isAnchorProof(p);
+  // An interval recurrence re-commits an anchor's exact block-hash bytes 25
+  // anchors later. Same artifact digest, new causal position, distinct label.
+  const isInterval = attribution.name === "Interval";
+  const digestB64 = String(artifact.digestB64 || "");
+  const proofHash = String((p.proofHash as string) || commit.prevB64 || digestB64 || "");
+  let blockNumber: number | null = null;
+  let etherscanUrl: string | null = null;
+  let blockHash: string | null = null;
+  if (isAnchor || isInterval) {
+    const meta = ((p.metadata as Record<string, unknown>)?.interval as { originalBlockNumber?: number }) || null;
+    // An authenticated anchor carries its block in the signed mark, so it does
+    // not depend on attribution.title being an Etherscan URL — which a fused
+    // anchor's attribution has no room to be.
+    const mark = anchorMarkOf(p);
+    if (mark !== null) {
+      blockNumber = mark.blockNumber;
+      blockHash = mark.blockHash;
+      etherscanUrl = `https://etherscan.io/block/${mark.blockNumber}`;
+    } else {
+      etherscanUrl = (attribution.title as string) || null;
+      const m = (etherscanUrl || "").match(/\/block\/(\d+)/);
+      blockNumber = m ? parseInt(m[1], 10) : (meta?.originalBlockNumber ?? null);
+    }
+  }
+  const isNew = !isAnchor && !isInterval && !!lastModifiedMs && Date.now() - lastModifiedMs < NEW_MS;
+  const epochId = String(commit.epochId || "");
+  // Parse only, no hash: the label is a count, not a verdict.
+  const setCount = setCountOf(p);
+  const at = recordedMsOf(p) ?? lastModifiedMs;
+  return {
+    counter,
+    type: isAnchor ? "anchor" : isInterval ? "interval" : "proof",
+    digest: toSafe(digestB64),
+    hashShort: toSafe(proofHash).slice(0, 10),
+    blockNumber,
+    etherscanUrl,
+    ...(blockHash !== null ? { blockHash } : {}),
+    ...(isNew ? { isNew: true as const } : {}),
+    ...(at ? { at } : {}),
+    ...(epochId ? { ep: toSafe(epochId) } : {}),
+    ...(setCount !== null ? { set: setCount } : {}),
+  };
+}
+
+/* The two recording listers that stood here (listRecentFiles, the files-only
+   feed, and listRecent, every proof in a counter window) are gone with the
+   recordings themselves (Mike, 2026-10-09: "We don't want that ledger."). Both
+   read the proofs/ prefix, which holds everyone's records; the one lister left
+   reads only the anchors/ index, and its rows are anchor proofs by
+   construction. */
+
+/** The `limit` highest-counter ANCHORS at or below `top` (and at or above
+ *  `lowBound`), from the anchors/{epoch}/{counter}.json index. Never touches
+ *  proofs/, so it cannot return a recording; toEntry's own classification is
+ *  checked once more on the way out regardless.
+ *
+ *  Scans down in 1000-counter windows. Counter keys are zero-padded and
+ *  unique, so one LIST of MaxKeys 1000 from a window's start holds every anchor
+ *  in that window. Returns `floor`, the resume point: the last anchor shown
+ *  when the page is full, otherwise the bottom of what was scanned, so a long
+ *  stretch with no anchor (an outage, or a busy burst of recordings) still
+ *  advances rather than reading as the end. */
+const ANCHOR_SCAN_BUDGET = 40_000;
+async function listRecentAnchors(epoch: string, top: number, limit: number, lowBound = 1): Promise<{ entries: Entry[]; floor: number }> {
+  const prefix = `anchors/${epoch}/`;
+  const keys: Array<{ key: string; counter: number; lm?: number }> = [];
+  let cursor = top;
+  let scanned = 0;
+  while (cursor >= lowBound && scanned < ANCHOR_SCAN_BUDGET && keys.length < limit) {
+    const start = Math.max(lowBound - 1, cursor - Math.min(1000, cursor));
+    const r = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, StartAfter: `${prefix}${pad(start)}`, MaxKeys: 1000 }));
+    for (const o of r.Contents || []) {
+      const n = parseInt(((o.Key || "").split("/").pop() || "").split("-")[0], 10);
+      if (!isNaN(n) && n > start && n <= cursor) keys.push({ key: o.Key!, counter: n, lm: o.LastModified?.getTime() });
+    }
+    scanned += cursor - start;
+    cursor = start;
+  }
+  keys.sort((a, b) => b.counter - a.counter);
+  const shown = keys.slice(0, limit);
+  const objs = await Promise.all(shown.map(async ({ key, lm }) => {
+    try {
+      const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      const body = await r.Body?.transformToString();
+      return body ? { json: JSON.parse(body) as Record<string, unknown>, lm } : null;
+    } catch { return null; }
+  }));
+  const entries = objs
+    .map((o) => (o ? toEntry(o.json, o.lm) : null))
+    .filter((e): e is Entry => e !== null && e.type !== "proof")
+    .sort((a, b) => b.counter - a.counter);
+  return {
+    entries,
+    floor: shown.length >= limit ? shown[shown.length - 1].counter : cursor + 1,
+  };
+}
+
+// ── Day days ───────────────────────────────────────────────────────────────
+// A UTC calendar day resolved to (epoch, counter-range) segments via the
+// anchors-by-time/ index: keys are ISO-timestamp-prefixed so lexicographic
+// order IS chronological, and each object carries its epoch + counter. Anchors
+// are the protocol's clock, so "the recordings between the day's first and
+// last anchor" is the honest day boundary (±one 12s anchor interval of fuzz at
+// the edges). One mechanism covers post-rotation days (one epoch per day),
+// mid-day restarts (several segments), and pre-rotation epochs spanning many
+// days (a slice of one epoch). Epochs deliberately have NO ordinal numbers —
+// they relate only through anchors — so days are named by date, never "#47".
+
+type DaySeg = { epoch: string; min: number; max: number };
+
+// Sealed days never change; cache resolved segments for the instance lifetime.
+const daySegCache = new Map<string, DaySeg[]>();
+
+function nextDayStr(day: string): string {
+  const [y, m, d] = day.split("-").map((x) => parseInt(x, 10));
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
+async function getAnchorRef(key: string): Promise<{ epoch: string; counter: number } | null> {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const body = await r.Body?.transformToString();
+    if (!body) return null;
+    const p = JSON.parse(body) as { commit?: { epochId?: string; counter?: string } };
+    const epoch = toSafe(String(p.commit?.epochId || ""));
+    const counter = parseInt(String(p.commit?.counter ?? "0"), 10);
+    return epoch && counter ? { epoch, counter } : null;
+  } catch { return null; }
+}
+
+/** Contiguous same-epoch runs of the day's anchor keys. Epoch keys are never
+ *  reused (fresh keypair per boot), so equal epochs at both ends of a span
+ *  mean the whole span is that epoch — binary splitting only happens on the
+ *  rare day containing a restart, costing ~log2(anchors) GETs per boundary. */
+async function splitSegs(
+  keys: string[], i: number, j: number,
+  ai: { epoch: string; counter: number }, aj: { epoch: string; counter: number },
+): Promise<DaySeg[]> {
+  if (ai.epoch === aj.epoch) return [{ epoch: ai.epoch, min: ai.counter, max: aj.counter }];
+  if (j - i === 1) return [
+    { epoch: ai.epoch, min: ai.counter, max: ai.counter },
+    { epoch: aj.epoch, min: aj.counter, max: aj.counter },
+  ];
+  const mid = (i + j) >> 1;
+  const am = await getAnchorRef(keys[mid]);
+  if (!am) return [{ epoch: ai.epoch, min: ai.counter, max: ai.counter }, { epoch: aj.epoch, min: aj.counter, max: aj.counter }];
+  const [left, right] = await Promise.all([splitSegs(keys, i, mid, ai, am), splitSegs(keys, mid, j, am, aj)]);
+  // The middle anchor appears in both halves; merge the shared segment.
+  const merged = [...left];
+  for (const seg of right) {
+    const lastIdx = merged.length - 1;
+    if (merged[lastIdx].epoch === seg.epoch) {
+      merged[lastIdx] = { epoch: seg.epoch, min: Math.min(merged[lastIdx].min, seg.min), max: Math.max(merged[lastIdx].max, seg.max) };
+    } else merged.push(seg);
+  }
+  return merged;
+}
+
+async function computeDaySegments(day: string): Promise<DaySeg[]> {
+  const prefix = "anchors-by-time/";
+  const endExcl = `${prefix}${nextDayStr(day)}T`;
+  const keys: string[] = [];
+  let token: string | undefined;
+  // ~7,200 anchors per day at 12s cadence → a handful of keys-only pages;
+  // paginated with an early stop (the 200-epoch listing lesson).
+  for (let page = 0; page < 12; page++) {
+    const r = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket, Prefix: prefix, MaxKeys: 1000,
+      ...(token ? { ContinuationToken: token } : { StartAfter: `${prefix}${day}T` }),
+    }));
+    let past = false;
+    for (const o of r.Contents || []) {
+      if (!o.Key) continue;
+      if (o.Key >= endExcl) { past = true; break; }
+      keys.push(o.Key);
+    }
+    token = r.NextContinuationToken;
+    if (past || !token) break;
+  }
+  if (keys.length === 0) return [];
+  const [first, last] = await Promise.all([getAnchorRef(keys[0]), getAnchorRef(keys[keys.length - 1])]);
+  if (!first || !last) return [];
+  return keys.length === 1 || first.epoch === last.epoch
+    ? [{ epoch: first.epoch, min: first.counter, max: last.counter }]
+    : await splitSegs(keys, 0, keys.length - 1, first, last);
+}
+
+/* A sealed day's segments are a fixed fact, but computeDaySegments rederived
+   them from scratch on every cold instance: a dozen keys-only LISTs plus a
+   recursive binary partition, and it is the reason a cold day day cost ~3.8s
+   while a warm one cost ~100ms. The in-process Map above only ever helped an
+   instance that had already answered for that day.
+
+   So the derived map goes in the Data Cache, which outlives an instance.
+   revalidate: false because the input cannot change: the day is sealed, its
+   anchors are written, and epoch keys are never reused. Bump the key suffix
+   rather than trying to invalidate if the segment shape ever changes.
+
+   Deliberately NOT written to the ledger bucket. That would be durable across
+   deploys too, but the bucket is Object Lock COMPLIANCE, so a map derived by a
+   buggy version could never be deleted. A cache that can be thrown away is the
+   right home for a derived value. */
+const cachedDaySegments = unstable_cache(
+  async (day: string): Promise<DaySeg[]> => {
+    const segs = await computeDaySegments(day);
+    // Never let an empty answer become durable. A day that genuinely has no
+    // anchors and a day whose index read failed are indistinguishable here, and
+    // persisting the second would turn one bad read into a permanent "nothing
+    // was recorded that day". Throwing leaves nothing cached, so the next
+    // request tries again.
+    if (segs.length === 0) throw new Error(EMPTY_DAY);
+    return segs;
+  },
+  ["day-day-segments-v1"],
+  { revalidate: false },
+);
+
+const EMPTY_DAY = "ledger-feed: day resolved to no segments";
+
+async function daySegments(day: string): Promise<DaySeg[]> {
+  const cached = daySegCache.get(day);
+  if (cached) return cached;
+  let segs: DaySeg[];
+  try {
+    segs = await cachedDaySegments(day);
+  } catch (e) {
+    // Empty is the one throw this layer invents, and the answer it stands for
+    // is []: no recompute needed. Anything else is a real read failure and has
+    // to stay one, so it travels up rather than being flattened into an empty
+    // day.
+    if ((e as Error)?.message !== EMPTY_DAY) throw e;
+    segs = [];
+  }
+  if (daySegCache.size > 64) daySegCache.clear();
+  daySegCache.set(day, segs);
+  return segs;
+}
+
+// ── The sealed-day archive ──────────────────────────────────────────────────
+/* A sealed day is written history: it cannot gain, lose or reorder an entry, so
+   it is materialised once into display pages by scripts/build-ledger-archive.mjs
+   and read back by name. Everything below replaces, for archived days only, the
+   derivation this file does otherwise — a dozen LISTs over anchors-by-time, a
+   recursive binary partition to find epoch boundaries, then window scans with a
+   GET per row, repeated on every cold instance for a day frozen a week ago.
+   Measured on three days: 1.10s → 250ms, 3.64s → 145ms, 2.98s → 119ms.
+
+   The live epoch is deliberately NOT archived. It is the one range that can
+   still change, and leaving it on the ledger read keeps the only place drift is
+   possible free of a second source of truth.
+
+   PAGING. Archived days are paged by page NUMBER, not by counter: the pages are
+   the pagination. That cursor gets its OWN field, `page`/`nextPage`, rather than
+   riding on `before`.
+
+   It rode on `before` first, and the two meanings could not be told apart at the
+   one place it mattered. The archive declines mid-run whenever a page read
+   fails, and the derivation then received a page number and read it as a
+   counter: `before=3` meant "page 3" to the reader that wrote it and "everything
+   below counter 3" to the one that answered, which is the end of the day. With
+   the fields split, a declined page leaves `before` unset, so the derivation
+   falls back to the day's top and walks down by counter, re-deriving rows the
+   client already holds and deduping them away. Slower, and correct.
+
+   An out-of-range page still declines rather than clamping: clamping would
+   answer with an empty page, and an empty page is the one answer this feed must
+   never invent. */
+
+async function getArchiveJson<T>(key: string): Promise<T | null> {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const body = await r.Body?.transformToString();
+    return body ? (JSON.parse(body) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function entryFromRow(r: DayPage["rows"][number]): Entry {
+  const type = r.t === "a" ? "anchor" : r.t === "i" ? "interval" : "proof";
+  return {
+    counter: r.c,
+    type,
+    digest: r.d,
+    hashShort: r.h,
+    blockNumber: r.b ?? null,
+    etherscanUrl: r.b != null ? `https://etherscan.io/block/${r.b}` : null,
+    ...(r.at ? { at: r.at } : {}),
+    ...(r.ep ? { ep: r.ep } : {}),
+    ...(r.s !== undefined ? { set: r.s } : {}),
+  };
+}
+
+/**
+ * One page of an archived day, or null to say "not archived, derive it".
+ *
+ * NULL IS THE ONLY FAILURE ANSWER. A missing manifest, an unreadable page, a
+ * schema this build does not understand and an out-of-range cursor all return
+ * null, and the caller then does exactly what it did before this existed. What
+ * none of them do is return an empty page: a Ledger that under-reports is
+ * indistinguishable from a ledger that never recorded the thing you came to
+ * look for, and every shortcut here has to fail towards the slow answer rather
+ * than towards the empty one.
+ */
+async function archivedDayPage(
+  day: string, pageParam: string | null,
+): Promise<{ entries: Entry[]; nextPage: number | null; hasMore: boolean } | null> {
+  const index = await getArchiveJson<DayIndex>(dayIndexKey(day));
+  if (!index || index.v !== 1) return null;
+  /* Always the "a" stream, read through publicRows: anchors and intervals, no
+     recording (Mike, 2026-10-09). The "f" stream is recordings only and is
+     never read here any more. No `total` goes out either: the day's declared
+     count includes the recordings dropped below, so it cannot be held against
+     the rows shown, and an undeclared day claims nothing about completeness. */
+  const filter: LedgerFilter = "a";
+  const pageCount = index.pages?.[filter];
+  if (typeof pageCount !== "number") return null;
+
+  const n = pageParam ? parseInt(pageParam, 10) : 0;
+  if (isNaN(n) || n < 0) return null;
+  // Past the end. Only reachable from a hand-made or stale request, since the
+  // last page reports no next page at all. Declining sends it to the derivation,
+  // which answers from the ledger; clamping would answer with an empty page.
+  if (n >= pageCount) return null;
+
+  const page = await getArchiveJson<DayPage>(pageKey(day, filter, n));
+  if (!page || !Array.isArray(page.rows) || page.n !== n) return null;
+
+  const hasMore = n + 1 < pageCount;
+  return {
+    // A page that was all recordings comes back empty with hasMore set; the
+    // client's fetchChain walks on past it, as it does an anchor-only stretch.
+    entries: publicRows(page.rows).map(entryFromRow),
+    nextPage: hasMore ? n + 1 : null,
+    hasMore,
+  };
+}
+
+// ── The live epoch, in one pass ─────────────────────────────────────────────
+/* The sealed days are archived; today is the one range that can still change,
+   so it is still read from the ledger. What it is NOT any more is scanned.
+
+   The scan walked down from the head in 1000-counter windows, two LISTs each,
+   stopping when it had 25 recordings. That is fine when recordings are spread
+   evenly and catastrophic when they are not: recordings arrive in bursts and
+   anchors arrive every 12 seconds, so by mid-afternoon the top of the epoch is
+   tens of thousands of anchor-only counters and filling one page meant ~60
+   LISTs. Measured at 7-10s, after the budget was raised far enough to return
+   any rows at all.
+
+   Two LISTs of the whole epoch cost less than sixty LISTs of part of it. The
+   proofs prefix gives every counter and the anchors prefix gives the ones to
+   skip; the difference is the file list, in order, and the last key is the
+   head. One pass answers both questions the feed used to ask separately.
+
+   The pass itself is split below into an hourly BASE and a per-request DELTA,
+   so the whole-epoch listing runs about once an hour and every recompute in
+   between reads only the counters written since. The 15s body cache
+   (cachedLiveHead, at the bottom of this file) remains the gate on how often
+   any of this runs at all.
+
+   Since 2026-10-09 the index keeps the ANCHORS, not the files: the proofs
+   prefix is still listed, but only for the head (Mike: "We don't want that
+   ledger."). The anchors prefix is the row list, and it holds nothing but
+   anchors. */
+
+type EpochIndex = { head: number; anchors: Array<{ key: string; counter: number; lm?: number }> };
+
+/* Counter keys are zero-padded to a fixed width, so the keyspace partitions
+   exactly: StartAfter pad(n) enumerates from counter n, in order. That makes
+   the epoch listable in PARALLEL, a wave of 1000-counter windows at once,
+   where the serial NextContinuationToken chain paid one round trip per 1000
+   objects. By evening an epoch is ~14 pages deep and the chain ran 2.4-2.6s,
+   which blocked whichever request drew the recompute, cost the day page its
+   1200ms SSR budget, and left the edge handing out stale bodies for want of a
+   fresh one. A wave is one round trip no matter how deep the epoch is.
+
+   The seams are exact. A window's LIST returns the first 1000 keys above its
+   start, so a full page necessarily reaches the next window's start (1000
+   distinct counters cannot fit short of it), and a short, non-truncated page
+   proves the prefix holds nothing above its start beyond what it returned.
+   Spill past a window's end duplicates the next window's keys; the Map
+   dedupes. The union is therefore exactly the prefix's contents from `from`
+   up, and the tail window's page says whether another wave is needed. */
+const WAVE_WINDOWS = 16;
+// 8 waves is 128,000 counters: a rail, not a budget (a day peaks ~16k).
+// Running short yields FEWER rows, never wrong ones, and the head it implies
+// is a floor, so the client reads as behind.
+const MAX_WAVES = 8;
+
+async function listAllCounters(prefix: string, from = 0): Promise<Array<{ key: string; counter: number; lm?: number }>> {
+  const byCounter = new Map<number, { key: string; counter: number; lm?: number }>();
+  let start = from;
+  for (let wave = 0; wave < MAX_WAVES; wave++) {
+    // A delta read (from > 0) is expected to be small: open with a narrow
+    // wave, and let the loop widen if the tail says there is more.
+    const windows = wave === 0 && from > 0 ? 4 : WAVE_WINDOWS;
+    const starts = Array.from({ length: windows }, (_, i) => start + i * 1000);
+    const pages = await Promise.all(starts.map((s) =>
+      s3.send(new ListObjectsV2Command({
+        Bucket: bucket, Prefix: prefix, StartAfter: `${prefix}${pad(s)}`, MaxKeys: 1000,
+      })),
+    ));
+    let max = start;
+    for (const r of pages) {
+      for (const o of r.Contents || []) {
+        const n = parseInt(((o.Key || "").split("/").pop() || "").split("-")[0], 10);
+        if (!isNaN(n)) {
+          byCounter.set(n, { key: o.Key!, counter: n, lm: o.LastModified?.getTime() });
+          if (n > max) max = n;
+        }
+      }
+    }
+    const tail = pages[pages.length - 1];
+    if ((tail.Contents?.length ?? 0) < 1000 && !tail.IsTruncated) break;
+    // Everything at or below the highest key seen is covered (full pages reach
+    // the next window; short pages end the loop above), so the next wave
+    // resumes there.
+    start = Math.max(max, start + windows * 1000);
+  }
+  return [...byCounter.values()];
+}
+
+async function computeEpochIndex(epoch: string): Promise<EpochIndex> {
+  const [proofs, anchors] = await Promise.all([
+    listAllCounters(`proofs/${epoch}/`),
+    listAllCounters(`anchors/${epoch}/`),
+  ]);
+  const head = proofs.reduce((m, p) => (p.counter > m ? p.counter : m), 0);
+  return { head, anchors: anchors.sort((a, b) => b.counter - a.counter) };
+}
+
+/* The index is a BASE plus a DELTA, because the epoch's past does not change:
+   everything at or below a head already listed is written history, and only
+   the counters above it are news. The base is the full wave listing, cached
+   for an hour; each request then LISTs only what sits above the base's head,
+   which an hour accumulates ~600 counters of, one narrow wave. So the feed is
+   read LIVE on every recompute (fresher than the 15s index cache this
+   replaces) and the expensive full listing runs about once an hour instead of
+   behind every visit.
+
+   The base must be per-epoch immutable-in-shape: revalidate 3600 keyed by
+   epoch, so the first request after the daily rotation builds it when the
+   epoch is a few keys deep and it costs nothing.
+
+   An anchor whose index entry lands a moment after its proof simply shows on
+   the next recompute: the index is the only row source, so the seam can delay
+   a row, never misclassify one. */
+const cachedEpochBase = unstable_cache(
+  (epoch: string) => computeEpochIndex(epoch),
+  ["day-live-epoch-base-v2"],
+  { revalidate: 3600 },
+);
+
+/* ── In-process stale-while-revalidate, in front of the Data Cache ──────────
+   On Vercel every unstable_cache access is a network round trip to the Data
+   Cache service, and the live-head path strings several together: measured
+   1.5-1.8s on a WARM function whose other routes answer in 130ms, against
+   0.68s for the same recompute with the cache on local disk. The hops are the
+   cost, not the S3 work.
+
+   So each hot wrapper gets a per-instance memo with the same bounds the CDN
+   already has for the same answer: serve from memory while fresh; past fresh
+   but within the SWR window, serve the stale value and refresh behind it;
+   past the window, block and compute as before. The safety argument is the
+   one written above the body caches, extended one layer in: nothing served
+   from here is ever staler than what the edge was already allowed to hand
+   back for the same URL. Instances die and take their memos with them; the
+   Data Cache behind this stays the layer that outlives them.
+
+   A background refresh may be frozen with its lambda and finish on a later
+   invocation, or never. Both are safe: the memo just ages out of its window
+   and the next request takes the blocking path, which is exactly today's
+   behavior. */
+type SwrMemo<T> = { value: T; at: number; refreshing?: boolean };
+function swrMemoize<A extends unknown[], T>(
+  freshMs: number,
+  staleMs: number,
+  fn: (...args: A) => Promise<T>,
+  keyOf: (...args: A) => string,
+): (...args: A) => Promise<T> {
+  const memos = new Map<string, SwrMemo<T>>();
+  return async (...args: A): Promise<T> => {
+    const key = keyOf(...args);
+    const m = memos.get(key);
+    const now = Date.now();
+    if (m && now - m.at < freshMs) return m.value;
+    if (m && now - m.at < staleMs) {
+      if (!m.refreshing) {
+        m.refreshing = true;
+        fn(...args)
+          .then((value) => memos.set(key, { value, at: Date.now() }))
+          .catch(() => { m.refreshing = false; });
+      }
+      return m.value;
+    }
+    const value = await fn(...args);
+    memos.set(key, { value, at: now });
+    return value;
+  };
+}
+
+/* Base staleness only grows the delta (any past head of the same epoch yields
+   a complete delta), so serving a stale base while an hourly rebuild runs
+   behind the request is correct by the same argument that makes the base
+   cacheable at all. Keyed by epoch: rotation is a new key, never a stale
+   crossover. */
+const memoEpochBase = swrMemoize(
+  3_600_000,
+  7_200_000,
+  (epoch: string) => cachedEpochBase(epoch),
+  (epoch) => epoch,
+);
+
+async function liveEpochIndex(epoch: string): Promise<EpochIndex> {
+  const base = await memoEpochBase(epoch);
+  const [dp, da] = await Promise.all([
+    listAllCounters(`proofs/${epoch}/`, base.head),
+    listAllCounters(`anchors/${epoch}/`, base.head),
+  ]);
+  const head = dp.reduce((m, p) => (p.counter > m ? p.counter : m), base.head);
+  const deltaAnchors = da.sort((a, b) => b.counter - a.counter);
+  // Delta counters sit strictly above base.head, so concat is the merge.
+  return { head, anchors: [...deltaAnchors, ...base.anchors] };
+}
+
+/** The `limit` highest-counter anchors at or below `top`, from the index. A
+ *  slice and the GETs for the rows that will actually be shown; every row is
+ *  checked once more to be an anchor or an interval, never a recording. */
+async function liveAnchors(index: EpochIndex, top: number, limit: number): Promise<{ entries: Entry[]; floor: number }> {
+  const { anchors } = index;
+  const slice = anchors.filter((f) => f.counter <= top).slice(0, limit);
+  const objs = await Promise.all(slice.map(async ({ key, lm }) => {
+    try {
+      const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      const body = await r.Body?.transformToString();
+      return body ? { json: JSON.parse(body) as Record<string, unknown>, lm } : null;
+    } catch { return null; }
+  }));
+  const entries = objs
+    .map((o) => (o ? toEntry(o.json, o.lm) : null))
+    .filter((e): e is Entry => e !== null && e.type !== "proof")
+    .sort((a, b) => b.counter - a.counter);
+  const lowest = slice.length ? slice[slice.length - 1].counter : 1;
+  const more = anchors.some((f) => f.counter < lowest);
+  return { entries, floor: more ? lowest : 1 };
+}
+
+export type LedgerFeedBody = {
+  epoch?: string;
+  day?: string;
+  head?: number;
+  entries: Entry[];
+  /** Counter cursor. Always a counter, on every path that sets it. */
+  nextBefore: number | null;
+  nextEpoch?: string | null;
+  /* Page cursor, archived days only. Its own field rather than a second meaning
+     for `before`, so that when the archive declines mid-run the derivation is
+     handed no cursor at all instead of a page number it would read as a
+     counter. Exactly one of the two is ever set. */
+  nextPage?: number | null;
+  hasMore: boolean;
+  /* Rows the archive DECLARES this day holds, for the active filter. Present
+     only for archived days, where it is what makes a short list detectably
+     short: a client that has loaded three pages can compare what it holds
+     against what the day says it has, instead of inferring completeness from a
+     response that happened to be short. Absent on the live feed and on derived
+     days, where no such declaration exists and the client must not pretend one
+     does.
+
+     ⚠️ Never set since 2026-10-09: the declared count includes recordings,
+     which this feed no longer shows, so it cannot be held against the anchor
+     rows. Kept in the type so a client that reads it finds it absent. */
+  total?: number;
+};
+
+export type LedgerFeedResult =
+  | { status: 200; body: LedgerFeedBody; cacheControl: string }
+  | { status: 400 | 404; body: { error: string }; cacheControl?: undefined };
+
+/** One page of the ledger. `day` selects a sealed UTC day; omit it for the live
+ *  feed. Paging takes one of two cursors and never both: `page` for an archived
+ *  day, `before`/`bepoch` for everything else (counters repeat across epochs, so
+ *  a counter cursor is scoped by epoch). */
+async function computeLedgerFeed(opts: {
+  day?: string | null;
+  before?: string | null;
+  bepoch?: string | null;
+  page?: string | null;
+}): Promise<LedgerFeedResult> {
+  const now = Date.now();
+  const beforeParam = opts.before ?? null;
+  const dayParam = opts.day ?? null;
+
+  if (dayParam) {
+    // Sealed UTC days only; the live Ledger is the plain (no-day) feed.
+    const todayUTC = new Date(now).toISOString().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dayParam) || dayParam >= todayUTC) {
+      return { status: 400, body: { error: "bad day" } };
+    }
+    /* A sealed day cannot change, but the ANSWER for one can: the moment its
+       pages are built, the derivation stops being the best source. So a derived
+       day is only cached briefly, while an archived page keeps the immutable
+       header it sets for itself further down.
+
+       This was s-maxage=86400, reasoning from the day rather than the answer,
+       and it made the backfill invisible: a day anyone had already opened kept
+       serving the slow derived answer for a full day after its pages landed.
+       The long stale-while-revalidate stays, so the edge still paints instantly
+       and corrects itself behind the request. */
+    const derivedCache = "public, s-maxage=60, stale-while-revalidate=86400";
+
+    // The archive first, always. It answers by name in two reads, and declines
+    // (null) for anything it cannot answer with certainty, so the derivation
+    // below stays the fallback rather than the fast path.
+    const archived = await archivedDayPage(dayParam, opts.page ?? null);
+    if (archived) {
+      return {
+        status: 200,
+        body: {
+          day: dayParam,
+          entries: archived.entries,
+          nextBefore: null,
+          nextPage: archived.nextPage,
+          hasMore: archived.hasMore,
+        },
+        // A materialised page of a sealed day cannot change, so it caches hard.
+        // The day is history and the page is named for its exact position in it.
+        cacheControl: "public, max-age=31536000, s-maxage=31536000, immutable",
+      };
+    }
+
+    // Newest segment first: the ledger reads newest-first within a day too.
+    const ordered = [...await daySegments(dayParam)].reverse();
+    if (ordered.length === 0) {
+      return {
+        status: 200,
+        body: { day: dayParam, entries: [], nextBefore: null, hasMore: false },
+        cacheControl: derivedCache,
+      };
+    }
+    // Cursor: before=<counter> scoped by bepoch=<epoch>, since counters repeat
+    // across epochs. No cursor → start at the newest segment's top.
+    let segIdx = 0;
+    let top: number;
+    if (beforeParam) {
+      const b = parseInt(beforeParam, 10);
+      const bepoch = opts.bepoch || "";
+      segIdx = ordered.findIndex((s) => s.epoch === bepoch);
+      if (isNaN(b) || segIdx < 0) return { status: 400, body: { error: "bad cursor" } };
+      top = Math.min(b - 1, ordered[segIdx].max);
+      if (top < ordered[segIdx].min) { segIdx++; top = segIdx < ordered.length ? ordered[segIdx].max : 0; }
+    } else {
+      top = ordered[0].max;
+    }
+    const entries: Entry[] = [];
+    let nextBefore: number | null = null;
+    let nextEpoch: string | null = null;
+    while (segIdx < ordered.length && entries.length < PAGE) {
+      const seg = ordered[segIdx];
+      const want = PAGE - entries.length;
+      // Anchors only (Mike, 2026-10-09). The cursor is the scan floor, so a
+      // stretch with no anchor still advances instead of reading as the end.
+      const r = await listRecentAnchors(seg.epoch, top, want, seg.min);
+      entries.push(...r.entries);
+      if (r.floor > seg.min) { nextBefore = r.floor; nextEpoch = seg.epoch; break; }
+      segIdx++;
+      if (segIdx < ordered.length) {
+        const nseg = ordered[segIdx];
+        top = nseg.max;
+        if (entries.length >= PAGE) { nextBefore = nseg.max + 1; nextEpoch = nseg.epoch; break; }
+      }
+    }
+    return {
+      status: 200,
+      body: { day: dayParam, entries, nextBefore, nextEpoch, hasMore: nextBefore != null },
+      cacheControl: derivedCache,
+    };
+  }
+
+  const epoch = await getCurrentEpoch(now);
+  if (!epoch) return { status: 404, body: { error: "no epoch" } };
+
+  /* The head comes from the same pass as the rows. It used to be its own
+     LIST walk that, once the epoch outgrew 12,000 objects, discarded its answer
+     and paid for a binary search on top: 3,261ms to learn one number. The walk
+     is gone; the head is a by-product of the base-plus-delta index. */
+  const index = await liveEpochIndex(epoch);
+  const { head } = index;
+  let top = head;
+  if (beforeParam) {
+    const b = parseInt(beforeParam, 10);
+    if (isNaN(b)) return { status: 400, body: { error: "bad cursor" } };
+    top = Math.min(b - 1, head);
+  }
+
+  // Anchors only, from the index (Mike, 2026-10-09). With the Ethereum anchor
+  // stream off since enclave v10 the live epoch has none, and the answer is an
+  // honest empty page with no cursor.
+  const r = top < 1 ? { entries: [], floor: 1 } : await liveAnchors(index, top, PAGE);
+  const entries = r.entries;
+  const nextBefore = r.floor > 1 ? r.floor : null;
+
+  return {
+    status: 200,
+    body: { epoch, head, entries, nextBefore, hasMore: nextBefore != null && nextBefore > 1 },
+    // The SWR window bounds how stale a paint can be, and two minutes is the
+    // most a live feed should ever be behind. It was an hour, reasoned from
+    // sparse traffic: the edge always had SOMETHING to hand back instantly.
+    // But an hour-old body is wrong in the one way this page is judged: a
+    // visitor who had just recorded opened the ledger, was handed a confidently
+    // empty or behind page, and stayed behind until the head poll's
+    // cache-busted refetch finally drew a fresh body. Now that a recompute is
+    // one LIST wave (~well under a second), a MISS after an idle stretch costs
+    // a beat, not seconds, and it answers with the ledger's actual newest
+    // rows. s-maxage stays short so the 3s head poll sees new rows promptly.
+    //
+    // Cursor pages are effectively immutable (older counters never change), so
+    // they cache hard.
+    cacheControl: beforeParam
+      ? "public, s-maxage=3600, stale-while-revalidate=86400"
+      : "public, s-maxage=15, stale-while-revalidate=120",
+  };
+}
+
+/* ── The assembled page, cached ─────────────────────────────────────────────
+   Caching the parts (the epoch, the head, a day's segments) only ever helped
+   the instance that computed them, and the expensive work is the assembly
+   itself: the LISTs and the 25 GETs behind every page. So the finished body is
+   cached too, in the Data Cache, which outlives the instance.
+
+   The revalidate windows deliberately MIRROR the Cache-Control this same
+   function hands the CDN. That is the safety argument: an answer served from
+   here can never be staler than one the edge was already allowed to serve for
+   the same URL, so this changes how often the work is done, never how fresh
+   the day is allowed to be.
+
+     sealed day    a day/counter range that cannot change. Matches s-maxage=86400.
+     live cursor   older counters never change. Matches s-maxage=3600.
+
+   The live HEAD is the exception, computed on every request; see the note
+   above ledgerFeed.
+
+   Why it matters more than the CDN already caching: the edge cache is per-URL
+   per-region and this site's traffic is sparse, so cold edges are the common
+   case, not the rare one. This layer sits behind all of them. */
+
+// Non-200s ride out as a thrown message so nothing is cached and the caller
+// still gets the real answer without recomputing it.
+const STATUS_PREFIX = "ledger-feed-status:";
+
+async function computeOrThrow(opts: Parameters<typeof computeLedgerFeed>[0]): Promise<LedgerFeedResult> {
+  const result = await computeLedgerFeed(opts);
+  if (result.status !== 200) throw new Error(`${STATUS_PREFIX}${result.status}:${result.body.error}`);
+  return result;
+}
+
+/* Is this day archived? Asked OUTSIDE the feed cache, and it has to be.
+   The feed cache held a day for 24 hours on the reasoning that a sealed day
+   cannot change. The day cannot, but which source answers for it can, and the
+   builder flips that at an arbitrary moment. The result was a backfill that ran
+   correctly and changed nothing anyone could see: every day that had already
+   been opened kept serving its derived answer for a day after its pages landed,
+   and the days people open are exactly the ones that had been.
+
+   One small GET, cached 60s, which is now the longest a freshly archived day
+   stays slow. */
+const cachedIsArchived = unstable_cache(
+  async (day: string): Promise<boolean> => {
+    const index = await getArchiveJson<DayIndex>(dayIndexKey(day));
+    return !!index && index.v === 1;
+  },
+  ["day-day-archived-v1"],
+  { revalidate: 60 },
+);
+
+/* Two wrappers, because the two answers have different lifetimes and
+   unstable_cache fixes revalidate per wrapper rather than per result.
+
+     archived   materialised pages, addressed by name. Cannot change, so it is
+                held for a day exactly as before.
+     derived    the ledger walk, correct but supersedable. Held only until the
+                archive check would notice a manifest.
+
+   Keyed apart as well as timed apart, so a day crossing from one to the other
+   never reads a body the other wrote. */
+const cachedArchivedDayFeed = unstable_cache(
+  (day: string, before: string | null, bepoch: string | null, page: string | null) =>
+    computeOrThrow({ day, before, bepoch, page }),
+  // v2 (2026-10-09): v1 bodies carry recordings; a new key never reads them.
+  ["ledger-feed-day-archived-v2"],
+  { revalidate: 86400 },
+);
+
+const cachedDerivedDayFeed = unstable_cache(
+  (day: string, before: string | null, bepoch: string | null, page: string | null) =>
+    computeOrThrow({ day, before, bepoch, page }),
+  ["ledger-feed-day-derived-v2"],
+  { revalidate: 60 },
+);
+
+const cachedLiveCursor = unstable_cache(
+  (before: string) => computeOrThrow({ before }),
+  ["ledger-feed-live-cursor-v2"],
+  { revalidate: 3600 },
+);
+
+/* The live HEAD is deliberately NOT cached here, in either layer. It was
+   (revalidate 15, then briefly behind an in-process stale-serve memo on
+   2026-08-27), and both versions failed the page's one requirement the same
+   way: a person who has just recorded is watching this exact body, and any
+   cache in front of it hands them the ledger without their recording on top.
+   The in-process memo was worst: its behind-the-response refresh freezes with
+   the lambda, so a polling client can be served the same stale body until the
+   window expires. What made the head cacheable-looking was cost, and the cost
+   argument is gone: with the epoch base memoized and the delta one narrow
+   wave, a head compute is a few parallel S3 calls, cheap enough to pay on
+   every poll. The CDN's s-maxage=15 still absorbs un-busted public traffic;
+   the client's cache-busted poll reaches the ledger's actual top. Cursor
+   pages and sealed days keep their Data Cache wrappers: they are immutable,
+   which is exactly what the head is not. */
+
+/** One page of the ledger. `day` selects a sealed UTC day; omit it for the live
+ *  feed. Paging takes one of two cursors and never both: `page` for an archived
+ *  day, `before`/`bepoch` for everything else (counters repeat across epochs, so
+ *  a counter cursor is scoped by epoch). */
+export async function ledgerFeed(opts: {
+  day?: string | null;
+  before?: string | null;
+  bepoch?: string | null;
+  page?: string | null;
+}): Promise<LedgerFeedResult> {
+  try {
+    if (opts.day) {
+      // Which cache, decided before either is consulted.
+      const run = (await cachedIsArchived(opts.day)) ? cachedArchivedDayFeed : cachedDerivedDayFeed;
+      return await run(opts.day, opts.before ?? null, opts.bepoch ?? null, opts.page ?? null);
+    }
+    if (opts.before) return await cachedLiveCursor(opts.before);
+    return await computeLedgerFeed({});
+  } catch (e) {
+    const message = (e as Error)?.message ?? "";
+    if (message.startsWith(STATUS_PREFIX)) {
+      const rest = message.slice(STATUS_PREFIX.length);
+      const split = rest.indexOf(":");
+      const status = parseInt(rest.slice(0, split), 10);
+      return { status: status as 400 | 404, body: { error: rest.slice(split + 1) } };
+    }
+    // A real read failure. It stays a failure: the caller turns it into a 500
+    // and the ledger says so, rather than showing an empty ledger.
+    throw e;
+  }
+}

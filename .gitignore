@@ -1,0 +1,42 @@
+node_modules/
+dist/
+.next/
+out/
+dashboard/
+!packages/hosted/dashboard/
+*.tsbuildinfo
+.DS_Store
+*.log
+.env
+.env.*
+.occ/
+.npmrc
+.vercel
+
+# Local Claude Code tooling and instructions; not for the public repo
+CLAUDE.md
+.claude/
+
+# Working handoffs stay local: internal notes, public repo.
+HANDOFF-*.md
+packages/player/PLAN.md
+
+# IAM notes: internal security reasoning, kept local.
+docs/iam/
+
+# Local C2PA dev signing material (a private key lives here). Never commit.
+website/.c2pa-dev/
+# Local dev fixtures served by the dev server only.
+website/public/__dev/
+
+# BitGraph Recorder build output
+# ⚠️ These moved with the app when it was renamed from "recorder". A rename that
+# leaves its ignore rules behind sweeps 2,600 build artefacts into the next
+# commit, which is how a private dev key got staged on 2026-09-07.
+recorder/mac/.build/
+recorder/mac/build/
+recorder/mac/preview/
+recorder/mac/release/
+
+# Ceiling writer bundle (built by npm run build:ceiling in server/commit-service)
+server/commit-service/dist-ceiling/

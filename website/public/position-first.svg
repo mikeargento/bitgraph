@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 100" width="280" height="100" role="img" aria-labelledby="t d">
+  <title id="t">A position is filled last</title>
+  <desc id="d">Three states, side by side. First, an empty dashed square alone: the position, allocated while nothing occupies it. Second, a file outline around that same square, still empty: the bytes are being built. Third, the file complete and the square solid: the position is consumed. All three are drawn faintly at once, and each darkens in turn.</desc>
+
+  <style><![CDATA[
+    /* The whole sequence is on screen from the first frame, drawn faint, and
+       each state darkens in turn. Nothing appears, nothing moves, nothing is
+       hidden: the shape of the idea is legible before the animation says a
+       word, and it stays legible in a still.
+
+       6 second loop. One state darkens at a time, then all three go back to
+       the skeleton and it runs again.
+
+         0.6s  the position, alone and empty
+         2.0s  a file built around it, still empty
+         3.4s  the bytes final, the position consumed
+         4.6s  hold, then back to the skeleton */
+
+    .cell { opacity: 0.2; }
+    .cell rect, .cell path { fill: none; stroke: var(--text-primary, #111827); }
+    .doc { stroke-width: 2; }
+    .pos { stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .pos-solid { fill: var(--text-primary, #111827); stroke: none; }
+
+    .c1 { animation: lit 6s linear infinite; }
+    .c2 { animation: lit 6s linear infinite 1.4s; }
+    .c3 { animation: lit 6s linear infinite 2.8s; }
+
+    /* Each state holds its darkened form until the loop ends, so the picture
+       builds up rather than blinking one cell at a time. The delays above are
+       what stagger them; the shared shape below is what makes them hold. */
+    @keyframes lit {
+      0%   { opacity: 0.2; }
+      10%  { opacity: 1; }
+      72%  { opacity: 1; }
+      78%  { opacity: 0.2; }
+      100% { opacity: 0.2; }
+    }
+
+    /* Reduced motion: no animation, and all three states read at full strength.
+       The still frame carries the whole idea on its own. */
+    @media (prefers-reduced-motion: reduce) {
+      .cell { animation: none; opacity: 1; }
+    }
+  ]]></style>
+
+  <!-- 1. The position, allocated while nothing occupies it. -->
+  <g class="cell c1" transform="translate(0 0)">
+    <rect class="pos" x="26" y="36" width="20" height="20" />
+  </g>
+
+  <!-- 2. A file built around that same position, still empty. One path, so the
+          outline and its folded corner are a single stroke. -->
+  <g class="cell c2" transform="translate(105 0)">
+    <path class="doc" d="M12 6 H46 L58 18 V86 H12 Z M46 6 V18 H58" stroke-linejoin="miter" />
+    <rect class="pos" x="26" y="36" width="20" height="20" />
+  </g>
+
+  <!-- 3. The bytes are final, so the position is consumed. -->
+  <g class="cell c3" transform="translate(210 0)">
+    <path class="doc" d="M12 6 H46 L58 18 V86 H12 Z M46 6 V18 H58" stroke-linejoin="miter" />
+    <rect class="pos-solid" x="26" y="36" width="20" height="20" />
+  </g>
+</svg>

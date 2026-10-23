@@ -1,0 +1,2 @@
+9ad285bd228e9f4d7903ac921959ab95
+file i (0-based) = "BitGraph one-million test <seed>\nfile <i+1> of 1000000\n<sha256 hex of "<seed>:<i>">\n"

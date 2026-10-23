@@ -1,0 +1,249 @@
+import { NextRequest, NextResponse } from "next/server";
+import { verifyProofIntegrity, verifyAttested } from "@mikeargento/bitgraph-verify";
+import { getProofsByDigest, LedgerUnavailableError } from "@/lib/s3";
+import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * POST /api/verify: server-side proof verification.
+ *
+ * This exists for callers that cannot run a verifier themselves. No-code
+ * automation platforms are the case that motivated it: a Make scenario built
+ * from HTTP modules has no way to execute @mikeargento/bitgraph-verify, so
+ * without this endpoint it can record and retrieve but never check.
+ *
+ * It delegates to that same MIT package rather than reimplementing anything,
+ * so this endpoint and the offline verifier can never drift apart. Everything
+ * it does, a stranger can redo on their own machine against the returned
+ * proof, and the response says so: a verdict from the service that issued the
+ * proof is a convenience, not evidence, and the response should not be
+ * mistaken for the latter.
+ *
+ * Read-only. Nothing here writes to the ledger.
+ *
+ * Body:
+ *   proof?               a bitgraph/1 proof object to verify
+ *   digest?              artifact SHA-256, base64 (either form) or hex.
+ *                        Without `proof`, the ledger's proof for it is fetched.
+ *                        With `proof`, it is also compared against the proof's
+ *                        own artifact digest to establish artifact binding.
+ *   allowedMeasurements? string[] of accepted PCR0 values
+ *   requireSlot?         default true
+ *   requireEpochId?      default true
+ */
+
+interface VerifyBody {
+  proof?: unknown;
+  digest?: string;
+  allowedMeasurements?: string[];
+  requireSlot?: boolean;
+  requireEpochId?: boolean;
+}
+
+const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
+
+/**
+ * Accept a digest in any of the three forms a caller might hold and return
+ * standard base64, the form stored inside proofs. Hex is checked first: 64 hex
+ * characters are also 64 valid base64 characters, so decoding in the other
+ * order would silently produce 48 wrong bytes instead of the right 32.
+ */
+function normalizeDigest(input: string): string | null {
+  const s = input.trim();
+  if (/^[0-9a-fA-F]{64}$/.test(s)) return Buffer.from(s, "hex").toString("base64");
+  const standard = fromUrlSafeB64(s);
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(standard)) return null;
+  return Buffer.from(standard, "base64").length === 32 ? standard : null;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json().catch(() => null)) as VerifyBody | null;
+    if (body === null || typeof body !== "object") return bad("Body must be JSON.");
+
+    const hasProof = body.proof !== undefined && body.proof !== null;
+    const hasDigest = typeof body.digest === "string" && body.digest.trim().length > 0;
+    if (!hasProof && !hasDigest) {
+      return bad("Provide a proof object, a digest, or both.");
+    }
+
+    let claimedDigest: string | null = null;
+    if (hasDigest) {
+      claimedDigest = normalizeDigest(body.digest as string);
+      if (claimedDigest === null) {
+        return bad("digest must be a SHA-256 as 64 hex characters or 32 bytes in base64 (standard or URL-safe).");
+      }
+    }
+
+    // Where the proof came from changes what a valid verdict means, so it is
+    // reported back: from the ledger says these bytes are on record here, from
+    // the request says only that the object itself checks out.
+    let proof: Record<string, unknown> | null = null;
+    let checkedAgainst: "ledger" | "supplied proof";
+    let onRecord = false;
+    let totalPositions = 0;
+
+    if (hasProof) {
+      if (typeof body.proof !== "object" || Array.isArray(body.proof)) {
+        return bad("proof must be a JSON object.");
+      }
+      proof = body.proof as Record<string, unknown>;
+      checkedAgainst = "supplied proof";
+      const artifactDigest = (proof["artifact"] as { digestB64?: string } | undefined)?.digestB64;
+      if (typeof artifactDigest === "string") {
+        // ⚠️ NOT `.catch(() => [])`. That silently answered "not on record"
+        // whenever the ledger could not be read, which is the one wrong
+        // answer this endpoint must never give: a caller wiring this into an
+        // automation would see a clean file reported as unrecorded. A read
+        // failure raises and leaves as a 503 below.
+        const entries = await getProofsByDigest(artifactDigest);
+        onRecord = entries.length > 0;
+        totalPositions = entries.length;
+      }
+    } else {
+      const entries = await getProofsByDigest(claimedDigest as string);
+      // Only RECORDINGS of these bytes put them on record. A fused descendant
+      // (a fused artifact naming these bytes as origin) proves the bytes existed
+      // no later than its commit, but it is not a proof of these bytes.
+      const recorded = entries.filter((e) => e.kind === "recorded");
+      onRecord = recorded.length > 0;
+      totalPositions = recorded.length;
+      // The earliest recorded position is the originating proof.
+      proof = (recorded[0]?.proof as Record<string, unknown> | undefined) ?? null;
+      checkedAgainst = "ledger";
+
+      if (proof === null) {
+        // Never recorded is not the same as failed verification, and a caller
+        // that conflates them will report a clean file as tampered with.
+        return NextResponse.json(
+          {
+            verified: false,
+            status: "not on record",
+            reason: entries.length > 0
+              ? `These bytes have not been recorded themselves. ${entries.length === 1 ? "One fused artifact names" : `${entries.length} fused artifacts name`} them as origin, which bounds them from above only; there is no proof of these bytes to verify.`
+              : "BitGraph's copy holds no proof of these bytes, so there is no proof here to verify. A proof its holder keeps can still be checked by supplying it.",
+            fusedDescendants: entries.length,
+            artifactBinding: "not-checked",
+            checkedAgainst,
+            onRecord: false,
+            totalPositions: 0,
+            artifactHash: claimedDigest,
+            artifactHashUrlSafe: toUrlSafeB64(claimedDigest as string),
+            proofUrl: null,
+            proof: null,
+          },
+          { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } },
+        );
+      }
+    }
+
+    const trustAnchors: Record<string, unknown> = {
+      requireSlot: body.requireSlot !== false,
+      requireEpochId: body.requireEpochId !== false,
+    };
+    if (Array.isArray(body.allowedMeasurements) && body.allowedMeasurements.length > 0) {
+      if (!body.allowedMeasurements.every((m) => typeof m === "string")) {
+        return bad("allowedMeasurements must be an array of strings.");
+      }
+      trustAnchors["allowedMeasurements"] = body.allowedMeasurements;
+    }
+
+    const integrity = await verifyProofIntegrity({
+      proof: proof as never,
+      trustAnchors: trustAnchors as never,
+    });
+
+    // Artifact binding. verifyProofIntegrity never sees artifact bytes, so on
+    // its own it can only say the object is sound. Comparing the caller's
+    // digest against the proof's is what ties the verdict to a specific file,
+    // and together the two are exactly what verify({proof, bytes}) performs.
+    const proofDigest = (proof["artifact"] as { digestB64?: string } | undefined)?.digestB64 ?? null;
+    let artifactBinding: "checked" | "not-checked" | "mismatch" = "not-checked";
+    if (claimedDigest !== null && proofDigest !== null) {
+      artifactBinding = proofDigest === claimedDigest ? "checked" : "mismatch";
+    }
+
+    // The hardware's word (2026-10-18 audit): the AWS Nitro attestation over this body, the image pinned to the caller's
+    // allowedMeasurements or to BitGraph's published ones. Without it, a valid signature only says the key the proof
+    // carries signed it, and anyone can make a key.
+    const attested = await verifyAttested({
+      proof: proof as never,
+      ...(Array.isArray(trustAnchors["allowedMeasurements"]) ? { pcr0: trustAnchors["allowedMeasurements"] as string[] } : {}),
+      trustAnchors: trustAnchors as never,
+    });
+    let verified = integrity.valid && attested.valid;
+    let reason: string | null = !integrity.valid ? (integrity.reason ?? "Proof failed verification.") : attested.valid ? null : (attested.reason ?? "The attestation did not verify.");
+    let status: string;
+    if (artifactBinding === "mismatch") {
+      verified = false;
+      reason =
+        "This proof is for different bytes. The digest supplied does not match the digest inside the proof, " +
+        "so the proof does not describe that file.";
+      status = "mismatch";
+    } else if (!verified) {
+      status = "invalid";
+    } else if (artifactBinding === "checked") {
+      status = "valid";
+    } else {
+      // Sound proof, but nothing established which file it belongs to. A flat
+      // "valid" would be read as "this file is proven", which is a different
+      // and unearned claim.
+      status = "valid, artifact not checked";
+    }
+
+    const commit = proof["commit"] as { counter?: string; epochId?: string; chainId?: string; slotCounter?: string } | undefined;
+    const urlSafeDigest = proofDigest !== null ? toUrlSafeB64(proofDigest) : null;
+    const epochUrlSafe = commit?.epochId !== undefined ? toUrlSafeB64(commit.epochId) : null;
+
+    return NextResponse.json(
+      {
+        verified,
+        status,
+        reason,
+        artifactBinding,
+        checkedAgainst,
+        onRecord,
+        totalPositions,
+        artifactHash: proofDigest,
+        artifactHashUrlSafe: urlSafeDigest,
+        counter: commit?.counter ?? null,
+        slotCounter: commit?.slotCounter ?? null,
+        epochId: commit?.epochId ?? null,
+        chainId: commit?.chainId ?? null,
+        proofUrl:
+          urlSafeDigest !== null
+            ? `https://bitgraph.ing/proof/${urlSafeDigest}` +
+              (commit?.counter !== undefined && epochUrlSafe !== null
+                ? `?counter=${encodeURIComponent(commit.counter)}&epoch=${encodeURIComponent(epochUrlSafe)}`
+                : "")
+            : null,
+        // Time is deliberately absent. A proof carries no clock reading; its
+        // time is the two Ethereum blocks that bracket it, which live on the
+        // endpoint below rather than being recomputed here.
+        anchorWindow: urlSafeDigest !== null ? `/api/proofs/digest/${urlSafeDigest}` : null,
+        trustAnchors,
+        attestation: { valid: attested.valid, pcr0: attested.pcr0, image: attested.image, attestedAt: attested.attestedAtMs !== null ? new Date(attested.attestedAtMs).toISOString() : null },
+        verifiedBy: "server",
+        // Say plainly that this verdict is a convenience. The proof is
+        // returned whole so the caller can redo the check without us.
+        note: "Verified server-side with @mikeargento/bitgraph-verify's verifyAttested (signature, counts, and the AWS Nitro attestation pinned to BitGraph's published images). Re-run it yourself on the returned proof for an independent result; the verifier is MIT-licensed and needs no permission or network.",
+        proof,
+      },
+      { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" } },
+    );
+  } catch (e) {
+    // "We could not read the ledger" is not a verification result. Callers
+    // (automation clients) retry a 503; they would have recorded a 200 saying
+    // "not on record" as fact.
+    if (e instanceof LedgerUnavailableError) {
+      console.error("POST /api/verify ledger unavailable:", e.message);
+      return NextResponse.json(
+        { error: "ledger unavailable", detail: "BitGraph's copy could not be read. This is not a verdict about the file; try again." },
+        { status: 503 },
+      );
+    }
+    console.error("POST /api/verify error:", (e as Error).message);
+    return NextResponse.json({ error: "Verification failed" }, { status: 500 });
+  }
+}

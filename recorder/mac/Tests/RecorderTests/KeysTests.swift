@@ -1,0 +1,184 @@
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
+
+import XCTest
+@testable import BitGraphRecorder
+
+/// The keys, the search, and the header's arithmetic: what the window decides
+/// before it draws anything.
+@MainActor
+final class KeysTests: XCTestCase {
+    private func status() -> Status {
+        Status(baseUrl: "https://bitgraph.ing", supportDir: "~", folder: "/Users/mike/BitGraph", suggested: "/Users/mike/BitGraph", library: "/Users/mike/BitGraph/Recordings", recordings: 3, recorded: 3, folders: [])
+    }
+
+    // ── escape ──────────────────────────────────────────────────────────────
+
+    func testEscapePutsAwayTheTopmostThingAndOnlyThat() {
+        let state = AppState(preview: status())
+        state.say("something to say")
+        state.query = "img"
+        XCTAssertTrue(state.escape())
+        XCTAssertNil(state.toast, "the snackbar goes first")
+        XCTAssertEqual(state.query, "img", "the search stays until the next Escape")
+        XCTAssertTrue(state.escape())
+        XCTAssertEqual(state.query, "")
+        XCTAssertFalse(state.escape(), "nothing left to put away")
+    }
+
+    func testEscapeDoesNotCancelABatchBeingMade() {
+        let state = AppState(preview: status())
+        state.pendingBatch = LookResult(root: "/x", files: [], total: 0, recorded: 0, truncated: false)
+        state.setDroppingForTesting(true, progress: nil)
+        XCTAssertTrue(state.escape(), "the key is taken so it goes nowhere else")
+        XCTAssertNotNil(state.pendingBatch, "and the batch is untouched while it is being made")
+        state.setDroppingForTesting(false, progress: nil)
+        XCTAssertTrue(state.escape())
+        XCTAssertNil(state.pendingBatch)
+    }
+
+    // ── search ──────────────────────────────────────────────────────────────
+
+    func testABlankQueryIsNoSearch() {
+        let state = AppState(preview: status())
+        state.setSearchForTesting(query: "img", found: SearchResult(query: "img", recordings: [], truncated: false))
+        XCTAssertTrue(state.searching)
+        state.query = "   "
+        XCTAssertFalse(state.searching)
+        XCTAssertNil(state.found, "an answer to a question no longer asked is dropped")
+    }
+
+    func testADialogHoldsTheCalendarKeys() {
+        let state = AppState(preview: status())
+        XCTAssertFalse(state.dialogUp)
+        state.pendingBatch = LookResult(root: "/x", files: [], total: 0, recorded: 0, truncated: false)
+        XCTAssertTrue(state.dialogUp)
+    }
+
+    /// A folder holding a BitGraph comes back as the same list as any drop,
+    /// with the recording's answers on the rows it covers, and it is the one
+    /// dialog over the calendar: never a report of its own.
+    func testADropHoldingARecordingIsTheOneList() throws {
+        let json = """
+        {"action":"ready","root":"/sent/Export","look":{"root":"/sent/Export","total":3,"recorded":0,"truncated":false,"duplicates":0,
+          "recordings":1,"verified":1,"failed":0,"undetermined":0,"fresh":2,"files":[
+          {"path":"/sent/Export/R/ONE.JPG","name":"ONE.JPG","rel":"R/ONE.JPG","bytes":10,"originDigestB64":"AA","placement":"trailer/1",
+           "position":{"epochId":"e","counter":"2406"},"evidencePath":"/sent/Export/R/proof.json","check":{"status":"verified","category":"CARRIED_INLINE","limit":"the producer's claim"}},
+          {"path":"/sent/Export/NEW.JPG","name":"NEW.JPG","rel":"NEW.JPG","bytes":10,"originDigestB64":"BB","placement":"trailer/1","position":null,"evidencePath":null},
+          {"path":"/sent/Export/R/TWO.JPG","name":"TWO.JPG","rel":"R/TWO.JPG","bytes":10,"originDigestB64":"CC","placement":"trailer/1","position":null,"evidencePath":null,
+           "check":{"status":"unrecorded","reason":"no BitGraph for these bytes. The BitGraph in this folder is about different bytes."}}
+        ]},"token":"t"}
+        """
+        let answer = try JSONDecoder().decode(DropAnswer.self, from: Data(json.utf8))
+        XCTAssertEqual(answer.look.recordings, 1)
+        XCTAssertEqual(answer.look.fresh, 2)
+        let rows = answer.look.files
+        XCTAssertTrue(rows[0].isAnswered, "a verified row is answered")
+        XCTAssertEqual(rows[0].check?.limit, "the producer's claim")
+        XCTAssertFalse(rows[1].isAnswered, "a new file has no answer")
+        XCTAssertFalse(rows[2].isAnswered, "an unrecorded answer is information, not cover: the file is still new")
+
+        let state = AppState(preview: status())
+        state.pendingBatch = answer.look
+        XCTAssertTrue(state.dialogUp)
+        XCTAssertTrue(state.escape())
+        XCTAssertNil(state.pendingBatch)
+    }
+
+    /// The header's ways to a proof are on a proof page too, and using one
+    /// brings the list back to hold the answer.
+    func testSearchingOrJumpingFromAProofPageBringsTheListBack() {
+        let state = AppState(preview: status())
+        let subject = ProofSubject(root: "/x", evidencePath: "/x/proof.json", filePath: "/x/a.jpg", name: "a.jpg", originDigestB64: nil, position: nil, justMade: false)
+        state.surface = .proof(subject)
+        state.query = "img"
+        XCTAssertEqual(state.surface, .calendar, "typing a search leaves the page")
+        state.surface = .proof(subject)
+        state.goToday()
+        XCTAssertEqual(state.surface, .calendar, "Today leaves the page")
+        state.surface = .proof(subject)
+        state.selectDay("2026-09-09")
+        XCTAssertEqual(state.surface, .calendar, "a day picked in the little month leaves the page")
+    }
+
+    /// "+ New" opens the frame every time; Escape or Back is the calendar.
+    func testNewOpensTheFrameAndEscapeLeavesIt() {
+        let state = AppState(preview: status())
+        state.showNew()
+        XCTAssertEqual(state.surface, .new)
+        XCTAssertTrue(state.escape())
+        XCTAssertEqual(state.surface, .calendar)
+    }
+
+    /// Raw is the signed proof and nothing else: the file's own bytes when
+    /// the core had them, the parsed proof laid out when it did not.
+    func testTheRawSectionIsTheProofAsWritten() {
+        let proof = try? JSONDecoder().decode(JSONValue.self, from: Data("{\"version\":\"bitgraph/1\",\"a\":1}".utf8))
+        let verbatim = RawBlock.make(proof: proof, raw: "{\n  \"version\": \"bitgraph/1\",\n  \"a\": 1\n}\n")
+        XCTAssertEqual(verbatim.label, "The signed proof")
+        XCTAssertTrue(verbatim.text.hasPrefix("{\n  \"version\""), "the file's own order, version first")
+        let laidOut = RawBlock.make(proof: proof, raw: nil)
+        XCTAssertEqual(laidOut.text, proof?.pretty)
+    }
+
+    /// The Raw card's JSON reads like the files beside a recording: two
+    /// spaces, `"key": value`, keys sorted, slashes bare.
+    func testPrettyJSONMatchesTheCoreStyle() throws {
+        let v = try JSONDecoder().decode(JSONValue.self, from: Data("{\"b\":[1,2.5,{}],\"a\":\"x/y\\\"z\",\"c\":null,\"d\":true}".utf8))
+        XCTAssertEqual(v.pretty, """
+        {
+          "a": "x/y\\"z",
+          "b": [
+            1,
+            2.5,
+            {}
+          ],
+          "c": null,
+          "d": true
+        }
+        """)
+    }
+
+    /// A 40 MB line, fed in 64 KB chunks, costs its length once: the reader
+    /// scans only what is new. Quadratic, this took minutes.
+    func testTheLineReaderIsLinearOnOneHugeLine() {
+        var got: [Int] = []
+        let reader = LineReader { got.append($0.count) }
+        let big = Data(repeating: 0x61, count: 40 * 1024 * 1024) + Data([0x0A]) + Data("tail\n".utf8)
+        let started = Date()
+        var i = 0
+        while i < big.count {
+            let end = min(i + 65_536, big.count)
+            reader.feed(big[i..<end])
+            i = end
+        }
+        XCTAssertEqual(got, [40 * 1024 * 1024, 4])
+        XCTAssertLessThan(Date().timeIntervalSince(started), 3, "linear, not quadratic")
+        reader.feed(Data("a\nb".utf8)); reader.feed(Data("c\n".utf8))
+        XCTAssertEqual(got.suffix(2), [1, 2], "lines split across chunks still come out whole")
+    }
+
+    // ── the list, by month ──────────────────────────────────────────────────
+
+    /// The spine grouped under month names, newest first, and ← → jumping
+    /// between the months that hold anything.
+    func testTheListIsEveryMonthNewestFirstAndArrowsJumpBetweenThem() throws {
+        let state = AppState(preview: status())
+        state.setLedgerForTesting(spine: LedgerSpine(days: [
+            DayCount(day: "2026-09-09", count: 3), DayCount(day: "2026-09-01", count: 1),
+            DayCount(day: "2026-07-20", count: 2),
+        ], total: 6), days: [:], expanded: [])
+        XCTAssertEqual(state.months.map(\.title), ["September 2026", "July 2026"])
+        XCTAssertEqual(state.months.map { $0.days.count }, [2, 1])
+
+        state.month = try XCTUnwrap(AppState.date(of: "2026-09-15"))
+        state.jumpMonth(-1)
+        XCTAssertEqual(state.scrollTarget, "2026-07-20", "back a month lands on the newest day of the month before that holds anything")
+        state.jumpMonth(-1)
+        XCTAssertEqual(state.scrollTarget, "2026-07-20", "and stops at the oldest")
+        state.jumpMonth(1)
+        XCTAssertEqual(state.scrollTarget, "2026-09-09")
+        state.goToday()
+        XCTAssertEqual(state.scrollTarget, "2026-09-09", "today is the top of the list")
+        XCTAssertFalse(state.calendarOpen)
+    }
+}

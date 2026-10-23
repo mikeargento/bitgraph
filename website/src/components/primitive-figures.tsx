@@ -1,0 +1,123 @@
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
+
+/**
+ * The two pictures the site is (Mike, 2026-10-17: "turn off and strip away
+ * everything on the site that isnt just this").
+ *
+ *   1. The primitive: inside the enclave, one atomic action counts twice, a
+ *      nonce nobody sees and then the payload bound after it. What the payload
+ *      is decides what is proven: a block hash, a Merkle root, an action or
+ *      record, a prior BitGraph.
+ *   2. The sandwich: BitGraph A, the records, BitGraph B. Everything between
+ *      was bound after A and before B (no clock: "opens" and "closes", Mike 2026-10-17).
+ *
+ * 0. The flow (Mike, 2026-10-17, "a simpler graphic"): content, its SHA-256,
+ *    then the enclave's one action (1: nonce, 2: bind the digest, signed), then
+ *    the proof, checked offline. The digest goes straight to step 2: the nonce
+ *    is drawn without it. This is the home page's one picture.
+ *
+ * Drawn in HTML so they stay sharp and reflow: on a phone each row stacks and
+ * its arrows turn downward. Styles are the .pf- rules in globals.css.
+ */
+import { Fragment, type ReactNode } from "react";
+
+const PAYLOADS: Array<{ title: string; sub: string }> = [
+  { title: "Block hash", sub: "Places it in time" },
+  { title: "Merkle root", sub: "Any amount of data" },
+  { title: "Action or record", sub: "Proved after nonce" },
+  { title: "Prior BitGraph", sub: "Links moments" },
+];
+
+function Arrow() {
+  return <span className="pf-arrow" aria-hidden="true" />;
+}
+
+export function PrimitiveFigure() {
+  return (
+    <figure className="pf-figure" aria-label="Inside the enclave, one atomic action: count 1 is a nonce nobody can see or predict, count 2 is the payload, bound after it. The payload can be a block hash, a Merkle root, an action or record, or a prior BitGraph.">
+      <div className="pf-enclave">
+        <div className="pf-enclave-label">Enclave (TEE): one atomic action</div>
+        <div className="pf-row pf-row-two">
+          <div className="pf-box pf-purple">
+            <div className="pf-title">Count 1: nonce</div>
+            <div className="pf-sub">Unseen, unpredictable</div>
+          </div>
+          <Arrow />
+          <div className="pf-box pf-green">
+            <div className="pf-title">Count 2: payload</div>
+            <div className="pf-sub">Bound after the nonce</div>
+          </div>
+        </div>
+      </div>
+      <div className="pf-fan">
+        {PAYLOADS.map((p) => (
+          <div key={p.title} className="pf-box pf-grey">
+            <div className="pf-title">{p.title}</div>
+            <div className="pf-sub">{p.sub}</div>
+          </div>
+        ))}
+      </div>
+    </figure>
+  );
+}
+
+interface Step { title: string; sub?: string }
+const RECORDS: Step[] = [{ title: "Record" }, { title: "Record" }, { title: "Record" }];
+
+/** Two BitGraphs as bookends. The home draws the general case; a demo names its own steps (Mike, 2026-10-17). */
+export function SandwichFigure({
+  a = "Opens", b = "Closes", steps = RECORDS, caption = <>Everything here is bound after A and before&nbsp;B.</>,
+  label = "BitGraph A opens, then records, then BitGraph B closes. Everything between is bound after A and before B.",
+  progress,
+}: { a?: string; b?: string; steps?: Step[]; caption?: ReactNode; label?: string; progress?: number } = {}) {
+  /* A demo can show where it is (Mike, 2026-10-18: the drawing should move as the demo runs): `progress` is the index
+     of the box being worked on (A is 0, the steps 1.., B last); every box before it is done. Past the last box, all
+     are done. Undefined: a plain drawing. */
+  const state = (i: number) => (progress === undefined ? "" : i < progress ? " is-done" : i === progress ? " is-active" : " is-waiting");
+  const last = steps.length + 1;
+  return (
+    <figure className={`pf-figure${progress !== undefined ? " pf-live" : ""}`} aria-label={label}>
+      <div className="pf-row pf-row-sandwich">
+        <div className={`pf-box pf-purple pf-end${state(0)}`}>
+          <div className="pf-title">BitGraph A</div>
+          <div className="pf-sub">{a}</div>
+        </div>
+        {steps.map((st, i) => (
+          <Fragment key={i}>
+            <Arrow />
+            <div className={`pf-box pf-grey pf-record${state(i + 1)}`}>
+              <div className="pf-title pf-plain">{st.title}</div>
+              {st.sub && <div className="pf-sub">{st.sub}</div>}
+            </div>
+          </Fragment>
+        ))}
+        <Arrow />
+        <div className={`pf-box pf-purple pf-end${state(last)}`}>
+          <div className="pf-title">BitGraph B</div>
+          <div className="pf-sub">{b}</div>
+        </div>
+      </div>
+      <div className="pf-bracket" aria-hidden="true" />
+      <figcaption className="pf-caption">{caption}</figcaption>
+    </figure>
+  );
+}
+
+/** The simple picture: content → [enclave: 1 nonce → 2 bind] → proof, the content entering at step 2 (Mike, 2026-10-17: "simplify ... only keep content"). */
+export function FlowFigure() {
+  return (
+    <figure className="pf-figure pf-flow" aria-label="Content goes into the enclave and runs straight through one atomic action: step 1 makes a position commitment, unpredictable and unused, step 2 binds the content right after it and signs both. The result is a proof anyone can check offline.">
+      <div className="pf-box pf-grey pf-f-content"><div className="pf-title">Content</div><div className="pf-sub">Any bits</div></div>
+      <span className="pf-arrow pf-f-a1" aria-hidden="true" />
+      <div className="pf-f-enclave" aria-hidden="true" />
+      <div className="pf-enclave-label pf-f-label">Secure enclave / TEE</div>
+      <div className="pf-box pf-purple pf-f-nonce"><div className="pf-title">1. Position commitment</div><div className="pf-sub">Unpredictable and unused</div></div>
+      <span className="pf-arrow pf-f-a2" aria-hidden="true" />
+      <div className="pf-box pf-green pf-f-bind"><div className="pf-title">2. Content fills position</div><div className="pf-sub">Position consumed</div></div>
+      {/* Inside the enclave, under its two steps (Mike, 2026-10-17: "maybe this text should be inside tee box"). */}
+      <div className="pf-f-note">One atomic action. If any step fails, nothing is released and the counter does not move.</div>
+      <span className="pf-arrow pf-f-a3" aria-hidden="true" />
+      <div className="pf-box pf-green pf-f-proof"><div className="pf-title">Portable proof</div><div className="pf-sub">Checks offline, without BitGraph</div></div>
+    </figure>
+  );
+}

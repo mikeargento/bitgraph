@@ -1,0 +1,12 @@
+A BitGraph demonstration.
+
+position commitment
+HJKJWWouuTjZijb9bXCgQTUJOj4jbn82pyRePAhRECg
+
+That line could not have been written here before the position it names existed.
+
+The proof beside this file says these bytes were committed at that position, after an Ethereum block already mined.
+
+It does not say this is true, or who wrote it.
+
+npx @mikeargento/bitgraph-audit .

@@ -1,0 +1,56 @@
+{
+  "name": "@mikeargento/bitgraph-player",
+  "version": "0.18.0",
+  "description": "Deterministic rules over verified BitGraph proofs: the same rule and the same proofs always give the same verdict.",
+  "keywords": [
+    "bitgraph",
+    "rules",
+    "deterministic",
+    "evidence",
+    "ai-audit",
+    "verification"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "bitgraph-play": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "dist-web",
+    "src",
+    "SPEC.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "tsc && npm run build:web",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test dist/__tests__/*.test.js",
+    "build:web": "node scripts/build-verify-html.mjs",
+    "typecheck:web": "tsc -p web/tsconfig.json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@mikeargento/bitgraph-audit": "^0.10.0",
+    "@mikeargento/bitgraph-verify": "^1.20.0"
+  },
+  "devDependencies": {
+    "@noble/curves": "^2.3.0",
+    "@types/node": "^20.0.0",
+    "buffer": "^6.0.3",
+    "esbuild": "^0.27.0",
+    "typescript": "^5.4.0"
+  }
+}

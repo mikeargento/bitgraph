@@ -1,0 +1,61 @@
+name: Roll archive
+
+# Seal yesterday's roll, every night, without anyone remembering to.
+#
+# A UTC day closes at 23:59 when the enclave rotates, and from that instant
+# until a person ran build-roll-archive.mjs by hand, that day was served by the
+# live derivation: window scans down the counter range with a GET per row,
+# measured on production at 1.2-4.7s a page against 0.13-0.39s once archived.
+# Every night created a slow day and left it slow.
+#
+# WHY NOT VERCEL CRON, which is where this obviously belongs: the Hobby plan
+# caps a function at 60s and a day build measured 51.9s to 145.8s across the
+# backfill. Most days exceed the ceiling and the busiest days, the ones where
+# the archive matters most, exceed it worst. It is not a close call.
+#
+# The pages this writes are derived and deletable: they live under roll/v1/day/
+# on the ledger bucket, carry no Object Lock, and the script rebuilds from
+# proofs/ rather than reconciling. If a run writes something wrong, delete it
+# and run again.
+
+on:
+  schedule:
+    # 00:20 UTC, twenty minutes after the day seals. GitHub runs scheduled jobs
+    # late under load and that is harmless here: the script skips days already
+    # built, so a late run is the same run.
+    - cron: "20 0 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: roll-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: website
+
+      # No --since. A bare run covers every sealed day back to the cutover and
+      # skips the ones already built, so a night that fails or is missed heals
+      # itself on the next run instead of leaving a permanent hole in history.
+      # The skip is one HEAD per day, so the cost of that insurance is nothing.
+      - name: Build the archive for every sealed day
+        run: node scripts/build-roll-archive.mjs
+        working-directory: website
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          LEDGER_BUCKET: occ-ledger-prod
+          LEDGER_REGION: us-east-2
