@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { getObjectText } from "@/lib/s3";
+import { checkEpochGenesisOnBase, parseEpochGenesisFile } from "@/lib/epoch-genesis";
 
 /**
  * GET /api/epoch-floors/<epoch>: an epoch's first BitGraph's content, epoch-floor.json (bitgraph-epoch-floor/1).
@@ -25,7 +26,23 @@ export async function GET(req: Request, ctx: { params: Promise<{ epoch: string }
   // ?file: the file itself, byte for byte, as a download (Mike, 2026-10-20: the button opened this answer's JSON
   // wrapper, so there was no file to drop on the proof).
   if (new URL(req.url).searchParams.has("file")) {
-    return new Response(text, { headers: { "content-type": "application/json; charset=utf-8", "content-disposition": 'attachment; filename="epoch-floor.json"', "cache-control": "public, s-maxage=3600, stale-while-revalidate=86400" } });
+    return new Response(text, { headers: { "content-type": "application/json; charset=utf-8", "content-disposition": `attachment; filename="${parseEpochGenesisFile(text) ? "epoch-genesis.json" : "epoch-floor.json"}"`, "cache-control": "public, s-maxage=3600, stale-while-revalidate=86400" } });
+  }
+  const digestB64 = createHash("sha256").update(text, "utf8").digest("base64");
+  const headers = { "cache-control": "public, s-maxage=3600, stale-while-revalidate=86400" };
+  // From 2026-10-23 an epoch opens with a Base write (bitgraph-epoch-genesis/1, lib/epoch-genesis.ts): the file
+  // names the writer's transaction carrying the epoch id and the block that mined it. Checked against Base here.
+  const genesis = parseEpochGenesisFile(text);
+  if (genesis) {
+    const baseChecked = await checkEpochGenesisOnBase(genesis, RPC);
+    return NextResponse.json(
+      {
+        format: genesis.format, file: text, digestB64, epochId: genesis.epochId,
+        block: { number: genesis.blockNumber, hash: genesis.blockHash, timestamp: genesis.blockTimestamp },
+        tx: { hash: genesis.txHash, writer: genesis.writer }, baseChecked,
+      },
+      { headers },
+    );
   }
   let block: { format?: string; epochId?: string; number?: number; hash?: string; timestamp?: number };
   try { block = JSON.parse(text); } catch { return NextResponse.json({ error: "the stored file is not JSON" }, { status: 500 }); }
@@ -39,7 +56,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ epoch: string }
     baseChecked = !!r?.hash && r.hash.toLowerCase() === String(block.hash).toLowerCase() && parseInt(r.timestamp ?? "0x0", 16) === block.timestamp;
   } catch { baseChecked = null; }
   return NextResponse.json(
-    { file: text, digestB64: createHash("sha256").update(text, "utf8").digest("base64"), block: { number: block.number, hash: block.hash, timestamp: block.timestamp }, epochId: block.epochId ?? null, baseChecked },
-    { headers: { "cache-control": "public, s-maxage=3600, stale-while-revalidate=86400" } },
+    { format: block.format ?? null, file: text, digestB64, block: { number: block.number, hash: block.hash, timestamp: block.timestamp }, epochId: block.epochId ?? null, tx: null, baseChecked },
+    { headers },
   );
 }

@@ -148,7 +148,7 @@ export interface ProofViewModel {
   /** This proof is itself a floor: it binds base-floor.json, the latest Base block, read for the record bound right after it. */
   floorOf?: { floor: { blockNumber: number; blockHash: string; blockTimestamp: number }; record: { digestB64: string; epochId: string; counter: string } } | null;
   /** This proof is its epoch's first BitGraph, a read of the latest Base block; the file hashed to its digest here. */
-  epochStart?: { blockNumber: number; blockHash: string; blockTimestamp: number; baseChecked: boolean | null; fileUrl: string } | null;
+  epochStart?: { blockNumber: number; blockHash: string; blockTimestamp: number; baseChecked: boolean | null; fileUrl: string; genesis?: { txHash: string; writer: string } | null } | null;
   /** The floor leaf of this file's tree (2026-10-20): base-block.json, checked into the root this proof binds. */
   treeFloor?: { blockNumber: number; blockHash: string; blockTimestamp: number; fileUrl: string } | null;
   ceilingFileHref: string | null;
@@ -394,7 +394,17 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <section className="pv-card">
           <div className="pv-section-title">Where it sits in time</div>
           <div className="pv-moments">
-            {es && (
+            {es && es.genesis && (
+              <Moment
+                label="Epoch start"
+                title={<>This epoch opened on Base in block #{fmtNum(es.blockNumber)}<span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(es.blockTimestamp * 1000, attested)}</span></>}
+                note={<>The epoch&rsquo;s first BitGraph binds the Base transaction that carries this epoch&rsquo;s id, epoch-genesis.json. The transaction could not exist before the epoch&rsquo;s key, and no BitGraph of the epoch before the transaction&rsquo;s block.</>}
+              >
+                <Pill href={es.fileUrl} external>epoch-genesis.json</Pill>
+                <Pill href={`https://basescan.org/tx/${es.genesis.txHash}`} external>Basescan</Pill>
+              </Moment>
+            )}
+            {es && !es.genesis && (
               <Moment
                 label="Epoch start"
                 title={<>This epoch began after Base block #{fmtNum(es.blockNumber)}<span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(es.blockTimestamp * 1000, attested)}</span></>}

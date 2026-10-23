@@ -219,9 +219,12 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
               ran).
             </p>
             <p>
-              Epochs are not chained to one another; each stands on its own key and its own attestation. Instead, each epoch&rsquo;s first
-              BitGraph binds a fresh read of the latest Base block (<code>epoch-floor.json</code>), so the epoch provably began after that
-              block, in public time, and no two epochs start from the same point.
+              Epochs are not chained to one another; each stands on its own key and its own attestation. Instead, each epoch opens with a
+              write to Base: the ceiling writer sends a transaction carrying the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph
+              binds a record of that mined transaction (<code>epoch-genesis.json</code>). The transaction could not exist before the
+              epoch&rsquo;s key, since the id is derived from it, and no BitGraph of the epoch could exist before the transaction&rsquo;s
+              block, so epochs order by their genesis blocks on Base alone. Epochs opened before 2026-10-23 bound a read of the latest
+              Base block instead (<code>epoch-floor.json</code>), which proves the same &ldquo;after&rdquo; with the block chosen by the host.
             </p>
             <p>
               The enclave has no storage of its own: the counter&rsquo;s continuity is kept by the enclave&rsquo;s code within each run, not

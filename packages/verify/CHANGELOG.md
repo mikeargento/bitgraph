@@ -2,6 +2,10 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.26.0 (2026-10-23)
+
+- **`bitgraph-epoch-genesis/1`: an epoch opens with a write to Base.** A block read bound as an epoch's first BitGraph proves the epoch began after that block, but the host chooses the block, so an old one leaves the floor loose and nothing in the proofs says how old. Now the host puts the new epoch's id in a self-addressed Base transaction from the ceiling writer (calldata `BGE1` and the 32 bytes of the id), and once it is mined binds a record of it as the epoch's first BitGraph. The transaction cannot be made before the epoch's key, since the id is derived from it, and the first BitGraph cannot be made before the transaction's block. Epochs order by their genesis blocks on Base alone. `epochGenesisCalldata`, `epochIdOfCalldata`, `epochGenesisFileText`, `parseEpochGenesisFile`, `checkEpochGenesis`.
+
 ## 1.25.0 (2026-10-20)
 
 - **The BitGraphed file for atomic proofs: `bitgraph-carrier/5`.** Proofs made in one atomic action (enclave v11 on) sign no floor of their own, so versions /2 to /4, which need one, could not be built for them. A /5 block holds exactly `{ carrier, proof, ceilingInTime }`: the proof as the ledger serves it for the bytes (a tree member's carries its `bitgraph-tree-member/1` block, with the tree's floor leaf, base-block.json) and its Base ceiling. `verifyCarrier` checks it offline: the bytes before the block are the bound bytes or the named member; the proof is BitGraph's (`verifyAttested`); the floor block is a leaf of the bound tree and before the attested bind time; the ceiling's batch holds the proof. `buildBitGraphedFileV5`, `assembleCarrierV5Payload`, `verifyCarrierV5`, `CARRIER_VERSION_5`.

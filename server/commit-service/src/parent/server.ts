@@ -37,7 +37,7 @@ import { requestTimestamp } from "./tsa-client.js";
 import { getClientIp, tryConsumeDigests, rateLimitConfig, allocationLimiter } from "./rate-limit.js";
 import { createAuthPolicy, describeAuthPolicy, type AuthPolicy } from "./auth.js";
 import { enqueueCeiling, ceilingQueueEnabled } from "./ceiling-queue.js";
-import { epochFloorFile, latestBaseBlock, sha256B64 } from "./epoch-floor.js";
+import { epochFloorFile, latestBaseBlock, sha256B64, epochGenesisDir, requestEpochGenesis, awaitEpochGenesis } from "./epoch-floor.js";
 import { BaseHeadFeed, baseFloorEnabled } from "./base-head.js";
 
 const PORT = Number(
@@ -325,6 +325,30 @@ async function bindEpochFloor(epochId: string): Promise<void> {
   epochStarting = true;
   const deadline = Date.now() + 90_000;
   try {
+    // First choice: the genesis transaction (epoch-floor.ts, "The genesis transaction"). The writer sends it and
+    // reports back through the shared directory; the parent binds the record. A writer that does not answer in
+    // time costs this epoch the transaction, not its start: the block read below still opens it.
+    const gdir = epochGenesisDir();
+    if (gdir) {
+      try {
+        requestEpochGenesis(gdir, epochId);
+        const waitMs = Number(process.env["EPOCH_GENESIS_WAIT_MS"] ?? 180_000);
+        const file = await awaitEpochGenesis(gdir, epochId, waitMs);
+        if (file) {
+          const r = await bindWithFloor({ digestB64: sha256B64(file) });
+          if (!r.ok || !r.data) throw new Error(r.error ?? "bind failed");
+          const { proof } = r.data as { proof: BitGraphProof };
+          await keepMade([proof], false);
+          await storeEpochFloorFile(epochId, file);
+          const g = JSON.parse(file) as { txHash: string; blockNumber: number };
+          console.log(`[parent] epoch genesis: Base tx ${g.txHash.slice(0, 12)}… in block ${g.blockNumber} bound at counter ${proof.commit.counter} of ${epochId.slice(0, 12)}…`);
+          return;
+        }
+        console.warn(`[parent] epoch genesis: no result from the writer within ${waitMs} ms; opening the epoch on a block read instead`);
+      } catch (e) {
+        console.warn(`[parent] epoch genesis failed: ${e instanceof Error ? e.message : String(e)}; opening the epoch on a block read instead`);
+      }
+    }
     for (let attempt = 1; ; attempt++) {
       try {
         const block = await latestBaseBlock();

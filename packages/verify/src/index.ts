@@ -207,3 +207,6 @@ export type { RpcBlockHeader } from "./ceiling.js";
 export { PUBLISHED_ENCLAVE_MEASUREMENTS, PUBLISHED_PCR0S, publishedMeasurement } from "./measurements.js";
 export type { PublishedMeasurement } from "./measurements.js";
 export type { BitGraphExport, ExportClaim, ExportClaimResult, ExportLookups, ExportVerifyOptions, ExportVerifyResult } from "./export.js";
+/* bitgraph-epoch-genesis/1 (2026-10-23): an epoch opens with a Base write carrying its id; the epoch's first BitGraph binds the mined transaction's record. */
+export { EPOCH_GENESIS_FORMAT, EPOCH_GENESIS_REQUEST_FORMAT, EPOCH_GENESIS_MAGIC, epochGenesisCalldata, epochGenesisCalldataHex, epochIdOfCalldata, epochGenesisFileText, parseEpochGenesisFile, checkEpochGenesis } from "./epoch-genesis.js";
+export type { EpochGenesisFile, EpochGenesisTx, EpochGenesisBlock, EpochGenesisCheck } from "./epoch-genesis.js";

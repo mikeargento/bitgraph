@@ -25,6 +25,7 @@ import {
 import type { CeilingQueueItem } from "../parent/ceiling-queue.js";
 import type { SettlementFound } from "./settlement.js";
 import { OutputRootSettler, type OutputRootMark, type OutputRootOptions } from "./output-root-settler.js";
+import { GenesisWriter } from "./genesis.js";
 
 // ── The chain, as the writer needs it (viem in production, a fake in tests) ──
 
@@ -141,6 +142,11 @@ export interface WriterOptions {
    * create-only. Off when absent. See output-root-settler.ts.
    */
   outputRoot?: OutputRootOptions;
+  /**
+   * Epoch genesis transactions (bitgraph-epoch-genesis/1, genesis.ts): the directory the parent drops its requests
+   * in and reads the results from. Off when absent.
+   */
+  genesisDir?: string;
 }
 
 const ZERO32 = "0x" + "00".repeat(32);
@@ -171,7 +177,7 @@ function groupKey(i: CeilingQueueItem): string {
 }
 
 export class CeilingWriter {
-  private readonly o: Required<Omit<WriterOptions, "minBalanceWei" | "publish" | "settlement" | "outputRoot">> & { minBalanceWei: bigint | null; publish: WriterOptions["publish"]; settlement: WriterOptions["settlement"]; outputRoot: WriterOptions["outputRoot"] };
+  private readonly o: Required<Omit<WriterOptions, "minBalanceWei" | "publish" | "settlement" | "outputRoot" | "genesisDir">> & { minBalanceWei: bigint | null; publish: WriterOptions["publish"]; settlement: WriterOptions["settlement"]; outputRoot: WriterOptions["outputRoot"]; genesisDir?: WriterOptions["genesisDir"] };
   /** Sidecars written locally and not yet published, newest content per file. */
   private unpublished = new Map<string, string>();
   /** Blob bytes written locally and not yet published, and the names already published by this process. */
@@ -195,6 +201,7 @@ export class CeilingWriter {
   private floorRepairTries = new Map<string, number>();
   /** Output-root settlement, when configured; its state lives under <state>/output-root/. */
   private readonly outputRootSettler: OutputRootSettler | null = null;
+  private readonly genesis: GenesisWriter | null = null;
   private lastOutputRootPass = 0;
 
   constructor(opts: WriterOptions) {
@@ -212,6 +219,12 @@ export class CeilingWriter {
     mkdirSync(this.dirs.batches, { recursive: true, mode: 0o700 });
     mkdirSync(this.dirs.sidecars, { recursive: true, mode: 0o700 });
     mkdirSync(this.dirs.blobs, { recursive: true, mode: 0o700 });
+    if (opts.genesisDir && (opts.chain.chainId === 8453 || opts.chain.chainId === 84532)) {
+      this.genesis = new GenesisWriter({
+        dir: opts.genesisDir, chain: opts.chain, chainId: opts.chain.chainId, replaceAfterBlocks: this.o.replaceAfterBlocks,
+        now: () => this.o.now(), log: (e) => this.event(e as { type: string } & Record<string, unknown>),
+      });
+    }
     this.load();
     if (opts.outputRoot) {
       // Built after load(): it reads the batches to finish any mark a stop left half-written.
@@ -381,8 +394,10 @@ export class CeilingWriter {
     this.ingest();
     await this.flushPublish();
     const act = this.active();
+    // A genesis transaction and a ceiling batch never fly together: one nonce sequence, one in flight.
+    const genesisInFlight = this.genesis ? await this.genesis.pass(!act) : false;
     if (act) await this.advance(act);
-    else if (this.backlog.length > 0) await this.startBatch();
+    else if (!genesisInFlight && this.backlog.length > 0) await this.startBatch();
     await this.flushPublish();
     const t = Date.now();
     if (t - this.lastStatusPoll > 4_000) { this.lastStatusPoll = t; await this.pollStatus(); }

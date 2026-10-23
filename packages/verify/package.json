@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph-verify",
-  "version": "1.25.0",
+  "version": "1.26.0",
   "description": "Offline verification of BitGraph proofs: the enclave signature, its attestation and the two counts. Permissionless by design.",
   "keywords": [
     "bitgraph",

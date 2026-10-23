@@ -159,6 +159,8 @@ const writer = new CeilingWriter({
   ...(outputRoot ? { outputRoot } : {}),
   stateDir,
   queuePath: env["CEILING_QUEUE_PATH"] ?? join(stateDir, "queue.jsonl"),
+  // Epoch genesis transactions: the parent's EPOCH_GENESIS_DIR must point at the same directory.
+  genesisDir: env["CEILING_GENESIS_DIR"] ?? join(stateDir, "genesis"),
   chain,
   minBalanceWei: parseEther(env["CEILING_MIN_BALANCE_ETH"] ?? "0.001"),
 });

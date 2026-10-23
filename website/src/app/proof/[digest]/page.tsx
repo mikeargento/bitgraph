@@ -273,11 +273,13 @@ export default function ProofPage() {
       const ep = c.epochId!.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       const res = await fetch(`/api/epoch-floors/${ep}`).catch(() => null);
       if (!res || !res.ok) return;
-      const j = (await res.json()) as { file?: string; block?: { number?: number; hash?: string; timestamp?: number }; baseChecked?: boolean | null };
+      const j = (await res.json()) as { format?: string | null; file?: string; block?: { number?: number; hash?: string; timestamp?: number }; tx?: { hash: string; writer: string } | null; baseChecked?: boolean | null };
       if (typeof j.file !== "string" || typeof j.block?.number !== "number" || typeof j.block.timestamp !== "number") return;
       const h = await hashBytes(new TextEncoder().encode(j.file));
       if (cancelled || h !== proof.artifact.digestB64) return;
-      setEpochStart({ blockNumber: j.block.number, blockHash: String(j.block.hash), blockTimestamp: j.block.timestamp, baseChecked: j.baseChecked ?? null, fileUrl: `/api/epoch-floors/${ep}?file=1` });
+      // A genesis (bitgraph-epoch-genesis/1): the epoch opened with the writer's Base transaction carrying its id.
+      const genesis = j.format === "bitgraph-epoch-genesis/1" && j.tx ? { txHash: j.tx.hash, writer: j.tx.writer } : null;
+      setEpochStart({ blockNumber: j.block.number, blockHash: String(j.block.hash), blockTimestamp: j.block.timestamp, baseChecked: j.baseChecked ?? null, fileUrl: `/api/epoch-floors/${ep}?file=1`, genesis });
     })().catch(() => {});
     return () => { cancelled = true; };
   }, [proof]);
