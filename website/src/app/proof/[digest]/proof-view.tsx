@@ -397,9 +397,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               <Moment
                 label="Epoch start"
                 title={<>This epoch opened on Base in block #{fmtNum(es.blockNumber)}<span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(es.blockTimestamp * 1000, attested)}</span></>}
-                note={<>The epoch&rsquo;s first BitGraph binds the Base transaction that carries this epoch&rsquo;s id, epoch-genesis.json. The transaction could not exist before the epoch&rsquo;s key, and no BitGraph of the epoch before the transaction&rsquo;s block.</>}
+                note={<>The epoch&rsquo;s first BitGraph binds a Base transaction carrying the epoch&rsquo;s id. Every BitGraph in this epoch came after that block.</>}
               >
-                <Pill href={es.fileUrl} external>epoch-genesis.json</Pill>
+                <Pill href={es.fileUrl} download="epoch-genesis.json">epoch-genesis.json</Pill>
                 <Pill href={`https://basescan.org/tx/${es.genesis.txHash}`} external>Basescan</Pill>
               </Moment>
             )}
@@ -409,7 +409,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
                 title={<>This epoch began after Base block #{fmtNum(es.blockNumber)}<span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(es.blockTimestamp * 1000, attested)}</span></>}
                 note={<>The epoch&rsquo;s first BitGraph: a read of the latest Base block, epoch-floor.json.</>}
               >
-                <Pill href={es.fileUrl} external>epoch-floor.json</Pill>
+                <Pill href={es.fileUrl} download="epoch-floor.json">epoch-floor.json</Pill>
                 <Pill href={`https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>
               </Moment>
             )}
