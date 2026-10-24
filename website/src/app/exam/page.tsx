@@ -11,16 +11,17 @@ import { SandwichFigure } from "@/components/primitive-figures";
  */
 const REPO_URL = "https://github.com/mikeargento/sealed-exam";
 const ZIP_URL = "https://github.com/mikeargento/sealed-exam/releases/latest/download/BitGraph-Sealed-Exam.zip";
-const ZIP_SHA256 = "0b2410b278f4ddd090a2dad335e9cb0d7ccdf5a52aee0dc04f42787d28d0bc53";
-const ZIP_SIZE = "11.1 MB";
+const ZIP_SHA256 = "e99d692e33c3dc2171f07b365be89cc57fa844de67e29115f654d3be964ac57a";
+const ZIP_SIZE = "11.2 MB";
 
-/** The sitting in the package's demo/ (claude-haiku-4-5, 2026-10-19, enclave v13). */
+/** The sitting in the package's demo/ (claude-haiku-4-5, 2026-10-24, enclave v13). */
 const SITTING = {
   model: "Claude Haiku 4.5",
-  score: "12/20",
-  a: { n: "102", id: "G_pjZcvmt1vFvpnryeLOz1oU-oh4YbtidaJZetxDaqk", at: "05:09:47 UTC" },
-  b: { n: "104", id: "DMtRKRoPudd_-dUuNwlLichD7_rTjN2ydXsGsjAthpI", at: "05:10:10 UTC" },
-  ceiling: { block: 52798633, at: "05:10:13 UTC" },
+  score: "14/20",
+  date: "24 October 2026",
+  a: { n: "14", id: "iehfooh2p78A4BzdVdHWCCaCUYw0mwavOWVkLgv5L1c", at: "20:14:24 UTC" },
+  b: { n: "18", id: "SfL8unjOBZ-SSEDKqTDgW_Bp7oEvp5PJ6LUq232wPZk", at: "20:14:43 UTC" },
+  ceiling: { block: 53041769, at: "20:14:45 UTC" },
 };
 
 export const metadata: Metadata = {
@@ -71,7 +72,7 @@ export default function ExamPage() {
         <p className="home-kicker">The results</p>
         <h2 id="exam-sitting">These exact questions could not have existed before BitGraph&nbsp;#{SITTING.a.n} was&nbsp;bound.</h2>
         <p style={{ marginTop: 24 }}>
-          {SITTING.model} scored {SITTING.score} on 19 October 2026. BitGraph #{SITTING.a.n} was bound at {SITTING.a.at} and
+          {SITTING.model} scored {SITTING.score} on {SITTING.date}. BitGraph #{SITTING.a.n} was bound at {SITTING.a.at} and
           BitGraph #{SITTING.b.n} at {SITTING.b.at}, by the AWS Nitro attestation&rsquo;s signed clock; a Base transaction in
           block{" "}
           <a href={`https://basescan.org/block/${SITTING.ceiling.block}`} target="_blank" rel="noopener">{SITTING.ceiling.block.toLocaleString("en-US")}</a>{" "}
@@ -116,8 +117,8 @@ node verifier/exam.mjs selftest`}</Code>
         <p style={{ marginTop: 16 }}>
           The answers are <strong>ACCEPT</strong>, <strong>REJECT</strong> (naming what disagrees) or{" "}
           <strong>NO-EVIDENCE</strong> (something is not in hand). The package carries nine fixtures that should fail, among them a
-          proof re-signed with a laptop key that a signature check alone passes. The earlier sittings, six models from two
-          vendors, are in <code>archive/</code> and still verify. The zip&rsquo;s SHA-256:
+          proof re-signed with a laptop key that a signature check alone passes. The earlier sittings, from September and October
+          2026, are in <code>archive/</code> and still verify. The zip&rsquo;s SHA-256:
         </p>
         <Code>{ZIP_SHA256}</Code>
         <p style={{ marginTop: 16 }}>To run a sitting of your own, with your own API key:</p>
