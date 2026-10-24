@@ -26,14 +26,3 @@ export function CopyIcon({ copied, onCopy, label }: { copied: boolean; onCopy: (
     </button>
   );
 }
-
-/** A code line with its copy button at the right. */
-export function CopyableCode({ text, label, children }: { text: string; label: string; children?: React.ReactNode }) {
-  const [copied, copy] = useCopied();
-  return (
-    <div className="copy-line pv-row-copyable">
-      {children ?? <pre className="hiw-code jev-code">{text}</pre>}
-      <CopyIcon copied={copied} onCopy={() => copy(text)} label={label} />
-    </div>
-  );
-}

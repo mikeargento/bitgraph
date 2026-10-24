@@ -10,7 +10,6 @@
  * SHA-256. Only digests leave the browser.
  */
 import { useCallback, useEffect, useState } from "react";
-import { CopyableCode } from "@/components/copy-icon";
 import { makeArtOffThread } from "@/lib/art-offthread";
 import { ART_ALGORITHM_V19 } from "@/lib/commitment-art";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
@@ -140,7 +139,7 @@ export function ArtTwo() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={made.url} alt={`Drawn from the nonce of BitGraph #${fmt(a.commit!.counter!)}`} style={{ display: "block", width: "100%", height: "auto", aspectRatio: "16 / 9" }} />
           <div style={{ paddingTop: 40 }}><p className="home-kicker">Drawn from BitGraph A&rsquo;s nonce</p></div>
-          <div className="gen-nonce"><CopyableCode text={urlSafe(a.commit!.nonceB64!)} label="the nonce" /></div>
+          <div className="gen-nonce"><pre className="jev-code">{urlSafe(a.commit!.nonceB64!)}</pre></div>
           {!b && <p className="db-bad">This picture has no BitGraph B on the ledger.</p>}
           {/* The links are buttons (2026-10-19), like View proof on Make. */}
           <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>

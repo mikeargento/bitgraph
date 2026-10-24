@@ -10,7 +10,6 @@
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { SandwichFigure } from "@/components/primitive-figures";
-import { CopyableCode } from "@/components/copy-icon";
 
 // The service runs on the enclave host behind its Cloudflare tunnel (2026-10-24), whose zone is occproof.com.
 const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.occproof.com";
@@ -49,7 +48,7 @@ function MarkedCode({ r }: { r: Asked }) {
   const marks = new Set([r.truth.at.digit, r.truth.at.letter, r.truth.at.a, r.truth.at.b].filter((i) => i >= 0));
   const out: ReactNode[] = [];
   for (let i = 0; i < r.code.length; i++) out.push(marks.has(i) ? <mark key={i} className="jev-mark">{r.code[i]}</mark> : r.code[i]);
-  return <CopyableCode text={r.code} label="the code"><pre className="hiw-code jev-code">{out}</pre></CopyableCode>;
+  return <pre className="jev-code">{out}</pre>;
 }
 
 export function JevAsker() {

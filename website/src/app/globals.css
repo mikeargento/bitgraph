@@ -5247,6 +5247,8 @@ html:root:root:root:root:root:root:root:root body .pf-seq rect[fill="#efeeec"], 
 html:root:root:root:root:root:root:root:root body :is(.bg-action-link, button.bg-action-link, a.bg-action-link):not(.is-make) { border-color: var(--btn-line) !important; color: var(--ink) !important; background: transparent !important; }
 html:root:root:root:root:root:root:root:root body :is(.bg-action-link.is-make) { background: var(--ink) !important; color: var(--bg) !important; border-color: var(--ink) !important; }
 html:root:root:root:root:root:root:root:root body :is(.code-block, .mk-code, .code-copy, pre, code) { background: var(--code-bg) !important; border-color: var(--code-line) !important; color: var(--ink) !important; }
+/* The demos' nonce lines (Ask Jev's code, the art demo's nonce) are text on the page, not code blocks: no ground. */
+html:root:root:root:root:root:root:root:root body pre.jev-code { background: none !important; }
 html:root:root:root:root:root:root:root:root body .pv-time-box { background: var(--tint) !important; }
 html:root:root:root:root:root:root:root:root body .pv-moment-dim:not(.pv-time-box) { background: transparent !important; }
 html:root:root:root:root:root:root:root:root body .pv-moment-dot { background: var(--ink) !important; border-color: var(--ink) !important; }
