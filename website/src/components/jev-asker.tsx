@@ -3,7 +3,7 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * Ask Jev on two BitGraphs. live.bitgraph.ing (repo ~/Code/bitgraph-live, branch jev-two-bitgraphs) binds A (the
+ * Ask Jev on two BitGraphs. live.occproof.com (repo ~/Code/bitgraph-live, branch jev-two-bitgraphs) binds A (the
  * request), makes two questions from A's nonce, asks Jev, and binds B (the record), streaming each step. This page
  * shows it, and does not take the service's word for the questions: it fetches A's proof from bitgraph.ing itself,
  * reads the nonce, and makes the questions again here. A result survives leaving the page: /jev?p=<B's id>.
@@ -12,7 +12,8 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { SandwichFigure } from "@/components/primitive-figures";
 import { CopyableCode } from "@/components/copy-icon";
 
-const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.bitgraph.ing";
+// The service runs on the enclave host behind its Cloudflare tunnel (2026-10-24), whose zone is occproof.com.
+const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.occproof.com";
 const QV = "bitgraph-jev-question/1";
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const fmt = (n: number | string) => Number(n).toLocaleString("en-US");
@@ -28,7 +29,7 @@ interface Asked {
 }
 
 /** A proof page that also shows the file itself: ?files= is the record's download, which the proof page reads from
- *  live.bitgraph.ing (an approved host) and shows only if a file in it has the proof's signed digest. */
+ *  live.occproof.com (an approved host) and shows only if a file in it has the proof's signed digest. */
 const proofLink = (id: string, recordId: string) =>
   `/proof/${id}?files=${encodeURIComponent(`${LIVE}/api/result/${recordId}/download`)}`;
 

@@ -17,8 +17,8 @@ import { makeStub, utf8, digestB64, SPEC_BYTES } from "./tree1-helpers.ts";
 // ── the link ─────────────────────────────────────────────────────────────────────────────────────
 
 test("https links are followed; http only between loopback hosts; nothing else", () => {
-  const ok = hostedSourceOf("https://live.bitgraph.ing/a/b.zip?x=1", "bitgraph.ing");
-  assert.ok(ok.ok && ok.source.host === "live.bitgraph.ing");
+  const ok = hostedSourceOf("https://live.occproof.com/a/b.zip?x=1", "bitgraph.ing");
+  assert.ok(ok.ok && ok.source.host === "live.occproof.com");
   assert.deepEqual(hostedSourceOf("http://files.example.org/b.zip", "bitgraph.ing"), { ok: false, problem: "not-https", host: "files.example.org" });
   assert.equal(hostedSourceOf("http://localhost:8150/b.zip", "bitgraph.ing").ok, false, "a public page never fetches plain http, even from localhost");
   assert.equal(hostedSourceOf("http://127.0.0.1:8199/b.zip", "localhost").ok, true, "a local build may read a local server");

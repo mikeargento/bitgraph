@@ -48,7 +48,7 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /** The hosts a proof page reads files from (2026-10-10: approved hosts only, for now; the mechanism stays generic,
  *  and a host joins by being added here). Without a list, anyone could show content they recorded under bitgraph.ing. */
-export const HOSTED_FILE_HOSTS = new Set(["live.bitgraph.ing"]);
+export const HOSTED_FILE_HOSTS = new Set(["live.occproof.com"]);
 
 /**
  * The `files` parameter as a fetchable source, or why not. `pageHostname` is the page's own hostname:
