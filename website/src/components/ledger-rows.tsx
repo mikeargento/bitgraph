@@ -2,8 +2,10 @@
 
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { LedgerRow } from "@/lib/running-ledger";
+import { proofFeedKey, warm } from "@/lib/warm";
 
 /**
  * The ledger's rows, live (2026-10-17), so the page neither lags nor needs a refresh. Today's page asks /api/ledger/rows for what came after its newest row every 2 s while the tab
@@ -63,9 +65,18 @@ function Row({ r }: { r: LedgerRow }) {
       )}
     </>
   );
-  return r.digest
-    ? <a href={`/proof/${r.digest}`} className="xp-row xp-row-base rl-row rl-link">{inner}</a>
-    : <div className="xp-row xp-row-base rl-row">{inner}</div>;
+  if (!r.digest) return <div className="xp-row xp-row-base rl-row">{inner}</div>;
+  // The row's own position goes in the link: the same bytes bound twice are two rows, and without it both opened the
+  // first. An in-app link keeps the loaded app, and intent (hover, focus, touch) starts the proof's fetch, which the
+  // proof page picks up from the warm slot instead of sending its own.
+  const digest = r.digest;
+  const epoch = r.key.split("/")[1];
+  const intent = () => warm(proofFeedKey(digest, r.counter, epoch));
+  return (
+    <Link href={`/proof/${digest}?counter=${r.counter}&epoch=${epoch}`} className="xp-row xp-row-base rl-row rl-link" onMouseEnter={intent} onFocus={intent} onTouchStart={intent}>
+      {inner}
+    </Link>
+  );
 }
 
 export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: string; live: boolean; initial: LedgerRow[]; newestKey: string | null; hasOlder: boolean }) {
