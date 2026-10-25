@@ -103,32 +103,39 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* The limits and the trust, short, on the explanation page; in full on Tools (2026-10-18). */}
-      <section className="home-section home-why" aria-labelledby="home-limits">
-        {/* The kicker is the heading; the line under it was cut (2026-10-21). */}
-        <h2 id="home-limits" className="home-kicker">What it does not prove</h2>
-        <ul className="docs-list">
-          <li><strong>Truth.</strong> The proof binds bytes, not their meaning.</li>
-          <li><strong>Authorship or ownership.</strong> It names the enclave that bound the digest, not who made the file or holds its rights.</li>
-          <li><strong>When the content was created.</strong> An old file can be bound today. What is fixed is its place.</li>
-          <li><strong>Completeness.</strong> A record that was never made leaves no trace.</li>
-        </ul>
-        <p className="home-why-body">
-          A record changed after it was bound is caught: its hash no longer matches. A record that was false when it was bound is&nbsp;not.
-        </p>
-      </section>
-
-      <section className="home-section home-why" aria-labelledby="home-trust">
-        <p className="home-kicker">What you trust</p>
-        {/* 2026-10-19: generic, trusted the way SHA-256 is. Kept honest: the hardware root is
-            the one thing relied on, and it is checked, not asked. The specifics (AWS Nitro, PCR0, rebuilding) stay on Tools. */}
-        <h2 id="home-trust">The math, and the measured&nbsp;enclave.</h2>
-        <p className="home-why-body">
-          Like SHA-256, a BitGraph is something you check, not someone you ask. The hashes and signatures are standard
-          cryptography. The enclave&rsquo;s exact build is published, and the hardware attests that this build made the proof, so
-          a proof checks on your own machine without asking BitGraph or anyone&nbsp;else.
-        </p>
-        <div style={{ marginTop: 24 }}><a className="bg-action-link" style={{ margin: 0 }} href="/tools">Tools and the full&nbsp;check</a></div>
+      {/* The limits and the trust, short, on the explanation page; in full on Tools (2026-10-18). A pair of cards like
+          the first (2026-10-25), each under the one it answers: what it does not prove under what it proves, what you
+          trust under how it works. */}
+      <section className="home-section" aria-labelledby="home-limits">
+        <div className="proves-card">
+          <div className="proves-half">
+            {/* The kicker is the heading; the line under it was cut (2026-10-21). */}
+            <h2 id="home-limits" className="home-kicker">What it does not prove</h2>
+            <ul className="docs-list">
+              <li><strong>Truth.</strong> The proof binds bytes, not their meaning.</li>
+              <li><strong>Authorship or ownership.</strong> It names the enclave that bound the digest, not who made the file or holds its rights.</li>
+              <li><strong>When the content was created.</strong> An old file can be bound today. What is fixed is its place.</li>
+              <li><strong>Completeness.</strong> A record that was never made leaves no trace.</li>
+            </ul>
+            <p>
+              A record changed after it was bound is caught: its hash no longer matches. A record that was false when it was bound is&nbsp;not.
+            </p>
+          </div>
+          <div className="proves-half">
+            <p className="home-kicker">What you trust</p>
+            {/* 2026-10-19: generic, trusted the way SHA-256 is. Kept honest: the hardware root is
+                the one thing relied on, and it is checked, not asked. The specifics (AWS Nitro, PCR0, rebuilding) stay on Tools. */}
+            <h2 id="home-trust">The math, and the measured&nbsp;enclave.</h2>
+            <p>
+              Like SHA-256, a BitGraph is something you check, not someone you ask. The hashes and signatures are standard
+              cryptography. The enclave&rsquo;s exact build is published, and the hardware attests that this build made the proof, so
+              a proof checks on your own machine without asking BitGraph or anyone&nbsp;else.
+            </p>
+            <p className="proves-actions">
+              <a className="bg-action-link" href="/tools">Tools and the full&nbsp;check</a>
+            </p>
+          </div>
+        </div>
       </section>
 
     </div>
