@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Argento Computing Inc.
+// Copyright (c) 2025-2026 Argento Computing Inc.
 
 /**
  * bitgraph-carrier/4 through the CLI: a tree member's BitGraphed file unpacks

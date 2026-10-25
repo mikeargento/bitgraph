@@ -132,7 +132,7 @@ BitGraph does. It binds the file to a fresh, unpredictable value used exactly on
 
 ## License
 
-Copyright 2024-2026 Argento Computing Inc. All rights reserved. Patent Pending.
+Copyright 2025-2026 Argento Computing Inc. All rights reserved. Patent Pending.
 
 This repository is source-available, not open-source. The code is published so anyone can read, audit, and reproduce the enclave build, but it is proprietary: copying, modification, distribution, and commercial use require a separate written agreement with the copyright owner. See [LICENSE](LICENSE).
 

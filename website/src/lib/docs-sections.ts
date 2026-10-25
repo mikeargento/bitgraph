@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Argento Computing Inc. All rights reserved.
+// Copyright (c) 2025-2026 Argento Computing Inc. All rights reserved.
 
 /**
  * The documentation map (2026-09-17 rewrite): three groups, one per question

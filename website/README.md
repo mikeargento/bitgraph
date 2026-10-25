@@ -37,4 +37,4 @@ The protocol, the trust model and the proof format are explained at [bitgraph.in
 
 ## License
 
-Copyright 2024-2026 Argento Computing Inc. All rights reserved. Patent Pending. Source-available, not open-source: see [LICENSE](../LICENSE).
+Copyright 2025-2026 Argento Computing Inc. All rights reserved. Patent Pending. Source-available, not open-source: see [LICENSE](../LICENSE).

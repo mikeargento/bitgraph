@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
+// Copyright (c) 2025-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /** The task-form guidance spoken to MCP callers; the mechanics live in the SDK. */
 import { SLOT_TTL_SECONDS } from "@mikeargento/bitgraph-sdk";

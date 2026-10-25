@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
+// Copyright (c) 2025-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
  * Recovery work that outlives one command (2026-10-03).

@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
+// Copyright (c) 2025-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
  * A tree member's BitGraphed file (bitgraph-carrier/4) through the SDK's

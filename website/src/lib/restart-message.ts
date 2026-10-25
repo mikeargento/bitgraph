@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Argento Computing Inc. All rights reserved.
+// Copyright (c) 2025-2026 Argento Computing Inc. All rights reserved.
 /**
  * What a visitor reads when BitGraph's enclave cannot take a position (the retryable 503 "tee-restarting").
  * Since 2026-10-11 it says exactly what is happening and that it is back in a minute. The same 503 also covers

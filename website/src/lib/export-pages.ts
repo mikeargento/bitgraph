@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Argento Computing Inc. All rights reserved.
+// Copyright (c) 2025-2026 Argento Computing Inc. All rights reserved.
 
 /**
  * The shape of an export, and the one piece of evidence that has to be decoded

@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Argento Computing Inc. All rights reserved.
+// Copyright (c) 2025-2026 Argento Computing Inc. All rights reserved.
 /**
  * The Menu's icon blocks, in Google's style: Material Symbols Rounded on a
  * tint of one of Google's four colours, the colours taken in turn down each

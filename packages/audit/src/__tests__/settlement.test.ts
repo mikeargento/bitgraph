@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Argento Computing Inc.
+// Copyright (c) 2025-2026 Argento Computing Inc.
 
 /**
  * The blob layer of a ceiling's settlement on Ethereum, on REAL data.

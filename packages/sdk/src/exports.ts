@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
+// Copyright (c) 2025-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
  * bitgraph-export/1 files on this machine (2026-10-03): build them from a
