@@ -121,7 +121,7 @@ export function JevAsker() {
     <>
       <section className="home-section" aria-labelledby="jev-h">
         <p className="home-kicker">Ask AI</p>
-        <h2 id="jev-h">Two questions that could not exist before you&nbsp;click.</h2>
+        <h2 id="jev-h">Ask Jev something it could not have seen&nbsp;before.</h2>
         <p style={{ marginTop: 24 }}>
           One click makes BitGraph A. Its nonce, unseen until A is bound, chooses two questions for Jev, an AI. Jev answers, and
           the record is bound as BitGraph B, after A in the same sequence. Nothing about the questions existed before&nbsp;A.
