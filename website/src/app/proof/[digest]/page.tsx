@@ -2399,6 +2399,7 @@ export default function ProofPage() {
             exportInside,
             pieces,
             downloadNotes,
+            carrierNote: carrierMsg,
             checkText,
             checkCommand,
             hashes,

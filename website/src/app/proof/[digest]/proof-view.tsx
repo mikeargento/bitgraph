@@ -165,6 +165,8 @@ export interface ProofViewModel {
    *  original, the BitGraphed file. For the few who want one part. */
   pieces: DownloadView[];
   downloadNotes: ReactNode[];
+  /** The BitGraphed file's last download, as it went: shown under its button. */
+  carrierNote?: string | null;
   /** "Check it anywhere": the command that matches this kind of export, or null. */
   checkText: ReactNode | null;
   checkCommand: ReactNode | null;
@@ -514,6 +516,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             </button>
           )}
         </div>
+        {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
+            not landed yet. */}
+        {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
         {/* The same copy tab as /make, so the site's code blocks look alike (2026-10-17). */}
         <div className="code-block mk-code">
           <pre className="hiw-code">{command}</pre>
