@@ -33,7 +33,7 @@ type Globals = { ort?: Ort; BCH?: Bch["BCH"]; BCH_Encode?: Bch["BCH_Encode"]; BC
 async function libraries(): Promise<{ ort: Ort; bch: Bch }> {
   await Promise.all([script(`${ORT_BASE}ort.min.js`), script("/trustmark/bch_ecc.min.js")]);
   const g = globalThis as unknown as Globals;
-  if (!g.ort || !g.BCH || !g.BCH_Encode || !g.BCH_Decode) throw new Error("the TrustMark libraries did not load");
+  if (!g.ort || !g.BCH || !g.BCH_Encode || !g.BCH_Decode) throw new Error("the pointer's reader did not load");
   g.ort.env.wasm.wasmPaths = ORT_BASE;
   return { ort: g.ort, bch: { BCH: g.BCH, BCH_Encode: g.BCH_Encode, BCH_Decode: g.BCH_Decode } };
 }
@@ -42,10 +42,10 @@ const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "
 
 async function modelBytes(m: ModelName): Promise<Uint8Array> {
   const res = await fetch(MODELS[m].url);
-  if (!res.ok) throw new Error(`the TrustMark ${m} could not be fetched (${res.status})`);
+  if (!res.ok) throw new Error(`the pointer's ${m === "encoder" ? "writer" : "reader"} could not be fetched (${res.status})`);
   const out = new Uint8Array(await res.arrayBuffer());
   const got = hex(new Uint8Array(await crypto.subtle.digest("SHA-256", out as BufferSource)));
-  if (got !== MODELS[m].sha256) throw new Error(`the TrustMark ${m} did not match its published hash`);
+  if (got !== MODELS[m].sha256) throw new Error(`the pointer's ${m === "encoder" ? "writer" : "reader"} did not match its published hash`);
   return out;
 }
 

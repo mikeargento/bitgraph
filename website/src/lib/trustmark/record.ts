@@ -44,6 +44,14 @@ export async function decodePhoto(blob: Blob): Promise<Decoded | null> {
   } finally { bmp.close(); }
 }
 
+const decoded = new WeakMap<Blob, Promise<Decoded | null>>();
+/** decodePhoto, once per file: a drop reads a photo for a pointer and for its fingerprint, from the same pixels. */
+export function decodeOnce(blob: Blob): Promise<Decoded | null> {
+  let p = decoded.get(blob);
+  if (!p) { p = decodePhoto(blob); decoded.set(blob, p); }
+  return p;
+}
+
 /**
  * Whether the picture is a photograph, where a TrustMark is invisible, and not a graphic (flat colour, text, line art,
  * a screenshot of an interface), where it shows as blotches in the flat areas and halos at edges. A graphic has large

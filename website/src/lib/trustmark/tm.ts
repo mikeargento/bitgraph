@@ -96,7 +96,7 @@ export const aspectOk = (W: number, H: number) => Math.max(W, H) / Math.min(W, H
 
 /** Mark an image. Returns a new RGBA array of the same size. */
 export async function mark(rgba: Uint8ClampedArray, W: number, H: number, payload: string, env: MarkEnv): Promise<Uint8ClampedArray> {
-  if (!aspectOk(W, H)) throw new Error("images wider or taller than 2:1 cannot carry a TrustMark");
+  if (!aspectOk(W, H)) throw new Error("images wider or taller than 2:1 cannot carry the pointer");
   const cover = toTensorData(resizeRGB(rgbaToRgb(rgba), W, H, ENC_RES, ENC_RES), ENC_RES, ENC_RES);
   const secret = Float32Array.from(packet(payload, env.bch).split(""), Number);
   const result = await env.encoder.run({

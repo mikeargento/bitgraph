@@ -21,6 +21,7 @@ import { cropRGBA, readings } from "./marks.ts";
 import { epochRef, tag, unpack } from "./payload.ts";
 import { parseRecord, type Decoded } from "./record.ts";
 import { readRuntime } from "./runtime.ts";
+import { resizeRGB } from "./tm.ts";
 import type { Proof } from "@/lib/plugins";
 
 export type Original = { proof: Proof; counter: number; epochId: string; photoDigestB64: string; artifactDigestB64: string };
@@ -46,6 +47,20 @@ async function resolve(payload: string): Promise<{ original: Original; phash: st
   return sawRecord ? "forged" : null;
 }
 
+// Every read shrinks the picture to 245 pixels, and the alignment to 160: shrinking a large photo once, first, gives
+// the same readings for a fraction of the work.
+const READ_MAX = 1600;
+function shrunk(img: Decoded): Decoded {
+  const s = READ_MAX / Math.max(img.w, img.h);
+  if (s >= 1) return img;
+  const w = Math.max(1, Math.round(img.w * s)), h = Math.max(1, Math.round(img.h * s)), n = img.w * img.h;
+  const rgb = new Uint8ClampedArray(n * 3);
+  for (let i = 0; i < n; i++) { rgb[i * 3] = img.rgba[i * 4]!; rgb[i * 3 + 1] = img.rgba[i * 4 + 1]!; rgb[i * 3 + 2] = img.rgba[i * 4 + 2]!; }
+  const small = resizeRGB(rgb, img.w, img.h, w, h), rgba = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < w * h; i++) { rgba[i * 4] = small[i * 3]!; rgba[i * 4 + 1] = small[i * 3 + 1]!; rgba[i * 4 + 2] = small[i * 3 + 2]!; rgba[i * 4 + 3] = 255; }
+  return { rgba, w, h };
+}
+
 async function judgeRegion(img: Decoded, zooms: boolean): Promise<TrustmarkVerdict | null> {
   const env = await readRuntime();
   let markRead = false, forged = false;
@@ -64,10 +79,13 @@ async function judgeRegion(img: Decoded, zooms: boolean): Promise<TrustmarkVerdi
 
 /**
  * The verdict for a decoded copy. search: also look for the photo inside a wider picture (a screenshot with a toolbar
- * or a page around it); several seconds when nothing is found, so the drop box uses it only for a check.
+ * or a page around it); several seconds when nothing is found, so the drop box uses it only for a check. zooms: also
+ * try the copy put back in a larger frame, for one zoomed in; Make leaves these out, since a copy dropped there is the
+ * file itself or a feed's copy.
  */
-export async function judge(img: Decoded, { search = true } = {}): Promise<TrustmarkVerdict> {
-  const whole = await judgeRegion(img, true);
+export async function judge(full: Decoded, { search = true, zooms = true } = {}): Promise<TrustmarkVerdict> {
+  const img = shrunk(full);
+  const whole = await judgeRegion(img, zooms);
   if (whole?.verdict === "match" || whole?.verdict === "mismatch" || !search) return whole ?? { verdict: "none", markRead: false };
   for (const c of rectangles(img.rgba, img.w, img.h).slice(1)) {
     const j = await judgeRegion({ rgba: cropRGBA(img.rgba, img.w, c.x, c.y, c.w, c.h), w: c.w, h: c.h }, false);

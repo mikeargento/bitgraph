@@ -61,16 +61,16 @@ async function ceilingOf(proof: Proof): Promise<Record<string, unknown> | null> 
 export async function trustmarkedFile(photo: File, photoDigestB64: string, photoProof: Proof, onStep?: (s: string) => void): Promise<TrustmarkedFile> {
   const img = await decodePhoto(photo);
   if (!img) throw new NoTrustmark("this browser cannot open the photo to mark it");
-  if (!aspectOk(img.w, img.h)) throw new NoTrustmark("photos wider or taller than 2:1 cannot carry a TrustMark");
-  if (!isPhotographic(img)) throw new NoTrustmark("this looks like a graphic, not a photograph, and a TrustMark would show on it");
+  if (!aspectOk(img.w, img.h)) throw new NoTrustmark("photos wider or taller than 2:1 cannot carry the pointer");
+  if (!isPhotographic(img)) throw new NoTrustmark("this looks like a graphic, not a photograph, and the pointer would show on it");
   // a photo that already carries a mark is never marked again: two marks would make both unreadable
-  for await (const _ of readings(img.rgba, img.w, img.h, await readRuntime(), { zooms: false })) { void _; throw new NoTrustmark("this photo already carries a TrustMark"); }
+  for await (const _ of readings(img.rgba, img.w, img.h, await readRuntime(), { zooms: false })) { void _; throw new NoTrustmark("this photo already carries a pointer"); }
   const rec = recordBytes(photoDigestB64, img);
   onStep?.("Assembling the BitGraphed file…");
-  if (!(await recordProofIn(photoProof, rec))) throw new NoTrustmark("this photo's BitGraph does not bind its fingerprint (it was made before TrustMarks, or in another browser)");
+  if (!(await recordProofIn(photoProof, rec))) throw new NoTrustmark("this photo's BitGraph does not bind its fingerprint (it was made before pointers, or in another browser)");
   const parsed = parseRecord(rec)!;
   const epochId = String(photoProof.commit?.epochId ?? ""), counter = Number(photoProof.commit?.counter);
-  if (!epochId || !Number.isSafeInteger(counter) || counter > MAX_COUNTER) throw new NoTrustmark("this BitGraph's position does not fit a TrustMark's pointer");
+  if (!epochId || !Number.isSafeInteger(counter) || counter > MAX_COUNTER) throw new NoTrustmark("this BitGraph's position does not fit the pointer");
   const nonce = String((photoProof.commit as { nonceB64?: string } | undefined)?.nonceB64 ?? "");
   const eref = await epochRef(epochId);
   const payload = pack(eref, counter, await tag(nonce, parsed.phash, eref, counter));
@@ -81,7 +81,7 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   const back = await decodePhoto(new Blob([bytes as BlobPart], { type: "image/jpeg" }));
   let readsBack = false;
   if (back) for await (const r of readings(back.rgba, back.w, back.h, await readRuntime())) if (r.payload === payload) { readsBack = true; break; }
-  if (!readsBack) throw new Error("the TrustMark did not read back from the marked photo; nothing was recorded");
+  if (!readsBack) throw new Error("the pointer did not read back from the marked photo; nothing was recorded");
 
   onStep?.("Recording the file…");
   const dot = photo.name.lastIndexOf(".");

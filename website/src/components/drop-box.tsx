@@ -32,7 +32,7 @@ import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
 import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, parseDigestRootText, rootTextBytes, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
-import { MAX_FINGERPRINTED, decodePhoto, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
+import { MAX_FINGERPRINTED, decodeOnce, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
 
 const MAX_FILES = 25;
@@ -203,7 +203,7 @@ async function fingerprintRecords(files: File[], leaves: Array<[string, string, 
   const made: Array<{ file: File; name: string }> = [];
   let n = 0;
   for (const p of photos) {
-    const img = await decodePhoto(p.f);
+    const img = await decodeOnce(p.f);
     // graphics are recorded as they are: a TrustMark shows on them (isPhotographic)
     if (img && isPhotographic(img)) made.push({ file: recordFile(p.name, recordBytes(p.digest, img)), name: `${p.name}${RECORD_SUFFIX}` });
     n++;
@@ -704,6 +704,12 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
         const asProof = proofFileOf(f, bytes);
         if (asProof) return end({ state: "found", proof: asProof, digestB64: asProof.artifact!.digestB64!, isProofFile: true });
         const digestB64 = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+        // A photo may be a copy carrying a pointer to its original (lib/trustmark); that read starts now, beside the
+        // ledger lookup, and is waited for only if the lookup finds nothing. On Make it skips the zoomed reads and the
+        // search inside a screenshot; a check of one file does both.
+        // (Early only for one file: started for many at once, every photo would be decoded together.)
+        const readPointer = () => decodeOnce(f).then((img) => (img ? judgeTrustmark(img, { search: single && mode === "check", zooms: mode === "check" }) : null)).catch(() => null);
+        const early = looksLikePhoto(f) && single ? readPointer() : null;
         patch(row.key, { bytes, digestB64, state: "looking" });
         const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
         if (!res.ok) return end({ bytes, digestB64, state: "error", note: "Could not check the ledger just now. Try again in a moment." });
@@ -713,13 +719,11 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
           // Not a BitGraph of its own: perhaps a file of a tree, found by its sealed entry and proven here.
           const inTree = await findInTree(bytes).catch(() => null);
           if (inTree) return end({ bytes, digestB64, state: "in-tree", tree: inTree });
-          // Not on record by its bytes: a photo may still be a TrustMarked copy (recompressed, cropped, screenshotted),
-          // which points to its original. On Make this keeps a copy from being recorded as a new original. A check of
-          // one file also looks for the photo inside a wider screenshot; that search costs seconds, so only then.
+          // Not on record by its bytes: a photo may still be a copy (recompressed, cropped, screenshotted) whose hidden
+          // pointer leads to its original. On Make this keeps a copy from being recorded as a new original.
           if (looksLikePhoto(f)) {
-            if (single) setStatus("Looking for a TrustMark…");
-            const img = await decodePhoto(new Blob([bytes as BlobPart], { type: f.type }));
-            const v = img ? await judgeTrustmark(img, { search: single && mode === "check" }).catch(() => null) : null;
+            if (single) setStatus("Checking the ledger…");
+            const v = await (early ?? readPointer());
             if (v && v.verdict !== "none") return end({ bytes, digestB64, state: "trustmark", trustmark: v });
           }
           return end({ bytes, digestB64, state: "new" });
