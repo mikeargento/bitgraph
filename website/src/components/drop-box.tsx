@@ -213,23 +213,20 @@ async function fingerprintRecords(files: File[], leaves: Array<[string, string, 
   return (await hashLeaves(made.map((m) => m.file))).map((l, i) => [made[i]!.name, l[1], l[2]]);
 }
 
-/** A TrustMark's verdict, in its two parts: the proof it points to (cryptographic) and whether this copy looks like the
- *  picture that proof bound (a visual match, never proof the copy is unaltered). */
+/** A photo whose pixels carry a hidden pointer (a TrustMark): the BitGraph it points to, and, quietly, how closely
+ *  this copy matches the picture that BitGraph bound (a visual match; the original's own bytes are what prove it). */
 function TrustmarkLine({ v, onMake }: { v: TrustmarkVerdict; onMake?: () => void }) {
   if (v.verdict === "none") return null;
-  if (v.verdict === "forged") return <span className="db-bad">A forged TrustMark: {v.why}.</span>;
+  if (v.verdict === "forged") return <span className="db-bad">Its hidden pointer is forged: {v.why}.</span>;
   const o = v.original, n = o.counter.toLocaleString("en-US");
   const href = `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
   if (v.verdict === "mismatch") {
-    return <span className="db-bad">Its TrustMark points to <a href={href}>BitGraph #{n}</a>, but this picture does not look like the one that BitGraph bound (match {v.score.toFixed(2)}): the mark was moved from another picture.</span>;
+    return <span className="db-bad">Points to <a href={href}>BitGraph #{n}</a>, but this is not the picture it bound (match {v.score.toFixed(2)}).</span>;
   }
   return (
     <>
-      <span className="db-ok">A TrustMarked copy of <a href={href}>BitGraph #{n}</a></span>
-      <span className="db-size">
-        Looks like the original it bound: match {v.score.toFixed(2)}, about {Math.round(v.frame * 100)}% of its frame{v.inScreenshot ? ", found inside a larger picture" : ""}.
-        {" "}A visual match, not proof the copy is unaltered: only the original&rsquo;s exact bytes prove that.
-      </span>
+      <span className="db-ok">Points to <a href={href}>BitGraph #{n}</a></span>
+      <span className="db-size">Looks like the original (match {v.score.toFixed(2)}). Its proof page proves the original file.</span>
       {onMake && (
         <span className="db-row-actions">
           <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={onMake}>Make a new BitGraph anyway</button>

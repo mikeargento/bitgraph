@@ -66,7 +66,7 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   // a photo that already carries a mark is never marked again: two marks would make both unreadable
   for await (const _ of readings(img.rgba, img.w, img.h, await readRuntime(), { zooms: false })) { void _; throw new NoTrustmark("this photo already carries a TrustMark"); }
   const rec = recordBytes(photoDigestB64, img);
-  onStep?.("Finding the photo's fingerprint in its BitGraph…");
+  onStep?.("Assembling the BitGraphed file…");
   if (!(await recordProofIn(photoProof, rec))) throw new NoTrustmark("this photo's BitGraph does not bind its fingerprint (it was made before TrustMarks, or in another browser)");
   const parsed = parseRecord(rec)!;
   const epochId = String(photoProof.commit?.epochId ?? ""), counter = Number(photoProof.commit?.counter);
@@ -75,7 +75,7 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   const eref = await epochRef(epochId);
   const payload = pack(eref, counter, await tag(nonce, parsed.phash, eref, counter));
 
-  onStep?.("Adding the TrustMark here, in this browser…");
+  onStep?.("Adding the hidden pointer, in this browser…");
   const marked = await markNested(img.rgba, img.w, img.h, payload, await markRuntime());
   const bytes = await jpeg(marked, img.w, img.h);
   const back = await decodePhoto(new Blob([bytes as BlobPart], { type: "image/jpeg" }));
@@ -83,9 +83,10 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   if (back) for await (const r of readings(back.rgba, back.w, back.h, await readRuntime())) if (r.payload === payload) { readsBack = true; break; }
   if (!readsBack) throw new Error("the TrustMark did not read back from the marked photo; nothing was recorded");
 
-  onStep?.("Recording the TrustMarked copy…");
+  onStep?.("Recording the file…");
   const dot = photo.name.lastIndexOf(".");
-  const copyName = `${dot > 0 ? photo.name.slice(0, dot) : photo.name}.trustmark.jpg`;
+  // the marked copy is a JPEG named for the photo, and its BitGraphed file is <photo>.bitgraph.jpg, as always
+  const stem = dot > 0 ? photo.name.slice(0, dot) : photo.name, copyName = `${stem}.jpg`;
   const copy = new File([bytes as BlobPart], copyName, { type: "image/jpeg" });
   const floorFile = baseBlockFileText(await latestBaseBlock());
   const [floorLeaf] = await hashLeaves([new File([floorFile], "base-block.json", { type: "application/json" })]);
@@ -98,8 +99,8 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
     t.tree.leaves.map((l, i) => ({ digestB64: l[2], index: i, path: blocks[i]!.path }))).catch(() => 0);
   const copyProof = withMember(b as Record<string, unknown>, blocks[1]!) as Proof;
 
-  onStep?.("Publishing the fingerprint and assembling the file…");
+  onStep?.("Waiting for its Base ceiling…");
   const [published, sidecar] = await Promise.all([publishRecord(rec), ceilingOf(b)]);
   const file = buildBitGraphedFileV5(bytes, copyProof as unknown as Record<string, unknown>, sidecar);
-  return { bytes: file, fileName: `${dot > 0 ? photo.name.slice(0, dot) : photo.name}.trustmark.bitgraph.jpg`, copyProof, ceiling: !!sidecar, published };
+  return { bytes: file, fileName: `${stem}.bitgraph.jpg`, copyProof, ceiling: !!sidecar, published };
 }

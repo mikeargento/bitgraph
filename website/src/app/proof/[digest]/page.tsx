@@ -1922,17 +1922,18 @@ export default function ProofPage() {
      the original when that is what the page holds; the builder re-hashes them
      against the proof before anything is assembled, and never stamps an
      unverified anchor. Sets wait (offline member verification is thinner). */
-  async function downloadCarrier(unmarked = false) {
+  async function downloadCarrier() {
     if (carrierBusy || !proof || !cachedFile) return;
     setCarrierBusy(true);
     setCarrierMsg(null);
     try {
-      /* A photo's BitGraphed file carries a TrustMark (lib/trustmark/export.ts): a marked copy, recorded as its own
-         BitGraph after this one, with that proof inside. Intact, it is exact evidence of its own bytes; stripped by a
-         feed or a screenshot, the mark in its pixels still points back here. A photo whose BitGraph does not bind its
-         fingerprint gets the plain file, and says why; "the original, unmarked" is always the plain file. */
+      /* A photo's BitGraphed file carries a hidden pointer back to this BitGraph, a TrustMark (lib/trustmark/export.ts):
+         the file is a marked copy, recorded as its own BitGraph right after this one, with that proof inside. Intact, it
+         proves its own bytes; stripped by a feed or a screenshot, the pointer in its pixels still leads here, where the
+         original proves itself. A photo whose BitGraph binds no fingerprint (made before TrustMarks), or a graphic, gets
+         the plain file. */
       let withoutMark: string | null = null;
-      if (atomicCarrier && !unmarked && looksLikePhoto({ name: cachedFile.name })) {
+      if (atomicCarrier && looksLikePhoto({ name: cachedFile.name })) {
         try {
           const data = new Uint8Array(cachedFile.data);
           const d = btoa(Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)), (x) => String.fromCharCode(x)).join(""));
@@ -1940,12 +1941,13 @@ export default function ProofPage() {
           const url = URL.createObjectURL(new Blob([t.bytes as unknown as BlobPart], { type: "application/octet-stream" }));
           const el = document.createElement("a"); el.href = url; el.download = t.fileName; el.click();
           setTimeout(() => URL.revokeObjectURL(url), 1000);
-          const n = String(t.copyProof.commit?.counter ?? "");
-          setCarrierMsg(`With a TrustMark: the marked copy is BitGraph #${n}, recorded after this one, and its mark points back here.${t.ceiling ? "" : " Its Base write had not landed yet, so the file carries the proof without its ceiling."}${t.published ? "" : " Its fingerprint could not be published just now, so a stripped copy cannot be checked yet."}`);
+          // Success is silent (the download is the feedback); only a missing side speaks.
+          setCarrierMsg([t.ceiling ? null : "The Base write has not landed yet, so this file carries the proof without its ceiling. Download it again in a few seconds for the ceiling too.",
+            t.published ? null : "Its pointer could not be registered just now, so a stripped copy cannot be checked yet. Download it again in a moment."].filter(Boolean).join(" ") || null);
           return;
         } catch (e) {
-          // the plain file always follows: a photo that cannot carry a mark, or a mark that could not be made just now
-          withoutMark = e instanceof NoTrustmark ? `Without a TrustMark: ${e.message}.` : `Without a TrustMark: it could not be added just now (${e instanceof Error ? e.message : String(e)}).`;
+          // a photo that cannot carry a pointer gets the plain file without a word; a failure on the way says so
+          if (!(e instanceof NoTrustmark)) withoutMark = `The hidden pointer could not be added just now (${e instanceof Error ? e.message : String(e)}), so this is the plain file.`;
         }
       }
       // A proof made in one atomic action signs no floor of its own: its BitGraphed file is bitgraph-carrier/5, the file,
@@ -2287,19 +2289,15 @@ export default function ProofPage() {
             : "The package";
           const PROOF_PIECE: DownloadView = { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false, desc: "The signed proof alone, byte for byte as the ledger serves it." };
           const CARRIER_PIECE: DownloadView = { label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: () => void downloadCarrier(), busy: carrierBusy, desc: "The file with the proof inside: one file that verifies with nothing else." };
-          // a photo's BitGraphed file carries a TrustMark; its exact original, with this proof inside, stays one click away
-          const UNMARKED_PIECE: DownloadView = { label: "Original, unmarked", busyLabel: "Assembling\u2026", onClick: () => void downloadCarrier(true), busy: carrierBusy, desc: "The exact original with this proof inside, without a TrustMark." };
-          const unmarkedPiece: DownloadView[] = carrierPossible && atomicCarrier && cachedFile && looksLikePhoto({ name: cachedFile.name }) ? [UNMARKED_PIECE] : [];
           const ANCHORS_PIECE: DownloadView = { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy, desc: "The floor and the ceiling in position, each with its Ethereum block header." };
           // A Base floor has no Ethereum anchors to download: the floor's header is in the export and the package.
           const anchorsPiece: DownloadView[] = baseFloor !== null ? [] : [ANCHORS_PIECE];
           const pieces: DownloadView[] = isEth
             ? []
             : isTree
-            ? [...(carrierPossible ? [CARRIER_PIECE] : []), ...unmarkedPiece, PROOF_PIECE, ...anchorsPiece]
+            ? [...(carrierPossible ? [CARRIER_PIECE] : []), PROOF_PIECE, ...anchorsPiece]
             : [
                 ...(carrierPossible ? [CARRIER_PIECE] : []),
-                ...unmarkedPiece,
                 ...(redrawn && (redrawnAlgo === ART_ALGORITHM_V16 || redrawnAlgo === ART_ALGORITHM_V17 || redrawnAlgo === ART_ALGORITHM_V18 || redrawnAlgo === ART_ALGORITHM_V19) && cachedFile ? [{ label: "SVG for print", busyLabel: "SVG for print", onClick: downloadPrintSvg, busy: false, desc: "The print version inside the recorded PNG, checked against a redrawing from this proof. It prints sharp at any size." }] : []),
                 PROOF_PIECE,
                 ...(cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? [{ label: "Original file", busyLabel: "Recovering\u2026", onClick: downloadOriginal, busy: originBusy, desc: "The original, back out of the committed file." }] : []),

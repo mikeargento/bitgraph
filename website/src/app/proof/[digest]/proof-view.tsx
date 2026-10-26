@@ -314,7 +314,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const es = m.epochStart ?? null;
   const tf = m.treeFloor ?? null;
   const bitgraphed = m.pieces?.find((p) => p.label === "BitGraphed file") ?? null;
-  const unmarked = m.pieces?.find((p) => p.label === "Original, unmarked") ?? null;
   const fo = m.floorOf ?? null;
   const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null;
   const c = m.checks;
@@ -507,12 +506,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {bitgraphed && (
             <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>
               {bitgraphed.busy ? "Assembling\u2026" : "Download the BitGraphed file"}
-            </button>
-          )}
-          {/* A photo's BitGraphed file carries a TrustMark; the exact original, with this proof inside, is here. */}
-          {unmarked && (
-            <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={unmarked.busy} onClick={unmarked.onClick}>
-              Download the original, unmarked
             </button>
           )}
         </div>
