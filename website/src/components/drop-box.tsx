@@ -30,8 +30,10 @@ import { zipSync, strToU8 } from "fflate";
 import { attachEnvironments } from "@/lib/proof-environment";
 import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
-import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, parseDigestRootText, rootTextBytes, withMember, type TreeFloor } from "@/lib/tree-member";
-import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
+import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, parseDigestRootText, rootTextBytes, withMember } from "@/lib/tree-member";
+import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
+import { MAX_FINGERPRINTED, decodePhoto, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
+import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
 
 const MAX_FILES = 25;
 
@@ -43,9 +45,11 @@ type Row = {
   size: number;
   digestB64?: string;
   bytes?: Uint8Array;
-  state: "hashing" | "looking" | "found" | "in-tree" | "new" | "making" | "made" | "error";
+  state: "hashing" | "looking" | "found" | "in-tree" | "trustmark" | "new" | "making" | "made" | "error";
   /** The file is a member of a tree made on the Make page, proven here (lib/tree-entries.ts). */
   tree?: FoundInTree;
+  /** A photo not on record whose pixels carry a TrustMark: where it points and whether it matches (lib/trustmark). */
+  trustmark?: TrustmarkVerdict;
   proof?: Proof;
   valid?: boolean;
   note?: string;
@@ -189,6 +193,52 @@ async function unwrapBitGraphed(files: File[]): Promise<File[]> {
   return out;
 }
 
+/** The fingerprint record of each photo in a drop (lib/trustmark/record.ts), for the photos this browser can open, up to
+ *  MAX_FINGERPRINTED; a record already in the drop (a folder dropped again with its records) is not made twice. */
+async function fingerprintRecords(files: File[], leaves: Array<[string, string, string]>, onProgress?: (n: number, of: number) => void): Promise<Array<[string, string, string]>> {
+  const names = new Set(files.map((f) => f.webkitRelativePath || f.name));
+  const photos = files.map((f, i) => ({ f, digest: leaves[i]![2], name: f.webkitRelativePath || f.name }))
+    .filter((p) => looksLikePhoto(p.f) && !p.name.endsWith(RECORD_SUFFIX) && !names.has(`${p.name}${RECORD_SUFFIX}`));
+  if (photos.length === 0 || photos.length > MAX_FINGERPRINTED) return [];
+  const made: Array<{ file: File; name: string }> = [];
+  let n = 0;
+  for (const p of photos) {
+    const img = await decodePhoto(p.f);
+    // graphics are recorded as they are: a TrustMark shows on them (isPhotographic)
+    if (img && isPhotographic(img)) made.push({ file: recordFile(p.name, recordBytes(p.digest, img)), name: `${p.name}${RECORD_SUFFIX}` });
+    n++;
+    if (onProgress && (n % 10 === 0 || n === photos.length)) onProgress(n, photos.length);
+  }
+  // the leaf's name is the photo's path in the drop plus the suffix (a File's own name cannot hold the path)
+  return (await hashLeaves(made.map((m) => m.file))).map((l, i) => [made[i]!.name, l[1], l[2]]);
+}
+
+/** A TrustMark's verdict, in its two parts: the proof it points to (cryptographic) and whether this copy looks like the
+ *  picture that proof bound (a visual match, never proof the copy is unaltered). */
+function TrustmarkLine({ v, onMake }: { v: TrustmarkVerdict; onMake?: () => void }) {
+  if (v.verdict === "none") return null;
+  if (v.verdict === "forged") return <span className="db-bad">A forged TrustMark: {v.why}.</span>;
+  const o = v.original, n = o.counter.toLocaleString("en-US");
+  const href = `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
+  if (v.verdict === "mismatch") {
+    return <span className="db-bad">Its TrustMark points to <a href={href}>BitGraph #{n}</a>, but this picture does not look like the one that BitGraph bound (match {v.score.toFixed(2)}): the mark was moved from another picture.</span>;
+  }
+  return (
+    <>
+      <span className="db-ok">A TrustMarked copy of <a href={href}>BitGraph #{n}</a></span>
+      <span className="db-size">
+        Looks like the original it bound: match {v.score.toFixed(2)}, about {Math.round(v.frame * 100)}% of its frame{v.inScreenshot ? ", found inside a larger picture" : ""}.
+        {" "}A visual match, not proof the copy is unaltered: only the original&rsquo;s exact bytes prove that.
+      </span>
+      {onMake && (
+        <span className="db-row-actions">
+          <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={onMake}>Make a new BitGraph anyway</button>
+        </span>
+      )}
+    </>
+  );
+}
+
 /** The BitGraph that bound exactly these bytes (by their SHA-256, standard base64), if the ledger has one. */
 async function recordedProofOf(digestB64: string): Promise<Proof | null> {
   const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`).catch(() => null);
@@ -218,26 +268,6 @@ async function recordedTreeOf(fileLeaves: Array<[string, string, string]>): Prom
   return null;
 }
 
-/** Post a tree's members to /api/tree-members, 2,000 a request, four at a time; the root's own entry can lag its bind by a
- *  moment (404), and a rate limit or server error waits and tries again. Resolves with how many were written. */
-async function postTreeMembers(root: { rootDigestB64: string; epochId: string; counter: string; rootText: string; floor?: TreeFloor }, members: Array<{ digestB64: string; index: number; path: string }>, onProgress?: (n: number) => void): Promise<number> {
-  const batches: Array<typeof members> = [];
-  // 2,000 a request, four at a time (2026-10-20: 500 two at a time took over a minute for 50,000 files).
-  for (let i = 0; i < members.length; i += 2000) batches.push(members.slice(i, i + 2000));
-  let written = 0, next = 0;
-  const worker = async () => {
-    for (let k = next++; k < batches.length; k = next++) {
-      for (let attempt = 0; ; attempt++) {
-        const res = await fetch("/api/tree-members", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...root, members: batches[k] }) }).catch(() => null);
-        if (res?.ok) { const j = (await res.json().catch(() => null)) as { written?: number } | null; written += j?.written ?? 0; onProgress?.(written); break; }
-        if (attempt >= 10 || (res && res.status !== 404 && res.status !== 429 && res.status < 500)) throw new Error(`the index answered ${res?.status ?? "nothing"}`);
-        await new Promise((r) => setTimeout(r, (Number(res?.headers.get("Retry-After") ?? "") || 2) * 1000));
-      }
-    }
-  };
-  await Promise.all([worker(), worker(), worker(), worker()]);
-  return written;
-}
 
 async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
   const { proofHash: _h, ...p } = proof as Proof & { proofHash?: unknown };
@@ -494,17 +524,23 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
          by block Y. The Base switch and its second BitGraph are gone. */
       const count = list ? list.length : files.length;
       setStatus(list ? `Reading 0 of ${count.toLocaleString("en-US")} hashes…` : `Hashing 0 of ${count.toLocaleString("en-US")}…`);
-      const leaves = list
+      const dropped = list
         ? await leavesOfDigests(list, (n) => setStatus(`Reading ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")} hashes…${timer ? ` ${secs()} s` : ""}`))
         : await hashLeaves(files, (n) => setStatus(`Hashing ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}…${timer ? ` ${secs()} s` : ""}`));
+      // Each photo's fingerprint record (lib/trustmark/record.ts) goes into the tree beside it, so the photo can later
+      // carry a TrustMark that points back here. Up to MAX_FINGERPRINTED photos a drop; a photo this browser cannot open
+      // is recorded as it is.
+      const records = list ? [] : await fingerprintRecords(files, dropped, (n, of) => setStatus(`Fingerprinting ${n.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} photos…`));
+      const leaves = records.length ? [...dropped, ...records] : dropped;
       // Files sorted by path, so the same folder always makes the same tree around its floor (2026-10-20).
       const fileLeaves = sortedLeaves(leaves);
       let tree: PluginTree | null = null, rootText = "", floorFile: string | null = null, block: BaseBlock | null = null;
       let already: Proof | null = null;
       // Already recorded? A floor tree is new every time (its block is), so it is found through a file's own index entry,
-      // which carries the floor; trees made before floors (2026-10-20) are found by their root, as before.
+      // which carries the floor; trees made before floors (2026-10-20) are found by their root, as before. A drop made
+      // before fingerprints went into trees is found without them.
       setStatus("Looking for these files on the ledger…");
-      const found = await recordedTreeOf(fileLeaves);
+      const found = (await recordedTreeOf(fileLeaves)) ?? (records.length ? await recordedTreeOf(sortedLeaves(dropped)) : null);
       if (found) { tree = found.tree; rootText = found.rootText; floorFile = found.floorFile; already = found.proof; }
       else if (leaves.length > 1) {
         const sorted = await treeFromLeaves(fileLeaves), asDropped = await treeFromLeaves(leaves);
@@ -529,7 +565,10 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
       const tDone = performance.now();
       const t = tree!, total = t.files;
       const blocks = memberBlocks(t, rootText, floorFile ?? undefined);
-      setPlug({ tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: already ? null : "waiting", ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
+      // One file goes straight on to its proof page (below), so the tree's panel is never drawn for it: shown for the
+      // moment its index is written, it would flash up under "Opening the proof…" before the page changes.
+      const opensProof = !list && files.length === 1 && !timer;
+      if (!opensProof) setPlug({ tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: already ? null : "waiting", ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
       // Each file is indexed under its own hash with the tree's floor (lib/tree-member.ts): written after the proof is
       // shown, so the BitGraph never waits on it; the server checks every path to the root before it writes.
       type Lookup = { stored: number; total: number; state: "sealing" | "saving" | "done" | "failed"; note?: string };
@@ -545,10 +584,10 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
       })();
       /* One file opens its own proof page, as a plain drop always has: its tree is two leaves (the floor and the file), so
          its index is written in a moment; the page opens with the proof in hand either way. */
-      if (!list && files.length === 1 && !timer) {
+      if (opensProof) {
         setStatus("Opening the proof…");
         await Promise.race([indexed, new Promise((r) => setTimeout(r, 4000))]);
-        const fileDigest = fileLeaves[0]![2], i = t.leaves.findIndex((l) => l[2] === fileDigest);
+        const fileDigest = dropped[0]![2], i = t.leaves.findIndex((l) => l[2] === fileDigest);
         void cacheArtifactToIDB(files[0]!, fileDigest).catch(() => {});
         const commit = b.commit as { counter?: string; epochId?: string } | undefined;
         const epoch = commit?.epochId ? toUrlSafe(commit.epochId) : "";
@@ -677,6 +716,15 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
           // Not a BitGraph of its own: perhaps a file of a tree, found by its sealed entry and proven here.
           const inTree = await findInTree(bytes).catch(() => null);
           if (inTree) return end({ bytes, digestB64, state: "in-tree", tree: inTree });
+          // Not on record by its bytes: a photo may still be a TrustMarked copy (recompressed, cropped, screenshotted),
+          // which points to its original. On Make this keeps a copy from being recorded as a new original. A check of
+          // one file also looks for the photo inside a wider screenshot; that search costs seconds, so only then.
+          if (looksLikePhoto(f)) {
+            if (single) setStatus("Looking for a TrustMark…");
+            const img = await decodePhoto(new Blob([bytes as BlobPart], { type: f.type }));
+            const v = img ? await judgeTrustmark(img, { search: single && mode === "check" }).catch(() => null) : null;
+            if (v && v.verdict !== "none") return end({ bytes, digestB64, state: "trustmark", trustmark: v });
+          }
           return end({ bytes, digestB64, state: "new" });
         }
         return end({ bytes, digestB64, state: "found", proof: first, valid: await check(first, bytes) });
@@ -696,7 +744,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
       patch(r.key, p);
       return { ...r, ...p };
     });
-    if (single && ended2[0]?.state === "in-tree") { setRows(ended2); setStatus(null); return; }
+    if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "trustmark")) { setRows(ended2); setStatus(null); return; }
     const fresh_new = ended2.filter((r) => r.state === "new" && r.digestB64);
     // A new file is made the one way every drop is: a tree with the Base block as its floor (2026-10-20).
     if (mode === "make" && single && fresh_new.length === 1) { await takePlugins([picked[0]!]); return; }
@@ -933,6 +981,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
                     </span>
                   </>
                 )}
+                {r.state === "trustmark" && r.trustmark && <TrustmarkLine v={r.trustmark} onMake={mode === "make" ? () => void takePlugins([new File([r.bytes!.slice()], r.name)]) : undefined} />}
                 {r.state === "making" && "Binding…"}
                 {r.state === "error" && r.note}
                 {(r.state === "found" || r.state === "made") && r.proof && (

@@ -1247,3 +1247,25 @@ export async function putFloorLinkOnce(digestB64: string, epochId: string, count
     throw err;
   }
 }
+
+/* ── TrustMark (lib/trustmark) ─────────────────────────────────────────────
+ * The fingerprint records published when a photo is exported with a TrustMark, kept by the pointer the mark carries:
+ *   trustmark/records/<epochRef>/<counter>/<epochId, url-safe>/<record digest, url-safe>.json
+ * so a reader holding only a copy finds every candidate for its pointer with one listing.
+ */
+export const trustmarkRecordPrefix = (eref: number, counter: number) => `trustmark/records/${eref}/${counter}/`;
+export const trustmarkRecordKey = (eref: number, counter: number, epochId: string, recordDigestB64: string) =>
+  `${trustmarkRecordPrefix(eref, counter)}${toSafe(epochId)}/${toSafe(recordDigestB64)}.json`;
+
+/** Write a published record once; false when it is already there. */
+export async function putTrustmarkRecordOnce(key: string, body: string): Promise<boolean> {
+  if (!ledgerWritesOn()) return false;
+  try {
+    await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: key, Body: body, ContentType: "application/json", IfNoneMatch: "*" }));
+    return true;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
+    throw err;
+  }
+}

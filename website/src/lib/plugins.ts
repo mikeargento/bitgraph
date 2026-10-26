@@ -1,6 +1,6 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
-import { DIGEST_TREE_FORMAT, digestRootText } from "./tree-member.ts";
+import { DIGEST_TREE_FORMAT, digestRootText, type TreeFloor } from "./tree-member.ts";
 
 /**
  * The drop box's two plugins (2026-10-18: toggles at the top of the Make section). Both sit on the plain bind
@@ -129,4 +129,25 @@ export async function leavesOfDigests(list: Array<{ hex: string; name: string }>
   };
   await Promise.all(Array.from({ length: Math.min(16, list.length) }, worker));
   return leaves;
+}
+
+/** Post a tree's members to /api/tree-members, 2,000 a request, four at a time; the root's own entry can lag its bind by a
+ *  moment (404), and a rate limit or server error waits and tries again. Resolves with how many were written. */
+export async function postTreeMembers(root: { rootDigestB64: string; epochId: string; counter: string; rootText: string; floor?: TreeFloor }, members: Array<{ digestB64: string; index: number; path: string }>, onProgress?: (n: number) => void): Promise<number> {
+  const batches: Array<typeof members> = [];
+  // 2,000 a request, four at a time (2026-10-20: 500 two at a time took over a minute for 50,000 files).
+  for (let i = 0; i < members.length; i += 2000) batches.push(members.slice(i, i + 2000));
+  let written = 0, next = 0;
+  const worker = async () => {
+    for (let k = next++; k < batches.length; k = next++) {
+      for (let attempt = 0; ; attempt++) {
+        const res = await fetch("/api/tree-members", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...root, members: batches[k] }) }).catch(() => null);
+        if (res?.ok) { const j = (await res.json().catch(() => null)) as { written?: number } | null; written += j?.written ?? 0; onProgress?.(written); break; }
+        if (attempt >= 10 || (res && res.status !== 404 && res.status !== 429 && res.status < 500)) throw new Error(`the index answered ${res?.status ?? "nothing"}`);
+        await new Promise((r) => setTimeout(r, (Number(res?.headers.get("Retry-After") ?? "") || 2) * 1000));
+      }
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return written;
 }
