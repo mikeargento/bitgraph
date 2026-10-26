@@ -21,6 +21,8 @@ import { buildBitGraphedFileV5 } from "@mikeargento/bitgraph-verify";
 import { baseBlockFileText, checkMember, memberBlocks, memberOf, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, postTreeMembers, treeFromLeaves, type Proof } from "@/lib/plugins";
 import { publishRecord, recordProofIn } from "./ledger.ts";
+import { carriesPointer } from "./check.ts";
+import { recordedMsOf } from "@/lib/recorded-time";
 import { markNested, readings } from "./marks.ts";
 import { epochRef, MAX_COUNTER, pack, tag } from "./payload.ts";
 import { decodePhoto, isPhotographic, parseRecord, recordBytes } from "./record.ts";
@@ -51,6 +53,18 @@ async function ceilingOf(proof: Proof): Promise<Record<string, unknown> | null> 
     if (Date.now() > until) return null;
     await new Promise((r) => setTimeout(r, 2000));
   }
+}
+
+/** Of this photo's BitGraphs on the ledger (and the one in hand), the earliest that binds this fingerprint record, by the
+ *  enclave's signed clock, then position. */
+async function earliestBinding(photoDigestB64: string, inHand: Proof, rec: Uint8Array): Promise<Proof | null> {
+  const res = await fetch(`/api/proofs/${toUrlSafe(photoDigestB64)}`).catch(() => null);
+  const body = res?.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ proof: Proof; kind?: string }> } | null) : null;
+  const all = [inHand, ...(body?.proofs ?? []).filter((x) => x.kind === "recorded" && memberOf(x.proof) && checkMember(x.proof, photoDigestB64)).map((x) => x.proof)];
+  const when = (p: Proof) => recordedMsOf(p) ?? Number.POSITIVE_INFINITY;
+  all.sort((a, b) => when(a) - when(b) || Number(a.commit?.counter ?? 0) - Number(b.commit?.counter ?? 0));
+  for (const p of all) if (await recordProofIn(p, rec)) return p;
+  return null;
 }
 
 /** The marked copy's BitGraph when these exact bytes are already on record as a file of a tree, as the ledger serves it. */
@@ -87,10 +101,14 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   if (!img) throw new NoTrustmark("this browser cannot open the photo to mark it");
   if (!aspectOk(img.w, img.h)) throw new NoTrustmark("photos wider or taller than 2:1 cannot carry the pointer");
   if (!isPhotographic(img)) throw new NoTrustmark("this looks like a graphic, not a photograph, and the pointer would show on it");
-  // a photo that already carries a mark is never marked again: two marks would make both unreadable
-  for await (const _ of readings(img.rgba, img.w, img.h, await readRuntime(), { zooms: false })) { void _; throw new NoTrustmark("this photo already carries a pointer"); }
-  const rec = recordBytes(photoDigestB64, img);
   onStep?.("Assembling the BitGraphed file…");
+  // A copy keeps the pointer it carries, to the earliest known recording: it is never given a new one (and two marks
+  // would make both unreadable). Found anywhere in the picture, and counted only when it checks out on the ledger.
+  if (await carriesPointer(img)) throw new NoTrustmark("this photo is a copy and already points to the earliest known recording");
+  const rec = recordBytes(photoDigestB64, img);
+  // The pointer leads to the earliest BitGraph of this photo that binds its fingerprint, whichever of its BitGraphs
+  // the page shows.
+  photoProof = await earliestBinding(photoDigestB64, photoProof, rec) ?? photoProof;
   if (!(await recordProofIn(photoProof, rec))) throw new NoTrustmark("this photo's BitGraph does not bind its fingerprint (it was made before pointers, or in another browser)");
   const parsed = parseRecord(rec)!;
   const epochId = String(photoProof.commit?.epochId ?? ""), counter = Number(photoProof.commit?.counter);

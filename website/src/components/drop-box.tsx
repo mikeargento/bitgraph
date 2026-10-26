@@ -34,6 +34,7 @@ import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, membe
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
 import { MAX_FINGERPRINTED, decodeOnce, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
+import { noteCopyOf } from "@/lib/trustmark/copy-note";
 
 const MAX_FILES = 25;
 
@@ -215,7 +216,7 @@ async function fingerprintRecords(files: File[], leaves: Array<[string, string, 
 
 /** A photo whose pixels carry a hidden pointer (a TrustMark): the BitGraph it points to, and, quietly, how closely
  *  this copy matches the picture that BitGraph bound (a visual match; the original's own bytes are what prove it). */
-function TrustmarkLine({ v, onMake }: { v: TrustmarkVerdict; onMake?: () => void }) {
+function TrustmarkLine({ v }: { v: TrustmarkVerdict }) {
   if (v.verdict === "none") return null;
   if (v.verdict === "forged") return <span className="db-bad">Its hidden pointer is forged: {v.why}.</span>;
   const o = v.original, n = o.counter.toLocaleString("en-US");
@@ -227,11 +228,6 @@ function TrustmarkLine({ v, onMake }: { v: TrustmarkVerdict; onMake?: () => void
     <>
       <span className="db-ok">Points to <a href={href}>BitGraph #{n}</a></span>
       <span className="db-size">Looks like the original (match {v.score.toFixed(2)}). Its proof page proves the original file.</span>
-      {onMake && (
-        <span className="db-row-actions">
-          <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={onMake}>Make a new BitGraph anyway</button>
-        </span>
-      )}
     </>
   );
 }
@@ -720,11 +716,17 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
           const inTree = await findInTree(bytes).catch(() => null);
           if (inTree) return end({ bytes, digestB64, state: "in-tree", tree: inTree });
           // Not on record by its bytes: a photo may still be a copy (recompressed, cropped, screenshotted) whose hidden
-          // pointer leads to its original. On Make this keeps a copy from being recorded as a new original.
+          // pointer leads to the earliest known recording. A check says so. Make records it all the same (recording only
+          // says these bytes existed by then) and its proof page says whose copy it is. Not finding a pointer never makes
+          // a photo an original: a pointer can be cropped away.
           if (looksLikePhoto(f)) {
             if (single) setStatus("Checking the ledger…");
             const v = await (early ?? readPointer());
-            if (v && v.verdict !== "none") return end({ bytes, digestB64, state: "trustmark", trustmark: v });
+            if (v && v.verdict !== "none" && mode === "check") return end({ bytes, digestB64, state: "trustmark", trustmark: v });
+            if (v?.verdict === "match") {
+              const o = v.original;
+              noteCopyOf(toUrlSafe(digestB64), { counter: o.counter, href: `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}` });
+            }
           }
           return end({ bytes, digestB64, state: "new" });
         }
@@ -982,7 +984,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
                     </span>
                   </>
                 )}
-                {r.state === "trustmark" && r.trustmark && <TrustmarkLine v={r.trustmark} onMake={mode === "make" ? () => void takePlugins([new File([r.bytes!.slice()], r.name)]) : undefined} />}
+                {r.state === "trustmark" && r.trustmark && <TrustmarkLine v={r.trustmark} />}
                 {r.state === "making" && "Binding…"}
                 {r.state === "error" && r.note}
                 {(r.state === "found" || r.state === "made") && r.proof && (

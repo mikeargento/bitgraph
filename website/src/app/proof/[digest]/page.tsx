@@ -70,6 +70,7 @@ import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf 
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 import { looksLikePhoto } from "@/lib/trustmark/record";
 import { NoTrustmark, trustmarkedFile } from "@/lib/trustmark/export";
+import { copyOfNote } from "@/lib/trustmark/copy-note";
 // QR code removed — replaced with Ethereum Seal card
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
@@ -632,6 +633,10 @@ export default function ProofPage() {
   const atomicCarrier = !!proof && (proof.commit as { atomic?: boolean } | undefined)?.atomic === true
     && !(proof.commit as { slotAnchor?: unknown } | undefined)?.slotAnchor && baseFloorOfProof(proof) === null;
   const [carrierMsg, setCarrierMsg] = useState<string | null>(null);
+  // A photo noticed at Make as a copy of an earlier BitGraph (lib/trustmark/copy-note): read after the first render,
+  // since session storage is only in the browser.
+  const [copyOf, setCopyOf] = useState<ReturnType<typeof copyOfNote>>(null);
+  useEffect(() => { setCopyOf(copyOfNote(digestParam)); }, [digestParam]);
   // The two piece-downloads beside the package: the anchor pair, and the original.
   const [anchorsBusy, setAnchorsBusy] = useState(false);
   const [anchorsMsg, setAnchorsMsg] = useState<string | null>(null);
@@ -2398,6 +2403,7 @@ export default function ProofPage() {
             pieces,
             downloadNotes,
             carrierNote: carrierMsg,
+            copyOf,
             checkText,
             checkCommand,
             hashes,

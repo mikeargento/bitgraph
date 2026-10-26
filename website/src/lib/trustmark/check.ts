@@ -77,6 +77,12 @@ async function judgeRegion(img: Decoded, zooms: boolean): Promise<TrustmarkVerdi
   return markRead ? { verdict: "none", markRead: true } : null;
 }
 
+/** Whether the picture carries a pointer to a BitGraph, found anywhere in it (whole, zoomed, inside a screenshot) and
+ *  checked against the ledger; a read that noise happens to decode does not count. */
+export async function carriesPointer(img: Decoded): Promise<boolean> {
+  return (await judge(img, { search: true, zooms: true })).verdict !== "none";
+}
+
 /**
  * The verdict for a decoded copy. search: also look for the photo inside a wider picture (a screenshot with a toolbar
  * or a page around it); several seconds when nothing is found, so the drop box uses it only for a check. zooms: also

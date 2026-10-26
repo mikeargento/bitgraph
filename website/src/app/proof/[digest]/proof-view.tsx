@@ -167,6 +167,8 @@ export interface ProofViewModel {
   downloadNotes: ReactNode[];
   /** The BitGraphed file's last download, as it went: shown under its button. */
   carrierNote?: string | null;
+  /** This photo carries a pointer to an earlier BitGraph, noticed as it was made: whose copy it is. */
+  copyOf?: { counter: number; href: string } | null;
   /** "Check it anywhere": the command that matches this kind of export, or null. */
   checkText: ReactNode | null;
   checkCommand: ReactNode | null;
@@ -350,6 +352,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {m.attestedMs !== null && (
               <div className="pv-when"><TimeChip date={new Date(m.attestedMs)} withDate /></div>
             )}
+            {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
           </div>
         </div>
 
