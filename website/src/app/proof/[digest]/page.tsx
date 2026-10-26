@@ -648,12 +648,15 @@ export default function ProofPage() {
   useEffect(() => { setC2paMatch(credentialsMatchNote(digestParam)); }, [digestParam]);
   useEffect(() => {
     const at = proof?.commit as { epochId?: string; counter?: string } | undefined;
-    if (!proof || !treeMemberOf(proof) || !at?.epochId || !at.counter || cachedFile?.c2pa?.present) return;
+    if (!proof || !at?.epochId || !at.counter || cachedFile?.c2pa?.present) return;
     let stop = false;
     (async () => {
-      const photo = stdDigest(digestParam), bound = (proof.artifact as { digestB64?: string } | undefined)?.digestB64;
+      // On a photo's own page, the credentials must name that photo; on its BitGraph's root page (the ledger opens
+      // that one), any published for this very BitGraph.
+      const photo = treeMemberOf(proof) ? stdDigest(digestParam) : null, bound = (proof.artifact as { digestB64?: string } | undefined)?.digestB64;
       for (const e of await publishedRecords(await epochRef(at.epochId!), Number(at.counter))) {
-        if (!e.c2paB64 || !e.c2paProof || parseRecord(unb64(e.recordB64))?.photo !== photo) continue;
+        if (!e.c2paB64 || !e.c2paProof || (e.proof.artifact as { digestB64?: string } | undefined)?.digestB64 !== bound) continue;
+        if (photo && parseRecord(unb64(e.recordB64))?.photo !== photo) continue;
         const bytes = unb64(e.c2paB64);
         if ((e.c2paProof.artifact as { digestB64?: string } | undefined)?.digestB64 !== bound || !(await verifyMember(e.c2paProof, bytes))) continue;
         const { readDetachedC2PA } = await import("@/lib/c2pa-reader");
