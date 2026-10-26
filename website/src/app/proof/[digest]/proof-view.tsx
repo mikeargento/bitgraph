@@ -620,9 +620,9 @@ function ContentCredentials({ c2pa, recorded, match }: { c2pa: C2PAReadResult; r
       {/* The thumbnail the signer signed: the picture these credentials describe. */}
       {c2pa.thumbnailDataUrl && (
         <div className="pv-c2pa-thumb">
+          <span className="pv-sub-note">Signed thumbnail</span>
           {/* eslint-disable-next-line @next/next/no-img-element -- a data URL from the manifest, not a hosted image */}
           <img src={c2pa.thumbnailDataUrl} alt="The thumbnail signed into these Content Credentials" />
-          <span className="pv-sub-note">Signed thumbnail</span>
         </div>
       )}
       {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
