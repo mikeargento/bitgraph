@@ -4943,6 +4943,8 @@ html:root:root:root .tools-page .tl-faq details[open] summary::after { content: 
 html:root:root:root .tools-page .tl-faq details > p { margin: 0 0 16px !important; color: var(--text); }
 /* Long commands wrap inside a card instead of scrolling sideways; Copy still copies the one line. */
 html:root:root:root:root:root:root body .tools-page .tl-card :is(.code-block, .mk-code) > pre { white-space: pre-wrap !important; overflow-wrap: anywhere; overflow-x: hidden !important; font-size: 13.5px !important; line-height: 1.6 !important; }
+/* The proof page's check command wraps the same way: scrolled sideways, its text ran under the copy button. */
+html:root:root:root:root:root:root body .pv-card :is(.code-block, .mk-code) > pre { white-space: pre-wrap !important; overflow-wrap: anywhere; overflow-x: hidden !important; }
 html:root:root:root:root:root body .tools-page .tl-toc a { font-weight: 400 !important; color: var(--dim) !important; text-decoration: none !important; }
 @media (hover: hover) { html:root:root:root:root:root body .tools-page .tl-toc a:hover { color: var(--ink) !important; } }
 /* The tool cards turned inside out (2026-10-19: darker outer boxes containing the lighter code
