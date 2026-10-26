@@ -70,7 +70,7 @@ import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf 
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 import { looksLikePhoto } from "@/lib/trustmark/record";
 import { NoTrustmark, trustmarkedFile } from "@/lib/trustmark/export";
-import { copyOfNote, credentialsMatchNote } from "@/lib/trustmark/copy-note";
+import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
 import { parseRecord } from "@/lib/trustmark/record";
 import { epochRef } from "@/lib/trustmark/payload";
@@ -640,6 +640,8 @@ export default function ProofPage() {
   // since session storage is only in the browser.
   const [copyOf, setCopyOf] = useState<ReturnType<typeof copyOfNote>>(null);
   useEffect(() => { setCopyOf(copyOfNote(digestParam)); }, [digestParam]);
+  const [droppedCopy, setDroppedCopy] = useState<number | null>(null);
+  useEffect(() => { setDroppedCopy(droppedCopyNote(digestParam)); }, [digestParam]);
   /* A photo's Content Credentials published with its BitGraph (lib/trustmark/c2pa-leaf.ts), for when the photo is not
      on hand: kept only when the manifest is a file of this very BitGraph, names this photo's record, and its signature
      checks out without the image. Shown as recorded in this BitGraph, with the thumbnail its signer signed. */
@@ -2435,6 +2437,7 @@ export default function ProofPage() {
             downloadNotes,
             carrierNote: carrierMsg,
             copyOf,
+            droppedCopy,
             checkText,
             checkCommand,
             hashes,

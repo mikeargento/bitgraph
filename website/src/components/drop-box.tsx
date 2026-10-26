@@ -34,7 +34,7 @@ import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, membe
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
 import { MAX_FINGERPRINTED, decodeOnce, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
-import { noteCopyOf, noteCredentialsMatch } from "@/lib/trustmark/copy-note";
+import { noteCopyOf, noteCredentialsMatch, noteDroppedCopy } from "@/lib/trustmark/copy-note";
 import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
 
 const MAX_FILES = 25;
@@ -739,8 +739,17 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
               return end({ bytes, digestB64, state: "trustmark", trustmark: v });
             }
             if (v?.verdict === "match") {
-              const o = v.original;
-              noteCopyOf(toUrlSafe(digestB64), { counter: o.counter, href: `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}` });
+              const o = v.original, href = `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
+              // One copy dropped on Make leads to its original, the earliest known recording, instead of being recorded:
+              // a pointer that checks out is never wrong. (Not finding one says nothing, so those are recorded.)
+              if (single && mode === "make") {
+                noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
+                if (v.credentials) noteCredentialsMatch(toUrlSafe(o.photoDigestB64), v.credentials.thumbnailMatch);
+                setStatus("Opening the original…");
+                router.push(href);
+                return end({ bytes, digestB64, state: "trustmark", trustmark: v });
+              }
+              noteCopyOf(toUrlSafe(digestB64), { counter: o.counter, href });
             }
           }
           return end({ bytes, digestB64, state: "new" });
@@ -762,6 +771,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
       patch(r.key, p);
       return { ...r, ...p };
     });
+    if (single && mode === "make" && ended2[0]?.state === "trustmark") return; // led to its original
     if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "trustmark")) { setRows(ended2); setStatus(null); return; }
     const fresh_new = ended2.filter((r) => r.state === "new" && r.digestB64);
     // A new file is made the one way every drop is: a tree with the Base block as its floor (2026-10-20).

@@ -171,6 +171,8 @@ export interface ProofViewModel {
   c2paRecorded?: boolean;
   /** A search's copy matched those credentials' signed thumbnail this closely. */
   c2paMatch?: number | null;
+  /** The file just dropped on Make was a copy of this BitGraph, and Make opened this page instead of recording it. */
+  droppedCopy?: number | null;
   /** This photo carries a pointer to an earlier BitGraph, noticed as it was made: whose copy it is. */
   copyOf?: { counter: number; href: string } | null;
   /** "Check it anywhere": the command that matches this kind of export, or null. */
@@ -357,6 +359,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               <div className="pv-when"><TimeChip date={new Date(m.attestedMs)} withDate /></div>
             )}
             {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
+            {m.droppedCopy != null && <div className="pv-note">The photo you dropped is a copy of this BitGraph (match {m.droppedCopy.toFixed(2)}), so it was not recorded again.</div>}
           </div>
         </div>
 

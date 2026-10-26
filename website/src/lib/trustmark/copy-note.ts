@@ -7,6 +7,16 @@
  */
 
 export type CopyOf = { counter: number; href: string };
+
+/** A file dropped on Make turned out to be a copy of this BitGraph (its pointer checked out), so Make opened this page
+ *  instead of recording it: how closely it matched. */
+const droppedKey = (digestUrlSafe: string) => `bitgraph-dropped-copy:${digestUrlSafe}`;
+export function noteDroppedCopy(digestUrlSafe: string, score: number): void {
+  try { sessionStorage.setItem(droppedKey(digestUrlSafe), String(score)); } catch { /* the note is a courtesy */ }
+}
+export function droppedCopyNote(digestUrlSafe: string): number | null {
+  try { const k = droppedKey(digestUrlSafe), v = Number(sessionStorage.getItem(k)); sessionStorage.removeItem(k); return v > 0 && v <= 1 ? v : null; } catch { return null; }
+}
 const key = (digestUrlSafe: string) => `bitgraph-copy-of:${digestUrlSafe}`;
 
 export function noteCopyOf(digestUrlSafe: string, c: CopyOf): void {
