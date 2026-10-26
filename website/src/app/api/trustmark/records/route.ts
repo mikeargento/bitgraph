@@ -5,6 +5,7 @@ import { getObjectText, getProofsByDigest, ledgerWritesOn, listKeysUnderPrefix, 
 import { checkMember, memberOf } from "@/lib/tree-member";
 import { epochRef, MAX_COUNTER } from "@/lib/trustmark/payload";
 import { parseRecord } from "@/lib/trustmark/record";
+import { MAX_MANIFEST_BYTES } from "@/lib/trustmark/c2pa-leaf";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ const digest = async (u: Uint8Array) => b64(new Uint8Array(await crypto.subtle.d
  */
 export async function POST(req: Request) {
   if (!ledgerWritesOn()) return NextResponse.json({ error: "Ledger writes are off." }, { status: 503 });
-  let body: { recordB64?: unknown };
+  let body: { recordB64?: unknown; c2paB64?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON." }, { status: 400 }); }
   if (typeof body.recordB64 !== "string" || body.recordB64.length > MAX_RECORD_BYTES * 2) return NextResponse.json({ error: "recordB64 is required." }, { status: 400 });
   const bytes = new Uint8Array(Buffer.from(body.recordB64, "base64"));
@@ -44,8 +45,19 @@ export async function POST(req: Request) {
     });
     if (!photoInSameTree) return NextResponse.json({ error: "The photo this record names is not in the same BitGraph." }, { status: 400 });
     if (!epochId || !Number.isSafeInteger(counter) || counter < 0 || counter > MAX_COUNTER) return NextResponse.json({ error: "This position cannot carry a TrustMark." }, { status: 400 });
+    // The photo's Content Credentials, when sent, must be a file of the same BitGraph too.
+    let c2pa: { c2paB64: string; c2paProof: Record<string, unknown> } | null = null;
+    if (body.c2paB64 !== undefined) {
+      if (typeof body.c2paB64 !== "string" || body.c2paB64.length > MAX_MANIFEST_BYTES * 1.4) return NextResponse.json({ error: "c2paB64 is not a manifest store." }, { status: 400 });
+      const m = new Uint8Array(Buffer.from(body.c2paB64, "base64")), md = await digest(m);
+      const at = (await getProofsByDigest(md)).find((e) => e.kind === "recorded" && checkMember(e.proof, md)
+        && (e.proof.artifact as { digestB64?: unknown } | undefined)?.digestB64 === bound
+        && String((e.proof.commit as { epochId?: unknown } | undefined)?.epochId) === epochId && Number((e.proof.commit as { counter?: unknown } | undefined)?.counter) === counter);
+      if (!at) return NextResponse.json({ error: "These Content Credentials are not a file of the same BitGraph." }, { status: 400 });
+      c2pa = { c2paB64: body.c2paB64, c2paProof: at.proof };
+    }
     const eref = await epochRef(epochId);
-    const written = await putTrustmarkRecordOnce(trustmarkRecordKey(eref, counter, epochId, recordDigest), JSON.stringify({ format: "bitgraph-trustmark-published/1", recordB64: body.recordB64, proof: mine.proof }, null, 1));
+    const written = await putTrustmarkRecordOnce(trustmarkRecordKey(eref, counter, epochId, recordDigest), JSON.stringify({ format: "bitgraph-trustmark-published/1", recordB64: body.recordB64, proof: mine.proof, ...(c2pa ?? {}) }, null, 1));
     return NextResponse.json({ written, eref, counter });
   } catch (e) {
     if (e instanceof LedgerUnavailableError) return NextResponse.json({ error: "ledger unavailable" }, { status: 503 });

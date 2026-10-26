@@ -76,3 +76,20 @@ test("graphics are told from photographs", async () => {
   const noisy = new Uint8ClampedArray(w * h * 4).map((_, i) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return i % 4 === 3 ? 255 : 100 + (seed % 40); });
   assert.equal(isPhotographic({ rgba: noisy, w, h }), true);
 });
+
+test("a photo's C2PA manifest store is read out of JPEG APP11 packets and a PNG caBX chunk", async () => {
+  const { manifestStoreOf } = await import("../trustmark/c2pa-leaf.ts");
+  const box = (type: string, body: Uint8Array) => { const b = new Uint8Array(8 + body.length); new DataView(b.buffer).setUint32(0, b.length); b.set(new TextEncoder().encode(type), 4); b.set(body, 8); return b; };
+  const store = box("jumb", new Uint8Array(Array.from({ length: 300 }, (_, i) => i & 255)));
+  // JPEG: the store split over two APP11 packets; the second repeats the box header (LBox + TBox)
+  const seg = (payload: Uint8Array, seq: number) => { const s = new Uint8Array(4 + 8 + payload.length); s.set([0xff, 0xeb, (s.length - 2) >> 8, (s.length - 2) & 255, 0x4a, 0x50, 0, 1, 0, 0, 0, seq]); s.set(payload, 12); return s; };
+  const half = 150, p1 = store.subarray(0, half), p2 = new Uint8Array(8 + store.length - half);
+  p2.set(store.subarray(0, 8)); p2.set(store.subarray(half), 8);
+  const cat = (...a: Uint8Array[]) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
+  const jpeg = cat(Uint8Array.of(0xff, 0xd8), seg(p1, 1), seg(p2, 2), Uint8Array.of(0xff, 0xda, 0, 2, 0xff, 0xd9));
+  assert.deepEqual(manifestStoreOf(jpeg), store);
+  const chunk = (type: string, data: Uint8Array) => { const c = new Uint8Array(12 + data.length); new DataView(c.buffer).setUint32(0, data.length); c.set(new TextEncoder().encode(type), 4); c.set(data, 8); return c; };
+  const png = cat(Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a), chunk("IHDR", new Uint8Array(13)), chunk("caBX", store), chunk("IEND", new Uint8Array(0)));
+  assert.deepEqual(manifestStoreOf(png), store);
+  assert.equal(manifestStoreOf(Uint8Array.of(0xff, 0xd8, 0xff, 0xda, 0, 2, 0xff, 0xd9)), null);
+});

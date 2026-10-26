@@ -78,6 +78,8 @@ const EXT_MIME: Record<string, string> = {
 
 // Shape of a single manifest in the raw @contentauth/toolkit report (snake_case).
 interface RawManifest {
+  thumbnail?: { format?: string; identifier?: string };
+  resources?: { resources?: Record<string, number[]> };
   claim_generator?: string;
   claim_generator_info?: Array<{ name?: string; version?: string }>;
   title?: string;
@@ -90,6 +92,7 @@ interface RawManifest {
 // Cached promise of the initialized toolkit so the ~6 MB WASM loads once.
 let toolkitPromise: Promise<{
   getManifestStoreFromArrayBuffer: (buf: ArrayBuffer, mimeType: string, settings?: string) => Promise<unknown>;
+  getManifestStoreFromManifestAndAsset: (manifest: Uint8Array, asset: Uint8Array, mimeType: string, settings?: string) => Promise<unknown>;
 }> | null = null;
 
 async function getToolkit() {
@@ -99,6 +102,7 @@ async function getToolkit() {
     const tk = (await import("@contentauth/toolkit")) as unknown as {
       default: (init: { module_or_path: string }) => Promise<unknown>;
       getManifestStoreFromArrayBuffer: (buf: ArrayBuffer, mimeType: string, settings?: string) => Promise<unknown>;
+      getManifestStoreFromManifestAndAsset: (manifest: Uint8Array, asset: Uint8Array, mimeType: string, settings?: string) => Promise<unknown>;
     };
     await tk.default({ module_or_path: "/c2pa/toolkit_core.wasm" });
     return tk;
@@ -141,134 +145,171 @@ export async function readC2PA(file: File | Blob): Promise<C2PAReadResult | null
     const mimeType = (ext && EXT_MIME[ext]) || file.type || "application/octet-stream";
 
     const tk = await getToolkit();
-    const report = (await tk.getManifestStoreFromArrayBuffer(buf, mimeType)) as {
-      manifest_store?: {
-        active_manifest?: string;
-        manifests?: Record<string, RawManifest>;
-        validation_results?: {
-          activeManifest?: { failure?: Array<{ code?: string; url?: string; explanation?: string }> };
-        };
-      };
-    } | null;
+    const report = (await tk.getManifestStoreFromArrayBuffer(buf, mimeType)) as RawReport;
 
-    const ms = report?.manifest_store;
-    if (!ms || !ms.manifests) return null;
-
-    // Resolve the active manifest by label, falling back to the last entry.
-    const active: RawManifest | undefined =
-      (ms.active_manifest ? ms.manifests[ms.active_manifest] : undefined) ??
-      Object.values(ms.manifests).pop();
-    if (!active) return null;
-
-    const assertions = active.assertions ?? [];
-
-    /* Creator, from EITHER place the creator's name is written.
-
-       ⚠️ Two assertions carry it and a reader that knows only the older one
-       silently reports no creator for current exports. Lightroom Classic 15.4.1
-       wrote `stds.schema-org.CreativeWork` with an `author` array; 15.5 moved to
-       c2pa_rs 0.85 / spec 2.4.0 and writes `cawg.metadata` with a Dublin Core
-       `dc:creator` instead. Both were measured on real exports, a month apart,
-       from the same application. Nothing was deprecated loudly; the field just
-       moved, so this failed silently and looked like Lightroom had stopped
-       recording the name at all.
-
-       CreativeWork is tried first so files that carry both keep the name they
-       have always shown here. Neither shape is verified by the signature: this
-       is a self-asserted string that the signer's certificate covers only in
-       the sense that it covers every byte. Rendering it as "Creator" would
-       overstate it, which is why the proof page files it under the submitter's
-       note rather than presenting it as established identity. */
-    let creator: string | undefined;
-    const creativeWork = assertions.find((a) => a.label?.startsWith("stds.schema-org.CreativeWork"));
-    if (creativeWork) {
-      const data = (creativeWork.data ?? {}) as { author?: Array<{ name?: string }> | { name?: string } };
-      if (Array.isArray(data.author)) {
-        creator = data.author.find((a) => a?.name)?.name;
-      } else if (data.author && typeof data.author === "object" && "name" in data.author) {
-        creator = (data.author as { name?: string }).name;
-      }
-    }
-    if (!creator) {
-      const cawg = assertions.find((a) => a.label?.startsWith("cawg.metadata"));
-      if (cawg) {
-        // dc:creator is formally an ordered sequence, so a bare string, an
-        // array of strings, and an array of {name} objects all occur in the
-        // wild. Take the first non-empty name in any of those shapes.
-        const raw = ((cawg.data ?? {}) as Record<string, unknown>)["dc:creator"];
-        const first = Array.isArray(raw) ? raw.find((v) => v) : raw;
-        if (typeof first === "string") {
-          creator = first.trim() || undefined;
-        } else if (first && typeof first === "object" && "name" in first) {
-          const n = (first as { name?: unknown }).name;
-          if (typeof n === "string") creator = n.trim() || undefined;
-        }
-      }
-    }
-
-    // Origin signal: IPTC digitalSourceType off the actions assertion (v1
-    // "c2pa.actions" or v2 "c2pa.actions.v2"). trainedAlgorithmicMedia =
-    // AI-generated, digitalCapture = camera, etc. We pull only that field.
-    let digitalSourceType: string | undefined;
-    const actionsAssertion = assertions.find((a) => a.label?.startsWith("c2pa.actions"));
-    if (actionsAssertion) {
-      const data = (actionsAssertion.data ?? {}) as {
-        digitalSourceType?: string;
-        actions?: Array<{ action?: string; digitalSourceType?: string }>;
-      };
-      const raw =
-        data.digitalSourceType ||
-        data.actions?.find((act) => act?.digitalSourceType)?.digitalSourceType;
-      if (raw) digitalSourceType = raw.split("/").pop() || raw;
-    }
-
-    /* Walk the ancestors the file actually carries, breadth first from the
-       active manifest, recording each edge as the REFERRING manifest declared
-       it. Cycles are impossible in a well formed store but a `seen` set and a
-       depth cap keep a malformed one from hanging the page. */
-    const chain: Array<{ relationship?: string; signer?: string }> = [];
-    {
-      const seen = new Set<string>(ms.active_manifest ? [ms.active_manifest] : []);
-      let frontier: RawManifest[] = [active];
-      for (let depth = 0; frontier.length && depth < 8; depth++) {
-        const next: RawManifest[] = [];
-        for (const m of frontier) {
-          for (const ing of m.ingredients ?? []) {
-            const label = ing?.active_manifest;
-            if (!label || seen.has(label)) continue;
-            seen.add(label);
-            const ancestor = ms.manifests?.[label];
-            if (!ancestor) continue;
-            chain.push({ relationship: ing.relationship, signer: ancestor.signature_info?.issuer });
-            next.push(ancestor);
-          }
-        }
-        frontier = next;
-      }
-    }
-
-    const failures = ms.validation_results?.activeManifest?.failure ?? [];
-
-    return {
-      chain: chain.length ? chain : undefined,
-      present: true,
-      claimGenerator: active.claim_generator,
-      claimGeneratorInfo: active.claim_generator_info,
-      digitalSourceType,
-      creator,
-      title: active.title,
-      format: active.format,
-      signatureIssuer: active.signature_info?.issuer,
-      signatureTime: active.signature_info?.time,
-      thumbnailDataUrl: undefined,
-      ingredientCount: Array.isArray(active.ingredients) ? active.ingredients.length : 0,
-      validationStatus: failures,
-      signatureValid: failures.length === 0,
-    };
+    return summarize(report);
   } catch (err) {
     if (typeof window !== "undefined") {
       console.warn("[c2pa] read failed:", err);
     }
+    return null;
+  }
+}
+
+type RawReport = {
+  manifest_store?: {
+    active_manifest?: string;
+    manifests?: Record<string, RawManifest>;
+    validation_results?: {
+      activeManifest?: { failure?: Array<{ code?: string; url?: string; explanation?: string }> };
+    };
+  };
+} | null;
+
+/** The UI shape of a toolkit report (readC2PA, readDetachedC2PA). */
+function summarize(report: RawReport): C2PAReadResult | null {
+  const ms = report?.manifest_store;
+  if (!ms || !ms.manifests) return null;
+
+  // Resolve the active manifest by label, falling back to the last entry.
+  const active: RawManifest | undefined =
+    (ms.active_manifest ? ms.manifests[ms.active_manifest] : undefined) ??
+    Object.values(ms.manifests).pop();
+  if (!active) return null;
+
+  const assertions = active.assertions ?? [];
+
+  /* Creator, from EITHER place the creator's name is written.
+
+     ⚠️ Two assertions carry it and a reader that knows only the older one
+     silently reports no creator for current exports. Lightroom Classic 15.4.1
+     wrote `stds.schema-org.CreativeWork` with an `author` array; 15.5 moved to
+     c2pa_rs 0.85 / spec 2.4.0 and writes `cawg.metadata` with a Dublin Core
+     `dc:creator` instead. Both were measured on real exports, a month apart,
+     from the same application. Nothing was deprecated loudly; the field just
+     moved, so this failed silently and looked like Lightroom had stopped
+     recording the name at all.
+
+     CreativeWork is tried first so files that carry both keep the name they
+     have always shown here. Neither shape is verified by the signature: this
+     is a self-asserted string that the signer's certificate covers only in
+     the sense that it covers every byte. Rendering it as "Creator" would
+     overstate it, which is why the proof page files it under the submitter's
+     note rather than presenting it as established identity. */
+  let creator: string | undefined;
+  const creativeWork = assertions.find((a) => a.label?.startsWith("stds.schema-org.CreativeWork"));
+  if (creativeWork) {
+    const data = (creativeWork.data ?? {}) as { author?: Array<{ name?: string }> | { name?: string } };
+    if (Array.isArray(data.author)) {
+      creator = data.author.find((a) => a?.name)?.name;
+    } else if (data.author && typeof data.author === "object" && "name" in data.author) {
+      creator = (data.author as { name?: string }).name;
+    }
+  }
+  if (!creator) {
+    const cawg = assertions.find((a) => a.label?.startsWith("cawg.metadata"));
+    if (cawg) {
+      // dc:creator is formally an ordered sequence, so a bare string, an
+      // array of strings, and an array of {name} objects all occur in the
+      // wild. Take the first non-empty name in any of those shapes.
+      const raw = ((cawg.data ?? {}) as Record<string, unknown>)["dc:creator"];
+      const first = Array.isArray(raw) ? raw.find((v) => v) : raw;
+      if (typeof first === "string") {
+        creator = first.trim() || undefined;
+      } else if (first && typeof first === "object" && "name" in first) {
+        const n = (first as { name?: unknown }).name;
+        if (typeof n === "string") creator = n.trim() || undefined;
+      }
+    }
+  }
+
+  // Origin signal: IPTC digitalSourceType off the actions assertion (v1
+  // "c2pa.actions" or v2 "c2pa.actions.v2"). trainedAlgorithmicMedia =
+  // AI-generated, digitalCapture = camera, etc. We pull only that field.
+  let digitalSourceType: string | undefined;
+  const actionsAssertion = assertions.find((a) => a.label?.startsWith("c2pa.actions"));
+  if (actionsAssertion) {
+    const data = (actionsAssertion.data ?? {}) as {
+      digitalSourceType?: string;
+      actions?: Array<{ action?: string; digitalSourceType?: string }>;
+    };
+    const raw =
+      data.digitalSourceType ||
+      data.actions?.find((act) => act?.digitalSourceType)?.digitalSourceType;
+    if (raw) digitalSourceType = raw.split("/").pop() || raw;
+  }
+
+  /* Walk the ancestors the file actually carries, breadth first from the
+     active manifest, recording each edge as the REFERRING manifest declared
+     it. Cycles are impossible in a well formed store but a `seen` set and a
+     depth cap keep a malformed one from hanging the page. */
+  const chain: Array<{ relationship?: string; signer?: string }> = [];
+  {
+    const seen = new Set<string>(ms.active_manifest ? [ms.active_manifest] : []);
+    let frontier: RawManifest[] = [active];
+    for (let depth = 0; frontier.length && depth < 8; depth++) {
+      const next: RawManifest[] = [];
+      for (const m of frontier) {
+        for (const ing of m.ingredients ?? []) {
+          const label = ing?.active_manifest;
+          if (!label || seen.has(label)) continue;
+          seen.add(label);
+          const ancestor = ms.manifests?.[label];
+          if (!ancestor) continue;
+          chain.push({ relationship: ing.relationship, signer: ancestor.signature_info?.issuer });
+          next.push(ancestor);
+        }
+      }
+      frontier = next;
+    }
+  }
+
+  const failures = ms.validation_results?.activeManifest?.failure ?? [];
+
+  return {
+    chain: chain.length ? chain : undefined,
+    present: true,
+    claimGenerator: active.claim_generator,
+    claimGeneratorInfo: active.claim_generator_info,
+    digitalSourceType,
+    creator,
+    title: active.title,
+    format: active.format,
+    signatureIssuer: active.signature_info?.issuer,
+    signatureTime: active.signature_info?.time,
+    thumbnailDataUrl: undefined,
+    ingredientCount: Array.isArray(active.ingredients) ? active.ingredients.length : 0,
+    validationStatus: failures,
+    signatureValid: failures.length === 0,
+  };
+}
+
+/**
+ * A manifest store read on its own, without the image it describes: how a copy's pointer shows the original's
+ * Content Credentials when the original is not on hand (lib/trustmark/c2pa-leaf.ts).
+ *
+ * Everything that does not need the image's bytes is checked (the claim signature, its certificate and timestamp, the
+ * hash of every assertion, the thumbnail's among them); only the image's own data hash cannot be, so that one failure
+ * is expected and set aside. What ties the credentials to a picture is then the signed thumbnail, which the caller
+ * compares with the copy.
+ */
+export async function readDetachedC2PA(manifest: Uint8Array, mimeType = "image/jpeg"): Promise<{ summary: C2PAReadResult; thumbnail: Uint8Array | null; hasLocation: boolean } | null> {
+  try {
+    const tk = await getToolkit();
+    const report = (await tk.getManifestStoreFromManifestAndAsset(manifest, new Uint8Array(0), mimeType)) as RawReport;
+    const summary = summarize(report);
+    const ms = report?.manifest_store;
+    if (!summary || !ms?.manifests) return null;
+    const failures = (summary.validationStatus ?? []).filter((f) => f.code !== "assertion.dataHash.mismatch");
+    const active = (ms.active_manifest ? ms.manifests[ms.active_manifest] : undefined) ?? Object.values(ms.manifests).pop();
+    const id = active?.thumbnail?.identifier, raw = id ? active?.resources?.resources?.[id] : undefined;
+    return {
+      summary: { ...summary, validationStatus: failures, signatureValid: failures.length === 0 },
+      thumbnail: raw ? Uint8Array.from(raw) : null,
+      hasLocation: /gps|latitude|longitude|"location"/i.test(JSON.stringify(ms.manifests)),
+    };
+  } catch (err) {
+    if (typeof window !== "undefined") console.warn("[c2pa] detached read failed:", err);
     return null;
   }
 }

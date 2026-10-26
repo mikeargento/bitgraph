@@ -23,6 +23,8 @@ import { bindOne, digestOf, hashLeaves, latestBaseBlock, postTreeMembers, treeFr
 import { publishRecord, recordProofIn } from "./ledger.ts";
 import { carriesPointer } from "./check.ts";
 import { recordedMsOf } from "@/lib/recorded-time";
+import { readDetachedC2PA } from "@/lib/c2pa-reader";
+import { manifestStoreOf } from "./c2pa-leaf.ts";
 import { markNested, readings } from "./marks.ts";
 import { epochRef, MAX_COUNTER, pack, tag } from "./payload.ts";
 import { decodePhoto, isPhotographic, parseRecord, recordBytes } from "./record.ts";
@@ -133,7 +135,10 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   const copyProof = (await recordedCopy(bytes)) ?? (await recordCopy(new File([bytes as BlobPart], copyName, { type: "image/jpeg" })));
 
   onStep?.("Waiting for its Base ceiling…");
-  const [published, sidecar] = await Promise.all([publishRecord(rec), ceilingOf(copyProof)]);
+  // The photo's Content Credentials go with it when its BitGraph binds them and they record no location.
+  const store = manifestStoreOf(new Uint8Array(await photo.arrayBuffer()));
+  const manifest = store && (await recordProofIn(photoProof, store)) && !(await readDetachedC2PA(store))?.hasLocation ? store : null;
+  const [published, sidecar] = await Promise.all([publishRecord(rec, manifest), ceilingOf(copyProof)]);
   const file = buildBitGraphedFileV5(bytes, copyProof as unknown as Record<string, unknown>, sidecar);
   return { bytes: file, fileName: `${stem}.bitgraph.jpg`, copyProof, ceiling: !!sidecar, published };
 }

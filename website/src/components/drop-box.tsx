@@ -35,6 +35,7 @@ import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseD
 import { MAX_FINGERPRINTED, decodeOnce, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
 import { noteCopyOf } from "@/lib/trustmark/copy-note";
+import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
 
 const MAX_FILES = 25;
 
@@ -206,7 +207,12 @@ async function fingerprintRecords(files: File[], leaves: Array<[string, string, 
   for (const p of photos) {
     const img = await decodeOnce(p.f);
     // graphics are recorded as they are: a TrustMark shows on them (isPhotographic)
-    if (img && isPhotographic(img)) made.push({ file: recordFile(p.name, recordBytes(p.digest, img)), name: `${p.name}${RECORD_SUFFIX}` });
+    if (img && isPhotographic(img)) {
+      made.push({ file: recordFile(p.name, recordBytes(p.digest, img)), name: `${p.name}${RECORD_SUFFIX}` });
+      // its Content Credentials, when it carries them, beside it (lib/trustmark/c2pa-leaf.ts)
+      const store = manifestStoreOf(new Uint8Array(await p.f.arrayBuffer()));
+      if (store && store.length <= MAX_MANIFEST_BYTES) made.push({ file: new File([store as BlobPart], `${p.name}${C2PA_SUFFIX}`, { type: "application/c2pa" }), name: `${p.name}${C2PA_SUFFIX}` });
+    }
     n++;
     if (onProgress && (n % 10 === 0 || n === photos.length)) onProgress(n, photos.length);
   }
@@ -228,6 +234,9 @@ function TrustmarkLine({ v }: { v: TrustmarkVerdict }) {
     <>
       <span className="db-ok">Points to <a href={href}>BitGraph #{n}</a></span>
       <span className="db-size">Looks like the original (match {v.score.toFixed(2)}). Its proof page proves the original file.</span>
+      {v.credentials && (
+        <span className="db-size">Content Credentials: signed by {v.credentials.signer ?? "an unnamed signer"}{v.credentials.generator ? ` (${v.credentials.generator})` : ""}{v.credentials.creator ? `; it names ${v.credentials.creator} as creator` : ""}.</span>
+      )}
     </>
   );
 }

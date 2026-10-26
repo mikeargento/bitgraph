@@ -43,10 +43,12 @@ export async function recordProofIn(photoProof: Proof, recordBytes: Uint8Array):
     && checkMember(x.proof, d))?.proof ?? null;
 }
 
-/** Publish a record; its tree's index can lag the bind by a moment, so a not-found is waited out a few times. */
-export async function publishRecord(recordBytes: Uint8Array): Promise<boolean> {
+/** Publish a record, with the photo's Content Credentials when they go too; its tree's index can lag the bind by a
+ *  moment, so a not-found is waited out a few times. */
+export async function publishRecord(recordBytes: Uint8Array, manifest?: Uint8Array | null): Promise<boolean> {
+  const body = JSON.stringify({ recordB64: b64(recordBytes), ...(manifest ? { c2paB64: b64(manifest) } : {}) });
   for (let attempt = 0; attempt < 12; attempt++) {
-    const res = await fetch("/api/trustmark/records", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ recordB64: b64(recordBytes) }) }).catch(() => null);
+    const res = await fetch("/api/trustmark/records", { method: "POST", headers: { "content-type": "application/json" }, body }).catch(() => null);
     if (res?.ok) return true;
     if (res && res.status !== 404 && res.status !== 429 && res.status < 500) return false;
     await new Promise((r) => setTimeout(r, 2000));
@@ -54,7 +56,7 @@ export async function publishRecord(recordBytes: Uint8Array): Promise<boolean> {
   return false;
 }
 
-export type Published = { recordB64: string; proof: Proof };
+export type Published = { recordB64: string; proof: Proof; c2paB64?: string; c2paProof?: Proof };
 
 /** Every published record the pointer (eref, counter) could mean. Unchecked: the caller verifies each. */
 export async function candidates(eref: number, counter: number): Promise<Published[]> {
