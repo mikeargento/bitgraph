@@ -2556,6 +2556,9 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-sub { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-2); }
 .pv-sub-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
 .pv-sub-note { font-size: 13px; color: var(--dim); line-height: 1.5; padding: 6px 0; }
+/* The thumbnail signed into a photo's Content Credentials: small, beside its caption. */
+.pv-c2pa-thumb { display: flex; align-items: flex-end; gap: 10px; padding: 8px 0 4px; }
+.pv-c2pa-thumb img { display: block; max-height: 96px; max-width: 96px; width: auto; height: auto; border-radius: 4px; border: 1px solid var(--line); }
 .pv-note { font-size: 13.5px; color: var(--dim); line-height: 1.55; }
 .pv-row { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line-2); cursor: pointer; }
 .pv-row:first-child { border-top: 0; }

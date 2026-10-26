@@ -27,7 +27,7 @@ import type { Proof } from "@/lib/plugins";
 
 export type Original = { proof: Proof; counter: number; epochId: string; photoDigestB64: string; artifactDigestB64: string };
 /** The original's Content Credentials, shown for a copy only when their signed thumbnail matches it. */
-export type Credentials = { signer?: string; creator?: string; generator?: string };
+export type Credentials = { signer?: string; creator?: string; generator?: string; thumbnailMatch: number };
 export type TrustmarkVerdict =
   | { verdict: "none"; markRead: boolean }
   | { verdict: "forged"; why: string }
@@ -92,8 +92,9 @@ async function credentialsFor(img: Decoded, c2pa: { bytes: Uint8Array; proof: Pr
   const m = await readDetachedC2PA(c2pa.bytes);
   if (!m?.summary.signatureValid || !m.thumbnail) return undefined;
   const thumb = await decodePhoto(new Blob([m.thumbnail as BlobPart], { type: "image/jpeg" }));
-  if (!thumb || align(img.rgba, img.w, img.h, signature(thumb.rgba, thumb.w, thumb.h)).score < MATCH) return undefined;
-  return { signer: m.summary.signatureIssuer, creator: m.summary.creator, generator: m.summary.claimGeneratorInfo?.[0]?.name ?? m.summary.claimGenerator };
+  const score = thumb ? align(img.rgba, img.w, img.h, signature(thumb.rgba, thumb.w, thumb.h)).score : 0;
+  if (score < MATCH) return undefined;
+  return { signer: m.summary.signatureIssuer, creator: m.summary.creator, generator: m.summary.claimGeneratorInfo?.[0]?.name ?? m.summary.claimGenerator, thumbnailMatch: score };
 }
 
 /** Whether the picture carries a pointer to a BitGraph, found anywhere in it (whole, zoomed, inside a screenshot) and

@@ -70,7 +70,10 @@ import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf 
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 import { looksLikePhoto } from "@/lib/trustmark/record";
 import { NoTrustmark, trustmarkedFile } from "@/lib/trustmark/export";
-import { copyOfNote } from "@/lib/trustmark/copy-note";
+import { copyOfNote, credentialsMatchNote } from "@/lib/trustmark/copy-note";
+import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
+import { parseRecord } from "@/lib/trustmark/record";
+import { epochRef } from "@/lib/trustmark/payload";
 // QR code removed — replaced with Ethereum Seal card
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
@@ -637,6 +640,29 @@ export default function ProofPage() {
   // since session storage is only in the browser.
   const [copyOf, setCopyOf] = useState<ReturnType<typeof copyOfNote>>(null);
   useEffect(() => { setCopyOf(copyOfNote(digestParam)); }, [digestParam]);
+  /* A photo's Content Credentials published with its BitGraph (lib/trustmark/c2pa-leaf.ts), for when the photo is not
+     on hand: kept only when the manifest is a file of this very BitGraph, names this photo's record, and its signature
+     checks out without the image. Shown as recorded in this BitGraph, with the thumbnail its signer signed. */
+  const [publishedC2pa, setPublishedC2pa] = useState<C2PAReadResult | null>(null);
+  const [c2paMatch, setC2paMatch] = useState<number | null>(null);
+  useEffect(() => { setC2paMatch(credentialsMatchNote(digestParam)); }, [digestParam]);
+  useEffect(() => {
+    const at = proof?.commit as { epochId?: string; counter?: string } | undefined;
+    if (!proof || !treeMemberOf(proof) || !at?.epochId || !at.counter || cachedFile?.c2pa?.present) return;
+    let stop = false;
+    (async () => {
+      const photo = stdDigest(digestParam), bound = (proof.artifact as { digestB64?: string } | undefined)?.digestB64;
+      for (const e of await publishedRecords(await epochRef(at.epochId!), Number(at.counter))) {
+        if (!e.c2paB64 || !e.c2paProof || parseRecord(unb64(e.recordB64))?.photo !== photo) continue;
+        const bytes = unb64(e.c2paB64);
+        if ((e.c2paProof.artifact as { digestB64?: string } | undefined)?.digestB64 !== bound || !(await verifyMember(e.c2paProof, bytes))) continue;
+        const { readDetachedC2PA } = await import("@/lib/c2pa-reader");
+        const m = await readDetachedC2PA(bytes);
+        if (m?.summary.signatureValid && !stop) { setPublishedC2pa(m.summary); return; }
+      }
+    })().catch(() => {});
+    return () => { stop = true; };
+  }, [proof, digestParam, cachedFile?.c2pa?.present]);
   // The two piece-downloads beside the package: the anchor pair, and the original.
   const [anchorsBusy, setAnchorsBusy] = useState(false);
   const [anchorsMsg, setAnchorsMsg] = useState<string | null>(null);
@@ -2365,7 +2391,9 @@ export default function ProofPage() {
             attestedMs,
             leadFallback: whenNode,
             filePane,
-            c2pa: !isEth && cachedFile?.c2pa?.present ? cachedFile.c2pa : null,
+            c2pa: !isEth && cachedFile?.c2pa?.present ? cachedFile.c2pa : !isEth ? publishedC2pa : null,
+            c2paRecorded: !isEth && !cachedFile?.c2pa?.present && !!publishedC2pa,
+            c2paMatch: !cachedFile?.c2pa?.present && publishedC2pa ? c2paMatch : null,
             set: setBound
               ? { kind: setBound.kind, count: setBound.count, root: setBound.root ? bytesToHex(setBound.root) : null, rows: setRowsView }
               : isTree && treeBound

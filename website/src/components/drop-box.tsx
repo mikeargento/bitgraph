@@ -34,7 +34,7 @@ import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, membe
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
 import { MAX_FINGERPRINTED, decodeOnce, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
-import { noteCopyOf } from "@/lib/trustmark/copy-note";
+import { noteCopyOf, noteCredentialsMatch } from "@/lib/trustmark/copy-note";
 import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
 
 const MAX_FILES = 25;
@@ -731,7 +731,10 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
           if (looksLikePhoto(f)) {
             if (single) setStatus("Checking the ledger…");
             const v = await (early ?? readPointer());
-            if (v && v.verdict !== "none" && mode === "check") return end({ bytes, digestB64, state: "trustmark", trustmark: v });
+            if (v && v.verdict !== "none" && mode === "check") {
+              if (v.verdict === "match" && v.credentials) noteCredentialsMatch(toUrlSafe(v.original.photoDigestB64), v.credentials.thumbnailMatch);
+              return end({ bytes, digestB64, state: "trustmark", trustmark: v });
+            }
             if (v?.verdict === "match") {
               const o = v.original;
               noteCopyOf(toUrlSafe(digestB64), { counter: o.counter, href: `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}` });

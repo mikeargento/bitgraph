@@ -167,6 +167,10 @@ export interface ProofViewModel {
   downloadNotes: ReactNode[];
   /** The BitGraphed file's last download, as it went: shown under its button. */
   carrierNote?: string | null;
+  /** The Content Credentials shown came from the manifest published with this BitGraph, not from the photo in hand. */
+  c2paRecorded?: boolean;
+  /** A search's copy matched those credentials' signed thumbnail this closely. */
+  c2paMatch?: number | null;
   /** This photo carries a pointer to an earlier BitGraph, noticed as it was made: whose copy it is. */
   copyOf?: { counter: number; href: string } | null;
   /** "Check it anywhere": the command that matches this kind of export, or null. */
@@ -357,7 +361,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         </div>
 
         {m.filePane}
-        {m.c2pa?.present && <ContentCredentials c2pa={m.c2pa} />}
+        {m.c2pa?.present && <ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} />}
 
         <div className="pv-sub">
           {c.state === "running" && <div className="pv-note">Checking the proof in your browser<span className="pv-dots" aria-hidden /></div>}
@@ -600,7 +604,7 @@ function formatGenerator(c2pa: C2PAReadResult): string | undefined {
   return version ? `${prettify(namePart ?? "")} ${version}` : prettify(namePart ?? "");
 }
 
-function ContentCredentials({ c2pa }: { c2pa: C2PAReadResult }) {
+function ContentCredentials({ c2pa, recorded, match }: { c2pa: C2PAReadResult; recorded?: boolean; match?: number | null }) {
   const src = c2pa.digitalSourceType ? (SOURCE_TYPE_LABELS[c2pa.digitalSourceType] ?? c2pa.digitalSourceType.split("/").pop() ?? c2pa.digitalSourceType) : null;
   const gen = formatGenerator(c2pa) ?? null;
   const rows: FieldView[] = [];
@@ -613,7 +617,17 @@ function ContentCredentials({ c2pa }: { c2pa: C2PAReadResult }) {
   return (
     <div className="pv-sub">
       <div className="pv-sub-title">Content Credentials (C2PA)</div>
+      {/* The thumbnail the signer signed: the picture these credentials describe. */}
+      {c2pa.thumbnailDataUrl && (
+        <div className="pv-c2pa-thumb">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a data URL from the manifest, not a hosted image */}
+          <img src={c2pa.thumbnailDataUrl} alt="The thumbnail signed into these Content Credentials" />
+          <span className="pv-sub-note">Signed thumbnail</span>
+        </div>
+      )}
       {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
+      {match != null && <div className="pv-sub-note">The copy you searched with matches the picture these credentials describe (match {match.toFixed(2)}).</div>}
+      {recorded && <div className="pv-sub-note">Recorded in this BitGraph with the photo. With the photo itself on hand, they are checked against its exact bytes.</div>}
       {openai && <div className="pv-sub-note"><a className="pv-link" href="https://help.openai.com/en/articles/8912793" target="_blank" rel="noopener">Verify with OpenAI &#8599;</a></div>}
     </div>
   );

@@ -156,6 +156,15 @@ export async function readC2PA(file: File | Blob): Promise<C2PAReadResult | null
   }
 }
 
+/** The manifest's signed claim thumbnail as a data URL, when it carries one. */
+function thumbnailDataUrlOf(m: RawManifest): string | undefined {
+  const id = m.thumbnail?.identifier, raw = id ? m.resources?.resources?.[id] : undefined;
+  if (!raw || raw.length === 0 || raw.length > 4_000_000) return undefined;
+  let s = "";
+  for (let i = 0; i < raw.length; i += 0x8000) s += String.fromCharCode(...raw.slice(i, i + 0x8000));
+  return `data:${m.thumbnail?.format || "image/jpeg"};base64,${btoa(s)}`;
+}
+
 type RawReport = {
   manifest_store?: {
     active_manifest?: string;
@@ -277,7 +286,7 @@ function summarize(report: RawReport): C2PAReadResult | null {
     format: active.format,
     signatureIssuer: active.signature_info?.issuer,
     signatureTime: active.signature_info?.time,
-    thumbnailDataUrl: undefined,
+    thumbnailDataUrl: thumbnailDataUrlOf(active),
     ingredientCount: Array.isArray(active.ingredients) ? active.ingredients.length : 0,
     validationStatus: failures,
     signatureValid: failures.length === 0,
