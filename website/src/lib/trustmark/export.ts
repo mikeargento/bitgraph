@@ -12,13 +12,13 @@
  *      this browser, nested (marks.ts), and saved as JPEG. Nothing is recorded unless the mark reads back from that
  *      very JPEG.
  *   3. The marked copy is recorded as its own BitGraph, after the original, the way every drop is (a tree whose first
- *      leaf is the latest Base block), and its members are indexed.
+ *      leaf is the latest Base block), and its members are indexed; a copy already on record keeps its BitGraph.
  *   4. The fingerprint record is published, so a copy can be checked by anyone (app/api/trustmark/records).
  *   5. The marked copy's BitGraphed file (carrier/5) is assembled, with its Base ceiling once it has landed.
  */
 
 import { buildBitGraphedFileV5 } from "@mikeargento/bitgraph-verify";
-import { baseBlockFileText, memberBlocks, withMember } from "@/lib/tree-member";
+import { baseBlockFileText, checkMember, memberBlocks, memberOf, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, postTreeMembers, treeFromLeaves, type Proof } from "@/lib/plugins";
 import { publishRecord, recordProofIn } from "./ledger.ts";
 import { markNested, readings } from "./marks.ts";
@@ -51,6 +51,30 @@ async function ceilingOf(proof: Proof): Promise<Record<string, unknown> | null> 
     if (Date.now() > until) return null;
     await new Promise((r) => setTimeout(r, 2000));
   }
+}
+
+/** The marked copy's BitGraph when these exact bytes are already on record as a file of a tree, as the ledger serves it. */
+async function recordedCopy(bytes: Uint8Array): Promise<Proof | null> {
+  const d = await digestOf(bytes);
+  const res = await fetch(`/api/proofs/${toUrlSafe(d)}`).catch(() => null);
+  if (!res?.ok) return null;
+  const body = (await res.json().catch(() => null)) as { proofs?: Array<{ proof: Proof; kind?: string }> } | null;
+  return body?.proofs?.find((x) => x.kind === "recorded" && memberOf(x.proof) && checkMember(x.proof, d))?.proof ?? null;
+}
+
+/** Record the marked copy the way every drop is recorded (a tree whose first leaf is the latest Base block), index its
+ *  members, and return its member proof. */
+async function recordCopy(copy: File): Promise<Proof> {
+  const floorFile = baseBlockFileText(await latestBaseBlock());
+  const [floorLeaf] = await hashLeaves([new File([floorFile], "base-block.json", { type: "application/json" })]);
+  const [copyLeaf] = await hashLeaves([copy]);
+  const t = await treeFromLeaves([floorLeaf!, copyLeaf!]);
+  const rootDigest = await digestOf(new TextEncoder().encode(t.rootText));
+  const b = await bindOne(rootDigest, { ceiling: true, floorLeaf: true });
+  const blocks = memberBlocks(t.tree, t.rootText, floorFile);
+  await postTreeMembers({ rootDigestB64: rootDigest, epochId: String(b.commit!.epochId), counter: String(b.commit!.counter), rootText: t.rootText, ...(blocks[0]?.floor ? { floor: blocks[0].floor } : {}) },
+    t.tree.leaves.map((l, i) => ({ digestB64: l[2], index: i, path: blocks[i]!.path }))).catch(() => 0);
+  return withMember(b as Record<string, unknown>, blocks[1]!) as Proof;
 }
 
 /**
@@ -87,20 +111,11 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   const dot = photo.name.lastIndexOf(".");
   // the marked copy is a JPEG named for the photo, and its BitGraphed file is <photo>.bitgraph.jpg, as always
   const stem = dot > 0 ? photo.name.slice(0, dot) : photo.name, copyName = `${stem}.jpg`;
-  const copy = new File([bytes as BlobPart], copyName, { type: "image/jpeg" });
-  const floorFile = baseBlockFileText(await latestBaseBlock());
-  const [floorLeaf] = await hashLeaves([new File([floorFile], "base-block.json", { type: "application/json" })]);
-  const [copyLeaf] = await hashLeaves([copy]);
-  const t = await treeFromLeaves([floorLeaf!, copyLeaf!]);
-  const rootDigest = await digestOf(new TextEncoder().encode(t.rootText));
-  const b = await bindOne(rootDigest, { ceiling: true, floorLeaf: true });
-  const blocks = memberBlocks(t.tree, t.rootText, floorFile);
-  await postTreeMembers({ rootDigestB64: rootDigest, epochId: String(b.commit!.epochId), counter: String(b.commit!.counter), rootText: t.rootText, ...(blocks[0]?.floor ? { floor: blocks[0].floor } : {}) },
-    t.tree.leaves.map((l, i) => ({ digestB64: l[2], index: i, path: blocks[i]!.path }))).catch(() => 0);
-  const copyProof = withMember(b as Record<string, unknown>, blocks[1]!) as Proof;
+  // The same photo, marked again in this browser, is the same file: a copy already recorded is never recorded twice.
+  const copyProof = (await recordedCopy(bytes)) ?? (await recordCopy(new File([bytes as BlobPart], copyName, { type: "image/jpeg" })));
 
   onStep?.("Waiting for its Base ceiling…");
-  const [published, sidecar] = await Promise.all([publishRecord(rec), ceilingOf(b)]);
+  const [published, sidecar] = await Promise.all([publishRecord(rec), ceilingOf(copyProof)]);
   const file = buildBitGraphedFileV5(bytes, copyProof as unknown as Record<string, unknown>, sidecar);
   return { bytes: file, fileName: `${stem}.bitgraph.jpg`, copyProof, ceiling: !!sidecar, published };
 }
