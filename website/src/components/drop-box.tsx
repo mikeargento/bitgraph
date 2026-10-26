@@ -713,7 +713,10 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
         // ledger lookup, and is waited for only if the lookup finds nothing. On Make it skips the zoomed reads and the
         // search inside a screenshot; a check of one file does both.
         // (Early only for one file: started for many at once, every photo would be decoded together.)
-        const readPointer = () => decodeOnce(f).then((img) => (img ? judgeTrustmark(img, { search: single && mode === "check", zooms: mode === "check" }) : null)).catch(() => null);
+        // A screenshot (a photo on a phone or a page, with interface around it) gets the search inside it on Make too: that
+        // is how a screenshot of a copy finds its original. It shows as flat interface, or as a phone screen's shape.
+        const screenshotLike = (img: { rgba: Uint8ClampedArray; w: number; h: number }) => !isPhotographic(img) || Math.max(img.w, img.h) / Math.min(img.w, img.h) >= 1.9;
+        const readPointer = () => decodeOnce(f).then((img) => (img ? judgeTrustmark(img, { search: single && (mode === "check" || screenshotLike(img)), zooms: mode === "check" }) : null)).catch(() => null);
         const early = looksLikePhoto(f) && single ? readPointer() : null;
         patch(row.key, { bytes, digestB64, state: "looking" });
         const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
