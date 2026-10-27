@@ -3102,12 +3102,11 @@ function stdDigest(digestParam: string): string {
    BitGraph bound; beside a copy, there to compare with. No caption: the page around it says what it is. ── */
 
 function BoundThumbView({ t, compare = false }: { t: BoundThumbnail; compare?: boolean }) {
-  const [zoomed, setZoomed] = useState(false);
+  // No lightbox: at 512 pixels it is already shown about as large as it holds.
   return (
     <figure className={`pv-bound-thumb${compare ? " is-compare" : ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={t.url} alt="The thumbnail this BitGraph's BitGraphed file bound" onClick={() => setZoomed(true)} />
-      {zoomed && <Lightbox src={t.url} alt="The bound thumbnail" onClose={() => setZoomed(false)} />}
+      <img src={t.url} alt="The thumbnail this BitGraph's BitGraphed file bound" />
     </figure>
   );
 }
