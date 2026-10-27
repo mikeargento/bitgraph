@@ -36,7 +36,12 @@ const toUrlSafe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").repla
 /** Why a photo cannot carry a pointer; the caller makes the plain BitGraphed file instead. */
 export class NoTrustmark extends Error {}
 
-export type TrustmarkedFile = { bytes: Uint8Array; fileName: string; copyProof: Proof; ceiling: boolean; published: boolean };
+/** The BitGraphed file and how it was made: BitGraph A (the original, `original`), the pointer written from A's nonce,
+ *  the marked photo itself (`marked`, the JPEG BitGraph B binds) and BitGraph B (`copyProof`). */
+export type TrustmarkedFile = {
+  bytes: Uint8Array; fileName: string; copyProof: Proof; ceiling: boolean; published: boolean;
+  original: Proof; payload: string; marked: Uint8Array; markedDigestB64: string;
+};
 
 async function jpeg(rgba: Uint8ClampedArray, w: number, h: number): Promise<Uint8Array> {
   const c = new OffscreenCanvas(w, h), g = c.getContext("2d");
@@ -131,6 +136,7 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   // the marked copy is a JPEG named for the photo, and its BitGraphed file is <photo>.bitgraph.jpg, as always
   const stem = dot > 0 ? photo.name.slice(0, dot) : photo.name, copyName = `${stem}.jpg`;
   // The same photo, marked again in this browser, is the same file: a copy already recorded is never recorded twice.
+  const markedDigestB64 = await digestOf(bytes);
   const copyProof = (await recordedCopy(bytes)) ?? (await recordCopy(new File([bytes as BlobPart], copyName, { type: "image/jpeg" })));
 
   onStep?.("Waiting for its Base ceiling…");
@@ -139,5 +145,5 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   const manifest = store && (await recordProofIn(photoProof, store)) && !(await readDetachedC2PA(store))?.hasLocation ? store : null;
   const [published, sidecar] = await Promise.all([publishRecord(rec, manifest), ceilingOf(copyProof)]);
   const file = buildBitGraphedFileV5(bytes, copyProof as unknown as Record<string, unknown>, sidecar);
-  return { bytes: file, fileName: `${stem}.bitgraph.jpg`, copyProof, ceiling: !!sidecar, published };
+  return { bytes: file, fileName: `${stem}.bitgraph.jpg`, copyProof, ceiling: !!sidecar, published, original: photoProof, payload, marked: bytes, markedDigestB64 };
 }

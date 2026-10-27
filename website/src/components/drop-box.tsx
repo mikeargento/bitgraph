@@ -233,7 +233,7 @@ function TrustmarkLine({ v }: { v: TrustmarkVerdict }) {
   return (
     <>
       <span className="db-ok">Points to <a href={href}>BitGraph #{n}</a></span>
-      <span className="db-size">Looks like the original (match {v.score.toFixed(2)}). Its proof page proves the original file.</span>
+      <span className="db-size">Looks like the original (match {v.score.toFixed(2)}). Its proof page proves the original file. <a href={`/bitgraphed/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}&copy=${v.score.toFixed(2)}`}>How its BitGraphed file was made</a>.</span>
       {v.credentials && (
         <span className="db-size">Content Credentials: signed by {v.credentials.signer ?? "an unnamed signer"}{v.credentials.generator ? ` (${v.credentials.generator})` : ""}{v.credentials.creator ? `; it names ${v.credentials.creator} as creator` : ""}.</span>
       )}
@@ -590,12 +590,15 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
         setStatus("Opening the proof…");
         await Promise.race([indexed, new Promise((r) => setTimeout(r, 4000))]);
         const fileDigest = dropped[0]![2], i = t.leaves.findIndex((l) => l[2] === fileDigest);
-        void cacheArtifactToIDB(files[0]!, fileDigest).catch(() => {});
+        await Promise.race([cacheArtifactToIDB(files[0]!, fileDigest).catch(() => {}), new Promise((r) => setTimeout(r, 3000))]);
         const commit = b.commit as { counter?: string; epochId?: string } | undefined;
         const epoch = commit?.epochId ? toUrlSafe(commit.epochId) : "";
         const sel = commit?.counter ? `?counter=${encodeURIComponent(commit.counter)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
         setFreshProof(toUrlSafe(fileDigest), { proofs: [{ proof: withMember(b as Record<string, unknown>, blocks[i]!) as Proof }], positions: commit?.counter ? [{ counter: commit.counter, epoch: epoch || null, lowerTime: null, upperTime: null }] : [], causalWindow: null, anchorBlock: null });
-        router.push(`/proof/${toUrlSafe(fileDigest)}${sel ? `${sel}&` : "?"}${already ? "" : "fresh=1"}`);
+        // A photo that carries a fingerprint opens as its BitGraphed file (components/bitgraphed-view): A, the watermark
+        // made from A's nonce, then B, filled in as they happen. Any other file opens its proof page.
+        const photo = records.some((r) => r[0] === `${files[0]!.name}${RECORD_SUFFIX}`);
+        router.push(`/${photo ? "bitgraphed" : "proof"}/${toUrlSafe(fileDigest)}${sel ? `${sel}&` : "?"}${already ? "" : "fresh=1"}`);
         return;
       }
       setStatus(null);

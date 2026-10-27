@@ -5315,3 +5315,24 @@ html:root:root:root:root:root:root:root:root:root body .pv-copy svg { display: b
 html:root:root:root:root:root:root:root:root:root body .copy-line { position: relative; }
 html:root:root:root:root:root:root:root:root:root body .copy-line > pre { padding-right: 44px !important; margin: 0; }
 html:root:root:root:root:root:root:root:root:root body .copy-line .pv-copy { top: 50%; right: 6px; transform: translateY(-50%); }
+
+/* The BitGraphed file page (components/bitgraphed-view): A, the watermark, B, stacked. */
+.bgf-steps { display: grid; gap: 16px; }
+.bgf-step { background: var(--paper); border-radius: 12px; box-shadow: var(--shadow-card); padding: 20px 24px; }
+.bgf-step > p { margin: 8px 0 0 !important; }
+.bgf-label { font-size: 13px !important; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--dim); margin: 0 !important; }
+.bgf-big { font-size: 22px !important; color: var(--ink); }
+.bgf-nonce { font-size: clamp(13px, 2vw, 16px) !important; margin-top: 8px !important; }
+.bgf-pointer { display: flex; gap: 32px; flex-wrap: wrap; margin: 12px 0 0; }
+.bgf-pointer dt { font-size: 13px; color: var(--dim); }
+.bgf-pointer dd { margin: 2px 0 0; font-size: 20px; color: var(--ink); }
+.bgf-pointer code { font-size: 20px; font-family: var(--font-term-mono); }
+.bgf-checks { list-style: none; padding: 0 !important; margin: 14px 0 0 !important; }
+.bgf-checks li { margin: 4px 0 !important; font-size: 15px !important; }
+.bgf-check { font-size: 15px !important; }
+.bgf-note { font-size: 14px !important; color: var(--dim); }
+.bgf-working { display: flex; align-items: center; gap: 12px; font-size: 15px !important; }
+.bgf-zoom { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.bgf-zoom figure { margin: 0; }
+.bgf-zoom canvas { width: 100%; height: auto; image-rendering: pixelated; border-radius: 6px; display: block; }
+.bgf-zoom figcaption { font-size: 13px; color: var(--dim); margin-top: 6px; text-align: center; }
