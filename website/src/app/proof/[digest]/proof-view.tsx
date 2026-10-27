@@ -553,7 +553,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               </button>
             )}
             <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={download}>Download proof</button>
-            {m.openUrl && <a className="bg-action-link pv-pill pv-open" style={{ margin: 0 }} href={m.openUrl} target="_blank" rel="noopener"><span>Open</span><span className="arrow" aria-hidden>&#8599;</span></a>}
+            {m.openUrl && <a className="bg-action-link pv-open" style={{ margin: 0 }} href={m.openUrl} target="_blank" rel="noopener"><span>Open in browser</span></a>}
           </div>
           {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
         </section>

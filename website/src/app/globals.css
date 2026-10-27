@@ -5325,7 +5325,9 @@ html:root:root:root:root:root:root:root:root:root body .copy-line .pv-copy { top
 .pv-photo-strip .pv-verdict { margin-top: 2px; font-size: 16px; font-weight: 600; }
 .pv-photo-meta { margin-top: 4px; font-size: 15px; color: var(--text); }
 .pv-photo-who { margin-top: 2px; font-size: 14px; color: var(--dim); }
-.pv-photo-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+.pv-photo-actions { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 12px; margin-top: 18px; }
+.pv-photo-actions > .bg-action-link { width: 100%; min-height: 46px !important; height: auto !important; box-sizing: border-box; display: inline-flex !important; align-items: center; justify-content: center; text-align: center; padding-top: 0 !important; padding-bottom: 0 !important; }
+@media (max-width: 599px) { .pv-photo-actions { grid-auto-flow: row; } }
 .pv-photo-actions .bg-action-link { max-width: 100% !important; white-space: normal !important; text-align: center; }
 /* The photo sits straight in the card, at the card's own padding: no frame of its own. */
 .pv-photo-bare { border: 0; background: none; }
