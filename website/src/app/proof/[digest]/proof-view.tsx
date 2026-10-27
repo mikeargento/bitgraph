@@ -548,15 +548,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {who && <div className="pv-photo-who">{who}</div>}
           </div>
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
-          {(bitgraphed || m.openUrl) && <div className="pv-photo-actions">
-            {bitgraphed && (
-              <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>
-                {bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}
-              </button>
-            )}
-            {m.openUrl && <a className="bg-action-link pv-open" style={{ margin: 0 }} href={m.openUrl} target="_blank" rel="noopener"><span>Open in browser</span></a>}
-          </div>}
-          {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
         </section>
         <section className="pv-card pv-details">
           <button type="button" className="pv-fold-head" aria-expanded={details} onClick={() => setDetails((o) => !o)}>

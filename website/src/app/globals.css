@@ -5335,3 +5335,13 @@ html:root:root:root:root:root:root:root:root:root body .copy-line .pv-copy { top
    and on desks the same distance from Tools as the links are from each other. */
 html:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav .theme-toggle svg { transform: translateY(-2px); }
 @media (min-width: 761px) { html:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav .theme-toggle { margin-left: 10px !important; } }
+
+/* The proof page's lightbox: the photo at full size on a dark ground, centred, closed by a click anywhere. */
+.pv-lightbox { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, 0.92); display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; cursor: zoom-out; }
+.pv-lightbox img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+html:root:root:root:root:root body .pv-lightbox-close { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: transparent !important; border: 0 !important; color: #fff !important; font-size: 32px; line-height: 1; cursor: pointer; padding: 0; }
+@media (max-width: 599px) { .pv-lightbox { padding: 0; } }
+@keyframes pv-lightbox-in { from { opacity: 0; } to { opacity: 1; } }
+.pv-lightbox { animation: pv-lightbox-in 180ms ease-out; }
+.pv-lightbox img { animation: pv-lightbox-in 240ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .pv-lightbox, .pv-lightbox img { animation: none; } }

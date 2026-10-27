@@ -3099,6 +3099,25 @@ function stdDigest(digestParam: string): string {
   return d;
 }
 
+/* ── Lightbox — the photo at full size over the page; a click, Esc or × closes it ── */
+
+function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", key);
+    return () => { window.removeEventListener("keydown", key); document.body.style.overflow = overflow; };
+  }, [onClose]);
+  return (
+    <div className="pv-lightbox" role="dialog" aria-modal="true" aria-label={alt} onClick={onClose}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} />
+      <button type="button" className="pv-lightbox-close" aria-label="Close" onClick={onClose}>&times;</button>
+    </div>
+  );
+}
+
 /* ── Photo preview card — shows the artifact image when one is available ── */
 
 function PhotoCard({
@@ -3250,6 +3269,7 @@ function PhotoCard({
   // preview blob qualifies — a C2PA thumbnail is low-res, so no "Open full
   // size" is offered when that is all we have.
   const openUrl = (!previewFailed && previewUrl) || null;
+  const [zoomed, setZoomed] = useState(false);
   useEffect(() => { onOpenUrl?.(openUrl); }, [onOpenUrl, openUrl]);
   useEffect(() => () => onOpenUrl?.(null), [onOpenUrl]);
   if (!imageSrc && !preparing) return null;
@@ -3274,8 +3294,10 @@ function PhotoCard({
             src={imageSrc}
             alt={alt}
             onError={() => { if (previewUrl) setPreviewFailed(true); }}
+            onClick={() => setZoomed(true)}
             style={{
               display: "block",
+              cursor: "zoom-in",
               maxWidth: "100%",
               maxHeight: "min(70vh, 640px)",
               width: "auto",
@@ -3294,6 +3316,7 @@ function PhotoCard({
           </div>
         )}
       </div>
+      {zoomed && imageSrc && <Lightbox src={openUrl ?? imageSrc} alt={alt} onClose={() => setZoomed(false)} />}
       {/* Identity row, under the picture (the photo comes first): name · size · Open. The inline image is capped in size,
           so Open shows it at full resolution in a new tab. Only when the bytes are in hand (a C2PA thumbnail has no file). */}
       {cachedFile && !onOpenUrl && (
