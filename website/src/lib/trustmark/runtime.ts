@@ -78,3 +78,9 @@ export async function legacyReadRuntime() {
   const { ort, bch } = await libraries();
   return { ort, bch, decoder: await session("decoder", ort) };
 }
+
+/** Fetch and start both Pixel Seal models ahead of use (a photo's proof page, before its BitGraphed file is asked for),
+ *  so the first mark and read do not wait on them. A failure here is retried when they are needed. */
+export function warmModels(): void {
+  void libraries().then(({ ort }) => Promise.all([session("embedder", ort), session("extractor", ort)])).catch(() => {});
+}

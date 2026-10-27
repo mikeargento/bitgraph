@@ -173,3 +173,38 @@ export async function forgetPackageInIDB(id: string): Promise<void> {
     console.warn("[bitgraph] could not forget a kept package:", e);
   }
 }
+
+/* ── Finished BitGraphed files ──
+ * A photo's BitGraphed file, once whole (its Base ceiling in and its pointer registered), is kept here under its
+ * BitGraph's position and the photo's digest, so downloading it again hands over the same bytes at once instead of
+ * marking the photo again. Same database and store, under a prefix no digest can collide with. */
+
+const BITGRAPHED_PREFIX = "bitgraphed:";
+
+export interface SavedBitGraphed { fileName: string; bytes: Uint8Array; copyProof: unknown }
+
+export async function getBitGraphedFromIDB(key: string): Promise<SavedBitGraphed | null> {
+  try {
+    const db = await openFilesDB();
+    const tx = db.transaction("files", "readonly");
+    const rec = await new Promise<SavedBitGraphed | undefined>((resolve) => {
+      const req = tx.objectStore("files").get(BITGRAPHED_PREFIX + key);
+      req.onsuccess = () => resolve(req.result as SavedBitGraphed | undefined);
+      req.onerror = () => resolve(undefined);
+    });
+    db.close();
+    return rec?.bytes ? rec : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function putBitGraphedToIDB(key: string, file: SavedBitGraphed): Promise<void> {
+  try {
+    const db = await openFilesDB();
+    const tx = db.transaction("files", "readwrite");
+    tx.objectStore("files").put(file, BITGRAPHED_PREFIX + key);
+    await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
+    db.close();
+  } catch { /* a file that is not kept is made again next time */ }
+}

@@ -98,7 +98,15 @@ async function recordCopy(copy: File): Promise<Proof> {
  * past the pointer's range); any other error means something failed on the way.
  */
 export async function trustmarkedFile(photo: File, photoDigestB64: string, photoProof: Proof, onStep?: (s: string) => void, { copyChecked = false } = {}): Promise<TrustmarkedFile> {
+  // Each step's time, logged as one table when the file is done (or as far as it got), to show where the wait goes.
+  const times: Record<string, number> = {};
+  let mark = performance.now();
+  const step = (name: string) => { const now = performance.now(); times[name] = Math.round(now - mark); mark = now; };
+  const report = () => { times.total = Object.values(times).reduce((a, b) => a + b, 0); console.info(`[bitgraph] BitGraphed file of ${photo.name}, ms per step:`); console.table(times); };
+  try { return await assemble(); } finally { report(); }
+  async function assemble(): Promise<TrustmarkedFile> {
   const img = await decodePhoto(photo);
+  step("decode photo");
   if (!img) throw new NoTrustmark("this browser cannot open the photo to mark it");
   if (!aspectOk(img.w, img.h)) throw new NoTrustmark("photos wider or taller than 2:1 cannot carry the pointer");
   if (!isPhotographic(img)) throw new NoTrustmark("this looks like a graphic, not a photograph, and the pointer would show on it");
@@ -107,6 +115,7 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   // would make both unreadable). Found anywhere in the picture, and counted only when it checks out on the ledger.
   // (copyChecked: Make has just read this photo for a pointer, before making its BitGraph.)
   if (!copyChecked && (await carriesPointer(img))) throw new NoTrustmark("this photo is a copy and already points to the earliest known recording");
+  if (!copyChecked) step("read for an earlier pointer");
   const rec = recordBytes(photoDigestB64, img);
   // The pointer leads to the earliest BitGraph of this photo that binds its fingerprint, whichever of its BitGraphs
   // the page shows.
@@ -118,13 +127,17 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   const nonce = String((photoProof.commit as { nonceB64?: string } | undefined)?.nonceB64 ?? "");
   const eref = await epochRef(epochId);
   const payload = pack(eref, counter, await tag(nonce, parsed.phash, eref, counter));
+  step("fingerprint and earliest BitGraph");
 
   onStep?.("Adding the hidden pointer, in this browser…");
   const marked = await markPhoto(img.rgba, img.w, img.h, payload);
+  step("write the pointer (models included)");
   const bytes = await jpeg(marked, img.w, img.h);
+  step("encode JPEG");
   const back = await decodePhoto(new Blob([bytes as BlobPart], { type: "image/jpeg" }));
   let readsBack = false;
   if (back) for await (const r of readings(back.rgba, back.w, back.h, { legacy: false })) if (r.payload === payload) { readsBack = true; break; }
+  step("read the pointer back");
   if (!readsBack) throw new Error("the pointer did not read back from the marked photo; nothing was recorded");
 
   onStep?.("Recording the file…");
@@ -133,12 +146,16 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   const stem = dot > 0 ? photo.name.slice(0, dot) : photo.name, copyName = `${stem}.jpg`;
   // The same photo, marked again in this browser, is the same file: a copy already recorded is never recorded twice.
   const copyProof = (await recordedCopy(bytes)) ?? (await recordCopy(new File([bytes as BlobPart], copyName, { type: "image/jpeg" })));
+  step("record the file");
 
   onStep?.("Waiting for its Base ceiling…");
   // The photo's Content Credentials go with it when its BitGraph binds them and they record no location.
   const store = manifestStoreOf(new Uint8Array(await photo.arrayBuffer()));
   const manifest = store && (await recordProofIn(photoProof, store)) && !(await readDetachedC2PA(store))?.hasLocation ? store : null;
   const [published, sidecar] = await Promise.all([publishRecord(rec, manifest), ceilingOf(copyProof)]);
+  step("Base ceiling and pointer registration");
   const file = buildBitGraphedFileV5(bytes, copyProof as unknown as Record<string, unknown>, sidecar);
+  step("build the file");
   return { bytes: file, fileName: `${stem}.bitgraph.jpg`, copyProof, ceiling: !!sidecar, published };
+  }
 }

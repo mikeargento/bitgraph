@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  async headers() {
+    // The pointer's models (public/trustmark) are checked against their SHA-256 on load (lib/trustmark/models.ts), and a
+    // changed model ships under a new file name, so a browser keeps them for a year instead of asking again each visit.
+    return [{ source: "/trustmark/:file*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] }];
+  },
   async redirects() {
     // 2026-10-17: the site is one page, plus the ledger and the proof pages, since
     // everything else fits on the home page. Every retired page

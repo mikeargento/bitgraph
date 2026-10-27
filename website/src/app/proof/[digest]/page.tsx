@@ -25,7 +25,8 @@ import { useHostedFiles, HostedFilesView } from "@/components/hosted-files";
 const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
   try { return fusedMarkerOf(p)?.originDigestB64 ?? null; } catch { return null; }
 };
-import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
+import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB, getBitGraphedFromIDB, putBitGraphedToIDB } from "@/lib/file-cache";
+import { warmModels } from "@/lib/trustmark/runtime";
 import { redrawRecordedArt } from "@/lib/art-position";
 import { ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, ART_ALGORITHM_V19, toBase64Url, type ArtRecipe } from "@/lib/commitment-art";
 import { planV16, svgFromPngV16, svgTextV16 } from "@/lib/commitment-art-v16";
@@ -656,13 +657,25 @@ export default function ProofPage() {
     const job = (async () => {
       const bytes = new Uint8Array(data);
       const d = btoa(Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (x) => String.fromCharCode(x)).join(""));
-      return trustmarkedFile(new File([bytes], name), d, p as never, undefined, { copyChecked });
+      // a whole BitGraphed file made here before is handed over as it was kept
+      const saved = `${String(p.commit?.epochId)}:${String(p.commit?.counter)}:${d}`;
+      const kept = await getBitGraphedFromIDB(saved);
+      if (kept) return { bytes: kept.bytes, fileName: kept.fileName, copyProof: kept.copyProof as TrustmarkedFile["copyProof"], ceiling: true, published: true };
+      const t = await trustmarkedFile(new File([bytes], name), d, p as never, undefined, { copyChecked });
+      if (t.ceiling && t.published) void putBitGraphedToIDB(saved, { fileName: t.fileName, bytes: t.bytes, copyProof: t.copyProof });
+      return t;
     })();
     carrierJob.current = { key, job };
     // a failure is not kept: the next Download tries again
     job.catch(() => { if (carrierJob.current?.job === job) carrierJob.current = null; });
     return job;
   }
+  // A photo in hand on its page: the pointer's models start loading now, so a Download does not wait on them.
+  useEffect(() => {
+    if (!proof || !cachedFile || !atomicCarrier || !looksLikePhoto({ name: cachedFile.name })) return;
+    const idle = (globalThis as { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback;
+    if (idle) idle(warmModels); else setTimeout(warmModels, 500);
+  }, [proof, cachedFile, atomicCarrier]);
   useEffect(() => {
     if (!freshRef.current || !proof || !cachedFile || !atomicCarrier || !looksLikePhoto({ name: cachedFile.name })) return;
     // Make has just read this photo for a pointer (a copy is led to its original, never recorded), so it is not read again
