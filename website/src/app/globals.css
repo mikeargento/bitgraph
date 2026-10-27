@@ -5321,7 +5321,8 @@ html:root:root:root:root:root:root:root:root:root body .copy-line .pv-copy { top
 
 /* A proof page that holds a picture leads with it (proof-view, m.photo): one line under the photo, then the download. */
 .pv-photo-strip { margin-top: 16px; }
-.pv-photo-strip .pv-verdict { font-size: 18px; font-weight: 600; }
+.pv-photo-title { font-size: 20px; font-weight: 600; color: var(--ink); }
+.pv-photo-strip .pv-verdict { margin-top: 2px; font-size: 16px; font-weight: 600; }
 .pv-photo-meta { margin-top: 4px; font-size: 15px; color: var(--text); }
 .pv-photo-who { margin-top: 2px; font-size: 14px; color: var(--dim); }
 .pv-photo-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }

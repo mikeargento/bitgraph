@@ -537,11 +537,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <section className="pv-card pv-photo">
           {m.filePane}
           <div className="pv-photo-strip">
-            <div className={`pv-verdict pv-verdict-${(c.state === "done" ? c.verdict ?? "UNDETERMINED" : "UNDETERMINED").toLowerCase()}`}>{verdictWord}</div>
-            <div className="pv-photo-meta">
-              <span className="pv-nowrap">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</span>
-              {m.attestedMs !== null && <> <span className="pv-nowrap">{longDateTz(new Date(m.attestedMs))}, {timeTz(new Date(m.attestedMs))}</span></>}
-            </div>
+            {/* The BitGraph's name leads; a proof that fails says so in its place, never folded away. */}
+            <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>
+            {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
+            {m.attestedMs !== null && <div className="pv-photo-meta">{longDateTz(new Date(m.attestedMs))}, {timeTz(new Date(m.attestedMs))}</div>}
             {who && <div className="pv-photo-who">{who}</div>}
           </div>
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
