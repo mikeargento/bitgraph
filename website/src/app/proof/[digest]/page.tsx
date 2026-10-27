@@ -3098,8 +3098,8 @@ function stdDigest(digestParam: string): string {
   return d;
 }
 
-/* ── The thumbnail this BitGraph's BitGraphed file bound, shown when the photo is not in hand. Beside a copy it is there
-   to compare with; alone it is the picture this BitGraph bound. Either way a reference, labelled as one. ── */
+/* ── The thumbnail this BitGraph's BitGraphed file bound, shown when the photo is not in hand: alone, the picture this
+   BitGraph bound; beside a copy, there to compare with. No caption: the page around it says what it is. ── */
 
 function BoundThumbView({ t, compare = false }: { t: BoundThumbnail; compare?: boolean }) {
   const [zoomed, setZoomed] = useState(false);
@@ -3107,10 +3107,6 @@ function BoundThumbView({ t, compare = false }: { t: BoundThumbnail; compare?: b
     <figure className={`pv-bound-thumb${compare ? " is-compare" : ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={t.url} alt="The thumbnail this BitGraph's BitGraphed file bound" onClick={() => setZoomed(true)} />
-      <figcaption>
-        {compare ? "What this BitGraph bound, to compare: a" : "A"} thumbnail bound in BitGraph #{t.counter.toLocaleString("en-US")}, the BitGraphed file.
-        {" "}It matches the fingerprint this BitGraph bound. Only the original&rsquo;s exact bytes prove the photo.
-      </figcaption>
       {zoomed && <Lightbox src={t.url} alt="The bound thumbnail" onClose={() => setZoomed(false)} />}
     </figure>
   );
