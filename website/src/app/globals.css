@@ -5428,3 +5428,7 @@ html:root:root:root:root:root body #site-nav .nav-menu-btn { display: none; }
   html:root:root:root:root:root body #site-nav .nav-sheet-link[aria-current="page"] { font-weight: 700; }
   html:root:root:root:root:root body #site-nav .nav-sheet-theme { display: flex; justify-content: flex-start; padding-top: 14px; }
 }
+/* Make and Watermarks: what the box does, under it */
+html:root:root:root:root:root:root:root:root body main .page-about { max-width: 640px; margin: 28px 0 0; text-align: left !important; }
+html:root:root:root:root:root:root:root:root body main .page-about p { font-size: 15px !important; line-height: 1.6 !important; color: var(--dim); margin: 0 0 12px; text-align: left !important; }
+html:root:root:root:root:root body .page-about a { color: var(--ink); }

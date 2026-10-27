@@ -16,6 +16,10 @@ export default function MakePage() {
     <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>
       <h1 className="sr-only">Make.</h1>
       <DropBox mode="make" />
+      <div className="page-about">
+        <p>Drop files to bind them in a BitGraph: proof that these exact bits existed by now, and could not have been bound before. Many files at once become one tree and one BitGraph, and each file in it can be checked on its own.</p>
+        <p>A photo also gets its BitGraphed file: the photo with its proof inside and an invisible watermark that leads copies back here. BitGraphs are permanent, and the same file dropped again gets a BitGraph of its own.</p>
+      </div>
     </div>
   );
 }
