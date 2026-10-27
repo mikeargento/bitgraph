@@ -36,12 +36,7 @@ const toUrlSafe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").repla
 /** Why a photo cannot carry a pointer; the caller makes the plain BitGraphed file instead. */
 export class NoTrustmark extends Error {}
 
-/** The BitGraphed file and how it was made: BitGraph A (the original, `original`), the pointer written from A's nonce,
- *  the marked photo itself (`marked`, the JPEG BitGraph B binds) and BitGraph B (`copyProof`). */
-export type TrustmarkedFile = {
-  bytes: Uint8Array; fileName: string; copyProof: Proof; ceiling: boolean; published: boolean;
-  original: Proof; payload: string; marked: Uint8Array; markedDigestB64: string;
-};
+export type TrustmarkedFile = { bytes: Uint8Array; fileName: string; copyProof: Proof; ceiling: boolean; published: boolean };
 
 async function jpeg(rgba: Uint8ClampedArray, w: number, h: number): Promise<Uint8Array> {
   const c = new OffscreenCanvas(w, h), g = c.getContext("2d");
@@ -102,7 +97,7 @@ async function recordCopy(copy: File): Promise<Proof> {
  * Throws NoTrustmark when the photo cannot carry one (no bound fingerprint, not decodable here, too wide, a position
  * past the pointer's range); any other error means something failed on the way.
  */
-export async function trustmarkedFile(photo: File, photoDigestB64: string, photoProof: Proof, onStep?: (s: string) => void, { copyChecked = false } = {}): Promise<TrustmarkedFile> {
+export async function trustmarkedFile(photo: File, photoDigestB64: string, photoProof: Proof, onStep?: (s: string) => void): Promise<TrustmarkedFile> {
   const img = await decodePhoto(photo);
   if (!img) throw new NoTrustmark("this browser cannot open the photo to mark it");
   if (!aspectOk(img.w, img.h)) throw new NoTrustmark("photos wider or taller than 2:1 cannot carry the pointer");
@@ -110,8 +105,7 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   onStep?.("Assembling the BitGraphed file…");
   // A copy keeps the pointer it carries, to the earliest known recording: it is never given a new one (and two marks
   // would make both unreadable). Found anywhere in the picture, and counted only when it checks out on the ledger.
-  // (copyChecked: Make has just read this photo for a pointer, before making A.)
-  if (!copyChecked && (await carriesPointer(img))) throw new NoTrustmark("this photo is a copy and already points to the earliest known recording");
+  if (await carriesPointer(img)) throw new NoTrustmark("this photo is a copy and already points to the earliest known recording");
   const rec = recordBytes(photoDigestB64, img);
   // The pointer leads to the earliest BitGraph of this photo that binds its fingerprint, whichever of its BitGraphs
   // the page shows.
@@ -137,7 +131,6 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   // the marked copy is a JPEG named for the photo, and its BitGraphed file is <photo>.bitgraph.jpg, as always
   const stem = dot > 0 ? photo.name.slice(0, dot) : photo.name, copyName = `${stem}.jpg`;
   // The same photo, marked again in this browser, is the same file: a copy already recorded is never recorded twice.
-  const markedDigestB64 = await digestOf(bytes);
   const copyProof = (await recordedCopy(bytes)) ?? (await recordCopy(new File([bytes as BlobPart], copyName, { type: "image/jpeg" })));
 
   onStep?.("Waiting for its Base ceiling…");
@@ -146,5 +139,5 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   const manifest = store && (await recordProofIn(photoProof, store)) && !(await readDetachedC2PA(store))?.hasLocation ? store : null;
   const [published, sidecar] = await Promise.all([publishRecord(rec, manifest), ceilingOf(copyProof)]);
   const file = buildBitGraphedFileV5(bytes, copyProof as unknown as Record<string, unknown>, sidecar);
-  return { bytes: file, fileName: `${stem}.bitgraph.jpg`, copyProof, ceiling: !!sidecar, published, original: photoProof, payload, marked: bytes, markedDigestB64 };
+  return { bytes: file, fileName: `${stem}.bitgraph.jpg`, copyProof, ceiling: !!sidecar, published };
 }
