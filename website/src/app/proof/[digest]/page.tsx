@@ -3259,29 +3259,6 @@ function PhotoCard({
         borderRadius: "var(--radius-card)",
       }}
     >
-      {/* Identity row — the same name · size · Open → that FileCard gives every
-          other file, and in the same place: ABOVE the preview (2026-09-26: all
-          the proofs look the same). The inline image is capped in
-          size, so Open shows it at full resolution in a new tab. Only when the
-          artifact bytes are in hand (a C2PA-thumbnail-only preview has no full
-          file to name or open). */}
-      {cachedFile && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderBottom: "1px solid var(--line-2)" }}>
-          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
-            <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
-            {" · "}{fmtBytes(cachedFile.data.byteLength)}
-            {label ? <>{" · "}{label}</> : null}
-          </span>
-          <span style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            {actions}
-            {openUrl && (
-              <a href={openUrl} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}>
-                <span>Open</span><span className="arrow" aria-hidden>&#8599;</span>
-              </a>
-            )}
-          </span>
-        </div>
-      )}
       <div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {imageSrc ? (
           /* eslint-disable-next-line @next/next/no-img-element */
@@ -3309,6 +3286,25 @@ function PhotoCard({
           </div>
         )}
       </div>
+      {/* Identity row, under the picture (the photo comes first): name · size · Open. The inline image is capped in size,
+          so Open shows it at full resolution in a new tab. Only when the bytes are in hand (a C2PA thumbnail has no file). */}
+      {cachedFile && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid var(--line-2)" }}>
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
+            <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
+            {" · "}{fmtBytes(cachedFile.data.byteLength)}
+            {label ? <>{" · "}{label}</> : null}
+          </span>
+          <span style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            {actions}
+            {openUrl && (
+              <a href={openUrl} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}>
+                <span>Open</span><span className="arrow" aria-hidden>&#8599;</span>
+              </a>
+            )}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
