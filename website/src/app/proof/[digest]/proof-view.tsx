@@ -629,8 +629,6 @@ function ContentCredentials({ c2pa, recorded, match }: { c2pa: C2PAReadResult; r
         </div>
       )}
       {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
-      {match != null && <div className="pv-sub-note">The copy you searched with matches the picture these credentials describe (match {match.toFixed(2)}).</div>}
-      {recorded && <div className="pv-sub-note">Recorded in this BitGraph with the photo. With the photo itself on hand, they are checked against its exact bytes.</div>}
       {openai && <div className="pv-sub-note"><a className="pv-link" href="https://help.openai.com/en/articles/8912793" target="_blank" rel="noopener">Verify with OpenAI &#8599;</a></div>}
     </div>
   );
