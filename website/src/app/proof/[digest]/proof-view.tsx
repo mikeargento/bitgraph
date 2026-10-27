@@ -359,7 +359,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               <div className="pv-when"><TimeChip date={new Date(m.attestedMs)} withDate /></div>
             )}
             {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
-            {m.droppedCopy != null && <div className="pv-note">The photo you dropped is a copy of this BitGraph (match {m.droppedCopy.toFixed(2)}), so it was not recorded again.</div>}
           </div>
         </div>
 
