@@ -24,7 +24,8 @@ import { readDetachedC2PA } from "@/lib/c2pa-reader";
 import { resizeRGB } from "./tm.ts";
 import type { Proof } from "@/lib/plugins";
 
-export type Original = { proof: Proof; counter: number; epochId: string; photoDigestB64: string; artifactDigestB64: string };
+/** tag: the pointer's tag, which unlocks the original's published record (its thumbnail, its credentials) on its page. */
+export type Original = { proof: Proof; counter: number; epochId: string; photoDigestB64: string; artifactDigestB64: string; tag: number };
 /** The original's Content Credentials, shown for a copy only when their signed thumbnail matches it. */
 export type Credentials = { signer?: string; creator?: string; generator?: string; thumbnailMatch: number };
 export type TrustmarkVerdict =
@@ -37,7 +38,7 @@ export type TrustmarkVerdict =
 async function resolve(payload: string): Promise<{ original: Original; phash: string; values: string; c2pa?: { bytes: Uint8Array; proof: Proof } } | "forged" | null> {
   const { eref, counter, tag: t } = unpack(payload);
   let sawRecord = false;
-  for (const c of await candidates(eref, counter)) {
+  for (const c of await candidates(eref, counter, t)) {
     const bytes = unb64(c.recordB64), rec = parseRecord(bytes);
     if (!rec || !(await verifyMember(c.proof, bytes))) continue;
     const epochId = String(c.proof.commit?.epochId ?? ""), n = Number(c.proof.commit?.counter);
@@ -45,7 +46,7 @@ async function resolve(payload: string): Promise<{ original: Original; phash: st
     sawRecord = true;
     if ((await tag(String((c.proof.commit as { nonceB64?: string } | undefined)?.nonceB64 ?? ""), rec.phash, eref, counter)) !== t) continue;
     const c2pa = c.c2paB64 && c.c2paProof ? { bytes: unb64(c.c2paB64), proof: c.c2paProof } : undefined;
-    return { original: { proof: c.proof, counter: n, epochId, photoDigestB64: rec.photo, artifactDigestB64: String(c.proof.artifact?.digestB64 ?? "") }, phash: rec.phash, values: rec.blocks.values, c2pa };
+    return { original: { proof: c.proof, counter: n, epochId, photoDigestB64: rec.photo, artifactDigestB64: String(c.proof.artifact?.digestB64 ?? ""), tag: t }, phash: rec.phash, values: rec.blocks.values, c2pa };
   }
   return sawRecord ? "forged" : null;
 }

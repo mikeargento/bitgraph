@@ -748,7 +748,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               if (single) {
                 noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
                 // the copy itself opens in the original's file pane, labelled as a copy (lib/trustmark/held-copy)
-                setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score });
+                setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, tag: o.tag });
                 if (v.credentials) noteCredentialsMatch(toUrlSafe(o.photoDigestB64), v.credentials.thumbnailMatch);
                 setStatus("Opening the original…");
                 router.push(href);

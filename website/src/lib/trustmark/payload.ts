@@ -15,7 +15,7 @@
  * pHash is imagehash's: grayscale, 32 x 32 Lanczos, 2-D DCT, the low 8 x 8 against their median.
  */
 
-const TAG_BITS = 28;
+export const TAG_BITS = 28;
 const enc = new TextEncoder();
 const b64bytes = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const hexbytes = (h: string) => Uint8Array.from(h.match(/../g) ?? [], (x) => parseInt(x, 16));

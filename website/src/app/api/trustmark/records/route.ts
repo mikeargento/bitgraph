@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { getObjectText, getProofsByDigest, ledgerWritesOn, listKeysUnderPrefix, putTrustmarkRecordOnce, trustmarkRecordKey, trustmarkRecordPrefix, LedgerUnavailableError } from "@/lib/s3";
 import { checkMember, memberOf } from "@/lib/tree-member";
-import { epochRef, MAX_COUNTER } from "@/lib/trustmark/payload";
+import { epochRef, MAX_COUNTER, tag as tagOf, TAG_BITS } from "@/lib/trustmark/payload";
 import { parseRecord } from "@/lib/trustmark/record";
 import { MAX_MANIFEST_BYTES } from "@/lib/trustmark/c2pa-leaf";
 
@@ -79,20 +79,29 @@ export async function POST(req: Request) {
 }
 
 /**
- * GET /api/trustmark/records?eref=&counter=: every published record a TrustMark's pointer could mean, each with the
- * proof that binds it. The reader checks each itself (the record's place in the tree, the proof, the tag) and keeps
- * the one that fits; different epochs can share an epochRef.
+ * GET /api/trustmark/records?eref=&counter=&tag=: the published records a TrustMark's pointer means, each with the
+ * proof that binds it. The tag is required and must fit each record (from its BitGraph's nonce and the photo's bound
+ * pHash): a record carries a thumbnail and Content Credentials, so it opens only to someone holding the picture (its
+ * pointer, or the original itself), never to a position read off the ledger. The reader still checks each itself
+ * (the record's place in the tree, the proof); different epochs can share an epochRef.
  */
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
-  const eref = Number(q.get("eref")), counter = Number(q.get("counter"));
+  const eref = Number(q.get("eref")), counter = Number(q.get("counter")), want = Number(q.get("tag"));
   if (!Number.isSafeInteger(eref) || eref < 0 || eref > 0xffff || !Number.isSafeInteger(counter) || counter < 0 || counter > MAX_COUNTER) {
     return NextResponse.json({ error: "eref (0-65535) and counter are required" }, { status: 400 });
   }
+  if (!q.get("tag") || !Number.isSafeInteger(want) || want < 0 || want >= 2 ** TAG_BITS) return NextResponse.json({ error: "tag is required" }, { status: 400 });
   try {
     const keys = (await listKeysUnderPrefix(trustmarkRecordPrefix(eref, counter), MAX_CANDIDATES)).slice(0, MAX_CANDIDATES);
-    const entries = (await Promise.all(keys.map(async (k) => { const t = await getObjectText(k); try { return t ? JSON.parse(t) : null; } catch { return null; } }))).filter(Boolean);
-    return NextResponse.json({ entries }, { headers: { "cache-control": "public, max-age=30" } });
+    const all = (await Promise.all(keys.map(async (k) => { const t = await getObjectText(k); try { return t ? JSON.parse(t) : null; } catch { return null; } }))).filter(Boolean) as Array<{ recordB64?: string; proof?: { commit?: { nonceB64?: string } } }>;
+    const fits = await Promise.all(all.map(async (e) => {
+      const rec = typeof e.recordB64 === "string" ? parseRecord(new Uint8Array(Buffer.from(e.recordB64, "base64"))) : null;
+      const nonce = e.proof?.commit?.nonceB64;
+      return !!rec && typeof nonce === "string" && (await tagOf(nonce, rec.phash, eref, counter)) === want;
+    }));
+    const entries = all.filter((_, i) => fits[i]);
+    return NextResponse.json({ entries }, { headers: { "cache-control": "private, max-age=30" } });
   } catch (e) {
     if (e instanceof LedgerUnavailableError) return NextResponse.json({ error: "ledger unavailable" }, { status: 503 });
     throw e;

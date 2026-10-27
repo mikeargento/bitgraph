@@ -6,7 +6,8 @@
  * survives the client-side navigation (as lib/fresh-proof does); read once.
  */
 
-export type HeldCopy = { name: string; data: ArrayBuffer; kind: "bitgraphed" | "copy"; score: number };
+/** tag: the pointer's tag the copy carries, which opens the original's published thumbnail and credentials on its page. */
+export type HeldCopy = { name: string; data: ArrayBuffer; kind: "bitgraphed" | "copy"; score: number; tag?: number };
 
 let slot: { digest: string; copy: HeldCopy } | null = null;
 

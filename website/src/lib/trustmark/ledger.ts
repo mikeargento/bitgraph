@@ -59,9 +59,11 @@ export async function publishRecord(recordBytes: Uint8Array, manifest?: Uint8Arr
 /** thumbB64 and thumbProof: the BitGraphed file's thumbnail and the proof that binds it in that file's own BitGraph. */
 export type Published = { recordB64: string; proof: Proof; c2paB64?: string; c2paProof?: Proof; thumbB64?: string; thumbProof?: Proof };
 
-/** Every published record the pointer (eref, counter) could mean. Unchecked: the caller verifies each. */
-export async function candidates(eref: number, counter: number): Promise<Published[]> {
-  const res = await fetch(`/api/trustmark/records?eref=${eref}&counter=${counter}`).catch(() => null);
+/** Every published record the pointer (eref, counter, tag) could mean. The tag is required: a record, with its thumbnail
+ *  and credentials, opens only to someone holding the picture (its pointer, or the original's fingerprint), never to a
+ *  position read off the ledger. Unchecked: the caller verifies each. */
+export async function candidates(eref: number, counter: number, tag: number): Promise<Published[]> {
+  const res = await fetch(`/api/trustmark/records?eref=${eref}&counter=${counter}&tag=${tag}`).catch(() => null);
   if (!res?.ok) return [];
   const body = (await res.json().catch(() => null)) as { entries?: Published[] } | null;
   return (body?.entries ?? []).filter((e) => typeof e?.recordB64 === "string" && e.proof && typeof e.proof === "object");

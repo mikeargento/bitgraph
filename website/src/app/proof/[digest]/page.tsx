@@ -672,16 +672,18 @@ export default function ProofPage() {
     return job;
   }
   // What this BitGraph bound, as a picture, when its BitGraphed file published a thumbnail (lib/trustmark/bound-thumbnail):
-  // shown when the photo itself is not in hand, checked against the fingerprint bound here.
+  // shown beside a copy whose pointer led here (its tag opens the record), checked against the fingerprint bound here.
+  // A visitor with nothing in hand sees no picture: a visual only for those who already hold one.
   // undefined while the check runs: the file pane waits for it, so the full find-the-file box never flashes first
   const [boundThumb, setBoundThumb] = useState<BoundThumbnail | null | undefined>(undefined);
   useEffect(() => {
-    if (!proof || !atomicCarrier || cachedFile) { setBoundThumb(null); return; }
+    const tag = heldCopy?.tag;
+    if (!proof || !atomicCarrier || cachedFile || tag === undefined) { setBoundThumb(null); return; }
     let gone = false, url: string | null = null;
     setBoundThumb(undefined);
-    void boundThumbnail(proof as never).then((t) => { if (gone) { if (t) URL.revokeObjectURL(t.url); return; } url = t?.url ?? null; setBoundThumb(t); }).catch(() => { if (!gone) setBoundThumb(null); });
+    void boundThumbnail(proof as never, tag).then((t) => { if (gone) { if (t) URL.revokeObjectURL(t.url); return; } url = t?.url ?? null; setBoundThumb(t); }).catch(() => { if (!gone) setBoundThumb(null); });
     return () => { gone = true; if (url) URL.revokeObjectURL(url); };
-  }, [proof, atomicCarrier, cachedFile]);
+  }, [proof, atomicCarrier, cachedFile, heldCopy?.tag]);
   // A photo in hand on its page: the pointer's models start loading now, so a Download does not wait on them.
   useEffect(() => {
     if (!proof || !cachedFile || !atomicCarrier || !looksLikePhoto({ name: cachedFile.name })) return;
@@ -706,15 +708,17 @@ export default function ProofPage() {
   const [publishedC2pa, setPublishedC2pa] = useState<C2PAReadResult | null>(null);
   const [c2paMatch, setC2paMatch] = useState<number | null>(null);
   useEffect(() => { setC2paMatch(credentialsMatchNote(digestParam)); }, [digestParam]);
+  // Only for a visitor holding a copy whose pointer leads here (its tag opens the record): a visual before a visual.
+  const heldTag = heldCopy?.tag;
   useEffect(() => {
     const at = proof?.commit as { epochId?: string; counter?: string } | undefined;
-    if (!proof || !at?.epochId || !at.counter || cachedFile?.c2pa?.present) return;
+    if (!proof || !at?.epochId || !at.counter || cachedFile?.c2pa?.present || heldTag === undefined) { setPublishedC2pa(null); return; }
     let stop = false;
     (async () => {
       // On a photo's own page, the credentials must name that photo; on its BitGraph's root page (the ledger opens
       // that one), any published for this very BitGraph.
       const photo = treeMemberOf(proof) ? stdDigest(digestParam) : null, bound = (proof.artifact as { digestB64?: string } | undefined)?.digestB64;
-      for (const e of await publishedRecords(await epochRef(at.epochId!), Number(at.counter))) {
+      for (const e of await publishedRecords(await epochRef(at.epochId!), Number(at.counter), heldTag)) {
         if (!e.c2paB64 || !e.c2paProof || (e.proof.artifact as { digestB64?: string } | undefined)?.digestB64 !== bound) continue;
         if (photo && parseRecord(unb64(e.recordB64))?.photo !== photo) continue;
         const bytes = unb64(e.c2paB64);
@@ -725,7 +729,7 @@ export default function ProofPage() {
       }
     })().catch(() => {});
     return () => { stop = true; };
-  }, [proof, digestParam, cachedFile?.c2pa?.present]);
+  }, [proof, digestParam, cachedFile?.c2pa?.present, heldTag]);
   // The two piece-downloads beside the package: the anchor pair, and the original.
   const [anchorsBusy, setAnchorsBusy] = useState(false);
   const [anchorsMsg, setAnchorsMsg] = useState<string | null>(null);
@@ -2287,7 +2291,7 @@ export default function ProofPage() {
               <HostedFilesView state={hosted} />
               {/* Once a host's files have matched, the record's files are already on the page: no "Locate the file" row
                   (2026-10-10). Generic, not Jev's: any matched ?files= bundle hides it; a failed or absent one keeps it. */}
-              {hosted.phase === "matched" ? null : <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} compact={!!boundThumb} />}
+              {hosted.phase === "matched" ? null : <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} compact />}
             </div>
           );
           const hashes: FieldView[] = isEth
@@ -2904,7 +2908,7 @@ function BringYourFile({
     // the copy is shown in the photo's own file pane, labelled for what it is: on the tree's page, that page opens with it
     const wrapped = carriers.has(files[0]!);
     // a BitGraphed file keeps its own name (the file inside it was named without the .bitgraph)
-    const held: HeldCopy = { name: wrapped ? files[0]!.name.replace(/(\.[^.]+)?$/, ".bitgraph$1") : files[0]!.name, data: await files[0]!.arrayBuffer(), kind: wrapped ? "bitgraphed" : "copy", score: v.score };
+    const held: HeldCopy = { name: wrapped ? files[0]!.name.replace(/(\.[^.]+)?$/, ".bitgraph$1") : files[0]!.name, data: await files[0]!.arrayBuffer(), kind: wrapped ? "bitgraphed" : "copy", score: v.score, tag: v.original.tag };
     if (v.original.photoDigestB64 !== cacheKey) {
       setHeldCopy(toUrlSafeB64(v.original.photoDigestB64), held);
       router.push(pageOf(v.original.photoDigestB64));
