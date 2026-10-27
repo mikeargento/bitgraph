@@ -5326,3 +5326,7 @@ html:root:root:root:root:root:root:root:root:root body .copy-line .pv-copy { top
 .pv-photo-meta { margin-top: 4px; font-size: 15px; color: var(--text); }
 .pv-photo-who { margin-top: 2px; font-size: 14px; color: var(--dim); }
 .pv-photo-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+.pv-photo-actions .bg-action-link { max-width: 100% !important; white-space: normal !important; text-align: center; }
+/* The photo sits straight in the card, at the card's own padding: no frame of its own. */
+.pv-photo-bare { border: 0; background: none; }
+@media (max-width: 599px) { .pv-photo-actions .pv-open { order: -1; } }

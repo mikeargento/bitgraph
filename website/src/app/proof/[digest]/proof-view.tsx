@@ -121,6 +121,8 @@ export interface ProofViewModel {
   leadFallback: ReactNode;
   /** The file pane: the preview, the drop box, or for an anchor the block row. */
   filePane: ReactNode;
+  /** The shown photo at full size, opened in a new tab beside the downloads. */
+  openUrl?: string | null;
   c2pa: C2PAReadResult | null;
   /** A set, or a tree/1 (whose page can list only the file in hand, once placed: a tree's members are known file by file, from evidence). */
   set: { kind: "set/1" | "set/2" | "tree/1"; count: number; root: string | null; rows: SetRowView[] } | null;
@@ -551,6 +553,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               </button>
             )}
             <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={download}>Download proof</button>
+            {m.openUrl && <a className="bg-action-link pv-pill pv-open" style={{ margin: 0 }} href={m.openUrl} target="_blank" rel="noopener"><span>Open</span><span className="arrow" aria-hidden>&#8599;</span></a>}
           </div>
           {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
         </section>

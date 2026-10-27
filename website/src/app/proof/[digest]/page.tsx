@@ -328,6 +328,8 @@ export default function ProofPage() {
   /* A copy of this page's photo (its BitGraphed file, a screenshot, a feed's copy) whose hidden pointer led here: shown in
      the file pane with a label for what it is, never taken for the original (nothing is checked or made from it). */
   const [heldCopy, setHeldCopyState] = useState<HeldCopy | null>(null);
+  // the shown photo's full-size Open link, set by its card, shown beside the downloads
+  const [photoOpenUrl, setPhotoOpenUrl] = useState<string | null>(null);
   useEffect(() => { const c = takeHeldCopy(digestParam); if (c) setHeldCopyState(c); }, [digestParam]);
   // A BitGraph image (/image) opens with its proof: the page redraws it from the commitment the
   // proof authenticates and holds it as the file in hand only when it hashes to the recorded
@@ -2223,7 +2225,7 @@ export default function ProofPage() {
             </div>
           ) : isInterval ? null : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
             <>
-              <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "drawn from the proof" : heldLabel}
+              <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "drawn from the proof" : heldLabel} onOpenUrl={setPhotoOpenUrl}
                 /* No "Save for print" (2026-10-09: a print is a different bit version of the picture, so it would not
                    match its own proof and would confuse; the recorded file is the one to print). */ />
               {/* The redraw made visible (2026-10-14, an outside reading of /generate: "a verifier has to take your word for it").
@@ -2242,7 +2244,7 @@ export default function ProofPage() {
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
           ) : heldCopy ? (
             <>
-              <PhotoCard cachedFile={heldCopy} bare label={heldCopy.kind === "bitgraphed" ? "BitGraphed file" : "copy"} />
+              <PhotoCard cachedFile={heldCopy} bare label={heldCopy.kind === "bitgraphed" ? "BitGraphed file" : "copy"} onOpenUrl={setPhotoOpenUrl} />
               <p className="pv-redraw-check">
                 <span>
                   {heldCopy.kind === "bitgraphed"
@@ -2473,6 +2475,7 @@ export default function ProofPage() {
             checks: isTree ? treeChecks(checks) : checks,
             onConfirm: confirmAgainstNodes,
             exportAction,
+            openUrl: photoOpenUrl,
             exportName,
             exportInside,
             pieces,
@@ -3105,7 +3108,10 @@ function PhotoCard({
   previewKey,
   label,
   actions,
+  onOpenUrl,
 }: {
+  /** Hand the full-size Open link to the page, which shows it beside the downloads; the card then shows no name row. */
+  onOpenUrl?: (url: string | null) => void;
   cachedFile: { name: string; data: ArrayBuffer } | null;
   /** Extra pills beside Open (a redrawn picture's Reprint, 2026-10-08). */
   actions?: React.ReactNode;
@@ -3237,7 +3243,6 @@ function PhotoCard({
   //   2. C2PA embedded thumbnail (covers RAW + shared links with no cached file)
   //   3. Nothing — the card is not rendered
   const imageSrc = (!previewFailed && previewUrl) || c2pa?.thumbnailDataUrl || "";
-  if (!imageSrc && !preparing) return null;
 
   const alt = cachedFile?.name || c2pa?.title || "Proof artifact";
 
@@ -3245,6 +3250,9 @@ function PhotoCard({
   // preview blob qualifies — a C2PA thumbnail is low-res, so no "Open full
   // size" is offered when that is all we have.
   const openUrl = (!previewFailed && previewUrl) || null;
+  useEffect(() => { onOpenUrl?.(openUrl); }, [onOpenUrl, openUrl]);
+  useEffect(() => () => onOpenUrl?.(null), [onOpenUrl]);
+  if (!imageSrc && !preparing) return null;
 
   // One frame rule for every orientation: uniform padding, and the photo
   // fills the padded area up to its caps — a landscape runs to the side
@@ -3252,14 +3260,14 @@ function PhotoCard({
   // first. Long and short edges get the same breathing room either way.
   return (
     <div
-      className={bare ? "pv-filecard" : undefined}
-      style={bare ? undefined : {
+      className={onOpenUrl ? "pv-photo-bare" : bare ? "pv-filecard" : undefined}
+      style={bare || onOpenUrl ? undefined : {
         background: "var(--panel)",
         border: "1px solid var(--line)",
         borderRadius: "var(--radius-card)",
       }}
     >
-      <div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ padding: onOpenUrl ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {imageSrc ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -3288,7 +3296,7 @@ function PhotoCard({
       </div>
       {/* Identity row, under the picture (the photo comes first): name · size · Open. The inline image is capped in size,
           so Open shows it at full resolution in a new tab. Only when the bytes are in hand (a C2PA thumbnail has no file). */}
-      {cachedFile && (
+      {cachedFile && !onOpenUrl && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid var(--line-2)" }}>
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
             <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
