@@ -855,10 +855,14 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         </svg>
         {/* With a plugin on, the box says what a drop will do (2026-10-18), instead of an explanation beside the switch. */}
         {/* A folder can be chosen as a folder (2026-10-21): the file picker only opened it, and every file then had to be selected. */}
-        <div className="db-zone-title">{status ?? <>{mode === "check" ? "Drop files here to check them, or choose " : "Drop files or a folder here, or choose "}
-          <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>files</button>
-          {" · "}
-          <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); folderRef.current?.click(); }}>a folder</button></>}</div>
+        {/* A touch screen cannot drop a file or choose a folder: there the box only offers to choose files, and the
+            whole box is the tap (globals.css, .db-zone-touch). */}
+        <div className="db-zone-title">{status ?? <>
+          <span className="db-zone-desk">{mode === "check" ? "Drop files here to check them, or choose " : "Drop files or a folder here, or choose "}
+            <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>files</button>
+            {" · "}
+            <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); folderRef.current?.click(); }}>a folder</button></span>
+          <span className="db-zone-touch"><span className="db-zone-pick">Choose files</span>{mode === "check" ? " to check" : " to BitGraph"}</span></>}</div>
         {/* Something is happening: a thin moving bar under the line that says what (2026-10-18). */}
         {status && <div className="bg-working" role="progressbar" aria-label={status} />}
         <div className="db-zone-sub">Each file is hashed in your browser. <br className="sub-br" />Only its SHA-256 is&nbsp;sent.</div>

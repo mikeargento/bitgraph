@@ -5396,3 +5396,13 @@ html:root:root:root:root:root:root:root:root:root:root body .dropbox.is-compact 
 /* The file pane once the thumbnail check has answered: the thumbnail or the find-the-file box fades in, never one first. */
 .pv-pane-in { animation: bg-fade-in 260ms ease-out; }
 @media (prefers-reduced-motion: reduce) { .pv-pane-in { animation: none; } }
+
+/* Touch screens: no dropping, no folders. The box is one tap that opens the picker, shorter, its title the action. */
+html:root:root:root:root:root body .db-zone-touch { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  html:root:root:root:root:root body .db-zone-desk { display: none; }
+  html:root:root:root:root:root body .db-zone-touch { display: inline; }
+  html:root:root:root:root:root:root body .db-zone { padding-top: 36px !important; padding-bottom: 36px !important; }
+  html:root:root:root:root:root:root body .db-zone .db-zone-title { min-height: 0 !important; }
+  html:root:root:root:root:root:root body .db-zone:active { background: var(--line) !important; }
+}
