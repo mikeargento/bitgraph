@@ -3108,7 +3108,7 @@ function BoundThumbView({ t, compare = false }: { t: BoundThumbnail; compare?: b
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={t.url} alt="The thumbnail this BitGraph's BitGraphed file bound" onClick={() => setZoomed(true)} />
       <figcaption>
-        {compare ? "What this BitGraph bound, to compare: " : ""}a thumbnail bound in BitGraph #{t.counter.toLocaleString("en-US")}, the BitGraphed file.
+        {compare ? "What this BitGraph bound, to compare: a" : "A"} thumbnail bound in BitGraph #{t.counter.toLocaleString("en-US")}, the BitGraphed file.
         {" "}It matches the fingerprint this BitGraph bound. Only the original&rsquo;s exact bytes prove the photo.
       </figcaption>
       {zoomed && <Lightbox src={t.url} alt="The bound thumbnail" onClose={() => setZoomed(false)} />}
