@@ -38,7 +38,7 @@ export default function HomePage() {
         <h1 className="home-title">Verifiable sequence for&nbsp;bits.</h1>
         <div className="home-hero-figure"><FlowFigure /></div>
         <div className="home-hero-actions">
-          <a className="bg-action-link is-make" href="/make">Make a BitGraph</a>
+          <a className="bg-action-link is-make" href="/ledger">Make a BitGraph</a>
           <a className="bg-action-link" href="/demos">Try a demo</a>
         </div>
       </div>

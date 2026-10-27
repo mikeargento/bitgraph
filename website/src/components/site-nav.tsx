@@ -14,12 +14,10 @@ import { ThemeToggle } from "@/components/theme-toggle";
  * the bar; on phones they fold into a menu button that opens a sheet under the bar.
  */
 const LINKS: Array<{ href: string; label: string }> = [
-  // The ledger first: look a file up, or read every BitGraph by day (2026-10-17: checking is the ledger).
+  // Proofs: drop a file to check it or make its BitGraph, and read every BitGraph by day (Make folded in here).
   { href: "/ledger", label: "Proofs" },
   { href: "/demos", label: "Demos" },
   { href: "/tools", label: "Tools" },
-  // Make on the right, plain text like the others (2026-10-18 / 10-19).
-  { href: "/make", label: "Make" },
 ];
 
 export function SiteNav() {

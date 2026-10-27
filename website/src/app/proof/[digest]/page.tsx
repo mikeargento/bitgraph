@@ -2438,8 +2438,6 @@ export default function ProofPage() {
             attestedMs,
             leadFallback: whenNode,
             filePane,
-            // the page leads with the picture when it holds one (the photo, its BitGraphed file or a copy)
-            photo: !isEth && !isInterval && ((!!cachedFile && isDisplayableImage(cachedFile, null)) || (!cachedFile && !!heldCopy)),
             c2pa: !isEth && cachedFile?.c2pa?.present ? cachedFile.c2pa : !isEth ? publishedC2pa : null,
             c2paRecorded: !isEth && !cachedFile?.c2pa?.present && !!publishedC2pa,
             c2paMatch: !cachedFile?.c2pa?.present && publishedC2pa ? c2paMatch : null,

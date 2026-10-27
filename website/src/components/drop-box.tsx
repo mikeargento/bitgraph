@@ -298,7 +298,9 @@ async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
 
 /** mode "check" only looks files up and never makes anything (the ledger page); "make" looks them up, then
  *  offers to make the ones that are new (/make). */
-export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "check"; variant?: "zone" | "buttons" }) {
+/** canMake (the Proofs page): a check that offers to make a BitGraph of whatever is not on record yet, one press each
+ *  drop, instead of making it at once as "make" does. */
+export function DropBox({ mode = "make", variant = "zone", canMake = false }: { mode?: "make" | "check"; variant?: "zone" | "buttons"; canMake?: boolean }) {
   // The drop box on /make makes and checks (2026-10-17), both in one box. The ledger's search
   // (mode "check", variant "buttons": two Finder buttons, no box) only looks files up and never makes one.
   const [rows, setRows] = useState<Row[]>([]);
@@ -735,7 +737,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
           if (looksLikePhoto(f)) {
             if (single) setStatus("Checking the ledger…");
             const v = await (early ?? readPointer());
-            if (v && v.verdict !== "none" && mode === "check") {
+            if (v && v.verdict !== "none" && mode === "check" && !(single && v.verdict === "match")) {
               if (v.verdict === "match" && v.credentials) noteCredentialsMatch(toUrlSafe(v.original.photoDigestB64), v.credentials.thumbnailMatch);
               return end({ bytes, digestB64, state: "trustmark", trustmark: v });
             }
@@ -743,7 +745,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
               const o = v.original, href = `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
               // One copy dropped on Make leads to its original, the earliest known recording, instead of being recorded:
               // a pointer that checks out is never wrong. (Not finding one says nothing, so those are recorded.)
-              if (single && mode === "make") {
+              if (single) {
                 noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
                 // the copy itself opens in the original's file pane, labelled as a copy (lib/trustmark/held-copy)
                 setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score });
@@ -774,7 +776,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
       patch(r.key, p);
       return { ...r, ...p };
     });
-    if (single && mode === "make" && ended2[0]?.state === "trustmark") return; // led to its original
+    if (single && ended2[0]?.state === "trustmark" && ended2[0]?.trustmark?.verdict === "match") return; // led to its original
     if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "trustmark")) { setRows(ended2); setStatus(null); return; }
     const fresh_new = ended2.filter((r) => r.state === "new" && r.digestB64);
     // A new file is made the one way every drop is: a tree with the Base block as its floor (2026-10-20).
@@ -945,7 +947,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
               {batch.rootState === "absent" && <>Add the batch&rsquo;s merkle-root.txt to check that the root is a BitGraph.</>}
               {batch.rootState === "mismatch" && <span className="db-bad">merkle-root.txt does not carry this tree&rsquo;s root</span>}
               {batch.rootState === "looking" && "Checking the ledger…"}
-              {batch.rootState === "missing" && <>{batch.rootFile} is not a BitGraph. <a href="/make">Make one</a></>}
+              {batch.rootState === "missing" && <>{batch.rootFile} is not a BitGraph yet</>}
               {batch.rootState === "found" && batch.rootDigest && (
                 <>
                   <span className="db-ok">{batch.rootFile} is BitGraph #{Number((batch.rootProof?.commit as { counter?: string } | undefined)?.counter ?? 0).toLocaleString("en-US")}</span>
@@ -1000,7 +1002,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
               <div className="db-state">
                 {r.state === "hashing" && "Hashing…"}
                 {r.state === "looking" && "Checking the ledger…"}
-                {r.state === "new" && mode === "check" && <>Not a BitGraph. <a href="/make">Make one</a></>}
+                {r.state === "new" && mode === "check" && "Not a BitGraph yet"}
                 {r.state === "new" && mode === "make" && (r.note ?? "Not a BitGraph yet")}
                 {r.state === "in-tree" && r.tree && (
                   <>
@@ -1008,7 +1010,7 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
                     {/* Two clear buttons (2026-10-20): see the tree's BitGraph, or record this file on its own. */}
                     <span className="db-row-actions">
                       <a className="bg-action-link is-make" style={{ margin: 0 }} href={`/proof/${toUrlSafe(r.tree.proof.digestB64)}?counter=${encodeURIComponent(r.tree.proof.counter)}`}>View BitGraph #{Number(r.tree.proof.counter).toLocaleString("en-US")}</a>
-                      {mode === "make" && <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => void takePlugins([new File([r.bytes!.slice()], r.name)])}>Make a new BitGraph</button>}
+                      {(mode === "make" || canMake) && <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => void takePlugins([new File([r.bytes!.slice()], r.name)])}>Make a new BitGraph</button>}
                     </span>
                   </>
                 )}
@@ -1032,9 +1034,10 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
         </div>
       )}
 
-      {mode === "make" && newCount > 0 && (
+      {(mode === "make" || canMake) && newCount > 0 && (
         <div className="db-make">
-          <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={busy} onClick={() => void make()}>
+          {/* On Proofs the new files are made as one drop is (a tree on the Base floor, photos with their fingerprints) */}
+          <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={busy} onClick={() => void (mode === "make" ? make() : takePlugins(rows.filter((r) => r.state === "new" && r.bytes).map((r) => new File([r.bytes!.slice()], r.name))))}>
             {busy ? "Making…" : `Make ${newCount === 1 ? "a BitGraph" : `${newCount} BitGraphs`}`}
           </button>
           <span className="db-make-note">Making a BitGraph is permanent.</span>

@@ -121,8 +121,6 @@ export interface ProofViewModel {
   leadFallback: ReactNode;
   /** The file pane: the preview, the drop box, or for an anchor the block row. */
   filePane: ReactNode;
-  /** The page holds a picture (the photo, its BitGraphed file or a copy): it leads with it, the proof folded below. */
-  photo?: boolean;
   c2pa: C2PAReadResult | null;
   /** A set, or a tree/1 (whose page can list only the file in hand, once placed: a tree's members are known file by file, from evidence). */
   set: { kind: "set/1" | "set/2" | "tree/1"; count: number; root: string | null; rows: SetRowView[] } | null;
@@ -528,9 +526,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
     </>
   );
 
-  /* A picture in hand (the photo, its BitGraphed file or a copy) leads the page: the photo, one line saying what the
-     BitGraph says, the download, and the proof itself folded under Proof details. Every other file keeps the full page. */
-  if (m.photo) {
+  /* Every proof leads with its file (the photo, its BitGraphed file or a copy, any other file, or the drop box), one line
+     saying what the BitGraph says, the downloads, and the proof itself folded under Proof details. */
+  {
     const verdictWord = c.state === "done" ? (c.verdict === "TRUE" ? "\u2713 Valid proof" : c.verdict === "FALSE" ? "\u2717 Not a valid proof" : "Undetermined") : c.state === "failed" ? "Not checked" : "Checking\u2026";
     const who = m.c2pa?.present ? [m.c2pa.creator, m.c2pa.signatureIssuer ? `signed by ${m.c2pa.signatureIssuer}` : null].filter(Boolean).join(", ") : "";
     return (
@@ -540,8 +538,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {m.filePane}
           <div className="pv-photo-strip">
             <span className={`pv-verdict pv-verdict-${(c.state === "done" ? c.verdict ?? "UNDETERMINED" : "UNDETERMINED").toLowerCase()}`}>{verdictWord}</span>
-            <span className="pv-sep"> · </span><span>{m.recordName}</span>
-            {m.attestedMs !== null && <><span className="pv-sep"> · </span><TimeChip date={new Date(m.attestedMs)} withDate /></>}
+            <span className="pv-sep"> · </span><span>{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</span>
+            {m.attestedMs !== null && <><span className="pv-sep"> · </span><span>{stampTz(new Date(m.attestedMs))}</span></>}
             {who && <><span className="pv-sep"> · </span><span>{who}</span></>}
           </div>
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
@@ -575,45 +573,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       </div>
     );
   }
-
-  return (
-    <div className="pv">
-      <h1 className="sr-only">BitGraph proof</h1>
-
-      {/* ── The BitGraph and its verdict ── */}
-      <section className="pv-card">
-        <div className="pv-head">
-          <div className="pv-head-main">
-            <div className="pv-title">
-              {m.recordName}
-              {m.kind === "anchor" && <span className="pv-kind">Ethereum anchor</span>}
-              {m.kind === "interval" && <span className="pv-kind">Interval</span>}
-            </div>
-            {/* When it was made, by the enclave's own signed clock, at the top (2026-10-17). */}
-            {m.attestedMs !== null && (
-              <div className="pv-when"><TimeChip date={new Date(m.attestedMs)} withDate /></div>
-            )}
-            {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
-          </div>
-        </div>
-
-        {m.filePane}
-        {m.c2pa?.present && <ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} />}
-
-        {checksBlock}
-      </section>
-
-      {counterCard}
-
-      {timeCard}
-
-      {sigCard}
-
-      {anywhereCard}
-
-      {rawCard}
-    </div>
-  );
 }
 
 function Moment({ label, title, note, children, accent, chain }: { label: string; title: ReactNode; note?: ReactNode; children?: ReactNode; accent?: boolean; chain?: "eth" | "base" }) {

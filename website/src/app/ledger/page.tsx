@@ -81,10 +81,10 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       {/* No visible h1: it repeated the nav (2026-10-17). */}
         <h1 className="sr-only">Proofs.</h1>
 
-      {/* Check is the ledger (2026-10-17): the drop box here only looks files up and never makes one; the
-          one on /make makes (2026-10-17: the SHA-256 field went as unneeded). */}
+      {/* Proofs is where files are both checked and made (Make folded in): a drop is looked up first, a copy carrying a
+          pointer leads to its original, and what is not on record yet is made with one press, never on its own. */}
       <div>
-        <DropBox mode="check" variant="buttons" />
+        <DropBox mode="check" canMake />
       </div>
 
       {/* The ledger itself, under the checker: every BitGraph by day. */}
