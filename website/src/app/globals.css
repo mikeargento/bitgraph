@@ -5330,3 +5330,8 @@ html:root:root:root:root:root:root:root:root:root body .copy-line .pv-copy { top
 /* Proof details' fold head carries the checks' tally on the right, before the chevron. */
 .pv-details .pv-fold-head .pv-fold-tally { margin-left: auto; margin-right: 12px; font-size: 14px; font-weight: 500; color: var(--dim); }
 .pv-details .pv-fold-head .pv-fold-tally.is-fail { color: var(--err, #b42318); }
+
+/* The sun/moon in the bar: centred on the links' capital letters, not their line box (which includes the descenders),
+   and on desks the same distance from Tools as the links are from each other. */
+html:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav .theme-toggle svg { transform: translateY(-2px); }
+@media (min-width: 761px) { html:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav .theme-toggle { margin-left: 10px !important; } }
