@@ -499,12 +499,12 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <section className="pv-card">
         <div className="pv-section-title">Check it anywhere</div>
         <div className="pv-offline-text">Download the proof and check it offline, beside the file:</div>
-        <div style={{ margin: "16px 0", display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div className="pv-photo-actions" style={{ margin: "16px 0" }}>
           <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={download}>Download proof</button>
           {/* The BitGraphed file: the file with its proof inside, one file that checks with nothing else (2026-10-20). */}
           {bitgraphed && (
             <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>
-              {bitgraphed.busy ? "Assembling\u2026" : "Download the BitGraphed file"}
+              {bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}
             </button>
           )}
         </div>
@@ -552,7 +552,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
                 {bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}
               </button>
             )}
-            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={download}>Download proof</button>
             {m.openUrl && <a className="bg-action-link pv-open" style={{ margin: 0 }} href={m.openUrl} target="_blank" rel="noopener"><span>Open in browser</span></a>}
           </div>
           {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
