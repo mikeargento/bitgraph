@@ -431,7 +431,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
                 title={<>Bound after Base block #{fmtNum(tf.blockNumber)}<span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(tf.blockTimestamp * 1000, attested)}</span></>}
                 note={<>The latest Base block, read just before the bind and held in this file&rsquo;s tree.</>}
               >
-                <Pill href={tf.fileUrl} download="base-block.json">base-block.json</Pill>
+                {/* The floor file rides in the proof itself (its tree entry), so it needs no download of its own. */}
                 <Pill href={`https://basescan.org/block/${tf.blockNumber}`} external>Basescan</Pill>
               </Moment>
             )}
