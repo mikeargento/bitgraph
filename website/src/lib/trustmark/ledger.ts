@@ -43,10 +43,10 @@ export async function recordProofIn(photoProof: Proof, recordBytes: Uint8Array):
     && checkMember(x.proof, d))?.proof ?? null;
 }
 
-/** Publish a record, with the photo's Content Credentials when they go too; its tree's index can lag the bind by a
+/** Publish a record, with the photo's Content Credentials and the BitGraphed file's thumbnail when they go too; its tree's index can lag the bind by a
  *  moment, so a not-found is waited out a few times. */
-export async function publishRecord(recordBytes: Uint8Array, manifest?: Uint8Array | null): Promise<boolean> {
-  const body = JSON.stringify({ recordB64: b64(recordBytes), ...(manifest ? { c2paB64: b64(manifest) } : {}) });
+export async function publishRecord(recordBytes: Uint8Array, manifest?: Uint8Array | null, thumb?: Uint8Array | null): Promise<boolean> {
+  const body = JSON.stringify({ recordB64: b64(recordBytes), ...(manifest ? { c2paB64: b64(manifest) } : {}), ...(thumb ? { thumbB64: b64(thumb) } : {}) });
   for (let attempt = 0; attempt < 12; attempt++) {
     const res = await fetch("/api/trustmark/records", { method: "POST", headers: { "content-type": "application/json" }, body }).catch(() => null);
     if (res?.ok) return true;
@@ -56,7 +56,8 @@ export async function publishRecord(recordBytes: Uint8Array, manifest?: Uint8Arr
   return false;
 }
 
-export type Published = { recordB64: string; proof: Proof; c2paB64?: string; c2paProof?: Proof };
+/** thumbB64 and thumbProof: the BitGraphed file's thumbnail and the proof that binds it in that file's own BitGraph. */
+export type Published = { recordB64: string; proof: Proof; c2paB64?: string; c2paProof?: Proof; thumbB64?: string; thumbProof?: Proof };
 
 /** Every published record the pointer (eref, counter) could mean. Unchecked: the caller verifies each. */
 export async function candidates(eref: number, counter: number): Promise<Published[]> {

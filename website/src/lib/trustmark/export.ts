@@ -12,8 +12,10 @@
  *      this browser, with Pixel Seal (marks.ts), and saved as JPEG. Nothing is recorded unless the mark reads back from that
  *      very JPEG.
  *   3. The marked copy is recorded as its own BitGraph, after the original, the way every drop is (a tree whose first
- *      leaf is the latest Base block), and its members are indexed; a copy already on record keeps its BitGraph.
- *   4. The fingerprint record is published, so a copy can be checked by anyone (app/api/trustmark/records).
+ *      leaf is the latest Base block), with a small thumbnail of it as a third file, and its members are indexed; a
+ *      copy already on record keeps its BitGraph.
+ *   4. The fingerprint record is published with that thumbnail, so a copy can be checked by anyone and the original's
+ *      page can show what was bound (app/api/trustmark/records).
  *   5. The marked copy's BitGraphed file (carrier/5) is assembled, with its Base ceiling once it has landed.
  */
 
@@ -37,6 +39,22 @@ const toUrlSafe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").repla
 export class NoTrustmark extends Error {}
 
 export type TrustmarkedFile = { bytes: Uint8Array; fileName: string; copyProof: Proof; ceiling: boolean; published: boolean };
+
+/** The thumbnail bound beside the marked copy: its long edge at most this many pixels. */
+export const THUMB_MAX = 512;
+export const THUMB_NAME = "thumbnail.jpg";
+
+/** The marked copy, shrunk to THUMB_MAX on its long edge, as a JPEG. */
+async function thumbnail(rgba: Uint8ClampedArray, w: number, h: number): Promise<Uint8Array> {
+  const s = Math.min(1, THUMB_MAX / Math.max(w, h)), tw = Math.max(1, Math.round(w * s)), th = Math.max(1, Math.round(h * s));
+  const full = new OffscreenCanvas(w, h), fg = full.getContext("2d");
+  const c = new OffscreenCanvas(tw, th), g = c.getContext("2d");
+  if (!fg || !g) throw new Error("this browser cannot draw the thumbnail");
+  fg.putImageData(new ImageData(new Uint8ClampedArray(rgba), w, h), 0, 0);
+  g.imageSmoothingQuality = "high";
+  g.drawImage(full, 0, 0, tw, th);
+  return new Uint8Array(await (await c.convertToBlob({ type: "image/jpeg", quality: 0.82 })).arrayBuffer());
+}
 
 async function jpeg(rgba: Uint8ClampedArray, w: number, h: number): Promise<Uint8Array> {
   const c = new OffscreenCanvas(w, h), g = c.getContext("2d");
@@ -77,19 +95,19 @@ async function recordedCopy(bytes: Uint8Array): Promise<Proof | null> {
   return body?.proofs?.find((x) => x.kind === "recorded" && memberOf(x.proof) && checkMember(x.proof, d))?.proof ?? null;
 }
 
-/** Record the marked copy the way every drop is recorded (a tree whose first leaf is the latest Base block), index its
- *  members, and return its member proof. */
-async function recordCopy(copy: File): Promise<Proof> {
+/** Record the marked copy the way every drop is recorded (a tree whose first leaf is the latest Base block), with its
+ *  thumbnail as a third file, index its members, and return the copy's and the thumbnail's member proofs. */
+async function recordCopy(copy: File, thumb: Uint8Array): Promise<{ copy: Proof; thumb: Proof }> {
   const floorFile = baseBlockFileText(await latestBaseBlock());
   const [floorLeaf] = await hashLeaves([new File([floorFile], "base-block.json", { type: "application/json" })]);
-  const [copyLeaf] = await hashLeaves([copy]);
-  const t = await treeFromLeaves([floorLeaf!, copyLeaf!]);
+  const [copyLeaf, thumbLeaf] = await hashLeaves([copy, new File([thumb as BlobPart], THUMB_NAME, { type: "image/jpeg" })]);
+  const t = await treeFromLeaves([floorLeaf!, copyLeaf!, thumbLeaf!]);
   const rootDigest = await digestOf(new TextEncoder().encode(t.rootText));
   const b = await bindOne(rootDigest, { ceiling: true, floorLeaf: true });
   const blocks = memberBlocks(t.tree, t.rootText, floorFile);
   await postTreeMembers({ rootDigestB64: rootDigest, epochId: String(b.commit!.epochId), counter: String(b.commit!.counter), rootText: t.rootText, ...(blocks[0]?.floor ? { floor: blocks[0].floor } : {}) },
     t.tree.leaves.map((l, i) => ({ digestB64: l[2], index: i, path: blocks[i]!.path }))).catch(() => 0);
-  return withMember(b as Record<string, unknown>, blocks[1]!) as Proof;
+  return { copy: withMember(b as Record<string, unknown>, blocks[1]!) as Proof, thumb: withMember(b as Record<string, unknown>, blocks[2]!) as Proof };
 }
 
 /**
@@ -145,14 +163,21 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   // the marked copy is a JPEG named for the photo, and its BitGraphed file is <photo>.bitgraph.jpg, as always
   const stem = dot > 0 ? photo.name.slice(0, dot) : photo.name, copyName = `${stem}.jpg`;
   // The same photo, marked again in this browser, is the same file: a copy already recorded is never recorded twice.
-  const copyProof = (await recordedCopy(bytes)) ?? (await recordCopy(new File([bytes as BlobPart], copyName, { type: "image/jpeg" })));
+  // A copy already on record keeps its BitGraph (bound before thumbnails, it may have none to publish).
+  const earlier = await recordedCopy(bytes);
+  let copyProof: Proof, thumb: Uint8Array | null = null;
+  if (earlier) copyProof = earlier;
+  else {
+    thumb = await thumbnail(marked, img.w, img.h);
+    copyProof = (await recordCopy(new File([bytes as BlobPart], copyName, { type: "image/jpeg" }), thumb)).copy;
+  }
   step("record the file");
 
   onStep?.("Waiting for its Base ceiling…");
   // The photo's Content Credentials go with it when its BitGraph binds them and they record no location.
   const store = manifestStoreOf(new Uint8Array(await photo.arrayBuffer()));
   const manifest = store && (await recordProofIn(photoProof, store)) && !(await readDetachedC2PA(store))?.hasLocation ? store : null;
-  const [published, sidecar] = await Promise.all([publishRecord(rec, manifest), ceilingOf(copyProof)]);
+  const [published, sidecar] = await Promise.all([publishRecord(rec, manifest, thumb), ceilingOf(copyProof)]);
   step("Base ceiling and pointer registration");
   const file = buildBitGraphedFileV5(bytes, copyProof as unknown as Record<string, unknown>, sidecar);
   step("build the file");

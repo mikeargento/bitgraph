@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { epochRef, pack, tag, unpack, phash, MAX_COUNTER } from "../trustmark/payload.ts";
 import { align, signature, MATCH, GRID } from "../trustmark/align.ts";
 import { parseRecord, looksLikePhoto, RECORD_FORMAT } from "../trustmark/record.ts";
+import { resizeRGB } from "../trustmark/tm.ts";
 
 // A real BitGraph's commit (position #18), and the pointer the reference implementation computes for its photo.
 const EPOCH = "Dh0UvjQzP/ty1XU/Q/guOwdyORz+DbQLoRKjrla5gl8=";
@@ -53,6 +54,22 @@ test("a cropped copy aligns to its original's signature, another picture does no
   assert.ok(c.score >= MATCH, `crop ${c.score}`);
   assert.ok(Math.abs(c.window[0] - 0.1) < 0.03 && Math.abs(c.window[2] - 0.1) < 0.03, `window ${c.window}`);
   assert.ok(align(b, W, H, sig).score < MATCH, "another picture must not match");
+});
+
+test("a BitGraphed file's thumbnail matches its original's signature, another picture's does not", () => {
+  // a large photo, its 512-pixel thumbnail, and another picture's thumbnail
+  const W = 2400, H = 1600, a = picture(W, H, 1), b = picture(W, H, 4);
+  const sig = signature(a, W, H);
+  const thumb = (px: Uint8ClampedArray) => {
+    const rgb = new Uint8ClampedArray(W * H * 3);
+    for (let i = 0; i < W * H; i++) { rgb[i * 3] = px[i * 4]!; rgb[i * 3 + 1] = px[i * 4 + 1]!; rgb[i * 3 + 2] = px[i * 4 + 2]!; }
+    const small = resizeRGB(rgb, W, H, 512, 341), out = new Uint8ClampedArray(512 * 341 * 4);
+    for (let i = 0; i < 512 * 341; i++) { out[i * 4] = small[i * 3]!; out[i * 4 + 1] = small[i * 3 + 1]!; out[i * 4 + 2] = small[i * 3 + 2]!; out[i * 4 + 3] = 255; }
+    return out;
+  };
+  const mine = align(thumb(a), 512, 341, sig).score;
+  assert.ok(mine >= MATCH, `thumbnail ${mine}`);
+  assert.ok(align(thumb(b), 512, 341, sig).score < MATCH, "another picture's thumbnail must not match");
 });
 
 test("fingerprint records are read strictly", () => {

@@ -11,11 +11,12 @@ export const dynamic = "force-dynamic";
 
 const MAX_RECORD_BYTES = 4096;
 const MAX_CANDIDATES = 16;
+const MAX_THUMB_BYTES = 300_000;
 const b64 = (u: Uint8Array) => Buffer.from(u).toString("base64");
 const digest = async (u: Uint8Array) => b64(new Uint8Array(await crypto.subtle.digest("SHA-256", u as BufferSource)));
 
 /**
- * POST /api/trustmark/records { recordB64 }: publish a photo's fingerprint record, so a TrustMark pointing to the
+ * POST /api/trustmark/records { recordB64, c2paB64?, thumbB64? }: publish a photo's fingerprint record, so a TrustMark pointing to the
  * photo's BitGraph can be checked by anyone holding only a copy. Sent when a photo is exported with a TrustMark.
  *
  * Nothing is taken on trust. The record must be a file of a tree on the ledger (found by its own hash, where the
@@ -24,7 +25,7 @@ const digest = async (u: Uint8Array) => b64(new Uint8Array(await crypto.subtle.d
  */
 export async function POST(req: Request) {
   if (!ledgerWritesOn()) return NextResponse.json({ error: "Ledger writes are off." }, { status: 503 });
-  let body: { recordB64?: unknown; c2paB64?: unknown };
+  let body: { recordB64?: unknown; c2paB64?: unknown; thumbB64?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON." }, { status: 400 }); }
   if (typeof body.recordB64 !== "string" || body.recordB64.length > MAX_RECORD_BYTES * 2) return NextResponse.json({ error: "recordB64 is required." }, { status: 400 });
   const bytes = new Uint8Array(Buffer.from(body.recordB64, "base64"));
@@ -56,8 +57,20 @@ export async function POST(req: Request) {
       if (!at) return NextResponse.json({ error: "These Content Credentials are not a file of the same BitGraph." }, { status: 400 });
       c2pa = { c2paB64: body.c2paB64, c2paProof: at.proof };
     }
+    // The BitGraphed file's thumbnail, when sent, must be a file of a BitGraph on the ledger (the file's own, bound after
+    // this one). Whether it shows this photo is for the reader to check against the bound fingerprint; the original's
+    // page shows it only when it matches (lib/trustmark/bound-thumbnail.ts).
+    let thumb: { thumbB64: string; thumbProof: Record<string, unknown> } | null = null;
+    if (body.thumbB64 !== undefined) {
+      if (typeof body.thumbB64 !== "string" || body.thumbB64.length > MAX_THUMB_BYTES * 1.4) return NextResponse.json({ error: "thumbB64 is not a thumbnail." }, { status: 400 });
+      const t = new Uint8Array(Buffer.from(body.thumbB64, "base64")), td = await digest(t);
+      const at = (await getProofsByDigest(td)).find((e) => e.kind === "recorded" && memberOf(e.proof) && checkMember(e.proof, td));
+      // indexed a moment after its bind, like the record: the caller retries
+      if (!at) return NextResponse.json({ error: "This thumbnail is not a file of a BitGraph on the ledger (yet)." }, { status: 404 });
+      thumb = { thumbB64: body.thumbB64, thumbProof: at.proof };
+    }
     const eref = await epochRef(epochId);
-    const written = await putTrustmarkRecordOnce(trustmarkRecordKey(eref, counter, epochId, recordDigest), JSON.stringify({ format: "bitgraph-trustmark-published/1", recordB64: body.recordB64, proof: mine.proof, ...(c2pa ?? {}) }, null, 1));
+    const written = await putTrustmarkRecordOnce(trustmarkRecordKey(eref, counter, epochId, recordDigest), JSON.stringify({ format: "bitgraph-trustmark-published/1", recordB64: body.recordB64, proof: mine.proof, ...(c2pa ?? {}), ...(thumb ?? {}) }, null, 1));
     return NextResponse.json({ written, eref, counter });
   } catch (e) {
     if (e instanceof LedgerUnavailableError) return NextResponse.json({ error: "ledger unavailable" }, { status: 503 });

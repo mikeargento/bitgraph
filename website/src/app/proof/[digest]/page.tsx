@@ -27,6 +27,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB, getBitGraphedFromIDB, putBitGraphedToIDB } from "@/lib/file-cache";
 import { warmModels } from "@/lib/trustmark/runtime";
+import { boundThumbnail, type BoundThumbnail } from "@/lib/trustmark/bound-thumbnail";
 import { redrawRecordedArt } from "@/lib/art-position";
 import { ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, ART_ALGORITHM_V19, toBase64Url, type ArtRecipe } from "@/lib/commitment-art";
 import { planV16, svgFromPngV16, svgTextV16 } from "@/lib/commitment-art-v16";
@@ -670,6 +671,15 @@ export default function ProofPage() {
     job.catch(() => { if (carrierJob.current?.job === job) carrierJob.current = null; });
     return job;
   }
+  // What this BitGraph bound, as a picture, when its BitGraphed file published a thumbnail (lib/trustmark/bound-thumbnail):
+  // shown when the photo itself is not in hand, checked against the fingerprint bound here.
+  const [boundThumb, setBoundThumb] = useState<BoundThumbnail | null>(null);
+  useEffect(() => {
+    if (!proof || !atomicCarrier || cachedFile) return;
+    let gone = false, url: string | null = null;
+    void boundThumbnail(proof as never).then((t) => { if (gone) { if (t) URL.revokeObjectURL(t.url); return; } url = t?.url ?? null; setBoundThumb(t); }).catch(() => {});
+    return () => { gone = true; if (url) URL.revokeObjectURL(url); setBoundThumb(null); };
+  }, [proof, atomicCarrier, cachedFile]);
   // A photo in hand on its page: the pointer's models start loading now, so a Download does not wait on them.
   useEffect(() => {
     if (!proof || !cachedFile || !atomicCarrier || !looksLikePhoto({ name: cachedFile.name })) return;
@@ -2253,6 +2263,7 @@ export default function ProofPage() {
           ) : heldCopy ? (
             <>
               <PhotoCard cachedFile={heldCopy} bare label={heldCopy.kind === "bitgraphed" ? "BitGraphed file" : "copy"} onOpenUrl={setPhotoOpenUrl} />
+              {boundThumb && <BoundThumbView t={boundThumb} compare />}
               <p className="pv-redraw-check">
                 <span>
                   {heldCopy.kind === "bitgraphed"
@@ -2270,6 +2281,7 @@ export default function ProofPage() {
             </div>
           ) : (
             <div style={{ padding: 16 }}>
+              {boundThumb && <BoundThumbView t={boundThumb} />}
               <HostedFilesView state={hosted} />
               {/* Once a host's files have matched, the record's files are already on the page: no "Locate the file" row
                   (2026-10-10). Generic, not Jev's: any matched ?files= bundle hides it; a failed or absent one keeps it. */}
@@ -3084,6 +3096,24 @@ function stdDigest(digestParam: string): string {
   let d = decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
   while (d.length % 4 !== 0) d += "=";
   return d;
+}
+
+/* ── The thumbnail this BitGraph's BitGraphed file bound, shown when the photo is not in hand. Beside a copy it is there
+   to compare with; alone it is the picture this BitGraph bound. Either way a reference, labelled as one. ── */
+
+function BoundThumbView({ t, compare = false }: { t: BoundThumbnail; compare?: boolean }) {
+  const [zoomed, setZoomed] = useState(false);
+  return (
+    <figure className={`pv-bound-thumb${compare ? " is-compare" : ""}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={t.url} alt="The thumbnail this BitGraph's BitGraphed file bound" onClick={() => setZoomed(true)} />
+      <figcaption>
+        {compare ? "What this BitGraph bound, to compare: " : ""}a thumbnail bound in BitGraph #{t.counter.toLocaleString("en-US")}, the BitGraphed file.
+        {" "}It matches the fingerprint this BitGraph bound. Only the original&rsquo;s exact bytes prove the photo.
+      </figcaption>
+      {zoomed && <Lightbox src={t.url} alt="The bound thumbnail" onClose={() => setZoomed(false)} />}
+    </figure>
+  );
 }
 
 /* ── Lightbox — the photo at full size over the page; a click, Esc or × closes it ── */
