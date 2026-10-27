@@ -2,7 +2,7 @@
 
 /**
  * Loading what marking and reading need, once per page and only when first needed: ONNX Runtime Web (pinned, from
- * its CDN build), Adobe's BCH library and each model (public/trustmark), each model checked against its SHA-256
+ * its CDN build, with WebGPU), Adobe's BCH library and each model (public/trustmark), each model checked against its SHA-256
  * (models.ts). TrustMark's reader is fetched only when a copy has no Pixel Seal pointer.
  */
 
@@ -31,7 +31,7 @@ function script(src: string): Promise<void> {
 type Globals = { ort?: Ort; BCH?: Bch["BCH"]; BCH_Encode?: Bch["BCH_Encode"]; BCH_Decode?: Bch["BCH_Decode"] };
 
 async function libraries(): Promise<{ ort: Ort; bch: Bch }> {
-  await Promise.all([script(`${ORT_BASE}ort.min.js`), script("/trustmark/bch_ecc.min.js")]);
+  await Promise.all([script(`${ORT_BASE}ort.webgpu.min.js`), script("/trustmark/bch_ecc.min.js")]);
   const g = globalThis as unknown as Globals;
   if (!g.ort || !g.BCH || !g.BCH_Encode || !g.BCH_Decode) throw new Error("the pointer's reader did not load");
   g.ort.env.wasm.wasmPaths = ORT_BASE;
@@ -53,7 +53,12 @@ const sessions = new Map<ModelName, Promise<OrtSession>>();
 function session(m: ModelName, ort: Ort): Promise<OrtSession> {
   let s = sessions.get(m);
   if (!s) {
-    s = modelBytes(m).then((bytes) => ort.InferenceSession.create(bytes, { executionProviders: ["wasm"] }));
+    // Pixel Seal runs on the graphics chip where the browser offers WebGPU (several times faster than one CPU core),
+    // and on the CPU otherwise or if WebGPU fails to start; TrustMark's reader stays on the CPU.
+    const gpu = m !== "decoder" && typeof navigator !== "undefined" && "gpu" in navigator;
+    s = modelBytes(m).then((bytes) => gpu
+      ? ort.InferenceSession.create(bytes, { executionProviders: ["webgpu", "wasm"] }).catch(() => ort.InferenceSession.create(bytes, { executionProviders: ["wasm"] }))
+      : ort.InferenceSession.create(bytes, { executionProviders: ["wasm"] }));
     s.catch(() => sessions.delete(m));
     sessions.set(m, s);
   }
