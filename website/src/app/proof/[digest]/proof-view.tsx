@@ -534,7 +534,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
      saying what the BitGraph says, the downloads, and the proof itself folded under Proof details. */
   {
     const verdictWord = c.state === "done" ? (c.verdict === "TRUE" ? "\u2713 Valid proof" : c.verdict === "FALSE" ? "\u2717 Not a valid proof" : "Undetermined") : c.state === "failed" ? "Not checked" : "Checking\u2026";
-    // Content Credentials are the photo's own claim, signed by an outside party: labelled as such, never as BitGraph's.
     const who = m.c2pa?.present ? [m.c2pa.creator, m.c2pa.signatureIssuer ? `signed by ${m.c2pa.signatureIssuer}` : null].filter(Boolean).join(", ") : "";
     return (
       <div className="pv">
@@ -545,9 +544,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {/* The BitGraph's name leads; a proof that fails says so in its place, never folded away. */}
             <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>
             {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
-            {/* when it was BitGraphed, never when the picture was made: the proof cannot say that */}
-            {m.attestedMs !== null && <div className="pv-photo-meta">BitGraphed {longDateTz(new Date(m.attestedMs))}, {timeTz(new Date(m.attestedMs))}</div>}
-            {who && <div className="pv-photo-who">Content Credentials: {who}</div>}
+            {m.attestedMs !== null && <div className="pv-photo-meta">{longDateTz(new Date(m.attestedMs))}, {timeTz(new Date(m.attestedMs))}</div>}
+            {who && <div className="pv-photo-who">{who}</div>}
           </div>
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
         </section>
