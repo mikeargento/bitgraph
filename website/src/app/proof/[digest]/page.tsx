@@ -642,13 +642,13 @@ export default function ProofPage() {
      recorded as the next BitGraph. Download then hands over the finished file, or waits for it. Opening a link alone
      never makes one: that is left to the Download button, as before. */
   const carrierJob = useRef<{ key: string; job: Promise<TrustmarkedFile> } | null>(null);
-  function photoCarrier(name: string, data: ArrayBuffer, p: BitGraphProof): Promise<TrustmarkedFile> {
+  function photoCarrier(name: string, data: ArrayBuffer, p: BitGraphProof, copyChecked = false): Promise<TrustmarkedFile> {
     const key = `${String(p.commit?.epochId)}:${String(p.commit?.counter)}:${name}:${data.byteLength}`;
     if (carrierJob.current?.key === key) return carrierJob.current.job;
     const job = (async () => {
       const bytes = new Uint8Array(data);
       const d = btoa(Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (x) => String.fromCharCode(x)).join(""));
-      return trustmarkedFile(new File([bytes], name), d, p as never);
+      return trustmarkedFile(new File([bytes], name), d, p as never, undefined, { copyChecked });
     })();
     carrierJob.current = { key, job };
     // a failure is not kept: the next Download tries again
@@ -657,7 +657,8 @@ export default function ProofPage() {
   }
   useEffect(() => {
     if (!freshRef.current || !proof || !cachedFile || !atomicCarrier || !looksLikePhoto({ name: cachedFile.name })) return;
-    void photoCarrier(cachedFile.name, cachedFile.data, proof).catch(() => {});
+    // Make has just read this photo for a pointer (a copy is led to its original, never recorded), so it is not read again
+    void photoCarrier(cachedFile.name, cachedFile.data, proof, true).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proof, cachedFile, atomicCarrier]);
   // A photo noticed at Make as a copy of an earlier BitGraph (lib/trustmark/copy-note): read after the first render,

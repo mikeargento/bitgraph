@@ -67,22 +67,28 @@ function luma(px: ArrayLike<number>, n: number, stride: number): Float32Array {
  * of the luma) and contrast masking (Sobel gradient magnitude), both zero-padded, on the 0-1 scale.
  */
 export function jnd(L: Float32Array, W: number, H: number): Float32Array {
-  const at = (x: number, y: number) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : L[y * W + x]!);
+  // the luma zero-padded by 2 on every side, so the 5x5 and 3x3 windows need no bounds checks
+  const P = W + 4, pad = new Float32Array(P * (H + 4));
+  for (let y = 0; y < H; y++) pad.set(L.subarray(y * W, (y + 1) * W), (y + 2) * P + 2);
   const out = new Float32Array(W * H);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    // [[1,1,1,1,1],[1,2,2,2,1],[1,2,0,2,1],[1,2,2,2,1],[1,1,1,1,1]] / 32
-    let s = 0;
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-      if (dx === 0 && dy === 0) continue;
-      s += (Math.abs(dx) === 2 || Math.abs(dy) === 2 ? 1 : 2) * at(x + dx, y + dy);
+  for (let y = 0; y < H; y++) {
+    const r0 = y * P, r1 = r0 + P, r2 = r1 + P, r3 = r2 + P, r4 = r3 + P;
+    for (let x = 0; x < W; x++) {
+      // [[1,1,1,1,1],[1,2,2,2,1],[1,2,0,2,1],[1,2,2,2,1],[1,1,1,1,1]] / 32, summed in the same order as the kernel's rows
+      let s = pad[r0 + x]! + pad[r0 + x + 1]! + pad[r0 + x + 2]! + pad[r0 + x + 3]! + pad[r0 + x + 4]!;
+      s += pad[r1 + x]! + 2 * pad[r1 + x + 1]! + 2 * pad[r1 + x + 2]! + 2 * pad[r1 + x + 3]! + pad[r1 + x + 4]!;
+      s += pad[r2 + x]! + 2 * pad[r2 + x + 1]! + 2 * pad[r2 + x + 3]! + pad[r2 + x + 4]!;
+      s += pad[r3 + x]! + 2 * pad[r3 + x + 1]! + 2 * pad[r3 + x + 2]! + 2 * pad[r3 + x + 3]! + pad[r3 + x + 4]!;
+      s += pad[r4 + x]! + pad[r4 + x + 1]! + pad[r4 + x + 2]! + pad[r4 + x + 3]! + pad[r4 + x + 4]!;
+      let la = s / 32;
+      la = la <= 127 ? 17 * (1 - Math.sqrt(la / 127 + 1e-5)) : (3 / 128) * (la - 127) + 3;
+      const tl = pad[r1 + x + 1]!, t = pad[r1 + x + 2]!, tr = pad[r1 + x + 3]!, l = pad[r2 + x + 1]!, r = pad[r2 + x + 3]!, bl = pad[r3 + x + 1]!, b = pad[r3 + x + 2]!, br = pad[r3 + x + 3]!;
+      const gx = -tl + tr - 2 * l + 2 * r - bl + br, gy = tl + 2 * t + tr - bl - 2 * b - br;
+      const g2 = gx * gx + gy * gy;
+      // 16 cm^2.4 / (cm^2 + 26^2), cm = sqrt(g2), so cm^2.4 = g2^1.2; zero where the picture is flat
+      const cm = g2 === 0 ? 0 : 0.117 * ((16 * g2 ** 1.2) / (g2 + 26 * 26));
+      out[y * W + x] = Math.max(la + cm - 0.3 * Math.min(la, cm), 0) / 255;
     }
-    let la = s / 32;
-    la = la <= 127 ? 17 * (1 - Math.sqrt(la / 127 + 1e-5)) : (3 / 128) * (la - 127) + 3;
-    const tl = at(x - 1, y - 1), t = at(x, y - 1), tr = at(x + 1, y - 1), l = at(x - 1, y), r = at(x + 1, y), bl = at(x - 1, y + 1), b = at(x, y + 1), br = at(x + 1, y + 1);
-    const gx = -tl + tr - 2 * l + 2 * r - bl + br, gy = tl + 2 * t + tr - bl - 2 * b - br;
-    let cm = Math.sqrt(gx * gx + gy * gy);
-    cm = 0.117 * ((16 * cm ** 2.4) / (cm * cm + 26 * 26));
-    out[y * W + x] = Math.max(la + cm - 0.3 * Math.min(la, cm), 0) / 255;
   }
   return out;
 }
