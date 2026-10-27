@@ -28,6 +28,15 @@ export function SiteNav() {
   // Phones: the links fold into a menu under the bar, the sun/moon at its bottom; a new page closes it.
   const [open, setOpen] = useState(false);
   useEffect(() => { setOpen(false); }, [pathname]);
+  // the page under the open menu stays still, and Esc closes it
+  useEffect(() => {
+    if (!open) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", key);
+    return () => { document.body.style.overflow = overflow; window.removeEventListener("keydown", key); };
+  }, [open]);
 
 
   return (

@@ -5418,17 +5418,18 @@ html:root:root:root:root:root body .pv-bindings li.is-current { color: var(--ink
 html:root:root:root:root:root body .pv-bindings-when { font-weight: 400; color: var(--dim); }
 html:root:root:root:root:root body .db-copy-line { margin-top: 14px; text-align: center; font-size: 15px; color: var(--dim); }
 html:root:root:root:root:root body .db-copy-line a { color: var(--ink); }
-/* Phones: the bar is the wordmark and a menu button; the menu opens under the bar, the sun/moon at its bottom */
+/* Phones: the bar is the wordmark and a menu button; the menu covers the screen under the bar, the links large, the
+   sun/moon at its bottom */
 html:root:root:root:root:root body #site-nav .nav-menu-btn { display: none; }
 @media (max-width: 640px) {
   html:root:root:root:root:root:root body #site-nav .bg-nav-links { display: none !important; }
-  html:root:root:root:root:root body #site-nav .nav-menu-btn { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: -10px; padding: 0; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
-  html:root:root:root:root:root body #site-nav .nav-sheet { display: flex; flex-direction: column; padding: 8px 5% 20px; background: var(--bar); border-bottom: 1px solid var(--line); animation: bg-fade-in 160ms ease-out; }
-  html:root:root:root:root:root body #site-nav .nav-sheet-link { padding: 14px 0; font-size: 18px; font-weight: 500; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line-2, var(--line)); }
-  html:root:root:root:root:root body #site-nav .nav-sheet-link[aria-current="page"] { font-weight: 700; }
-  html:root:root:root:root:root body #site-nav .nav-sheet-theme { display: flex; justify-content: flex-start; padding-top: 14px; }
+  html:root:root:root:root:root body #site-nav .nav-menu-btn { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin-right: -12px; padding: 0; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
+  html:root:root:root:root:root body #site-nav .nav-menu-btn svg { width: 28px; height: 28px; }
+  html:root:root:root:root:root body #site-nav .nav-sheet { position: fixed; top: 64px; left: 0; right: 0; bottom: 0; z-index: 49; display: flex; flex-direction: column; gap: 4px; padding: 24px 5% calc(32px + env(safe-area-inset-bottom)); background: var(--bar); overflow-y: auto; animation: bg-fade-in 160ms ease-out; }
+  html:root:root:root:root:root:root:root body #site-nav#site-nav .nav-sheet-link { padding: 10px 0 !important; font-size: 32px !important; line-height: 1.2 !important; font-weight: 600 !important; letter-spacing: -0.01em !important; color: var(--dim) !important; text-decoration: none !important; border: 0 !important; }
+  html:root:root:root:root:root:root:root body #site-nav#site-nav .nav-sheet-link[aria-current="page"] { color: var(--ink) !important; }
+  html:root:root:root:root:root body #site-nav .nav-sheet-theme { display: flex; margin-top: auto; padding-top: 24px; }
+  html:root:root:root:root:root:root:root body #site-nav .nav-sheet-theme .theme-toggle { margin: 0 0 0 -8px !important; }
 }
-/* Make and Watermarks: what the box does, under it */
-html:root:root:root:root:root:root:root:root body main .page-about { max-width: 640px; margin: 28px 0 0; text-align: left !important; }
-html:root:root:root:root:root:root:root:root body main .page-about p { font-size: 15px !important; line-height: 1.6 !important; color: var(--dim); margin: 0 0 12px; text-align: left !important; }
-html:root:root:root:root:root body .page-about a { color: var(--ink); }
+/* Make and Watermarks: the box under the page's opening paragraph, as Tools has its cards */
+html:root:root:root:root:root body .page-box { margin-top: 32px; }
