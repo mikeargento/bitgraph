@@ -5351,7 +5351,7 @@ html:root:root:root:root:root body .pv-lightbox-close { position: absolute; top:
 html:root:root:root:root:root body .pv-details-fold { transition: background-color 160ms ease, border-color 160ms ease; }
 html:root:root:root:root:root body .pv-details-fold > .pv-fold-head .pv-chevron { transition: transform 200ms ease, translate 160ms ease; }
 @media (hover: hover) {
-  html:root:root:root:root:root body .pv-details-fold:has(> .pv-fold-head:hover) { background: var(--panel-2) !important; border-color: var(--ink-3, var(--dim)) !important; }
+  html:root:root:root:root:root:root:root:root:root:root body .pv-details-fold:has(> .pv-fold-head:hover) { background: var(--panel-2) !important; border-color: var(--ink-3, var(--dim)) !important; }
   html:root:root:root:root:root body .pv-details-fold > .pv-fold-head[aria-expanded="false"]:hover .pv-chevron { translate: 3px 0; }
   html:root:root:root:root:root body .pv-details-fold > .pv-fold-head[aria-expanded="true"]:hover .pv-chevron { translate: 0 2px; }
 }
