@@ -69,7 +69,7 @@ import { toUrlSafeB64, fromUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf as treeMemberOf, rootTextBytes as treeRootTextBytes } from "@/lib/tree-member";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 import { looksLikePhoto } from "@/lib/trustmark/record";
-import { NoTrustmark, trustmarkedFile } from "@/lib/trustmark/export";
+import { NoTrustmark, trustmarkedFile, type TrustmarkedFile } from "@/lib/trustmark/export";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
 import { parseRecord } from "@/lib/trustmark/record";
@@ -636,6 +636,29 @@ export default function ProofPage() {
   const atomicCarrier = !!proof && (proof.commit as { atomic?: boolean } | undefined)?.atomic === true
     && !(proof.commit as { slotAnchor?: unknown } | undefined)?.slotAnchor && baseFloorOfProof(proof) === null;
   const [carrierMsg, setCarrierMsg] = useState<string | null>(null);
+  /* A photo's BitGraphed file (lib/trustmark/export) is made in the background as soon as the page holds the photo
+     after Make (?fresh=1): the hidden pointer from this BitGraph's nonce, written into the pixels, and the marked file
+     recorded as the next BitGraph. Download then hands over the finished file, or waits for it. Opening a link alone
+     never makes one: that is left to the Download button, as before. */
+  const carrierJob = useRef<{ key: string; job: Promise<TrustmarkedFile> } | null>(null);
+  function photoCarrier(name: string, data: ArrayBuffer, p: BitGraphProof): Promise<TrustmarkedFile> {
+    const key = `${String(p.commit?.epochId)}:${String(p.commit?.counter)}:${name}:${data.byteLength}`;
+    if (carrierJob.current?.key === key) return carrierJob.current.job;
+    const job = (async () => {
+      const bytes = new Uint8Array(data);
+      const d = btoa(Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (x) => String.fromCharCode(x)).join(""));
+      return trustmarkedFile(new File([bytes], name), d, p as never);
+    })();
+    carrierJob.current = { key, job };
+    // a failure is not kept: the next Download tries again
+    job.catch(() => { if (carrierJob.current?.job === job) carrierJob.current = null; });
+    return job;
+  }
+  useEffect(() => {
+    if (!freshRef.current || !proof || !cachedFile || !atomicCarrier || !looksLikePhoto({ name: cachedFile.name })) return;
+    void photoCarrier(cachedFile.name, cachedFile.data, proof).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proof, cachedFile, atomicCarrier]);
   // A photo noticed at Make as a copy of an earlier BitGraph (lib/trustmark/copy-note): read after the first render,
   // since session storage is only in the browser.
   const [copyOf, setCopyOf] = useState<ReturnType<typeof copyOfNote>>(null);
@@ -1971,9 +1994,8 @@ export default function ProofPage() {
       let withoutMark: string | null = null;
       if (atomicCarrier && looksLikePhoto({ name: cachedFile.name })) {
         try {
-          const data = new Uint8Array(cachedFile.data);
-          const d = btoa(Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)), (x) => String.fromCharCode(x)).join(""));
-          const t = await trustmarkedFile(new File([data], cachedFile.name), d, proof as never, (step) => setCarrierMsg(step));
+          // made in the background after Make (above), or made now and waited for
+          const t = await photoCarrier(cachedFile.name, cachedFile.data, proof);
           const url = URL.createObjectURL(new Blob([t.bytes as unknown as BlobPart], { type: "application/octet-stream" }));
           const el = document.createElement("a"); el.href = url; el.download = t.fileName; el.click();
           setTimeout(() => URL.revokeObjectURL(url), 1000);
