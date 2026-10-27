@@ -316,6 +316,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
   const [pairing, setPairing] = useState<{ proofs: number; files: number; valid: number; invalid: number; noProof: number; unusedProofs: number; done: boolean } | null>(null);
   const [batch, setBatch] = useState<{ root: string; total: number; rootFile: string | null; rootProof: Proof | null; rootDigest: string | null; rootState: "looking" | "found" | "missing" | "mismatch" | "absent"; rows: Array<{ name: string; index: number | null }> } | null>(null);
   const [bulk, setBulk] = useState<{ total: number; made: number; found: number; missing: number; failed: number; done: boolean; proofs: Proof[]; ms: number } | null>(null);
+  // The files of a big check that are not on record yet, one per digest: on Proofs, offered to be made in one press.
+  const [bulkNew, setBulkNew] = useState<File[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -375,7 +377,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
   /* A big drop: hash everything here, then bind in batches of 50 (make) or look each up (check). Rate limits are
      waited out, never treated as failures; the enclave's daily restart (503) is waited out too. */
   const takeMany = useCallback(async (files: File[]) => {
-    setRows([]); setStatus(null);
+    setRows([]); setStatus(null); setBulkNew([]);
     const total = files.length;
     const t0 = performance.now();
     const st = { total, made: 0, found: 0, missing: 0, failed: 0, done: false, proofs: [] as Proof[], ms: 0 };
@@ -422,6 +424,11 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       const seen = new Set<string>(st.proofs.map((p) => p.artifact?.digestB64 as string));
       for (const d of todo) if (!seen.has(d) && !unknown.has(d)) { fresh.push(d); seen.add(d); }
     }
+    if (mode === "check" && canMake) {
+      const want = new Set(fresh), picked: File[] = [];
+      files.forEach((f, i) => { const d = digests[i]; if (d && want.delete(d)) picked.push(f); });
+      setBulkNew(picked);
+    }
     if (mode === "make" && fresh.length) { // the ledger's search only looks up
       const chunks: string[][] = [];
       for (let i = 0; i < fresh.length; i += 50) chunks.push(fresh.slice(i, i + 50));
@@ -449,7 +456,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       });
     }
     st.done = true; setStatus(null); show();
-  }, [mode]);
+  }, [mode, canMake]);
 
   const downloadAll = () => {
     if (!bulk) return;
@@ -992,6 +999,14 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               </div>
             </div>
           )}
+          {/* the files not on record yet, made as one drop is (a tree on the Base floor, photos with their fingerprints) */}
+          {bulk.done && mode === "check" && canMake && bulkNew.length > 0 && (
+            <div className="db-make">
+              <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={busy} onClick={() => { const fs = bulkNew; setBulk(null); setBulkNew([]); void takePlugins(fs); }}>
+                {busy ? "Making…" : bulkNew.length === 1 ? (bulk.found ? "Make a BitGraph of the other file" : "Make a BitGraph") : `Make one BitGraph of ${bulk.found ? "the other" : "all"} ${bulkNew.length.toLocaleString("en-US")}`}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1042,7 +1057,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         <div className="db-make">
           {/* On Proofs the new files are made as one drop is (a tree on the Base floor, photos with their fingerprints) */}
           <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={busy} onClick={() => void (mode === "make" ? make() : takePlugins(rows.filter((r) => r.state === "new" && r.bytes).map((r) => new File([r.bytes!.slice()], r.name))))}>
-            {busy ? "Making…" : `Make ${newCount === 1 ? "a BitGraph" : `${newCount} BitGraphs`}`}
+            {busy ? "Making…" : newCount === 1 ? "Make a BitGraph" : mode === "make" ? `Make ${newCount} BitGraphs` : `Make one BitGraph of these ${newCount}`}
           </button>
         </div>
       )}
