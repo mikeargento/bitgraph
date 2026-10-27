@@ -2285,7 +2285,7 @@ export default function ProofPage() {
               <HostedFilesView state={hosted} />
               {/* Once a host's files have matched, the record's files are already on the page: no "Locate the file" row
                   (2026-10-10). Generic, not Jev's: any matched ?files= bundle hides it; a failed or absent one keeps it. */}
-              {hosted.phase === "matched" ? null : <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} />}
+              {hosted.phase === "matched" ? null : <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} compact={!!boundThumb} />}
             </div>
           );
           const hashes: FieldView[] = isEth
@@ -2584,7 +2584,10 @@ function BringYourFile({
   onResolvedMember,
   onTreeEvidence,
   onCopy,
+  compact = false,
 }: {
+  /** Under a bound thumbnail the picture is already on the page: the box is one quiet line, for checking the original. */
+  compact?: boolean;
   /** A copy of this page's photo, carrying its pointer: shown in the file pane, labelled for what it is. */
   onCopy?: (copy: HeldCopy) => void;
   proof: BitGraphProof;
@@ -2975,8 +2978,8 @@ function BringYourFile({
       /* One drop box site-wide (2026-09-17: 16:9, and every box the
          same): the geometry, the centring and the type are the .dropbox
          rules in globals.css; only the state colours are set here. */
-      className="dropbox"
-      style={{ backgroundColor: dragOver ? "var(--tint)" : "var(--panel)", ...edges.edgeStyle(edge) }}
+      className={compact ? "dropbox is-compact" : "dropbox"}
+      style={compact && !dragOver && !hover ? { backgroundColor: "transparent" } : { backgroundColor: dragOver ? "var(--tint)" : "var(--panel)", ...edges.edgeStyle(edge) }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
@@ -3076,9 +3079,13 @@ function BringYourFile({
           {/* Black at rest, brand blue on hover, off the same state the
               dashed edges use, so title and frame light up together. */}
           {/* One drop box site-wide (2026-09-17): the mark, one sentence, one quiet line. */}
-          <DropPrompt quiet="BitGraph searches by hash and finds the match for you, even if you do not know which file it is. Nothing is uploaded; the search runs in your browser.">
-            Find this file: drag files or a folder here, or <Browse />
-          </DropPrompt>
+          {compact ? (
+            <div className="dropbox-line">Have the original? <Browse>Check it</Browse></div>
+          ) : (
+            <DropPrompt quiet="BitGraph searches by hash and finds the match for you, even if you do not know which file it is. Nothing is uploaded; the search runs in your browser.">
+              Find this file: drag files or a folder here, or <Browse />
+            </DropPrompt>
+          )}
           {/* ⚠️ No "choose a folder" link here either, in any browser: every
               click path to a folder raises a view-files or upload-files
               warning, which is intolerable on a box whose own copy promises

@@ -5387,3 +5387,11 @@ html:root:root:root:root:root:root:root:root:root:root body .pv-lightbox .pv-lig
 html:root:root:root:root:root body .pv-bound-thumb figcaption { font-size: 14px; line-height: 1.5; color: var(--dim); text-align: center; max-width: 560px; }
 /* the bar's own head never takes a fill of its own, open or not: the card is the one surface */
 html:root:root:root:root:root:root:root:root:root:root body .pv-details-fold > .pv-fold-head, html:root:root:root:root:root:root:root:root:root:root body .pv-details-fold > .pv-fold-head:hover { background: transparent !important; }
+
+/* Under a bound thumbnail the find-the-file box is one quiet line (page.tsx, BringYourFile compact): no frame at rest,
+   the drop frame on hover and while a file is dragged over it. */
+html:root:root:root:root:root:root:root:root:root:root body .dropbox.is-compact { aspect-ratio: auto !important; min-height: 0 !important; padding: 14px 16px !important; }
+html:root:root:root:root:root:root:root:root:root:root body .dropbox.is-compact:not(:hover) { border-color: transparent !important; }
+html:root:root:root:root:root:root:root:root:root:root body .dropbox.is-compact .dropbox-line { margin: 0 !important; font-size: 15px; color: var(--dim); }
+html:root:root:root:root:root:root:root:root:root:root body .dropbox.is-compact:not(:hover) { box-shadow: none !important; }
+html:root:root:root:root:root:root:root:root:root:root body .dropbox.is-compact .dropbox-line { max-width: none !important; text-wrap: balance; }
