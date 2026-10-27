@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
@@ -13,8 +14,10 @@ import { ThemeToggle } from "@/components/theme-toggle";
  * the bar; on phones they fold into a menu button that opens a sheet under the bar.
  */
 const LINKS: Array<{ href: string; label: string }> = [
-  // Proofs: drop a file to check it or make its BitGraph, and read every BitGraph by day (Make folded in here).
+  // One job each: Make binds a drop, Proofs is the ledger, Watermarks finds a copy's original.
+  { href: "/make", label: "Make" },
   { href: "/ledger", label: "Proofs" },
+  { href: "/watermarks", label: "Watermarks" },
   { href: "/demos", label: "Demos" },
   { href: "/tools", label: "Tools" },
 ];
@@ -22,6 +25,9 @@ const LINKS: Array<{ href: string; label: string }> = [
 export function SiteNav() {
   const pathname = usePathname();
   const current = (href: string) => (pathname === href || pathname.startsWith(href + "/") ? "page" : undefined);
+  // Phones: the links fold into a menu under the bar, the sun/moon at its bottom; a new page closes it.
+  const [open, setOpen] = useState(false);
+  useEffect(() => { setOpen(false); }, [pathname]);
 
 
   return (
@@ -40,7 +46,22 @@ export function SiteNav() {
           {/* The sun/moon, upper right again (2026-10-21). */}
           <ThemeToggle />
         </nav>
+        <button type="button" className="nav-menu-btn" aria-label={open ? "Close the menu" : "Open the menu"} aria-expanded={open} aria-controls="nav-sheet" onClick={() => setOpen((o) => !o)}>
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+            {open
+              ? <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              : <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}
+          </svg>
+        </button>
       </div>
+      {open && (
+        <nav id="nav-sheet" aria-label="Site" className="nav-sheet">
+          {LINKS.map((l) => (
+            <Link key={l.href} href={l.href} className="nav-sheet-link" aria-current={current(l.href)} onClick={() => setOpen(false)}>{l.label}</Link>
+          ))}
+          <div className="nav-sheet-theme"><ThemeToggle /></div>
+        </nav>
+      )}
     </div>
   );
 }

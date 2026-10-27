@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { DropBox } from "@/components/drop-box";
 import { LedgerRows } from "@/components/ledger-rows";
 import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-ledger";
 
@@ -81,15 +80,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       {/* No visible h1: it repeated the nav (2026-10-17). */}
         <h1 className="sr-only">Proofs.</h1>
 
-      {/* Proofs is where files are both checked and made (Make folded in): a drop is looked up first, a copy carrying a
-          pointer leads to its original, and what is not on record yet is made with one press, never on its own. */}
-      <div>
-        <DropBox mode="check" canMake />
-      </div>
-
-      {/* The ledger itself, under the checker: every BitGraph by day. */}
-      {/* The same divider as between sections elsewhere: a hairline halfway through the 96px gap. */}
-      <div style={{ height: 48, borderBottom: "1px solid var(--line-2)", marginBottom: 48 }} aria-hidden="true" />
+      {/* The ledger itself: every BitGraph by day. Making is on Make, checking a copy on Watermarks. */}
       {/* LEDGER on the left, the day links and Calendar on the right; no paragraph (2026-10-17). */}
       <div className="ledger-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", margin: "0 0 20px" }}>
         <div>

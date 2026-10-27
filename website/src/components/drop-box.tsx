@@ -717,7 +717,10 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       if (list) { await takePlugins([], list); return; }
     }
     // Making, and more than one file (no proofs or tree among them, those are checks above): one tree, one BitGraph.
-    if (mode === "make" && files.length > 1) { await takePlugins(files); return; }
+    // Making: every drop is bound at once, one file or many, as one tree and one BitGraph. Nothing is looked up first:
+    // the same bytes bound again get a BitGraph of their own, and the proof page lists them all in order. A lone proof
+    // file is the one exception: it opens the proof it belongs to.
+    if (mode === "make" && !(files.length === 1 && proofFileOf(files[0]!, new Uint8Array(await files[0]!.arrayBuffer())))) { await takePlugins(files); return; }
     if (files.length > MAX_FILES) { await takeMany(files); return; }
     setBulk(null);
     const picked = files.slice(0, MAX_FILES);
@@ -881,11 +884,13 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         {/* A touch screen cannot drop a file or choose a folder: there the box only offers to choose files, and the
             whole box is the tap (globals.css, .db-zone-touch). */}
         <div className="db-zone-title">{status ?? <>
-          <span className="db-zone-desk">{mode === "check" ? "Drop files here to check them, or choose " : "Drop files or a folder here, or choose "}
-            <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>files</button>
-            {" · "}
-            <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); folderRef.current?.click(); }}>a folder</button></span>
-          <span className="db-zone-touch"><span className="db-zone-pick">Choose files</span>{mode === "check" ? " to check" : " to BitGraph"}</span></>}</div>
+          {mode === "check"
+            ? <span className="db-zone-desk">Drop a copy here to find its original, or <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>choose one</button></span>
+            : <span className="db-zone-desk">Drop files or a folder here, or choose{" "}
+              <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>files</button>
+              {" · "}
+              <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); folderRef.current?.click(); }}>a folder</button></span>}
+          <span className="db-zone-touch"><span className="db-zone-pick">{mode === "check" ? "Choose a copy" : "Choose files"}</span>{mode === "check" ? " to find its original" : " to BitGraph"}</span></>}</div>
         {/* Something is happening: a thin moving bar under the line that says what (2026-10-18). */}
         {status && <div className="bg-working" role="progressbar" aria-label={status} />}
         <div className="db-zone-sub">Each file is hashed in your browser. <br className="sub-br" />Only its SHA-256 is&nbsp;sent.</div>

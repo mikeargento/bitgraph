@@ -30,8 +30,6 @@ const nextConfig: NextConfig = {
     // the old docs addresses land on Tools (2026-10-18: Docs became Tools; the home page is the explanation)
     const docs = "/tools";
     return [
-      // Make folded into Proofs, where a drop is checked first and made with one press
-      { source: "/make", destination: "/ledger", permanent: false },
       { source: "/docs", destination: docs, permanent: false },
       { source: "/how-it-works", destination: home, permanent: false },
       { source: "/docs/:path+", destination: docs, permanent: false },

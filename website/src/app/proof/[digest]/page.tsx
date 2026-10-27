@@ -692,14 +692,30 @@ export default function ProofPage() {
   }, [proof, cachedFile, atomicCarrier]);
   useEffect(() => {
     if (!freshRef.current || !proof || !cachedFile || !atomicCarrier || !looksLikePhoto({ name: cachedFile.name })) return;
-    // Make has just read this photo for a pointer (a copy is led to its original, never recorded), so it is not read again
-    void photoCarrier(cachedFile.name, cachedFile.data, proof, true).catch(() => {});
+    // Make binds a drop without reading it for a pointer, so the BitGraphed file reads it first: a copy keeps its own
+    void photoCarrier(cachedFile.name, cachedFile.data, proof).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proof, cachedFile, atomicCarrier]);
   // A photo noticed at Make as a copy of an earlier BitGraph (lib/trustmark/copy-note): read after the first render,
   // since session storage is only in the browser.
   const [copyOf, setCopyOf] = useState<ReturnType<typeof copyOfNote>>(null);
   useEffect(() => { setCopyOf(copyOfNote(digestParam)); }, [digestParam]);
+  // Every BitGraph of this file's exact bytes, oldest first: the same file bound again is listed, never merged, and the
+  // first one is the one that counts.
+  const [bindings, setBindings] = useState<ProofViewModel["bindings"]>([]);
+  useEffect(() => {
+    let gone = false;
+    const key = decodeURIComponent(digestParam).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    void fetch(`/api/proofs/${key}`).then((r) => (r.ok ? r.json() : null)).then((body: { proofs?: Array<{ proof: BitGraphProof; writeTime: number | null }> } | null) => {
+      if (gone || !body?.proofs) return;
+      const rows = body.proofs.map(({ proof: p, writeTime }) => ({ counter: Number(p.commit?.counter), epochId: String(p.commit?.epochId ?? ""), ms: recordedMsOf(p) ?? writeTime }))
+        .filter((r) => Number.isSafeInteger(r.counter) && r.epochId)
+        .sort((a, b) => (a.ms ?? Infinity) - (b.ms ?? Infinity) || a.counter - b.counter)
+        .map((r) => ({ counter: r.counter, ms: r.ms, href: `/proof/${key}?counter=${r.counter}&epoch=${encodeURIComponent(r.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`, epochId: r.epochId }));
+      setBindings(rows);
+    }).catch(() => {});
+    return () => { gone = true; };
+  }, [digestParam]);
   const [droppedCopy, setDroppedCopy] = useState<number | null>(null);
   useEffect(() => { setDroppedCopy(droppedCopyNote(digestParam)); }, [digestParam]);
   /* A photo's Content Credentials published with its BitGraph (lib/trustmark/c2pa-leaf.ts), for when the photo is not
@@ -2504,6 +2520,7 @@ export default function ProofPage() {
             downloadNotes,
             carrierNote: carrierMsg,
             copyOf,
+            bindings: bindings?.map((b) => ({ ...b, current: b.counter === Number(proof?.commit?.counter) && b.epochId === String(proof?.commit?.epochId ?? "") })) ?? [],
             droppedCopy,
             checkText,
             checkCommand,

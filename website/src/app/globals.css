@@ -5410,3 +5410,21 @@ html:root:root:root:root:root body .db-zone-touch { display: none; }
   html:root:root:root:root:root:root body .db-zone .db-zone-title { min-height: 0 !important; }
   html:root:root:root:root:root:root body .db-zone:active { background: var(--line) !important; }
 }
+
+/* Every BitGraph of the same bytes, oldest first, under the BitGraph's name */
+html:root:root:root:root:root body .pv-bindings { list-style: none; margin: 4px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); display: grid; gap: 6px; font-size: 15px; }
+html:root:root:root:root:root body .pv-bindings li { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; color: var(--dim); }
+html:root:root:root:root:root body .pv-bindings li.is-current { color: var(--ink); font-weight: 600; }
+html:root:root:root:root:root body .pv-bindings-when { font-weight: 400; color: var(--dim); }
+html:root:root:root:root:root body .db-copy-line { margin-top: 14px; text-align: center; font-size: 15px; color: var(--dim); }
+html:root:root:root:root:root body .db-copy-line a { color: var(--ink); }
+/* Phones: the bar is the wordmark and a menu button; the menu opens under the bar, the sun/moon at its bottom */
+html:root:root:root:root:root body #site-nav .nav-menu-btn { display: none; }
+@media (max-width: 640px) {
+  html:root:root:root:root:root:root body #site-nav .bg-nav-links { display: none !important; }
+  html:root:root:root:root:root body #site-nav .nav-menu-btn { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: -10px; padding: 0; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
+  html:root:root:root:root:root body #site-nav .nav-sheet { display: flex; flex-direction: column; padding: 8px 5% 20px; background: var(--bar); border-bottom: 1px solid var(--line); animation: bg-fade-in 160ms ease-out; }
+  html:root:root:root:root:root body #site-nav .nav-sheet-link { padding: 14px 0; font-size: 18px; font-weight: 500; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line-2, var(--line)); }
+  html:root:root:root:root:root body #site-nav .nav-sheet-link[aria-current="page"] { font-weight: 700; }
+  html:root:root:root:root:root body #site-nav .nav-sheet-theme { display: flex; justify-content: flex-start; padding-top: 14px; }
+}

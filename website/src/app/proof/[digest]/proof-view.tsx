@@ -177,6 +177,8 @@ export interface ProofViewModel {
   droppedCopy?: number | null;
   /** This photo carries a pointer to an earlier BitGraph, noticed as it was made: whose copy it is. */
   copyOf?: { counter: number; href: string } | null;
+  /** Every BitGraph of this file's exact bytes, oldest first; `current` is this page's. */
+  bindings?: Array<{ counter: number; ms: number | null; href: string; epochId: string; current?: boolean }>;
   /** "Check it anywhere": the command that matches this kind of export, or null. */
   checkText: ReactNode | null;
   checkCommand: ReactNode | null;
@@ -547,6 +549,17 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {m.attestedMs !== null && <div className="pv-photo-meta">{longDateTz(new Date(m.attestedMs))}, {timeTz(new Date(m.attestedMs))}</div>}
             {who && <div className="pv-photo-who">{who}</div>}
           </div>
+          {/* The same bytes bound more than once: each BitGraph in order, the first the one that counts. */}
+          {m.bindings && m.bindings.length > 1 && (
+            <ol className="pv-bindings" aria-label="Every BitGraph of this file, oldest first">
+              {m.bindings.map((b) => (
+                <li key={`${b.epochId}:${b.counter}`} className={b.current ? "is-current" : undefined}>
+                  {b.current ? <span>BitGraph #{fmtNum(b.counter)}</span> : <a href={b.href}>BitGraph #{fmtNum(b.counter)}</a>}
+                  {b.ms !== null && <span className="pv-bindings-when">{longDateTz(new Date(b.ms))}, {timeTz(new Date(b.ms))}</span>}
+                </li>
+              ))}
+            </ol>
+          )}
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
         </section>
         <section className="pv-card pv-details pv-details-fold">
