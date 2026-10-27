@@ -5039,18 +5039,13 @@ html:root:root:root:root:root:root:root body .proves-half > p.proves-after { mar
    so the figure keeps room for it. */
 @media (min-width: 761px) { html:root:root:root:root .pf-figure.pf-work { padding-bottom: 36px; } }
 
-/* Demos + Contact in the bar, a menu button on phones (2026-10-20: demos and contact belong in the menu, and the
-   mobile site can use a hamburger). Desks: the links in the bar, as before. Up to 760px: the links fold into the menu button,
-   which opens a sheet under the bar; the sun/moon stays in the bar. */
-#site-nav .nav-burger { display: none; }
-#site-nav .nav-sheet { display: none; }
+/* Three links fit a phone's bar (Proofs, Demos, Tools), so there is no menu button: the links stay in the bar at
+   every width, a little tighter on a phone, the sun/moon beside them. (Chained high to outrank the nav's stacked rules.) */
 @media (max-width: 760px) {
-  html:root:root:root:root:root body #site-nav .bg-nav-links > .nav-desk { display: none !important; }
-  #site-nav#site-nav .nav-burger { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; margin-left: 4px; margin-right: -8px; padding: 0; border: 0; background: transparent; color: var(--ink); cursor: pointer; border-radius: 9999px; }
-  #site-nav#site-nav .nav-sheet { display: flex; flex-direction: column; position: absolute; left: 0; right: 0; top: 100%; background: var(--bar); border-bottom: 1px solid var(--line); padding: 8px 5% 20px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08); }
-  #site-nav#site-nav .nav-sheet-link { display: block; padding: 14px 0; font-size: 20px; font-weight: 600; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line-2); }
-  #site-nav#site-nav .nav-sheet-link:last-child { border-bottom: 0; }
-  #site-nav#site-nav .nav-sheet-link[aria-current="page"] { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+  html:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav .bg-nav-links { gap: 0 !important; }
+  html:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav .bg-nav-links > .nav-btn { padding: 0 7px !important; margin-left: 0 !important; font-size: 16px !important; }
+  html:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav a.nav-wordmark { font-size: 22px !important; }
+  html:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav .theme-toggle { margin-left: 2px !important; }
 }
 /* /contact back in the bar (2026-10-20): the address at the demo pages' h1 size again, the copy button as the site's pill. */
 html:root:root:root:root:root body .contact-page h1 { font-size: clamp(34px, 5.4vw, 60px) !important; font-weight: 600 !important; letter-spacing: -0.03em !important; line-height: 1.08 !important; margin: 0 !important; }
@@ -5065,7 +5060,6 @@ html:root:root:root:root:root body footer .bg-footer-links > .theme-toggle { mar
 @media (max-width: 760px) {
   html:root:root:root:root:root body footer .bg-footer-links { width: 100%; }
   html:root:root:root:root:root body footer .bg-footer-links > .theme-toggle { margin-left: auto !important; }
-  #site-nav#site-nav .nav-burger { margin-left: 0; }
 }
 /* Ledger rows: no underline on hover; the whole row is the link (2026-10-20). */
 @media (hover: hover) { html:root:root:root:root:root body a.rl-link:hover, html:root:root:root:root:root body a.rl-link:hover * { text-decoration: none !important; } }

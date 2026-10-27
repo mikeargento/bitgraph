@@ -44,7 +44,7 @@ export default function ToolsPage() {
         <p className="home-kicker">Tools</p>
         <h2 id="t-intro">Use BitGraph from your code.</h2>
         <p>
-          Every tool here does the same one thing the Make page does: it hashes your file where it is and sends only the SHA-256. The
+          Every tool here does the same one thing the Proofs page does: it hashes your file where it is and sends only the SHA-256. The
           enclave binds it in one atomic action and the proof comes back to you. Checking a proof needs none of them, and nothing of
           BitGraph&rsquo;s running.
         </p>
@@ -166,14 +166,14 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
 
             <h3 className="tl-h3">Many files, one BitGraph</h3>
             <p>
-              Drop more than one file on the Make page and they become one BitGraph: the drop is one moment, so they take one position.
+              Drop more than one file on the Proofs page and make them, and they become one BitGraph: the drop is one moment, so they take one position.
               The files are hashed into a Merkle tree in your browser (RFC 6962, SHA-256: a leaf is SHA-256 of a zero byte and the file, a
               node is SHA-256 of a one byte and its two children, and an odd last node rises unchanged). One BitGraph is made of{" "}
               <code>merkle-root.txt</code>, a short text file holding the root. You keep <code>merkle-tree.json</code>, which lists every
               file&rsquo;s leaf and every level. One position covers a million files as well as one.
             </p>
             <p>
-              To check a file, drop it on the Make page by itself. When the tree is made, each file gets a sealed entry that only its own
+              To check a file, drop it on the Proofs page by itself. When the tree is made, each file gets a sealed entry that only its own
               bytes can open; the page finds it, walks the file up the tree to the root, and checks the root against its BitGraph. With{" "}
               <code>merkle-tree.json</code> and <code>merkle-root.txt</code> it works without any entry. By hand: hash the file as a leaf,
               combine it with its neighbours up the levels, compare with the root in <code>merkle-root.txt</code>, and verify{" "}
@@ -199,7 +199,7 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
               hashes to BitGraph 1&rsquo;s digest, Base has that block with that hash and time, both proofs verify in full, and BitGraph 2
               comes after BitGraph 1 in the same epoch. The record is kept beside the ledger and shown on both proof pages.
             </p>
-            <p>To check a window yourself, with the download from the Make page:</p>
+            <p>To check a window yourself, with the download from the Proofs page:</p>
             <ol className="tl-steps">
               <li>Verify both files against their proofs with the offline check above.</li>
               <li>Open the block in <code>base-floor.json</code> on any Base explorer and compare its hash and time.</li>

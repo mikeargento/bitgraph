@@ -3,7 +3,6 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -22,17 +21,8 @@ const LINKS: Array<{ href: string; label: string }> = [
 
 export function SiteNav() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
   const current = (href: string) => (pathname === href || pathname.startsWith(href + "/") ? "page" : undefined);
 
-  // The sheet closes when a link is followed, and on Escape.
-  useEffect(() => { setOpen(false); }, [pathname]);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
 
   return (
     <div id="site-nav" style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
@@ -49,29 +39,8 @@ export function SiteNav() {
           ))}
           {/* The sun/moon, upper right again (2026-10-21). */}
           <ThemeToggle />
-          <button
-            type="button"
-            className="nav-burger"
-            aria-label={open ? "Close menu" : "Menu"}
-            aria-expanded={open}
-            aria-controls="nav-sheet"
-            onClick={() => setOpen((o) => !o)}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-              {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
-            </svg>
-          </button>
         </nav>
       </div>
-      {open && (
-        <nav id="nav-sheet" aria-label="Site" className="nav-sheet">
-          {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="nav-sheet-link" aria-current={current(l.href)} onClick={() => setOpen(false)}>
-              {l.label}
-            </Link>
-          ))}
-        </nav>
-      )}
     </div>
   );
 }
