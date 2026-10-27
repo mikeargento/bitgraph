@@ -29,7 +29,7 @@
  */
 
 import { useEffect, useState, type ReactNode } from "react";
-import { TimeChip, stampTz, timeTz, sameDayTz } from "@/lib/format-time";
+import { TimeChip, longDateTz, stampTz, timeTz, sameDayTz } from "@/lib/format-time";
 import type { BitGraphProof } from "@/lib/bitgraph";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
@@ -537,10 +537,12 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <section className="pv-card pv-photo">
           {m.filePane}
           <div className="pv-photo-strip">
-            <span className={`pv-verdict pv-verdict-${(c.state === "done" ? c.verdict ?? "UNDETERMINED" : "UNDETERMINED").toLowerCase()}`}>{verdictWord}</span>
-            <span className="pv-sep"> · </span><span>{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</span>
-            {m.attestedMs !== null && <><span className="pv-sep"> · </span><span>{stampTz(new Date(m.attestedMs))}</span></>}
-            {who && <><span className="pv-sep"> · </span><span>{who}</span></>}
+            <div className={`pv-verdict pv-verdict-${(c.state === "done" ? c.verdict ?? "UNDETERMINED" : "UNDETERMINED").toLowerCase()}`}>{verdictWord}</div>
+            <div className="pv-photo-meta">
+              <span className="pv-nowrap">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</span>
+              {m.attestedMs !== null && <> <span className="pv-nowrap">{longDateTz(new Date(m.attestedMs))}, {timeTz(new Date(m.attestedMs))}</span></>}
+            </div>
+            {who && <div className="pv-photo-who">{who}</div>}
           </div>
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
           <div className="pv-photo-actions">
