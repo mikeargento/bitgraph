@@ -1,11 +1,6 @@
-/* What shows while the ledger is read on the server, so a slow read shows progress instead of nothing (2026-10-18):
-   the page's own frame, its label, and a moving bar. */
+import { Wait } from "@/components/wait";
+
+/* What shows while the calendar is read on the server: the site's one wait look (components/wait.tsx). */
 export default function CalendarLoading() {
-  return (
-    <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>
-      <p className="home-kicker" style={{ margin: 0 }}>Ledger</p>
-      <p style={{ color: "var(--dim)", margin: "8px 0 0" }}>Reading the calendar…</p>
-      <div className="bg-working is-left" role="progressbar" aria-label="Reading the calendar" />
-    </div>
-  );
+  return <Wait label="Reading the calendar…" />;
 }

@@ -1,10 +1,7 @@
-import { ProofSkeleton } from "./proof-skeleton";
+import { Wait } from "@/components/wait";
 
-// Painted by the App Router the instant a navigation to /proof/[digest]
-// starts, while the route payload streams. Without this file a cold
-// navigation is a multi-second dead click (the previous page just sits
-// there); with it, the same skeleton the page itself shows appears
-// immediately, so the transition and the data wait read as one moment.
+// Painted by the App Router the instant a navigation to /proof/[digest] starts, while the route payload streams. The
+// page shows the same wait while it fetches the proof, so the route change and the data wait read as one moment.
 export default function Loading() {
-  return <ProofSkeleton />;
+  return <Wait label="Loading BitGraph…" />;
 }

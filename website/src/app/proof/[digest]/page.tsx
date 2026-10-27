@@ -67,7 +67,8 @@ const baseFloorOfProof = baseFloorOf;
 import { SET_KEY, bindSet, bindSetMember, dropDigestsFor, isSetProof, memberEvidenceOf, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
 import { toUrlSafeB64, fromUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf as treeMemberOf, rootTextBytes as treeRootTextBytes } from "@/lib/tree-member";
-import { Shell, ProofSkeleton } from "./proof-skeleton";
+import { Shell } from "./proof-skeleton";
+import { Wait } from "@/components/wait";
 import { decodePhoto, looksLikePhoto } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark } from "@/lib/trustmark/check";
 import { setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
@@ -1190,15 +1191,9 @@ export default function ProofPage() {
     return () => { cancelled = true; };
   }, [digestParam]);
 
-  // While the proof loads from S3, show the page's real shape: a stack of
-  // collapsed card headers rendered as shimmering placeholders. It lands the
-  // cards where they'll actually be (no jump when data arrives) and reads as
-  // alive, unlike a static "Loading…" line.
-  // A just-recorded BitGraph normally seeds instantly (no wait at all). If its
-  // data isn't in hand yet, the create moment gets a "Recording…" wait, not the
-  // lookup skeleton — the skeleton reads as "a page is loading", wrong for the
-  // moment you just hit record.
-  if (loading) return freshRef.current ? <FreshRecordingWait /> : <ProofSkeleton />;
+  // While the proof loads, the site's one wait (components/wait.tsx), the same one loading.tsx showed for the route
+  // change. A just-recorded BitGraph normally seeds instantly; if not, the wait says BitGraphing, as the drop did.
+  if (loading) return <Wait label={freshRef.current ? "BitGraphing\u2026" : "Loading BitGraph\u2026"} />;
   /* ⚠️ "NOT FOUND" IS A VERDICT THIS PAGE CAN NO LONGER SUPPORT.
    *
    * While every proof was written to the bucket, an empty lookup meant these
@@ -2178,7 +2173,7 @@ export default function ProofPage() {
         </>
       )}
 
-      {/* 56px from the nav, the skeleton's own top, so nothing jumps when the proof arrives (2026-10-18). */}
+      {/* 56px from the nav, as every page's top. */}
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
         <ProofView m={(() => {
           const kind: ProofViewModel["kind"] = isEth ? "anchor" : isInterval ? "interval" : "file";
@@ -2538,27 +2533,6 @@ export default function ProofPage() {
 }
 
 /* ── Shell — uses same theme as maker page ── */
-
-/* ── Create wait — shown only on a just-recorded BitGraph (?fresh=1) whose data
-   isn't seeded yet. Says "BitGraphing…", the SAME label as the drop flow's commit
-   spinner, so the two waits in a create read as one continuous moment (not a
-   lookup skeleton). Fades in over ~0.45s so the common case — an instant seed
-   that replaces it within a frame — never shows a harsh flash, while a real wait
-   reads as BitGraphing in progress. ── */
-function FreshRecordingWait() {
-  return (
-    <Shell>
-      <style>{`@keyframes fpSpin { to { transform: rotate(360deg) } } @keyframes fpIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
-      {/* Pinned to the same fixed viewport point (44% down, centered) that every
-          other wait state and the success checkmark use, so the spinner never
-          jumps between the drop flow's "BitGraphing…" and this. */}
-      <div style={{ position: "fixed", top: "44%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, width: "max-content", maxWidth: "92vw", animation: "fpIn 0.45s ease-out" }}>
-        <div role="status" aria-label="BitGraphing" className="bg-spinner" style={{ width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "fpSpin 0.8s linear infinite" }} />
-        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>BitGraphing&hellip;</div>
-      </div>
-    </Shell>
-  );
-}
 
 /* ── Card ── */
 
@@ -3113,7 +3087,9 @@ function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: ()
     <div className="pv-lightbox" role="dialog" aria-modal="true" aria-label={alt} onClick={onClose}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt={alt} />
-      <button type="button" className="pv-lightbox-close" aria-label="Close" onClick={onClose}>&times;</button>
+      <button type="button" className="pv-lightbox-close" aria-label="Close" onClick={onClose}>
+        <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden><path d="M5 5l14 14M19 5L5 19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+      </button>
     </div>
   );
 }
@@ -3307,13 +3283,8 @@ function PhotoCard({
             }}
           />
         ) : (
-          /* The wait, in the site's one wait look (the camera's spinner and
-             label), so a slow decode is a decode in progress and not a blank
-             card. Tall enough to hold the slot's shape while it works. */
-          <div role="status" aria-label="Preparing preview" style={{ minHeight: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
-            <div className="bg-spinner" style={{ width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>Preparing preview…</div>
-          </div>
+          /* A slow decode (a HEIC off Safari) is a decode in progress, not a blank card: the site's one wait. */
+          <Wait label="Preparing preview…" inline />
         )}
       </div>
       {zoomed && imageSrc && <Lightbox src={openUrl ?? imageSrc} alt={alt} onClose={() => setZoomed(false)} />}
