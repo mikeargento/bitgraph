@@ -5345,3 +5345,13 @@ html:root:root:root:root:root body .pv-lightbox-close { position: absolute; top:
 .pv-lightbox { animation: pv-lightbox-in 180ms ease-out; }
 .pv-lightbox img { animation: pv-lightbox-in 240ms ease-out; }
 @media (prefers-reduced-motion: reduce) { .pv-lightbox, .pv-lightbox img { animation: none; } }
+
+/* The Proof details bar answers the pointer: the whole card takes the hover fill, its edge darkens, the chevron steps
+   right. The fill holds only while the details are folded; open, the head alone takes it. */
+html:root:root:root:root:root body .pv-details-fold { transition: background-color 160ms ease, border-color 160ms ease; }
+html:root:root:root:root:root body .pv-details-fold > .pv-fold-head .pv-chevron { transition: transform 200ms ease, translate 160ms ease; }
+@media (hover: hover) {
+  html:root:root:root:root:root body .pv-details-fold:has(> .pv-fold-head[aria-expanded="false"]:hover) { background: var(--panel-2) !important; border-color: var(--ink-3, var(--dim)) !important; }
+  html:root:root:root:root:root body .pv-details-fold > .pv-fold-head[aria-expanded="false"]:hover .pv-chevron { translate: 3px 0; }
+  html:root:root:root:root:root body .pv-details-fold > .pv-fold-head[aria-expanded="true"]:hover { background: var(--panel-2) !important; }
+}

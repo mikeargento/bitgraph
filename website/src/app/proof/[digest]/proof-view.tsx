@@ -549,7 +549,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           </div>
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
         </section>
-        <section className="pv-card pv-details">
+        <section className="pv-card pv-details pv-details-fold">
           <button type="button" className="pv-fold-head" aria-expanded={details} onClick={() => setDetails((o) => !o)}>
             <span>Proof details</span>
             {/* the checks' tally beside the title, so the verdict shows with the details folded */}
