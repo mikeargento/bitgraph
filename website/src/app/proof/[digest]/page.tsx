@@ -2271,14 +2271,9 @@ export default function ProofPage() {
             // thumbnail, when its BitGraphed file published one), and the visitor already holds their own file.
             boundThumb === undefined ? null : (
               <div className="pv-pane-in">
-                {boundThumb && <BoundThumbView t={boundThumb} />}
-                <p className="pv-redraw-check">
-                  <span>
-                    {heldCopy.kind === "bitgraphed" ? "Your file is this photo’s BitGraphed file." : "Your file is a copy of this photo."}
-                    {" "}Only the original file proves it.{" "}
-                    <button type="button" className="pv-inline-link" onClick={() => setHeldCopyState(null)}>Check the original</button>
-                  </span>
-                </p>
+                {boundThumb && <BoundThumbView t={boundThumb} caption="Reference thumbnail" />}
+                {/* The same find-the-file box as every proof page: the original is what proves the photo. */}
+                <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} compact />
               </div>
             )
           ) : painting ? (
@@ -3117,14 +3112,15 @@ function stdDigest(digestParam: string): string {
 }
 
 /* ── The thumbnail this BitGraph's BitGraphed file bound, shown when a copy, not the photo, is in hand: the picture this
-   BitGraph bound. No caption: the page around it says what it is. ── */
+   BitGraph bound, captioned for what it is: a reference, not the photo. ── */
 
-function BoundThumbView({ t }: { t: BoundThumbnail }) {
+function BoundThumbView({ t, caption }: { t: BoundThumbnail; caption?: string }) {
   // No lightbox: at 512 pixels it is already shown about as large as it holds.
   return (
     <figure className="pv-bound-thumb">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={t.url} alt="The thumbnail this BitGraph's BitGraphed file bound" />
+      {caption && <figcaption>{caption}</figcaption>}
     </figure>
   );
 }
