@@ -2593,7 +2593,7 @@ function BringYourFile({
   onCopy,
   compact = false,
 }: {
-  /** Under a bound thumbnail the picture is already on the page: the box is one quiet line, for checking the original. */
+  /** One line in a short, plainly framed box, for checking the original: the drop target on every proof page. */
   compact?: boolean;
   /** A copy of this page's photo, carrying its pointer: shown in the file pane, labelled for what it is. */
   onCopy?: (copy: HeldCopy) => void;
@@ -2986,8 +2986,8 @@ function BringYourFile({
          same): the geometry, the centring and the type are the .dropbox
          rules in globals.css; only the state colours are set here. */
       className={compact ? `dropbox is-compact${dragOver ? " is-drag" : ""}` : "dropbox"}
-      // the compact line is framed only while a file is dragged over it: a tap on a phone leaves hover behind
-      style={compact && !dragOver ? { backgroundColor: "transparent" } : { backgroundColor: dragOver ? "var(--tint)" : "var(--panel)", ...edges.edgeStyle(edge) }}
+      // the compact box keeps one plain frame (globals.css): the dashed hover edges would stay behind after a tap on a phone
+      style={compact ? { backgroundColor: dragOver ? "var(--tint)" : "var(--panel)" } : { backgroundColor: dragOver ? "var(--tint)" : "var(--panel)", ...edges.edgeStyle(edge) }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
@@ -3088,7 +3088,10 @@ function BringYourFile({
               dashed edges use, so title and frame light up together. */}
           {/* One drop box site-wide (2026-09-17): the mark, one sentence, one quiet line. */}
           {compact ? (
-            <div className="dropbox-line">Have the original? <Browse>Check it</Browse></div>
+            // a touch screen cannot drop a file: there the line only offers to choose one (globals.css, .db-zone-touch)
+            <div className="dropbox-line">Have the original?{" "}
+              <span className="db-zone-desk">Drop it here, or <Browse>choose it</Browse></span>
+              <span className="db-zone-touch"><Browse>Choose it</Browse></span></div>
           ) : (
             <DropPrompt quiet="BitGraph searches by hash and finds the match for you, even if you do not know which file it is. Nothing is uploaded; the search runs in your browser.">
               Find this file: drag files or a folder here, or <Browse />
