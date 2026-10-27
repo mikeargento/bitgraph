@@ -269,6 +269,12 @@ function TrustmarkLine({ v }: { v: TrustmarkVerdict }) {
   );
 }
 
+/** The earliest of a file's BitGraphs, by the enclave's signed time, then by count. */
+function earliestOf(entries: Array<{ proof: Proof; writeTime?: number | null }>): Proof | undefined {
+  const when = (e: { proof: Proof; writeTime?: number | null }) => recordedMsOf(e.proof) ?? e.writeTime ?? Number.POSITIVE_INFINITY;
+  return entries.slice().sort((a, b) => when(a) - when(b) || Number(a.proof.commit?.counter ?? 0) - Number(b.proof.commit?.counter ?? 0))[0]?.proof;
+}
+
 async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
   const { proofHash: _h, ...p } = proof as Proof & { proofHash?: unknown };
   // A file of a tree, found by its own hash (lib/tree-member.ts): its hash must walk up to the root the proof binds, and
@@ -593,6 +599,14 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         await Promise.race([indexed, new Promise((r) => setTimeout(r, 4000))]);
         const fileDigest = dropped[0]![2], i = t.leaves.findIndex((l) => l[2] === fileDigest);
         void cacheArtifactToIDB(files[0]!, fileDigest).catch(() => {});
+        // The same file bound before: its first BitGraph opens, the one that counts, and lists this new one under it.
+        const before = await fetch(`/api/proofs/${toUrlSafe(fileDigest)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null) as { proofs?: Array<{ proof: Proof; writeTime?: number | null }> } | null;
+        const firstProof = earliestOf(before?.proofs ?? []);
+        const fc = firstProof?.commit as { counter?: string; epochId?: string } | undefined;
+        if (fc?.counter && fc.epochId && (String(fc.counter) !== String(b.commit?.counter) || String(fc.epochId) !== String(b.commit?.epochId))) {
+          router.push(`/proof/${toUrlSafe(fileDigest)}?counter=${encodeURIComponent(fc.counter)}&epoch=${encodeURIComponent(toUrlSafe(fc.epochId))}`);
+          return;
+        }
         const commit = b.commit as { counter?: string; epochId?: string } | undefined;
         const epoch = commit?.epochId ? toUrlSafe(commit.epochId) : "";
         const sel = commit?.counter ? `?counter=${encodeURIComponent(commit.counter)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
@@ -728,8 +742,9 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         patch(row.key, { bytes, digestB64, state: "looking" });
         const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
         if (!res.ok) return end({ bytes, digestB64, state: "error", note: "Could not check the ledger just now. Try again in a moment." });
-        const body = (await res.json()) as { proofs?: Array<{ proof: Proof }> };
-        const first = body.proofs?.[0]?.proof;
+        const body = (await res.json()) as { proofs?: Array<{ proof: Proof; writeTime?: number | null }> };
+        // the file's first BitGraph, the one that counts; any later ones are listed on its proof page
+        const first = earliestOf(body.proofs ?? []);
         if (!first) {
           // Not a BitGraph of its own: perhaps a file of a tree, found by its sealed entry and proven here.
           const inTree = await findInTree(bytes).catch(() => null);

@@ -549,17 +549,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {m.attestedMs !== null && <div className="pv-photo-meta">{longDateTz(new Date(m.attestedMs))}, {timeTz(new Date(m.attestedMs))}</div>}
             {who && <div className="pv-photo-who">{who}</div>}
           </div>
-          {/* The same bytes bound more than once: each BitGraph in order, the first the one that counts. */}
-          {m.bindings && m.bindings.length > 1 && (
-            <ol className="pv-bindings" aria-label="Every BitGraph of this file, oldest first">
-              {m.bindings.map((b) => (
-                <li key={`${b.epochId}:${b.counter}`} className={b.current ? "is-current" : undefined}>
-                  {b.current ? <span>BitGraph #{fmtNum(b.counter)}</span> : <a href={b.href}>BitGraph #{fmtNum(b.counter)}</a>}
-                  {b.ms !== null && <span className="pv-bindings-when">{longDateTz(new Date(b.ms))}, {timeTz(new Date(b.ms))}</span>}
-                </li>
-              ))}
-            </ol>
-          )}
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
         </section>
         <section className="pv-card pv-details pv-details-fold">
@@ -578,6 +567,27 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {/* the tally is on the fold already; the checks card shows when there is more to say (a failure, a wait) */}
             {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
             {timeCard}
+            {/* The same bytes bound more than once: each BitGraph in order, the first the one that counts. */}
+            {m.bindings && m.bindings.length > 1 && (
+              <section className="pv-card">
+                <div className="pv-section-title">Every BitGraph of this file</div>
+                <ol className="pv-bindings" aria-label="Every BitGraph of this file, oldest first">
+                  {m.bindings.map((b, i) => (
+                    <li key={`${b.epochId}:${b.counter}`} className={b.current ? "is-current" : undefined}>
+                      <span className="pv-bindings-n">{i + 1}</span>
+                      <span className="pv-bindings-body">
+                        <span className="pv-bindings-name">
+                          {b.current ? <span>BitGraph #{fmtNum(b.counter)}</span> : <a href={b.href}>BitGraph #{fmtNum(b.counter)}</a>}
+                          {/* the first is the one that counts; the page's own is marked whichever it is */}
+                          {(i === 0 || b.current) && <span className="pv-bindings-tag">{[i === 0 ? "First" : null, b.current ? "This page" : null].filter(Boolean).join(" \u00b7 ")}</span>}
+                        </span>
+                        {b.ms !== null && <span className="pv-bindings-when">{longDateTz(new Date(b.ms))}, {timeTz(new Date(b.ms))}</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
             {m.c2pa?.present && <section className="pv-card"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></section>}
             {counterCard}
             {sigCard}
