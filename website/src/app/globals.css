@@ -5326,3 +5326,7 @@ html:root:root:root:root:root:root:root:root:root body .copy-line .pv-copy { top
 /* The photo sits straight in the card, at the card's own padding: no frame of its own. */
 .pv-photo-bare { border: 0; background: none; }
 @media (max-width: 599px) { .pv-photo-actions .pv-open { order: -1; } }
+
+/* Proof details' fold head carries the checks' tally on the right, before the chevron. */
+.pv-details .pv-fold-head .pv-fold-tally { margin-left: auto; margin-right: 12px; font-size: 14px; font-weight: 500; color: var(--dim); }
+.pv-details .pv-fold-head .pv-fold-tally.is-fail { color: var(--err, #b42318); }
