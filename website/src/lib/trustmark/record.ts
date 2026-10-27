@@ -109,7 +109,14 @@ export function isPhotographic({ rgba, w, h }: Decoded): boolean {
 
 /** The record's exact bytes: fixed key order, no whitespace. */
 export function recordBytes(photoDigestB64: string, img: Decoded): Uint8Array {
-  const rec: FingerprintRecord = { format: RECORD_FORMAT, photo: photoDigestB64, phash: phash(img.rgba, img.w, img.h), blocks: { grid: GRID, bits: BITS, values: signature(img.rgba, img.w, img.h) } };
+  return recordBytesOf(photoDigestB64, fingerprintOf(img));
+}
+
+/** The picture's part of its record, without its SHA-256: worked out while the file is still being hashed. */
+export type Fingerprint = { phash: string; values: string };
+export const fingerprintOf = (img: Decoded): Fingerprint => ({ phash: phash(img.rgba, img.w, img.h), values: signature(img.rgba, img.w, img.h) });
+export function recordBytesOf(photoDigestB64: string, fp: Fingerprint): Uint8Array {
+  const rec: FingerprintRecord = { format: RECORD_FORMAT, photo: photoDigestB64, phash: fp.phash, blocks: { grid: GRID, bits: BITS, values: fp.values } };
   return new TextEncoder().encode(JSON.stringify(rec));
 }
 

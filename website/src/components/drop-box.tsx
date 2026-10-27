@@ -30,9 +30,9 @@ import { zipSync, strToU8 } from "fflate";
 import { attachEnvironments } from "@/lib/proof-environment";
 import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
-import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, parseDigestRootText, rootTextBytes, withMember } from "@/lib/tree-member";
+import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
-import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
+import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
 import { noteCopyOf, noteCredentialsMatch, noteDroppedCopy } from "@/lib/trustmark/copy-note";
@@ -209,31 +209,41 @@ async function unwrapBitGraphed(files: File[]): Promise<File[]> {
   return out;
 }
 
-/** The fingerprint record of each photo in a drop (lib/trustmark/record.ts), for the photos this browser can open, up to
- *  MAX_FINGERPRINTED; a record already in the drop (a folder dropped again with its records) is not made twice. */
-async function fingerprintRecords(files: File[], leaves: Array<[string, string, string]>, onProgress?: (n: number, of: number) => void): Promise<Array<[string, string, string]>> {
+/** Each photo's fingerprint and Content Credentials (lib/trustmark/record.ts), for the photos this browser can open, up
+ *  to MAX_FINGERPRINTED; a record already in the drop (a folder dropped again with its records) is not made twice.
+ *  Worked out from the pictures alone, so it runs while the drop is being hashed; the records take each photo's SHA-256
+ *  once that is known (fingerprintRecords). */
+// The browser decodes photos off the page's thread, so several run side by side; eight at once was no faster than four.
+const PRINTS_AT_ONCE = 4;
+type PhotoPrint = { name: string; index: number; fp: Fingerprint; store: Uint8Array | null };
+async function photoPrints(files: File[], onProgress?: (n: number, of: number) => void): Promise<PhotoPrint[]> {
   const names = new Set(files.map((f) => f.webkitRelativePath || f.name));
-  const photos = files.map((f, i) => ({ f, digest: leaves[i]![2], name: f.webkitRelativePath || f.name }))
+  const photos = files.map((f, index) => ({ f, index, name: f.webkitRelativePath || f.name }))
     .filter((p) => looksLikePhoto(p.f) && !p.name.endsWith(RECORD_SUFFIX) && !names.has(`${p.name}${RECORD_SUFFIX}`));
   if (photos.length === 0 || photos.length > MAX_FINGERPRINTED) return [];
-  // three photos at a time, each decoded straight to the fingerprint's size; the records keep the drop's order
-  const each: Array<Array<{ file: File; name: string }>> = new Array(photos.length);
+  // several photos at a time, each decoded straight to the fingerprint's size; the prints keep the drop's order
+  const each: Array<PhotoPrint | null> = new Array(photos.length).fill(null);
   let n = 0;
-  await pool(photos, 3, async (p, i) => {
-    const out: Array<{ file: File; name: string }> = [];
+  await pool(photos, PRINTS_AT_ONCE, async (p, i) => {
     const img = await decodeForRecord(p.f);
     // graphics are recorded as they are: the pointer shows on them (isPhotographic)
     if (img && isPhotographic(img)) {
-      out.push({ file: recordFile(p.name, recordBytes(p.digest, img)), name: `${p.name}${RECORD_SUFFIX}` });
-      // its Content Credentials, when it carries them, beside it (lib/trustmark/c2pa-leaf.ts)
+      // its Content Credentials, when it carries them, go beside it (lib/trustmark/c2pa-leaf.ts)
       const store = manifestStoreOf(new Uint8Array(await p.f.arrayBuffer()));
-      if (store && store.length <= MAX_MANIFEST_BYTES) out.push({ file: new File([store as BlobPart], `${p.name}${C2PA_SUFFIX}`, { type: "application/c2pa" }), name: `${p.name}${C2PA_SUFFIX}` });
+      each[i] = { name: p.name, index: p.index, fp: fingerprintOf(img), store: store && store.length <= MAX_MANIFEST_BYTES ? store : null };
     }
-    each[i] = out;
     n++;
     if (onProgress && (n % 10 === 0 || n === photos.length)) onProgress(n, photos.length);
   });
-  const made = each.flat();
+  return each.filter((x): x is PhotoPrint => x !== null);
+}
+/** The record files of a drop's photos, each with its photo's SHA-256 from the drop's leaves, as tree leaves. */
+async function fingerprintRecords(prints: PhotoPrint[], leaves: Array<[string, string, string]>): Promise<Array<[string, string, string]>> {
+  const made: Array<{ file: File; name: string }> = [];
+  for (const p of prints) {
+    made.push({ file: recordFile(p.name, recordBytesOf(leaves[p.index]![2], p.fp)), name: `${p.name}${RECORD_SUFFIX}` });
+    if (p.store) made.push({ file: new File([p.store as BlobPart], `${p.name}${C2PA_SUFFIX}`, { type: "application/c2pa" }), name: `${p.name}${C2PA_SUFFIX}` });
+  }
   // the leaf's name is the photo's path in the drop plus the suffix (a File's own name cannot hold the path)
   return (await hashLeaves(made.map((m) => m.file))).map((l, i) => [made[i]!.name, l[1], l[2]]);
 }
@@ -258,36 +268,6 @@ function TrustmarkLine({ v }: { v: TrustmarkVerdict }) {
     </>
   );
 }
-
-/** The BitGraph that bound exactly these bytes (by their SHA-256, standard base64), if the ledger has one. */
-async function recordedProofOf(digestB64: string): Promise<Proof | null> {
-  const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`).catch(() => null);
-  if (!res?.ok) return null;
-  const body = (await res.json().catch(() => null)) as { proofs?: Array<{ proof: Proof; kind?: string }> } | null;
-  return body?.proofs?.find((x) => x.kind === "recorded" && x.proof.artifact?.digestB64 === digestB64 && !memberOf(x.proof))?.proof ?? null;
-}
-
-/**
- * The floor tree these files were already recorded in (2026-10-20), found through the first file's own index entry: the
- * entry carries base-block.json, so the tree is rebuilt around it and accepted only when its root is the one the proof
- * binds. Null when the files are not such a tree (or not all of it).
- */
-async function recordedTreeOf(fileLeaves: Array<[string, string, string]>): Promise<{ proof: Proof; tree: PluginTree; rootText: string; floorFile: string } | null> {
-  const first = fileLeaves[0];
-  if (!first) return null;
-  const res = await fetch(`/api/proofs/${toUrlSafe(first[2])}`).catch(() => null);
-  if (!res?.ok) return null;
-  const body = (await res.json().catch(() => null)) as { proofs?: Array<{ proof: Proof; kind?: string }> } | null;
-  for (const x of body?.proofs ?? []) {
-    const m = memberOf(x.proof);
-    if (x.kind !== "recorded" || !m?.floor || m.files !== fileLeaves.length + 1) continue;
-    const [floorLeaf] = await hashLeaves([new File([m.floor.file], "base-block.json")]);
-    const t = await treeFromLeaves([floorLeaf!, ...fileLeaves]);
-    if (t.tree.root === parseDigestRootText(m.rootText)?.root) return { proof: x.proof, tree: t.tree, rootText: t.rootText, floorFile: m.floor.file };
-  }
-  return null;
-}
-
 
 async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
   const { proofHash: _h, ...p } = proof as Proof & { proofHash?: unknown };
@@ -553,35 +533,30 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
          by block Y. The Base switch and its second BitGraph are gone. */
       const count = list ? list.length : files.length;
       setStatus(list ? `Reading 0 of ${count.toLocaleString("en-US")} hashes…` : `Hashing 0 of ${count.toLocaleString("en-US")}…`);
-      const dropped = list
-        ? await leavesOfDigests(list, (n) => setStatus(`Reading ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")} hashes…${timer ? ` ${secs()} s` : ""}`))
-        : await hashLeaves(files, (n) => setStatus(`Hashing ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}…${timer ? ` ${secs()} s` : ""}`));
-      // Each photo's fingerprint record (lib/trustmark/record.ts) goes into the tree beside it, so the photo can later
-      // carry a TrustMark that points back here. Up to MAX_FINGERPRINTED photos a drop; a photo this browser cannot open
-      // is recorded as it is.
-      const records = list ? [] : await fingerprintRecords(files, dropped, (n, of) => setStatus(`Fingerprinting ${n.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} photos…`));
+      // Everything that does not wait on the bind runs at once: the files are hashed, each photo's fingerprint is worked
+      // out from its picture (lib/trustmark/record.ts, so a photo can later carry a pointer back here; up to
+      // MAX_FINGERPRINTED a drop, a photo this browser cannot open is recorded as it is), and the latest Base block is
+      // read for the floor. Nothing is looked up first: every drop is a new BitGraph, and the same bytes bound again are
+      // listed in order on their proof page.
+      const blockLater = latestBaseBlock();
+      blockLater.catch(() => {});
+      let hashed = 0, printed = 0, printing = 0;
+      const say = () => setStatus(printing ? `Hashing ${hashed.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}, fingerprinting ${printed.toLocaleString("en-US")} of ${printing.toLocaleString("en-US")} photos…${timer ? ` ${secs()} s` : ""}` : `Hashing ${hashed.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}…${timer ? ` ${secs()} s` : ""}`);
+      const [dropped, prints] = await Promise.all([
+        list
+          ? leavesOfDigests(list, (n) => setStatus(`Reading ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")} hashes…${timer ? ` ${secs()} s` : ""}`))
+          : hashLeaves(files, (n) => { hashed = n; say(); }),
+        list ? Promise.resolve([] as PhotoPrint[]) : photoPrints(files, (n, of) => { printed = n; printing = of; say(); }),
+      ]);
+      const records = prints.length ? await fingerprintRecords(prints, dropped) : [];
       const leaves = records.length ? [...dropped, ...records] : dropped;
       // Files sorted by path, so the same folder always makes the same tree around its floor (2026-10-20).
       const fileLeaves = sortedLeaves(leaves);
       let tree: PluginTree | null = null, rootText = "", floorFile: string | null = null, block: BaseBlock | null = null;
-      let already: Proof | null = null;
-      // Already recorded? A floor tree is new every time (its block is), so it is found through a file's own index entry,
-      // which carries the floor; trees made before floors (2026-10-20) are found by their root, as before. A drop made
-      // before fingerprints went into trees is found without them.
-      setStatus("Looking for these files on the ledger…");
-      const found = (await recordedTreeOf(fileLeaves)) ?? (records.length ? await recordedTreeOf(sortedLeaves(dropped)) : null);
-      if (found) { tree = found.tree; rootText = found.rootText; floorFile = found.floorFile; already = found.proof; }
-      else if (leaves.length > 1) {
-        const sorted = await treeFromLeaves(fileLeaves), asDropped = await treeFromLeaves(leaves);
-        for (const t of asDropped.tree.root === sorted.tree.root ? [sorted] : [sorted, asDropped]) {
-          const p = await recordedProofOf(await digestOf(new TextEncoder().encode(t.rootText)));
-          if (p) { tree = t.tree; rootText = t.rootText; already = p; break; }
-        }
-      }
+      const already: Proof | null = null;
       const tHashed = performance.now();
       if (!already) {
-        setStatus("Reading the latest Base block…");
-        block = await latestBaseBlock();
+        block = await blockLater;
         floorFile = baseBlockFileText(block);
         const [floorLeaf] = await hashLeaves([new File([floorFile], "base-block.json", { type: "application/json" })]);
         const t = await treeFromLeaves([floorLeaf!, ...fileLeaves]);
