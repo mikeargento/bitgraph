@@ -4,7 +4,7 @@ import { DropPrompt, Browse } from "@/components/drop-prompt";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { docxText, isDocx } from "@/lib/docx-text";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 // Nav is in root layout
 import { hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
 import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, readTreeExports, checkTreeExports, walkEntries, type CapturedDrop } from "@/lib/folder-check";
@@ -70,6 +70,7 @@ import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf 
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 import { decodePhoto, looksLikePhoto } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark } from "@/lib/trustmark/check";
+import { setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
 import { NoTrustmark, trustmarkedFile, type TrustmarkedFile } from "@/lib/trustmark/export";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
@@ -324,6 +325,10 @@ export default function ProofPage() {
      emptiness is not a claim about these bytes. */
   const [retired, setRetired] = useState(false);
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
+  /* A copy of this page's photo (its BitGraphed file, a screenshot, a feed's copy) whose hidden pointer led here: shown in
+     the file pane with a label for what it is, never taken for the original (nothing is checked or made from it). */
+  const [heldCopy, setHeldCopyState] = useState<HeldCopy | null>(null);
+  useEffect(() => { const c = takeHeldCopy(digestParam); if (c) setHeldCopyState(c); }, [digestParam]);
   // A BitGraph image (/image) opens with its proof: the page redraws it from the commitment the
   // proof authenticates and holds it as the file in hand only when it hashes to the recorded
   // digest (2026-10-06). Nothing is stored.
@@ -2235,6 +2240,19 @@ export default function ProofPage() {
             </>
           ) : cachedFile ? (
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
+          ) : heldCopy ? (
+            <>
+              <PhotoCard cachedFile={heldCopy} bare label={heldCopy.kind === "bitgraphed" ? "BitGraphed file" : "copy"} />
+              <p className="pv-redraw-check">
+                <span>
+                  {heldCopy.kind === "bitgraphed"
+                    ? "The BitGraphed file of this photo: it carries this BitGraph’s hidden pointer."
+                    : `A copy of this photo: it carries this BitGraph’s hidden pointer and looks like the original (match ${heldCopy.score.toFixed(2)}).`}
+                  {" "}Only the original&rsquo;s exact bytes are proven.{" "}
+                  <button type="button" className="pv-inline-link" onClick={() => setHeldCopyState(null)}>Check the original</button>
+                </span>
+              </p>
+            </>
           ) : painting ? (
             <div role="status" aria-label="Painting" style={{ padding: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "var(--muted)" }}>
               <div className="bg-spinner" style={{ width: 28, height: 28, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -2245,7 +2263,7 @@ export default function ProofPage() {
               <HostedFilesView state={hosted} />
               {/* Once a host's files have matched, the record's files are already on the page: no "Locate the file" row
                   (2026-10-10). Generic, not Jev's: any matched ?files= bundle hides it; a failed or absent one keeps it. */}
-              {hosted.phase === "matched" ? null : <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} />}
+              {hosted.phase === "matched" ? null : <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} />}
             </div>
           );
           const hashes: FieldView[] = isEth
@@ -2563,7 +2581,10 @@ function BringYourFile({
   onMatch,
   onResolvedMember,
   onTreeEvidence,
+  onCopy,
 }: {
+  /** A copy of this page's photo, carrying its pointer: shown in the file pane, labelled for what it is. */
+  onCopy?: (copy: HeldCopy) => void;
   proof: BitGraphProof;
   /** The bound set manifest when this is a set proof: a drop is searched for
    *  every member's original and new-file digest, not only the artifact's. */
@@ -2578,6 +2599,7 @@ function BringYourFile({
   /** tree/1: the evidence an export dropped with the file placed it by. */
   onTreeEvidence?: (evidence: TreeMemberEvidence | null) => void;
 }) {
+  const router = useRouter();
   const [state, setState] = useState<"idle" | "reading" | "checking" | "looking" | "mismatch" | "tree" | "treeAll" | "treeNo" | "copy">("idle");
   // A copy that carries this BitGraph's hidden pointer (lib/trustmark): how closely it matches, and the photo's own page.
   const [copyOf, setCopyOf] = useState<{ score: number; href: string | null } | null>(null);
@@ -2711,8 +2733,13 @@ function BringYourFile({
       /* A dropped carrier is its committed bytes plus the proof block: strip
          first, or the outer hash matches nothing (lib/carrier-site). Folder
          drags walk too many files to pre-read and are left as they are. */
-      if (Array.isArray(source)) source = (await deCarrierFiles(source)).files;
-      else if (source.entries === null) source = (await deCarrierFiles(source.files)).files;
+      // which dropped files were BitGraphed files (unwrapped to the file inside), for the label a copy is shown with
+      let carriers = new Set<File>();
+      if (Array.isArray(source) || source.entries === null) {
+        const before = Array.isArray(source) ? source : source.files, dc = await deCarrierFiles(before);
+        carriers = new Set(dc.files.filter((f, i) => f !== before[i]));
+        source = Array.isArray(source) ? dc.files : { ...source, files: dc.files };
+      }
       const { match, checked } = Array.isArray(source)
         ? await findMatchInFiles(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }), seen)
         : await findMatchInDrop(
@@ -2830,7 +2857,7 @@ function BringYourFile({
             if (rebuilt.verification.category === "FUSED_FROM_ORIGIN") { await accept(origin.match); return; }
           }
         }
-        if (await placedElsewhere(source, seen)) return;
+        if (await placedElsewhere(source, seen, carriers)) return;
         if (await isOwnProofFile(source)) setOwnProof(true);
         setState("mismatch");
         return;
@@ -2846,7 +2873,7 @@ function BringYourFile({
    * the tree's own page), which opens that file's page; or a copy of its photo carrying this BitGraph's hidden pointer
    * (the BitGraphed file, a screenshot, a feed's copy), which is said here. True when one of them was found.
    */
-  async function placedElsewhere(source: CapturedDrop | File[], seen: Map<string, File>): Promise<boolean> {
+  async function placedElsewhere(source: CapturedDrop | File[], seen: Map<string, File>, carriers: Set<File>): Promise<boolean> {
     const epoch = String(proof.commit?.epochId ?? ""), counter = String(proof.commit?.counter ?? "");
     const here = (p: { commit?: { epochId?: unknown; counter?: unknown } }) => String(p.commit?.epochId) === epoch && String(p.commit?.counter) === counter;
     const pageOf = (digestB64: string) => `/proof/${toUrlSafeB64(digestB64)}?counter=${encodeURIComponent(counter)}&epoch=${encodeURIComponent(toUrlSafeB64(epoch))}`;
@@ -2867,7 +2894,17 @@ function BringYourFile({
     const img = await decodePhoto(files[0]!);
     const v = img ? await judgeTrustmark(img, { search: true, zooms: true }).catch(() => null) : null;
     if (v?.verdict !== "match" || String(v.original.counter) !== counter || v.original.epochId !== epoch) return false;
-    setCopyOf({ score: v.score, href: v.original.photoDigestB64 === cacheKey ? null : pageOf(v.original.photoDigestB64) });
+    // the copy is shown in the photo's own file pane, labelled for what it is: on the tree's page, that page opens with it
+    const wrapped = carriers.has(files[0]!);
+    // a BitGraphed file keeps its own name (the file inside it was named without the .bitgraph)
+    const held: HeldCopy = { name: wrapped ? files[0]!.name.replace(/(\.[^.]+)?$/, ".bitgraph$1") : files[0]!.name, data: await files[0]!.arrayBuffer(), kind: wrapped ? "bitgraphed" : "copy", score: v.score };
+    if (v.original.photoDigestB64 !== cacheKey) {
+      setHeldCopy(toUrlSafeB64(v.original.photoDigestB64), held);
+      router.push(pageOf(v.original.photoDigestB64));
+      return true;
+    }
+    onCopy?.(held);
+    setCopyOf({ score: v.score, href: null });
     setState("copy");
     return true;
   }

@@ -5315,3 +5315,6 @@ html:root:root:root:root:root:root:root:root:root body .pv-copy svg { display: b
 html:root:root:root:root:root:root:root:root:root body .copy-line { position: relative; }
 html:root:root:root:root:root:root:root:root:root body .copy-line > pre { padding-right: 44px !important; margin: 0; }
 html:root:root:root:root:root:root:root:root:root body .copy-line .pv-copy { top: 50%; right: 6px; transform: translateY(-50%); }
+
+/* A link-styled button inside a line of text (the file pane's "Check the original"). */
+.pv-inline-link { appearance: none; background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
