@@ -2267,19 +2267,20 @@ export default function ProofPage() {
           ) : cachedFile ? (
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
           ) : heldCopy ? (
-            <>
-              <PhotoCard cachedFile={heldCopy} bare label={heldCopy.kind === "bitgraphed" ? "BitGraphed file" : "copy"} onOpenUrl={setPhotoOpenUrl} />
-              {boundThumb && <BoundThumbView t={boundThumb} compare />}
-              <p className="pv-redraw-check">
-                <span>
-                  {heldCopy.kind === "bitgraphed"
-                    ? "The BitGraphed file of this photo: it carries this BitGraph’s hidden pointer."
-                    : `A copy of this photo: it carries this BitGraph’s hidden pointer and looks like the original (match ${heldCopy.score.toFixed(2)}).`}
-                  {" "}Only the original&rsquo;s exact bytes are proven.{" "}
-                  <button type="button" className="pv-inline-link" onClick={() => setHeldCopyState(null)}>Check the original</button>
-                </span>
-              </p>
-            </>
+            // A copy in hand is never shown as if it were the photo: the box shows what this BitGraph bound (its
+            // thumbnail, when its BitGraphed file published one), and the visitor already holds their own file.
+            boundThumb === undefined ? null : (
+              <div className="pv-pane-in">
+                {boundThumb && <BoundThumbView t={boundThumb} />}
+                <p className="pv-redraw-check">
+                  <span>
+                    {heldCopy.kind === "bitgraphed" ? "Your file is this photo’s BitGraphed file." : "Your file is a copy of this photo."}
+                    {" "}Only the original file proves it.{" "}
+                    <button type="button" className="pv-inline-link" onClick={() => setHeldCopyState(null)}>Check the original</button>
+                  </span>
+                </p>
+              </div>
+            )
           ) : painting ? (
             <div role="status" aria-label="Painting" style={{ padding: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "var(--muted)" }}>
               <div className="bg-spinner" style={{ width: 28, height: 28, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -3112,13 +3113,13 @@ function stdDigest(digestParam: string): string {
   return d;
 }
 
-/* ── The thumbnail this BitGraph's BitGraphed file bound, shown when the photo is not in hand: alone, the picture this
-   BitGraph bound; beside a copy, there to compare with. No caption: the page around it says what it is. ── */
+/* ── The thumbnail this BitGraph's BitGraphed file bound, shown when a copy, not the photo, is in hand: the picture this
+   BitGraph bound. No caption: the page around it says what it is. ── */
 
-function BoundThumbView({ t, compare = false }: { t: BoundThumbnail; compare?: boolean }) {
+function BoundThumbView({ t }: { t: BoundThumbnail }) {
   // No lightbox: at 512 pixels it is already shown about as large as it holds.
   return (
-    <figure className={`pv-bound-thumb${compare ? " is-compare" : ""}`}>
+    <figure className="pv-bound-thumb">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={t.url} alt="The thumbnail this BitGraph's BitGraphed file bound" />
     </figure>

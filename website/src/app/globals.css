@@ -5382,8 +5382,6 @@ html:root:root:root:root:root:root:root:root:root:root body .pv-lightbox .pv-lig
 /* The thumbnail a BitGraphed file bound, on its original's page (page.tsx, BoundThumbView). */
 .pv-bound-thumb { margin: 0 0 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .pv-bound-thumb img { display: block; max-width: 100%; max-height: min(60vh, 512px); width: auto; height: auto; animation: bg-fade-in 360ms ease-out; }
-.pv-bound-thumb.is-compare { margin-top: 16px; }
-.pv-bound-thumb.is-compare img { max-height: 220px; }
 html:root:root:root:root:root body .pv-bound-thumb figcaption { font-size: 14px; line-height: 1.5; color: var(--dim); text-align: center; max-width: 560px; }
 /* the bar's own head never takes a fill of its own, open or not: the card is the one surface */
 html:root:root:root:root:root:root:root:root:root:root body .pv-details-fold > .pv-fold-head, html:root:root:root:root:root:root:root:root:root:root body .pv-details-fold > .pv-fold-head:hover { background: transparent !important; }
