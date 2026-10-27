@@ -44,6 +44,34 @@ export async function decodePhoto(blob: Blob): Promise<Decoded | null> {
   } finally { bmp.close(); }
 }
 
+/** A photo decoded straight to at most `max` pixels on its longer side, by the browser: what a pointer is read from.
+ *  Decoding a large photo whole and shrinking it in script held hundreds of MB and the page for seconds, per photo. */
+export async function decodeForReading(blob: Blob, max = 1600): Promise<Decoded | null> {
+  const size = await naturalSize(blob);
+  if (!size) return null;
+  const s = max / Math.max(size.w, size.h);
+  if (s >= 1) return decodePhoto(blob);
+  let bmp: ImageBitmap;
+  try { bmp = await createImageBitmap(blob, { resizeWidth: Math.max(1, Math.round(size.w * s)), resizeHeight: Math.max(1, Math.round(size.h * s)), resizeQuality: "high" }); } catch { return null; }
+  try {
+    const c = new OffscreenCanvas(bmp.width, bmp.height), g = c.getContext("2d", { willReadFrequently: true });
+    if (!g) return null;
+    g.drawImage(bmp, 0, 0);
+    return { rgba: g.getImageData(0, 0, bmp.width, bmp.height).data, w: bmp.width, h: bmp.height };
+  } finally { bmp.close(); }
+}
+
+/** A picture's size, as shown (its orientation applied), from the browser's own reading of the file: no pixels kept. */
+async function naturalSize(blob: Blob): Promise<{ w: number; h: number } | null> {
+  if (typeof Image === "undefined") return null;
+  const url = URL.createObjectURL(blob);
+  try {
+    const im = new Image();
+    await new Promise<void>((ok, no) => { im.onload = () => ok(); im.onerror = () => no(new Error("unreadable")); im.src = url; });
+    return im.naturalWidth && im.naturalHeight ? { w: im.naturalWidth, h: im.naturalHeight } : null;
+  } catch { return null; } finally { URL.revokeObjectURL(url); }
+}
+
 const decoded = new WeakMap<Blob, Promise<Decoded | null>>();
 /** decodePhoto, once per file: a drop reads a photo for a pointer and for its fingerprint, from the same pixels. */
 export function decodeOnce(blob: Blob): Promise<Decoded | null> {
@@ -51,6 +79,9 @@ export function decodeOnce(blob: Blob): Promise<Decoded | null> {
   if (!p) { p = decodePhoto(blob); decoded.set(blob, p); }
   return p;
 }
+/** Let a photo's decoded pixels go once nothing will read them again: a large photo's pixels are hundreds of MB, and a
+ *  drop of twenty kept them all while the drop's files were held. */
+export function forgetDecoded(blob: Blob) { decoded.delete(blob); }
 
 /**
  * Whether the picture is a photograph, where a TrustMark is invisible, and not a graphic (flat colour, text, line art,

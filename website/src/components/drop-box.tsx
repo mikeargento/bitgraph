@@ -32,7 +32,7 @@ import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
 import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, parseDigestRootText, rootTextBytes, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
-import { MAX_FINGERPRINTED, decodeOnce, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
+import { MAX_FINGERPRINTED, decodeForReading, decodeOnce, forgetDecoded, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
 import { noteCopyOf, noteCredentialsMatch, noteDroppedCopy } from "@/lib/trustmark/copy-note";
@@ -136,6 +136,19 @@ async function filesOfDrop(dt: DataTransfer, onProgress?: (msg: string) => void)
 }
 
 /** Run `fn` over `items` with at most `n` at once. */
+/** At most `n` of these at once, the rest waiting their turn. */
+function limiter(n: number) {
+  let busy = 0; const queue: Array<() => void> = [];
+  return async <T,>(fn: () => Promise<T>): Promise<T> => {
+    if (busy >= n) await new Promise<void>((go) => queue.push(go));
+    busy++;
+    try { return await fn(); } finally { busy--; queue.shift()?.(); }
+  };
+}
+// Reading photos for a pointer: two at a time. Each decoded photo is hundreds of MB and the pointer's models run on it;
+// a drop of twenty read all at once ran the browser out of memory.
+const photoRead = limiter(2);
+
 async function pool<T>(items: T[], n: number, fn: (x: T, i: number) => Promise<void>): Promise<void> {
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
@@ -214,6 +227,7 @@ async function fingerprintRecords(files: File[], leaves: Array<[string, string, 
       const store = manifestStoreOf(new Uint8Array(await p.f.arrayBuffer()));
       if (store && store.length <= MAX_MANIFEST_BYTES) made.push({ file: new File([store as BlobPart], `${p.name}${C2PA_SUFFIX}`, { type: "application/c2pa" }), name: `${p.name}${C2PA_SUFFIX}` });
     }
+    forgetDecoded(p.f);
     n++;
     if (onProgress && (n % 10 === 0 || n === photos.length)) onProgress(n, photos.length);
   }
@@ -726,7 +740,9 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         // A screenshot (a photo on a phone or a page, with interface around it) gets the search inside it on Make too: that
         // is how a screenshot of a copy finds its original. It shows as flat interface, or as a phone screen's shape.
         const screenshotLike = (img: { rgba: Uint8ClampedArray; w: number; h: number }) => !isPhotographic(img) || Math.max(img.w, img.h) / Math.min(img.w, img.h) >= 1.9;
-        const readPointer = () => decodeOnce(f).then((img) => (img ? judgeTrustmark(img, { search: single && (mode === "check" || screenshotLike(img)), zooms: mode === "check" }) : null)).catch(() => null);
+        // read from the photo decoded at the reading size, never whole: a large photo whole is hundreds of MB
+        const readPointer = () => photoRead(() => decodeForReading(f).then((img) => (img ? judgeTrustmark(img, { search: single && (mode === "check" || screenshotLike(img)), zooms: mode === "check" }) : null)))
+          .catch(() => null);
         const early = looksLikePhoto(f) && single ? readPointer() : null;
         patch(row.key, { bytes, digestB64, state: "looking" });
         const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
