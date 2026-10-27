@@ -5432,5 +5432,5 @@ html:root:root:root:root:root body #site-nav .nav-menu-btn { display: none; }
   html:root:root:root:root:root body #site-nav .nav-sheet-theme { display: flex; margin-top: auto; padding-top: 24px; }
   html:root:root:root:root:root:root:root body #site-nav .nav-sheet-theme .theme-toggle { margin: 0 0 0 -8px !important; }
 }
-/* Make and Watermarks: the box under the page's opening paragraph, as Tools has its cards */
+/* Make and Check: the box under the page's opening paragraph, as Tools has its cards */
 html:root:root:root:root:root body .page-box { margin-top: 32px; }

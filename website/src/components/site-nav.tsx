@@ -14,10 +14,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
  * the bar; on phones they fold into a menu button that opens a sheet under the bar.
  */
 const LINKS: Array<{ href: string; label: string }> = [
-  // One job each: Make binds a drop, Proofs is the ledger, Watermarks finds a copy's original.
+  // One job each: Make binds a drop, Check looks a file up (its bytes, or a copy's watermark) and makes nothing,
+  // Proofs is the ledger.
   { href: "/make", label: "Make" },
+  { href: "/check", label: "Check" },
   { href: "/ledger", label: "Proofs" },
-  { href: "/watermarks", label: "Watermarks" },
   { href: "/demos", label: "Demos" },
   { href: "/tools", label: "Tools" },
 ];

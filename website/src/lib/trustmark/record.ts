@@ -72,6 +72,12 @@ async function naturalSize(blob: Blob): Promise<{ w: number; h: number } | null>
   } catch { return null; } finally { URL.revokeObjectURL(url); }
 }
 
+/** The size a photo's fingerprint is computed at: a 16x16 grid and a 64-bit hash need no more, and a 24-megapixel photo
+ *  read whole took about a second each, minutes for a drop of hundreds. Make and the BitGraphed file both use it, so
+ *  the record they compute is the same bytes. */
+export const RECORD_DECODE = 1024;
+export const decodeForRecord = (blob: Blob) => decodeForReading(blob, RECORD_DECODE);
+
 const decoded = new WeakMap<Blob, Promise<Decoded | null>>();
 /** decodePhoto, once per file: a drop reads a photo for a pointer and for its fingerprint, from the same pixels. */
 export function decodeOnce(blob: Blob): Promise<Decoded | null> {

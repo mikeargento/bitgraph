@@ -80,7 +80,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       {/* No visible h1: it repeated the nav (2026-10-17). */}
         <h1 className="sr-only">Proofs.</h1>
 
-      {/* The ledger itself: every BitGraph by day. Making is on Make, checking a copy on Watermarks. */}
+      {/* The ledger itself: every BitGraph by day. Making is on Make, checking on Check. */}
       {/* LEDGER on the left, the day links and Calendar on the right; no paragraph (2026-10-17). */}
       <div className="ledger-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", margin: "0 0 20px" }}>
         <div>

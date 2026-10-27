@@ -29,7 +29,7 @@ import { readDetachedC2PA } from "@/lib/c2pa-reader";
 import { manifestStoreOf } from "./c2pa-leaf.ts";
 import { markPhoto, readings } from "./marks.ts";
 import { epochRef, MAX_COUNTER, pack, tag } from "./payload.ts";
-import { decodePhoto, isPhotographic, parseRecord, recordBytes } from "./record.ts";
+import { decodeForRecord, decodePhoto, isPhotographic, parseRecord, recordBytes } from "./record.ts";
 import { aspectOk } from "./tm.ts";
 
 const CEILING_WAIT_MS = 15_000;
@@ -134,7 +134,14 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   // (copyChecked: Make has just read this photo for a pointer, before making its BitGraph.)
   if (!copyChecked && (await carriesPointer(img))) throw new NoTrustmark("this photo is a copy and already points to the earliest known recording");
   if (!copyChecked) step("read for an earlier pointer");
-  const rec = recordBytes(photoDigestB64, img);
+  // The record as Make computes it now, from the photo decoded at the fingerprint's size; a photo made before that
+  // bound the record of its whole decode, which is tried when the first is not bound.
+  const small = await decodeForRecord(photo);
+  let rec = small ? recordBytes(photoDigestB64, small) : recordBytes(photoDigestB64, img);
+  if (small && !(await earliestBinding(photoDigestB64, photoProof, rec))) {
+    const whole = recordBytes(photoDigestB64, img);
+    if (await earliestBinding(photoDigestB64, photoProof, whole)) rec = whole;
+  }
   // The pointer leads to the earliest BitGraph of this photo that binds its fingerprint, whichever of its BitGraphs
   // the page shows.
   photoProof = await earliestBinding(photoDigestB64, photoProof, rec) ?? photoProof;

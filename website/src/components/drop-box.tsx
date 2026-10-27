@@ -32,7 +32,7 @@ import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
 import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, parseDigestRootText, rootTextBytes, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
-import { MAX_FINGERPRINTED, decodeForReading, decodeOnce, forgetDecoded, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
+import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
 import { noteCopyOf, noteCredentialsMatch, noteDroppedCopy } from "@/lib/trustmark/copy-note";
@@ -216,21 +216,24 @@ async function fingerprintRecords(files: File[], leaves: Array<[string, string, 
   const photos = files.map((f, i) => ({ f, digest: leaves[i]![2], name: f.webkitRelativePath || f.name }))
     .filter((p) => looksLikePhoto(p.f) && !p.name.endsWith(RECORD_SUFFIX) && !names.has(`${p.name}${RECORD_SUFFIX}`));
   if (photos.length === 0 || photos.length > MAX_FINGERPRINTED) return [];
-  const made: Array<{ file: File; name: string }> = [];
+  // three photos at a time, each decoded straight to the fingerprint's size; the records keep the drop's order
+  const each: Array<Array<{ file: File; name: string }>> = new Array(photos.length);
   let n = 0;
-  for (const p of photos) {
-    const img = await decodeOnce(p.f);
+  await pool(photos, 3, async (p, i) => {
+    const out: Array<{ file: File; name: string }> = [];
+    const img = await decodeForRecord(p.f);
     // graphics are recorded as they are: the pointer shows on them (isPhotographic)
     if (img && isPhotographic(img)) {
-      made.push({ file: recordFile(p.name, recordBytes(p.digest, img)), name: `${p.name}${RECORD_SUFFIX}` });
+      out.push({ file: recordFile(p.name, recordBytes(p.digest, img)), name: `${p.name}${RECORD_SUFFIX}` });
       // its Content Credentials, when it carries them, beside it (lib/trustmark/c2pa-leaf.ts)
       const store = manifestStoreOf(new Uint8Array(await p.f.arrayBuffer()));
-      if (store && store.length <= MAX_MANIFEST_BYTES) made.push({ file: new File([store as BlobPart], `${p.name}${C2PA_SUFFIX}`, { type: "application/c2pa" }), name: `${p.name}${C2PA_SUFFIX}` });
+      if (store && store.length <= MAX_MANIFEST_BYTES) out.push({ file: new File([store as BlobPart], `${p.name}${C2PA_SUFFIX}`, { type: "application/c2pa" }), name: `${p.name}${C2PA_SUFFIX}` });
     }
-    forgetDecoded(p.f);
+    each[i] = out;
     n++;
     if (onProgress && (n % 10 === 0 || n === photos.length)) onProgress(n, photos.length);
-  }
+  });
+  const made = each.flat();
   // the leaf's name is the photo's path in the drop plus the suffix (a File's own name cannot hold the path)
   return (await hashLeaves(made.map((m) => m.file))).map((l, i) => [made[i]!.name, l[1], l[2]]);
 }
@@ -884,13 +887,11 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         {/* A touch screen cannot drop a file or choose a folder: there the box only offers to choose files, and the
             whole box is the tap (globals.css, .db-zone-touch). */}
         <div className="db-zone-title">{status ?? <>
-          {mode === "check"
-            ? <span className="db-zone-desk">Drop a copy here to find its original, or <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>choose one</button></span>
-            : <span className="db-zone-desk">Drop files or a folder here, or choose{" "}
+          <span className="db-zone-desk">{mode === "check" ? "Drop files here to check them, or choose" : "Drop files or a folder here, or choose"}{" "}
               <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>files</button>
               {" · "}
-              <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); folderRef.current?.click(); }}>a folder</button></span>}
-          <span className="db-zone-touch"><span className="db-zone-pick">{mode === "check" ? "Choose a copy" : "Choose files"}</span>{mode === "check" ? " to find its original" : " to BitGraph"}</span></>}</div>
+              <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); folderRef.current?.click(); }}>a folder</button></span>
+          <span className="db-zone-touch"><span className="db-zone-pick">Choose files</span>{mode === "check" ? " to check" : " to BitGraph"}</span></>}</div>
         {/* Something is happening: a thin moving bar under the line that says what (2026-10-18). */}
         {status && <div className="bg-working" role="progressbar" aria-label={status} />}
         <div className="db-zone-sub">Each file is hashed in your browser. <br className="sub-br" />Only its SHA-256 is&nbsp;sent.</div>
