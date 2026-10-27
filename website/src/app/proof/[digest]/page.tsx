@@ -68,7 +68,8 @@ import { SET_KEY, bindSet, bindSetMember, dropDigestsFor, isSetProof, memberEvid
 import { toUrlSafeB64, fromUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf as treeMemberOf, rootTextBytes as treeRootTextBytes } from "@/lib/tree-member";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
-import { looksLikePhoto } from "@/lib/trustmark/record";
+import { decodePhoto, looksLikePhoto } from "@/lib/trustmark/record";
+import { judge as judgeTrustmark } from "@/lib/trustmark/check";
 import { NoTrustmark, trustmarkedFile, type TrustmarkedFile } from "@/lib/trustmark/export";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
@@ -2576,7 +2577,9 @@ function BringYourFile({
   /** tree/1: the evidence an export dropped with the file placed it by. */
   onTreeEvidence?: (evidence: TreeMemberEvidence | null) => void;
 }) {
-  const [state, setState] = useState<"idle" | "reading" | "checking" | "looking" | "mismatch" | "tree" | "treeAll" | "treeNo">("idle");
+  const [state, setState] = useState<"idle" | "reading" | "checking" | "looking" | "mismatch" | "tree" | "treeAll" | "treeNo" | "copy">("idle");
+  // A copy that carries this BitGraph's hidden pointer (lib/trustmark): how closely it matches, and the photo's own page.
+  const [copyOf, setCopyOf] = useState<{ score: number; href: string | null } | null>(null);
   // The one file dropped was this BitGraph's own proof, not the file it describes (2026-10-20: dropping
   // bitgraph-2.json on #2's page said "No match").
   const [ownProof, setOwnProof] = useState(false);
@@ -2826,6 +2829,7 @@ function BringYourFile({
             if (rebuilt.verification.category === "FUSED_FROM_ORIGIN") { await accept(origin.match); return; }
           }
         }
+        if (await placedElsewhere(source, seen)) return;
         if (await isOwnProofFile(source)) setOwnProof(true);
         setState("mismatch");
         return;
@@ -2834,6 +2838,37 @@ function BringYourFile({
     } catch {
       setState("mismatch");
     }
+  }
+
+  /**
+   * A drop that is not this page's file may still belong to this BitGraph: a file of its tree (the photo, dropped on
+   * the tree's own page), which opens that file's page; or a copy of its photo carrying this BitGraph's hidden pointer
+   * (the BitGraphed file, a screenshot, a feed's copy), which is said here. True when one of them was found.
+   */
+  async function placedElsewhere(source: CapturedDrop | File[], seen: Map<string, File>): Promise<boolean> {
+    const epoch = String(proof.commit?.epochId ?? ""), counter = String(proof.commit?.counter ?? "");
+    const here = (p: { commit?: { epochId?: unknown; counter?: unknown } }) => String(p.commit?.epochId) === epoch && String(p.commit?.counter) === counter;
+    const pageOf = (digestB64: string) => `/proof/${toUrlSafeB64(digestB64)}?counter=${encodeURIComponent(counter)}&epoch=${encodeURIComponent(toUrlSafeB64(epoch))}`;
+    // this page's own file, when the page is a file of a tree (its proof's artifact is the tree's root, not the file)
+    const own = seen.get(cacheKey);
+    if (own && treeMemberOf(proof as never) && checkTreeMember(proof as never, cacheKey)) { await accept(own); return true; }
+    for (const d of [...seen.keys()].slice(0, 50)) {
+      if (d === cacheKey) continue;
+      const res = await fetch(`/api/proofs/${toUrlSafeB64(d)}`).catch(() => null);
+      const body = res?.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ proof: BitGraphProof; kind?: string }> } | null) : null;
+      if (body?.proofs?.some((x) => x.kind === "recorded" && treeMemberOf(x.proof as never) && here(x.proof as never) && checkTreeMember(x.proof as never, d))) {
+        window.location.assign(pageOf(d));
+        return true;
+      }
+    }
+    const files = Array.isArray(source) ? source : source.entries ? [] : source.files;
+    if (files.length !== 1 || !looksLikePhoto(files[0]!)) return false;
+    const img = await decodePhoto(files[0]!);
+    const v = img ? await judgeTrustmark(img, { search: true, zooms: true }).catch(() => null) : null;
+    if (v?.verdict !== "match" || String(v.original.counter) !== counter || v.original.epochId !== epoch) return false;
+    setCopyOf({ score: v.score, href: v.original.photoDigestB64 === cacheKey ? null : pageOf(v.original.photoDigestB64) });
+    setState("copy");
+    return true;
   }
 
   /** One .json file whose artifact digest is this proof's: the proof itself, dropped where its file belongs. */
@@ -2949,6 +2984,14 @@ function BringYourFile({
           <div className="dropbox-line">{checkedCount < (treeBoundCount ?? 0)
             ? "None of them was found in this tree by its recovery entry. Drop the whole folder to check every file, or one file together with the tree\u2019s export."
             : "The folder must hold exactly the files that were bound, unchanged. To find which file differs, drop it together with the tree\u2019s export."}</div>
+        </>
+      ) : state === "copy" && copyOf ? (
+        <>
+          <div className="dropbox-title" style={{ color: "var(--ok)" }}>A copy of the photo recorded here</div>
+          <div className="dropbox-line">
+            It carries this BitGraph&rsquo;s hidden pointer and looks like the photo it recorded. Only the original&rsquo;s exact bytes prove it unedited.
+            {copyOf.href && <> <a href={copyOf.href} onClick={(e) => e.stopPropagation()}>Open the photo&rsquo;s page</a>.</>}
+          </div>
         </>
       ) : mismatch && ownProof ? (
         <>
