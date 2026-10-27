@@ -673,12 +673,14 @@ export default function ProofPage() {
   }
   // What this BitGraph bound, as a picture, when its BitGraphed file published a thumbnail (lib/trustmark/bound-thumbnail):
   // shown when the photo itself is not in hand, checked against the fingerprint bound here.
-  const [boundThumb, setBoundThumb] = useState<BoundThumbnail | null>(null);
+  // undefined while the check runs: the file pane waits for it, so the full find-the-file box never flashes first
+  const [boundThumb, setBoundThumb] = useState<BoundThumbnail | null | undefined>(undefined);
   useEffect(() => {
-    if (!proof || !atomicCarrier || cachedFile) return;
+    if (!proof || !atomicCarrier || cachedFile) { setBoundThumb(null); return; }
     let gone = false, url: string | null = null;
-    void boundThumbnail(proof as never).then((t) => { if (gone) { if (t) URL.revokeObjectURL(t.url); return; } url = t?.url ?? null; setBoundThumb(t); }).catch(() => {});
-    return () => { gone = true; if (url) URL.revokeObjectURL(url); setBoundThumb(null); };
+    setBoundThumb(undefined);
+    void boundThumbnail(proof as never).then((t) => { if (gone) { if (t) URL.revokeObjectURL(t.url); return; } url = t?.url ?? null; setBoundThumb(t); }).catch(() => { if (!gone) setBoundThumb(null); });
+    return () => { gone = true; if (url) URL.revokeObjectURL(url); };
   }, [proof, atomicCarrier, cachedFile]);
   // A photo in hand on its page: the pointer's models start loading now, so a Download does not wait on them.
   useEffect(() => {
@@ -2279,8 +2281,8 @@ export default function ProofPage() {
               <div className="bg-spinner" style={{ width: 28, height: 28, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
               <div>Painting&hellip;</div>
             </div>
-          ) : (
-            <div style={{ padding: 16 }}>
+          ) : boundThumb === undefined ? null : (
+            <div style={{ padding: 16 }} className="pv-pane-in">
               {boundThumb && <BoundThumbView t={boundThumb} />}
               <HostedFilesView state={hosted} />
               {/* Once a host's files have matched, the record's files are already on the page: no "Locate the file" row

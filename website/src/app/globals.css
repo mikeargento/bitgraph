@@ -5395,3 +5395,6 @@ html:root:root:root:root:root:root:root:root:root:root body .dropbox.is-compact:
 html:root:root:root:root:root:root:root:root:root:root body .dropbox.is-compact .dropbox-line { margin: 0 !important; font-size: 15px; color: var(--dim); }
 html:root:root:root:root:root:root:root:root:root:root body .dropbox.is-compact:not(.is-drag) { box-shadow: none !important; outline: none !important; }
 html:root:root:root:root:root:root:root:root:root:root body .dropbox.is-compact .dropbox-line { max-width: none !important; text-wrap: balance; }
+/* The file pane once the thumbnail check has answered: the thumbnail or the find-the-file box fades in, never one first. */
+.pv-pane-in { animation: bg-fade-in 260ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .pv-pane-in { animation: none; } }
