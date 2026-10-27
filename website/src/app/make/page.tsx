@@ -22,10 +22,10 @@ export default function MakePage() {
         <p className="home-kicker">Make</p>
         <h2 id="m-intro">Bind your files in a BitGraph.</h2>
         <p>
-          A BitGraph proves these exact bits existed by now, and could not have been bound before. Many files at once become one tree and
-          one BitGraph, and each file in it can be checked on its own. A photo also gets its BitGraphed file: the photo with its proof
-          inside and an invisible watermark that leads copies back here. BitGraphs are permanent, and the same file dropped again gets a
-          BitGraph of its own.
+          A BitGraph proves these exact bits existed by the time they were bound, and could not have been bound before. Many files at
+          once become one tree and one BitGraph, and each file in it can be checked on its own. A photo also gets a BitGraphed copy
+          containing its proof and an invisible watermark that leads copies back here. BitGraphs are permanent, and the same file dropped
+          again gets a BitGraph of its own.
         </p>
         <div className="page-box"><DropBox mode="make" /></div>
       </section>
