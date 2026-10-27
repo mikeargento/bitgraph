@@ -5318,3 +5318,9 @@ html:root:root:root:root:root:root:root:root:root body .copy-line .pv-copy { top
 
 /* A link-styled button inside a line of text (the file pane's "Check the original"). */
 .pv-inline-link { appearance: none; background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
+
+/* A proof page that holds a picture leads with it (proof-view, m.photo): one line under the photo, then the download. */
+.pv-photo-strip { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 0; margin-top: 16px; font-size: 16px; color: var(--text); }
+.pv-photo-strip .pv-verdict { font-weight: 600; }
+.pv-photo-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+.pv-photo-strip .pv-sep { margin: 0 8px; color: var(--dim); }

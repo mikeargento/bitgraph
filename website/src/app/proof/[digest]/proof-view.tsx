@@ -121,6 +121,8 @@ export interface ProofViewModel {
   leadFallback: ReactNode;
   /** The file pane: the preview, the drop box, or for an anchor the block row. */
   filePane: ReactNode;
+  /** The page holds a picture (the photo, its BitGraphed file or a copy): it leads with it, the proof folded below. */
+  photo?: boolean;
   c2pa: C2PAReadResult | null;
   /** A set, or a tree/1 (whose page can list only the file in hand, once placed: a tree's members are known file by file, from evidence). */
   set: { kind: "set/1" | "set/2" | "tree/1"; count: number; root: string | null; rows: SetRowView[] } | null;
@@ -325,6 +327,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const fo = m.floorOf ?? null;
   const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null;
   const c = m.checks;
+  const [details, setDetails] = useState(false);
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
   const badCount = c.claims.filter((x) => x.result === "FALSE").length;
   const commit = m.proof.commit;
@@ -341,30 +344,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
     URL.revokeObjectURL(a.href);
   };
 
-  return (
-    <div className="pv">
-      <h1 className="sr-only">BitGraph proof</h1>
-
-      {/* ── The BitGraph and its verdict ── */}
-      <section className="pv-card">
-        <div className="pv-head">
-          <div className="pv-head-main">
-            <div className="pv-title">
-              {m.recordName}
-              {m.kind === "anchor" && <span className="pv-kind">Ethereum anchor</span>}
-              {m.kind === "interval" && <span className="pv-kind">Interval</span>}
-            </div>
-            {/* When it was made, by the enclave's own signed clock, at the top (2026-10-17). */}
-            {m.attestedMs !== null && (
-              <div className="pv-when"><TimeChip date={new Date(m.attestedMs)} withDate /></div>
-            )}
-            {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
-          </div>
-        </div>
-
-        {m.filePane}
-        {m.c2pa?.present && <ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} />}
-
+  const checksBlock = (
         <div className="pv-sub">
           {c.state === "running" && <div className="pv-note">Checking the proof in your browser<span className="pv-dots" aria-hidden /></div>}
           {c.state === "failed" && <div className="pv-note">{c.note ?? "The proof could not be checked just now. That is not a finding about this BitGraph; try again in a moment."}</div>}
@@ -379,8 +359,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             </>
           )}
         </div>
-      </section>
-
+  );
+  const counterCard = (
+    <>
       {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
       <section className="pv-card">
         <div className="pv-section-title">Monotonic counter</div>
@@ -398,7 +379,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         )}
         {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
       </section>
-
+    </>
+  );
+  const timeCard = (
+    <>
       {/* ── Where it sits in time: the Base floor, the recorded time, the Base write ── */}
       {showTime && (
         <section className="pv-card">
@@ -495,7 +479,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           </div>
         </section>
       )}
-
+    </>
+  );
+  const sigCard = (
+    <>
       {/* ── Signature and enclave ── */}
       <section className="pv-card pv-details">
         <Fold title="Signature">{m.signatureRows.map((f) => <Row key={f.label} f={f} />)}</Fold>
@@ -504,7 +491,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           <EnclaveDecoded proof={m.proof} />
         </Fold>
       </section>
-
+    </>
+  );
+  const anywhereCard = (
+    <>
       {/* ── Check it anywhere ── */}
       <section className="pv-card">
         <div className="pv-section-title">Check it anywhere</div>
@@ -527,11 +517,101 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           <CopyCode />
         </div>
       </section>
-
+    </>
+  );
+  const rawCard = (
+    <>
       {/* ── Raw JSON ── */}
       <section className="pv-card pv-details">
         <Fold title="Raw JSON"><RawJson proof={m.proof} /></Fold>
       </section>
+    </>
+  );
+
+  /* A picture in hand (the photo, its BitGraphed file or a copy) leads the page: the photo, one line saying what the
+     BitGraph says, the download, and the proof itself folded under Proof details. Every other file keeps the full page. */
+  if (m.photo) {
+    const verdictWord = c.state === "done" ? (c.verdict === "TRUE" ? "\u2713 Valid proof" : c.verdict === "FALSE" ? "\u2717 Not a valid proof" : "Undetermined") : c.state === "failed" ? "Not checked" : "Checking\u2026";
+    const who = m.c2pa?.present ? [m.c2pa.creator, m.c2pa.signatureIssuer ? `signed by ${m.c2pa.signatureIssuer}` : null].filter(Boolean).join(", ") : "";
+    return (
+      <div className="pv">
+        <h1 className="sr-only">BitGraph proof</h1>
+        <section className="pv-card pv-photo">
+          {m.filePane}
+          <div className="pv-photo-strip">
+            <span className={`pv-verdict pv-verdict-${(c.state === "done" ? c.verdict ?? "UNDETERMINED" : "UNDETERMINED").toLowerCase()}`}>{verdictWord}</span>
+            <span className="pv-sep"> · </span><span>{m.recordName}</span>
+            {m.attestedMs !== null && <><span className="pv-sep"> · </span><TimeChip date={new Date(m.attestedMs)} withDate /></>}
+            {who && <><span className="pv-sep"> · </span><span>{who}</span></>}
+          </div>
+          {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
+          <div className="pv-photo-actions">
+            {bitgraphed && (
+              <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>
+                {bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}
+              </button>
+            )}
+            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={download}>Download proof</button>
+          </div>
+          {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
+        </section>
+        <section className="pv-card pv-details">
+          <button type="button" className="pv-fold-head" aria-expanded={details} onClick={() => setDetails((o) => !o)}>
+            <span>Proof details</span>
+            <svg className="pv-chevron" width="18" height="18" viewBox="0 0 24 24" aria-hidden style={{ transform: details ? "rotate(90deg)" : undefined }}><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+        </section>
+        {details && (
+          <>
+            {m.c2pa?.present && <section className="pv-card"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></section>}
+            <section className="pv-card">{checksBlock}</section>
+            {counterCard}
+            {timeCard}
+            {sigCard}
+            {anywhereCard}
+            {rawCard}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="pv">
+      <h1 className="sr-only">BitGraph proof</h1>
+
+      {/* ── The BitGraph and its verdict ── */}
+      <section className="pv-card">
+        <div className="pv-head">
+          <div className="pv-head-main">
+            <div className="pv-title">
+              {m.recordName}
+              {m.kind === "anchor" && <span className="pv-kind">Ethereum anchor</span>}
+              {m.kind === "interval" && <span className="pv-kind">Interval</span>}
+            </div>
+            {/* When it was made, by the enclave's own signed clock, at the top (2026-10-17). */}
+            {m.attestedMs !== null && (
+              <div className="pv-when"><TimeChip date={new Date(m.attestedMs)} withDate /></div>
+            )}
+            {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
+          </div>
+        </div>
+
+        {m.filePane}
+        {m.c2pa?.present && <ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} />}
+
+        {checksBlock}
+      </section>
+
+      {counterCard}
+
+      {timeCard}
+
+      {sigCard}
+
+      {anywhereCard}
+
+      {rawCard}
     </div>
   );
 }
