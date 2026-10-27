@@ -5347,13 +5347,13 @@ html:root:root:root:root:root body .pv-lightbox-close { position: absolute; top:
 @media (prefers-reduced-motion: reduce) { .pv-lightbox, .pv-lightbox img { animation: none; } }
 
 /* The Proof details bar answers the pointer: the whole card takes the hover fill, its edge darkens, the chevron steps
-   right. The fill holds only while the details are folded; open, the head alone takes it. */
+   right, the same whether the details are folded or open (the card holds only the bar; the details are cards below). */
 html:root:root:root:root:root body .pv-details-fold { transition: background-color 160ms ease, border-color 160ms ease; }
 html:root:root:root:root:root body .pv-details-fold > .pv-fold-head .pv-chevron { transition: transform 200ms ease, translate 160ms ease; }
 @media (hover: hover) {
-  html:root:root:root:root:root body .pv-details-fold:has(> .pv-fold-head[aria-expanded="false"]:hover) { background: var(--panel-2) !important; border-color: var(--ink-3, var(--dim)) !important; }
+  html:root:root:root:root:root body .pv-details-fold:has(> .pv-fold-head:hover) { background: var(--panel-2) !important; border-color: var(--ink-3, var(--dim)) !important; }
   html:root:root:root:root:root body .pv-details-fold > .pv-fold-head[aria-expanded="false"]:hover .pv-chevron { translate: 3px 0; }
-  html:root:root:root:root:root body .pv-details-fold > .pv-fold-head[aria-expanded="true"]:hover { background: var(--panel-2) !important; }
+  html:root:root:root:root:root body .pv-details-fold > .pv-fold-head[aria-expanded="true"]:hover .pv-chevron { translate: 0 2px; }
 }
 
 /* ── The site's one wait (components/wait.tsx) and the fades between pages ──
@@ -5385,3 +5385,5 @@ html:root:root:root:root:root:root:root:root:root:root body .pv-lightbox .pv-lig
 .pv-bound-thumb.is-compare { margin-top: 16px; }
 .pv-bound-thumb.is-compare img { max-height: 220px; }
 html:root:root:root:root:root body .pv-bound-thumb figcaption { font-size: 14px; line-height: 1.5; color: var(--dim); text-align: center; max-width: 560px; }
+/* the bar's own head never takes a fill of its own, open or not: the card is the one surface */
+html:root:root:root:root:root:root:root:root:root:root body .pv-details-fold > .pv-fold-head, html:root:root:root:root:root:root:root:root:root:root body .pv-details-fold > .pv-fold-head:hover { background: transparent !important; }
