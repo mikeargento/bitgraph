@@ -1,15 +1,15 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * The BitGraphed file of a photo, with a TrustMark: one file that is exact evidence while it is intact (the proof
+ * The BitGraphed file of a photo, with a hidden pointer: one file that is exact evidence while it is intact (the proof
  * inside it binds its bytes) and still points to the original's proof once a feed, a screenshot or a recompression has
- * stripped that block away (the TrustMark in its pixels).
+ * stripped that block away (the pointer in its pixels).
  *
  *   1. The photo's fingerprint record is computed again from the photo in hand and found in the original's own tree.
- *      A photo whose BitGraph does not bind one cannot carry a TrustMark: a pointer to it could be passed off on
+ *      A photo whose BitGraph does not bind one cannot carry a pointer: a pointer to it could be passed off on
  *      another picture.
  *   2. The pointer (the original's position and a tag from its nonce and bound pHash) is written into the pixels, in
- *      this browser, nested (marks.ts), and saved as JPEG. Nothing is recorded unless the mark reads back from that
+ *      this browser, with Pixel Seal (marks.ts), and saved as JPEG. Nothing is recorded unless the mark reads back from that
  *      very JPEG.
  *   3. The marked copy is recorded as its own BitGraph, after the original, the way every drop is (a tree whose first
  *      leaf is the latest Base block), and its members are indexed; a copy already on record keeps its BitGraph.
@@ -25,16 +25,15 @@ import { carriesPointer } from "./check.ts";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { readDetachedC2PA } from "@/lib/c2pa-reader";
 import { manifestStoreOf } from "./c2pa-leaf.ts";
-import { markNested, readings } from "./marks.ts";
+import { markPhoto, readings } from "./marks.ts";
 import { epochRef, MAX_COUNTER, pack, tag } from "./payload.ts";
 import { decodePhoto, isPhotographic, parseRecord, recordBytes } from "./record.ts";
-import { markRuntime, readRuntime } from "./runtime.ts";
 import { aspectOk } from "./tm.ts";
 
 const CEILING_WAIT_MS = 15_000;
 const toUrlSafe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-/** Why a photo cannot carry a TrustMark; the caller makes the plain BitGraphed file instead. */
+/** Why a photo cannot carry a pointer; the caller makes the plain BitGraphed file instead. */
 export class NoTrustmark extends Error {}
 
 export type TrustmarkedFile = { bytes: Uint8Array; fileName: string; copyProof: Proof; ceiling: boolean; published: boolean };
@@ -94,7 +93,7 @@ async function recordCopy(copy: File): Promise<Proof> {
 }
 
 /**
- * Make the TrustMarked BitGraphed file of `photo`, whose BitGraph is `photoProof` (the photo's own member proof).
+ * Make the BitGraphed file, with its pointer, of `photo`, whose BitGraph is `photoProof` (the photo's own member proof).
  * Throws NoTrustmark when the photo cannot carry one (no bound fingerprint, not decodable here, too wide, a position
  * past the pointer's range); any other error means something failed on the way.
  */
@@ -120,11 +119,11 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   const payload = pack(eref, counter, await tag(nonce, parsed.phash, eref, counter));
 
   onStep?.("Adding the hidden pointer, in this browser…");
-  const marked = await markNested(img.rgba, img.w, img.h, payload, await markRuntime());
+  const marked = await markPhoto(img.rgba, img.w, img.h, payload);
   const bytes = await jpeg(marked, img.w, img.h);
   const back = await decodePhoto(new Blob([bytes as BlobPart], { type: "image/jpeg" }));
   let readsBack = false;
-  if (back) for await (const r of readings(back.rgba, back.w, back.h, await readRuntime())) if (r.payload === payload) { readsBack = true; break; }
+  if (back) for await (const r of readings(back.rgba, back.w, back.h, { legacy: false })) if (r.payload === payload) { readsBack = true; break; }
   if (!readsBack) throw new Error("the pointer did not read back from the marked photo; nothing was recorded");
 
   onStep?.("Recording the file…");

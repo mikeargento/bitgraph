@@ -3,7 +3,7 @@
 /**
  * Loading what marking and reading need, once per page and only when first needed: ONNX Runtime Web (pinned, from
  * its CDN build), Adobe's BCH library and each model (public/trustmark), each model checked against its SHA-256
- * (models.ts).
+ * (models.ts). TrustMark's reader is fetched only when a copy has no Pixel Seal pointer.
  */
 
 import { MODELS, type ModelName } from "./models.ts";
@@ -42,10 +42,10 @@ const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "
 
 async function modelBytes(m: ModelName): Promise<Uint8Array> {
   const res = await fetch(MODELS[m].url);
-  if (!res.ok) throw new Error(`the pointer's ${m === "encoder" ? "writer" : "reader"} could not be fetched (${res.status})`);
+  if (!res.ok) throw new Error(`the pointer's ${m === "embedder" ? "writer" : "reader"} could not be fetched (${res.status})`);
   const out = new Uint8Array(await res.arrayBuffer());
   const got = hex(new Uint8Array(await crypto.subtle.digest("SHA-256", out as BufferSource)));
-  if (got !== MODELS[m].sha256) throw new Error(`the pointer's ${m === "encoder" ? "writer" : "reader"} did not match its published hash`);
+  if (got !== MODELS[m].sha256) throw new Error(`the pointer's ${m === "embedder" ? "writer" : "reader"} did not match its published hash`);
   return out;
 }
 
@@ -62,9 +62,14 @@ function session(m: ModelName, ort: Ort): Promise<OrtSession> {
 
 export async function markRuntime() {
   const { ort, bch } = await libraries();
-  return { ort, bch, encoder: await session("encoder", ort) };
+  return { ort, bch, embedder: await session("embedder", ort) };
 }
 export async function readRuntime() {
+  const { ort, bch } = await libraries();
+  return { ort, bch, extractor: await session("extractor", ort) };
+}
+/** TrustMark's reader, for copies marked before Pixel Seal. */
+export async function legacyReadRuntime() {
   const { ort, bch } = await libraries();
   return { ort, bch, decoder: await session("decoder", ort) };
 }

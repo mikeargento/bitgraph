@@ -21,7 +21,6 @@ import { cropRGBA, readings } from "./marks.ts";
 import { epochRef, tag, unpack } from "./payload.ts";
 import { decodePhoto, parseRecord, type Decoded } from "./record.ts";
 import { readDetachedC2PA } from "@/lib/c2pa-reader";
-import { readRuntime } from "./runtime.ts";
 import { resizeRGB } from "./tm.ts";
 import type { Proof } from "@/lib/plugins";
 
@@ -51,7 +50,7 @@ async function resolve(payload: string): Promise<{ original: Original; phash: st
   return sawRecord ? "forged" : null;
 }
 
-// Every read shrinks the picture to 245 pixels, and the alignment to 160: shrinking a large photo once, first, gives
+// Every read shrinks the picture to 256 pixels, and the alignment to 160: shrinking a large photo once, first, gives
 // the same readings for a fraction of the work.
 const READ_MAX = 1600;
 function shrunk(img: Decoded): Decoded {
@@ -66,9 +65,8 @@ function shrunk(img: Decoded): Decoded {
 }
 
 async function judgeRegion(img: Decoded, zooms: boolean): Promise<TrustmarkVerdict | null> {
-  const env = await readRuntime();
   let markRead = false, forged = false;
-  for await (const r of readings(img.rgba, img.w, img.h, env, { zooms })) {
+  for await (const r of readings(img.rgba, img.w, img.h, { zooms })) {
     markRead = true;
     const o = await resolve(r.payload);
     if (o === "forged") { forged = true; continue; }

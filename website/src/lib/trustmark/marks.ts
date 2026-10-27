@@ -1,18 +1,20 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * Marks that survive the crops feeds and viewers make, on top of plain TrustMark (tm.ts).
+ * Writing a pointer, and every way of reading one back from a copy that a feed or a viewer has cropped.
  *
- * Marking is nested: the whole frame, then its centre square again with the same payload. A feed that squares the
- * photo (or cuts it to 4:5) keeps that square, so it still reads: on the test set this took feed crops from 18-20 of
- * 25 to 25 of 25, at 0.5 dB more visibility, with nothing else read worse in any test that tried both readings.
+ * A pointer is written once, over the whole frame, with Pixel Seal (ps.ts): on the test set it read after feed
+ * squares, 4:5 cuts, 20% crops from every side and 15% zooms without the nested centre mark TrustMark needed.
  *
  * Reading tries the whole picture, then its centre square, then, for a copy zoomed in (cut equally on every side),
- * the copy put back in a frame 10, 15, 20 and 25% larger each side: a 15% zoom went from 0 to 19 of 25. Every read is
- * only a candidate: the caller keeps one only if its pointer checks out against the ledger.
+ * the copy put back in a frame 10, 15, 20 and 25% larger each side. Every region is read for a Pixel Seal pointer
+ * first, then for a TrustMark one (tm.ts, the pointers written before Pixel Seal, whose reader is fetched only then).
+ * Every read is only a candidate: the caller keeps one only if its pointer checks out against the ledger.
  */
 
-import { aspectOk, mark, read, type MarkEnv, type ReadEnv } from "./tm.ts";
+import { mark as psMark, read as psRead } from "./ps.ts";
+import { legacyReadRuntime, markRuntime, readRuntime } from "./runtime.ts";
+import { aspectOk, read as tmRead } from "./tm.ts";
 
 const SQUARE_TOLERANCE = 0.05; // a picture this close to square has no separate centre square
 const ZOOMS = [0.1, 0.15, 0.2, 0.25];
@@ -28,13 +30,9 @@ function pasteRGBA(dst: Uint8ClampedArray, W: number, src: Uint8ClampedArray, x:
 const centreSquare = (W: number, H: number) => { const s = Math.min(W, H); return { x: Math.floor((W - s) / 2), y: Math.floor((H - s) / 2), s }; };
 const nearSquare = (W: number, H: number) => Math.abs(W - H) < SQUARE_TOLERANCE * Math.max(W, H);
 
-/** Mark the whole frame, then its centre square again. Returns RGBA. */
-export async function markNested(rgba: Uint8ClampedArray, W: number, H: number, payload: string, env: MarkEnv): Promise<Uint8ClampedArray> {
-  const out = await mark(rgba, W, H, payload, env);
-  if (nearSquare(W, H)) return out;
-  const { x, y, s } = centreSquare(W, H);
-  pasteRGBA(out, W, await mark(cropRGBA(out, W, x, y, s, s), s, s, payload, env), x, y, s, s);
-  return out;
+/** Write the pointer into the photo. Returns RGBA. */
+export async function markPhoto(rgba: Uint8ClampedArray, W: number, H: number, payload: string): Promise<Uint8ClampedArray> {
+  return psMark(rgba, W, H, payload, await markRuntime());
 }
 
 // the copy centred in a frame large enough for a cut of p on every side, the rest its mean colour
@@ -49,26 +47,36 @@ function repad(rgba: Uint8ClampedArray, w: number, h: number, p: number) {
   return { rgba: out, w: W, h: H };
 }
 
-export type Candidate = { payload: string; bitflips: number; how: string };
+type Region = { rgba: Uint8ClampedArray; w: number; h: number; how: string };
+export type Candidate = { payload: string; bitflips: number; how: string; scheme: "pixelseal" | "trustmark" };
 
-/**
- * Every mark that reads in this picture, in the order tried. zooms: false skips the re-padded reads (for the
- * rectangles a screenshot is searched in, where they would multiply the cost of a miss).
- */
-export async function* readings(rgba: Uint8ClampedArray, W: number, H: number, env: ReadEnv, { zooms = true } = {}): AsyncGenerator<Candidate> {
-  if (aspectOk(W, H)) {
-    const r = await read(rgba, W, H, env);
-    if (r.present) yield { payload: r.payload, bitflips: r.bitflips, how: "whole" };
-  }
+// the regions to read, in order, made only as they are reached
+function* regions(rgba: Uint8ClampedArray, W: number, H: number, zooms: boolean): Generator<Region> {
+  yield { rgba, w: W, h: H, how: "whole" };
   if (!nearSquare(W, H)) {
     const { x, y, s } = centreSquare(W, H);
-    const r = await read(cropRGBA(rgba, W, x, y, s, s), s, s, env);
-    if (r.present) yield { payload: r.payload, bitflips: r.bitflips, how: "centre square" };
+    yield { rgba: cropRGBA(rgba, W, x, y, s, s), w: s, h: s, how: "centre square" };
   }
   if (!aspectOk(W, H) || !zooms) return;
-  for (const p of ZOOMS) {
-    const f = repad(rgba, W, H, p);
-    const r = await read(f.rgba, f.w, f.h, env);
-    if (r.present) yield { payload: r.payload, bitflips: r.bitflips, how: `zoomed ${Math.round(p * 100)}%` };
+  for (const p of ZOOMS) { const f = repad(rgba, W, H, p); yield { ...f, how: `zoomed ${Math.round(p * 100)}%` }; }
+}
+
+/**
+ * Every pointer that reads in this picture, in the order tried. zooms: false skips the re-padded reads (for the
+ * rectangles a screenshot is searched in, where they would multiply the cost of a miss). legacy: false skips
+ * TrustMark (for reading back a pointer just written).
+ */
+export async function* readings(rgba: Uint8ClampedArray, W: number, H: number, { zooms = true, legacy = true } = {}): AsyncGenerator<Candidate> {
+  const ps = await readRuntime();
+  for (const r of regions(rgba, W, H, zooms)) {
+    const got = await psRead(r.rgba, r.w, r.h, ps);
+    if (got.present) yield { payload: got.payload, bitflips: got.bitflips, how: r.how, scheme: "pixelseal" };
+  }
+  if (!legacy) return;
+  const tm = await legacyReadRuntime();
+  for (const r of regions(rgba, W, H, zooms)) {
+    if (!aspectOk(r.w, r.h)) continue;
+    const got = await tmRead(r.rgba, r.w, r.h, tm);
+    if (got.present) yield { payload: got.payload, bitflips: got.bitflips, how: r.how, scheme: "trustmark" };
   }
 }

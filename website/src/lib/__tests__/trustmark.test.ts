@@ -93,3 +93,35 @@ test("a photo's C2PA manifest store is read out of JPEG APP11 packets and a PNG 
   assert.deepEqual(manifestStoreOf(png), store);
   assert.equal(manifestStoreOf(Uint8Array.of(0xff, 0xd8, 0xff, 0xda, 0, 2, 0xff, 0xd9)), null);
 });
+
+test("a Pixel Seal message carries the pointer and survives up to 22 wrong bits", async () => {
+  const { readFileSync } = await import("node:fs");
+  const vm = await import("node:vm");
+  const { message, decodeMessage } = await import("../trustmark/ps.ts");
+  const ctx: Record<string, unknown> = {};
+  vm.createContext(ctx);
+  vm.runInContext(readFileSync(new URL("../../../public/trustmark/bch_ecc.min.js", import.meta.url), "utf8") + ";this.BCH=BCH;this.BCH_Encode=BCH_Encode;this.BCH_Decode=BCH_Decode;", ctx);
+  const bch = ctx as never;
+  const payload = pack(await epochRef(EPOCH), 18, await tag(NONCE, PHASH, await epochRef(EPOCH), 18));
+  const msg = message(payload, bch);
+  assert.equal(msg.length, 256);
+  assert.ok(/1/.test(msg) && /0/.test(msg));
+  assert.deepEqual(decodeMessage(msg, bch), { payload, bitflips: 0 });
+  // 22 wrong bits spread over the protected part are corrected
+  const flip = (s: string, at: number[]) => Array.from(s, (b, i) => (at.includes(i) ? (b === "1" ? "0" : "1") : b)).join("");
+  const wrong = Array.from({ length: 22 }, (_, i) => i * 11);
+  assert.equal(decodeMessage(flip(msg, wrong), bch)?.payload, payload);
+  // a TrustMark-length payload is required, and an unmarked read (all one value) carries nothing
+  assert.throws(() => message("101", bch));
+  assert.equal(decodeMessage("0".repeat(256), bch), null);
+  assert.equal(decodeMessage("1".repeat(256), bch), null);
+});
+
+test("the JND heatmap is small on flat areas and larger at edges", async () => {
+  const { jnd } = await import("../trustmark/ps.ts");
+  const W = 16, H = 16, L = new Float32Array(W * H).map((_, i) => (i % W < 8 ? 60 : 200));
+  const h = jnd(L, W, H);
+  const flat = h[8 * W + 3]!, edge = h[8 * W + 8]!;
+  assert.ok(edge > flat * 2, `edge ${edge} flat ${flat}`);
+  assert.ok(h.every((v) => v >= 0 && v < 1));
+});

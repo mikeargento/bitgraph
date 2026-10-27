@@ -206,7 +206,7 @@ async function fingerprintRecords(files: File[], leaves: Array<[string, string, 
   let n = 0;
   for (const p of photos) {
     const img = await decodeOnce(p.f);
-    // graphics are recorded as they are: a TrustMark shows on them (isPhotographic)
+    // graphics are recorded as they are: the pointer shows on them (isPhotographic)
     if (img && isPhotographic(img)) {
       made.push({ file: recordFile(p.name, recordBytes(p.digest, img)), name: `${p.name}${RECORD_SUFFIX}` });
       // its Content Credentials, when it carries them, beside it (lib/trustmark/c2pa-leaf.ts)
