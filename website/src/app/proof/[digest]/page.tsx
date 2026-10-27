@@ -2978,8 +2978,9 @@ function BringYourFile({
       /* One drop box site-wide (2026-09-17: 16:9, and every box the
          same): the geometry, the centring and the type are the .dropbox
          rules in globals.css; only the state colours are set here. */
-      className={compact ? "dropbox is-compact" : "dropbox"}
-      style={compact && !dragOver && !hover ? { backgroundColor: "transparent" } : { backgroundColor: dragOver ? "var(--tint)" : "var(--panel)", ...edges.edgeStyle(edge) }}
+      className={compact ? `dropbox is-compact${dragOver ? " is-drag" : ""}` : "dropbox"}
+      // the compact line is framed only while a file is dragged over it: a tap on a phone leaves hover behind
+      style={compact && !dragOver ? { backgroundColor: "transparent" } : { backgroundColor: dragOver ? "var(--tint)" : "var(--panel)", ...edges.edgeStyle(edge) }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
