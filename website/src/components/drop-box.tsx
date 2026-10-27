@@ -1040,7 +1040,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={busy} onClick={() => void (mode === "make" ? make() : takePlugins(rows.filter((r) => r.state === "new" && r.bytes).map((r) => new File([r.bytes!.slice()], r.name))))}>
             {busy ? "Making…" : `Make ${newCount === 1 ? "a BitGraph" : `${newCount} BitGraphs`}`}
           </button>
-          <span className="db-make-note">Making a BitGraph is permanent.</span>
         </div>
       )}
     </div>
