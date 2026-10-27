@@ -17,6 +17,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { takeFreshProof } from "@/lib/fresh-proof";
+import { makePhotoBitGraph } from "@/lib/trustmark/make-photo";
+import { takePendingPhoto } from "@/lib/trustmark/pending-photo";
 import { useTimeZoneMode } from "@/lib/format-time";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { checkMember, memberOf } from "@/lib/tree-member";
@@ -133,17 +135,22 @@ export function BitGraphedView() {
   const [pickNote, setPickNote] = useState("");
   const [over, setOver] = useState(false);
 
+  // A photo dropped on Make arrives in hand, with no BitGraph yet: this page makes A, the watermark and B in one run.
+  const [pending] = useState(() => (query.get("make") === "1" ? takePendingPhoto(digestParam) : null));
+
   // A, from the proof Make handed over, else from the ledger
   useEffect(() => {
     let live = true;
+    if (pending) { setLookup("found"); return; }
     const seed = takeFreshProof<{ proofs?: Array<{ proof: Proof }> }>(digestParam)?.proofs?.[0]?.proof ?? null;
     if (seed) { setOriginal(seed); setLookup("found"); }
     else void originalOf(digestB64, query.get("counter"), query.get("epoch")).then((p) => { if (live) { setOriginal(p); setLookup(p ? "found" : "missing"); } });
     return () => { live = false; };
-  }, [digestParam, digestB64, query]);
+  }, [digestParam, digestB64, query, pending]);
 
   // the original, when Make left it in this browser (the write can land a moment after the page opens)
   useEffect(() => {
+    if (pending) { void pending.arrayBuffer().then((data) => setFile({ name: pending.name, data })); return; }
     let live = true;
     void (async () => {
       for (let i = 0; i < 10 && live; i++) {
@@ -153,7 +160,7 @@ export function BitGraphedView() {
       }
     })();
     return () => { live = false; };
-  }, [digestB64]);
+  }, [digestB64, pending]);
 
   // without the original, the pointer its BitGraphed files carry, remade from A's proof and the published record
   useEffect(() => {
@@ -169,10 +176,15 @@ export function BitGraphedView() {
   useEffect(() => () => { if (afterUrl) URL.revokeObjectURL(afterUrl); }, [afterUrl]);
 
   async function make() {
-    if (!original || !file || stage === "making") return;
+    if ((!original && !pending) || !file || stage === "making") return;
     setStage("making"); setStep("Checking the photo…"); setWhy("");
     try {
-      const t = await trustmarkedFile(new File([file.data], file.name), digestB64, original, (s) => setStep(s));
+      let a = original;
+      if (!a) {
+        const made = await makePhotoBitGraph(new File([file.data], file.name), (s) => setStep(s));
+        a = made.proof; setOriginal(a);
+      }
+      const t = await trustmarkedFile(new File([file.data], file.name), digestB64, a, (s) => setStep(s), { copyChecked: !!pending });
       setMade(t); setStage("done");
       void confirm(t);
     } catch (e) {
@@ -200,7 +212,7 @@ export function BitGraphedView() {
   }
 
   // straight from Make, the file is made at once
-  useEffect(() => { if (fresh && original && file && stage === "idle") void make(); });
+  useEffect(() => { if (((fresh && original) || pending) && file && stage === "idle") void make(); });
 
   function download() {
     if (!made) return;
@@ -219,10 +231,11 @@ export function BitGraphedView() {
   const a = made?.original ?? original;
   const aTime = a ? recordedMsOf(a) : null, bTime = made ? recordedMsOf(made.copyProof) : null;
   const payload = made?.payload ?? published ?? null;
-  const marking = stage === "making" && !step.startsWith("Recording") && !step.startsWith("Waiting");
+  const makingA = stage === "making" && !a;
+  const marking = stage === "making" && !!a && !step.startsWith("Recording") && !step.startsWith("Waiting");
   const recording = stage === "making" && !marking;
   const nodes: [NodeState, NodeState, NodeState] = [
-    a ? "done" : "active",
+    a ? "done" : makingA || lookup === "loading" ? "active" : "waiting",
     made || (stage !== "making" && payload) ? "done" : marking ? "active" : "waiting",
     made ? "done" : recording ? "active" : "waiting",
   ];
@@ -259,7 +272,7 @@ export function BitGraphedView() {
       )}
 
       <div className="bgf-rail" role="list" aria-label="BitGraph A, the watermark, BitGraph B">
-        <Node state={nodes[0]} kind="end" title="BitGraph A" value={a ? `#${fmt(a.commit?.counter)}` : ""} sub={clock(aTime)} href={a ? proofHref(digestB64, a) : undefined} />
+        <Node state={nodes[0]} kind="end" title="BitGraph A" value={a ? `#${fmt(a.commit?.counter)}` : makingA ? "recording…" : ""} sub={clock(aTime)} href={a ? proofHref(digestB64, a) : undefined} />
         <span className={`bgf-link${nodes[1] !== "waiting" ? " is-lit" : ""}`} aria-hidden="true" />
         <Node state={nodes[1]} kind="mark" title="Watermark" value={payload ? codeOf(payload) : marking ? "writing…" : ""} sub={payload ? "A’s nonce" : undefined} />
         <span className={`bgf-link${nodes[2] !== "waiting" ? " is-lit" : ""}`} aria-hidden="true" />

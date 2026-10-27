@@ -35,7 +35,9 @@ import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseD
 import { MAX_FINGERPRINTED, decodeOnce, isPhotographic, looksLikePhoto, recordBytes, recordFile, RECORD_SUFFIX } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
 import { noteCopyOf, noteCredentialsMatch, noteDroppedCopy } from "@/lib/trustmark/copy-note";
-import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
+import { fingerprintRecords, recordedTreeOf } from "@/lib/trustmark/make-photo";
+import { setPendingPhoto } from "@/lib/trustmark/pending-photo";
+import { aspectOk } from "@/lib/trustmark/tm";
 
 const MAX_FILES = 25;
 
@@ -195,31 +197,6 @@ async function unwrapBitGraphed(files: File[]): Promise<File[]> {
   return out;
 }
 
-/** The fingerprint record of each photo in a drop (lib/trustmark/record.ts), for the photos this browser can open, up to
- *  MAX_FINGERPRINTED; a record already in the drop (a folder dropped again with its records) is not made twice. */
-async function fingerprintRecords(files: File[], leaves: Array<[string, string, string]>, onProgress?: (n: number, of: number) => void): Promise<Array<[string, string, string]>> {
-  const names = new Set(files.map((f) => f.webkitRelativePath || f.name));
-  const photos = files.map((f, i) => ({ f, digest: leaves[i]![2], name: f.webkitRelativePath || f.name }))
-    .filter((p) => looksLikePhoto(p.f) && !p.name.endsWith(RECORD_SUFFIX) && !names.has(`${p.name}${RECORD_SUFFIX}`));
-  if (photos.length === 0 || photos.length > MAX_FINGERPRINTED) return [];
-  const made: Array<{ file: File; name: string }> = [];
-  let n = 0;
-  for (const p of photos) {
-    const img = await decodeOnce(p.f);
-    // graphics are recorded as they are: the pointer shows on them (isPhotographic)
-    if (img && isPhotographic(img)) {
-      made.push({ file: recordFile(p.name, recordBytes(p.digest, img)), name: `${p.name}${RECORD_SUFFIX}` });
-      // its Content Credentials, when it carries them, beside it (lib/trustmark/c2pa-leaf.ts)
-      const store = manifestStoreOf(new Uint8Array(await p.f.arrayBuffer()));
-      if (store && store.length <= MAX_MANIFEST_BYTES) made.push({ file: new File([store as BlobPart], `${p.name}${C2PA_SUFFIX}`, { type: "application/c2pa" }), name: `${p.name}${C2PA_SUFFIX}` });
-    }
-    n++;
-    if (onProgress && (n % 10 === 0 || n === photos.length)) onProgress(n, photos.length);
-  }
-  // the leaf's name is the photo's path in the drop plus the suffix (a File's own name cannot hold the path)
-  return (await hashLeaves(made.map((m) => m.file))).map((l, i) => [made[i]!.name, l[1], l[2]]);
-}
-
 /** A photo whose pixels carry a hidden pointer (a TrustMark): the BitGraph it points to, and, quietly, how closely
  *  this copy matches the picture that BitGraph bound (a visual match; the original's own bytes are what prove it). */
 function TrustmarkLine({ v }: { v: TrustmarkVerdict }) {
@@ -248,28 +225,6 @@ async function recordedProofOf(digestB64: string): Promise<Proof | null> {
   const body = (await res.json().catch(() => null)) as { proofs?: Array<{ proof: Proof; kind?: string }> } | null;
   return body?.proofs?.find((x) => x.kind === "recorded" && x.proof.artifact?.digestB64 === digestB64 && !memberOf(x.proof))?.proof ?? null;
 }
-
-/**
- * The floor tree these files were already recorded in (2026-10-20), found through the first file's own index entry: the
- * entry carries base-block.json, so the tree is rebuilt around it and accepted only when its root is the one the proof
- * binds. Null when the files are not such a tree (or not all of it).
- */
-async function recordedTreeOf(fileLeaves: Array<[string, string, string]>): Promise<{ proof: Proof; tree: PluginTree; rootText: string; floorFile: string } | null> {
-  const first = fileLeaves[0];
-  if (!first) return null;
-  const res = await fetch(`/api/proofs/${toUrlSafe(first[2])}`).catch(() => null);
-  if (!res?.ok) return null;
-  const body = (await res.json().catch(() => null)) as { proofs?: Array<{ proof: Proof; kind?: string }> } | null;
-  for (const x of body?.proofs ?? []) {
-    const m = memberOf(x.proof);
-    if (x.kind !== "recorded" || !m?.floor || m.files !== fileLeaves.length + 1) continue;
-    const [floorLeaf] = await hashLeaves([new File([m.floor.file], "base-block.json")]);
-    const t = await treeFromLeaves([floorLeaf!, ...fileLeaves]);
-    if (t.tree.root === parseDigestRootText(m.rootText)?.root) return { proof: x.proof, tree: t.tree, rootText: t.rootText, floorFile: m.floor.file };
-  }
-  return null;
-}
-
 
 async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
   const { proofHash: _h, ...p } = proof as Proof & { proofHash?: unknown };
@@ -778,6 +733,18 @@ export function DropBox({ mode = "make", variant = "zone" }: { mode?: "make" | "
     if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "trustmark")) { setRows(ended2); setStatus(null); return; }
     const fresh_new = ended2.filter((r) => r.state === "new" && r.digestB64);
     // A new file is made the one way every drop is: a tree with the Base block as its floor (2026-10-20).
+    // A new photo is made as its BitGraphed file, in one run on its own page (components/bitgraphed-view): BitGraph A,
+    // the watermark from A's nonce, BitGraph B. A graphic, or a picture too wide to carry a pointer, is made as before.
+    if (mode === "make" && single && fresh_new.length === 1 && looksLikePhoto(picked[0]!)) {
+      const img = await decodeOnce(picked[0]!).catch(() => null);
+      if (img && isPhotographic(img) && aspectOk(img.w, img.h)) {
+        const d = toUrlSafe(fresh_new[0]!.digestB64!);
+        setPendingPhoto(d, picked[0]!);
+        setStatus("Opening…");
+        router.push(`/bitgraphed/${d}?make=1`);
+        return;
+      }
+    }
     if (mode === "make" && single && fresh_new.length === 1) { await takePlugins([picked[0]!]); return; }
     if (single && mode === "make" && fresh_new.length) setStatus("Making the BitGraph…");
     const made = mode === "make" ? await makeRows(fresh_new) : [];

@@ -102,7 +102,7 @@ async function recordCopy(copy: File): Promise<Proof> {
  * Throws NoTrustmark when the photo cannot carry one (no bound fingerprint, not decodable here, too wide, a position
  * past the pointer's range); any other error means something failed on the way.
  */
-export async function trustmarkedFile(photo: File, photoDigestB64: string, photoProof: Proof, onStep?: (s: string) => void): Promise<TrustmarkedFile> {
+export async function trustmarkedFile(photo: File, photoDigestB64: string, photoProof: Proof, onStep?: (s: string) => void, { copyChecked = false } = {}): Promise<TrustmarkedFile> {
   const img = await decodePhoto(photo);
   if (!img) throw new NoTrustmark("this browser cannot open the photo to mark it");
   if (!aspectOk(img.w, img.h)) throw new NoTrustmark("photos wider or taller than 2:1 cannot carry the pointer");
@@ -110,7 +110,8 @@ export async function trustmarkedFile(photo: File, photoDigestB64: string, photo
   onStep?.("Assembling the BitGraphed file…");
   // A copy keeps the pointer it carries, to the earliest known recording: it is never given a new one (and two marks
   // would make both unreadable). Found anywhere in the picture, and counted only when it checks out on the ledger.
-  if (await carriesPointer(img)) throw new NoTrustmark("this photo is a copy and already points to the earliest known recording");
+  // (copyChecked: Make has just read this photo for a pointer, before making A.)
+  if (!copyChecked && (await carriesPointer(img))) throw new NoTrustmark("this photo is a copy and already points to the earliest known recording");
   const rec = recordBytes(photoDigestB64, img);
   // The pointer leads to the earliest BitGraph of this photo that binds its fingerprint, whichever of its BitGraphs
   // the page shows.
