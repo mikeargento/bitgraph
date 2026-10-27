@@ -22,6 +22,7 @@ import { base64ToBytes, bytesToBase64, decodeTreeLeaves } from "@mikeargento/bit
 import { readTreeExports } from "./folder-check.ts";
 import { bindTree, isTreeTitled } from "./fuse-tree.ts";
 import { rebuildTreeFromFiles, rebuildMatches } from "./fuse-tree-make.ts";
+import { checkMember, memberOf } from "./tree-member.ts";
 
 export const HOSTED_FILES_PARAM = "files";
 /** The bundle as fetched (compressed). */
@@ -150,8 +151,10 @@ export type HostedMatch =
  * The bundle's files against the page's proof. A tree/1 proof: the files must rebuild its signed root
  * (count and root, the dropped-folder check). Files that are not in the tree (a README, the spec, the
  * export itself) are set aside by the bundle's own export when it carries the tree's leaves, or, with
- * no export, by being the export or the spec the proof pins; the rebuild alone decides. Any other proof:
- * a file whose SHA-256 is the signed digest.
+ * no export, by being the export or the spec the proof pins; the rebuild alone decides. A tree member's proof
+ * (lib/tree-member.ts, the page opened by the file's own hash): the file whose hash walks the member's path to the
+ * root the proof signs. Any other proof, or a member whose file is not in the bundle: a file whose SHA-256 is the
+ * signed digest.
  */
 export async function matchHostedFiles(proof: unknown, files: readonly HostedFile[]): Promise<HostedMatch> {
   const p = proof as { artifact?: { digestB64?: string }; attribution?: { message?: string } } | null;
@@ -162,6 +165,9 @@ export async function matchHostedFiles(proof: unknown, files: readonly HostedFil
   const extrasOf = (members: readonly HostedFile[]) => files.filter((f) => !members.includes(f)).map((f) => f.name);
 
   if (!isTreeTitled(p as never)) {
+    const member = memberOf(proof);
+    const own = member ? files.find((f) => checkMember(proof, digests.get(f)!, member)) : undefined;
+    if (own) return { ok: true, kind: "file", members: [own], extras: extrasOf([own]) };
     const hit = files.find((f) => digests.get(f) === signed);
     return hit ? { ok: true, kind: "file", members: [hit], extras: extrasOf([hit]) } : { ok: false, problem: "mismatch" };
   }

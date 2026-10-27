@@ -164,3 +164,29 @@ test("a single-file proof: the file whose SHA-256 is the signed digest, and noth
   assert.deepEqual(m.ok && m.extras, ["README.txt"]);
   assert.equal((await matchHostedFiles(proof, [{ name: "file.txt", bytes: utf8("one recorded file!\n") }])).ok, false);
 });
+
+// ── a tree member's proof (lib/tree-member.ts) ──────────────────────────────────────────────────
+
+test("a tree member's proof shows its own file from the bundle, not the root text or the floor", async () => {
+  const { hashLeaves, treeFromLeaves } = await import("../plugins.ts");
+  const { baseBlockFileText, memberBlocks, withMember } = await import("../tree-member.ts");
+  const floorFile = baseBlockFileText({ chain: "base-mainnet", chainId: 8453, number: 7, hash: `0x${"cd".repeat(32)}`, timestamp: 7 });
+  const record = utf8("{\"part\":\"record\"}\n");
+  const leaves = await hashLeaves([new File([floorFile], "base-block.json"), new File([record.slice()], "record.json")]);
+  const { tree, rootText } = await treeFromLeaves(leaves);
+  const blocks = memberBlocks(tree, rootText, floorFile);
+  const proof = withMember({ artifact: { digestB64: await digestB64(utf8(rootText)) }, commit: {} }, blocks[1]!);
+  const bundle: HostedFile[] = [
+    { name: "README.txt", bytes: utf8("readme") },
+    { name: "record-tree/base-block.json", bytes: utf8(floorFile) },
+    { name: "record-tree/merkle-root.txt", bytes: utf8(rootText) },
+    { name: "record.json", bytes: record },
+  ];
+  const m = await matchHostedFiles(proof, bundle);
+  assert.ok(m.ok && m.kind === "file" && m.members[0]!.name === "record.json");
+  // Without its file the bundle still shows what the proof signs, the root text.
+  const r = await matchHostedFiles(proof, bundle.filter((f) => f.name !== "record.json"));
+  assert.ok(r.ok && r.members[0]!.name === "record-tree/merkle-root.txt");
+  // Another tree's file shows nothing.
+  assert.equal((await matchHostedFiles(proof, [{ name: "record.json", bytes: utf8("{}\n") }])).ok, false);
+});

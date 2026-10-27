@@ -8,12 +8,18 @@
  * input to the drawing (bitgraph-art/19); the PNG is bound as B, after A. The drawing is deterministic, so nothing is
  * stored: /generate?a=<A's digest> reads A's proof, draws the same picture from its nonce, and looks B up by the PNG's
  * SHA-256. Only digests leave the browser.
+ *
+ * Each BitGraph is one tree, as on Make: its first leaf is base-block.json (the latest Base block), its second the file,
+ * and only the root is bound (floorLeaf, so app/api/commit binds no separate floor in front of it). The file is then
+ * indexed under its own hash, so A and B are looked up and linked by the request's and the PNG's own digests, as before.
+ * Pictures made before trees are plain binds of the same digests and read the same way.
  */
 import { useCallback, useEffect, useState } from "react";
 import { makeArtOffThread } from "@/lib/art-offthread";
 import { ART_ALGORITHM_V19 } from "@/lib/commitment-art";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
 import { SandwichFigure } from "@/components/primitive-figures";
+import { bindFile } from "@/lib/bind-file";
 
 const fmt = (n: number | string) => Number(n).toLocaleString("en-US");
 const b64 = (u: Uint8Array) => { let s = ""; for (const x of u) s += String.fromCharCode(x); return btoa(s); };
@@ -22,16 +28,14 @@ const urlSafe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace
 const sha = async (u: Uint8Array) => b64(new Uint8Array(await crypto.subtle.digest("SHA-256", u.slice())));
 
 interface Proof { artifact?: { digestB64?: string }; commit?: { nonceB64?: string; counter?: string; slotCounter?: string; epochId?: string } }
-interface Made { a: Proof; b: Proof | null; png: Uint8Array; url: string }
+/** aDigest and bDigest: the request's and the PNG's own SHA-256, which their proof pages are opened by. */
+interface Made { a: Proof; b: Proof | null; aDigest: string; bDigest: string; png: Uint8Array; url: string }
 
-/** POST /api/commit for one digest; the proof that names it. */
-async function bind(digestB64: string): Promise<Proof> {
-  const res = await fetch("/api/commit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ digests: [{ digestB64, hashAlg: "sha256" }], chainId: "bitgraph:main" }) });
-  if (res.status === 503) throw new Error("The enclave is restarting (it does once a day). Try again in a minute.");
-  if (!res.ok) throw new Error(`The BitGraph could not be made (${res.status}).`);
-  const raw = (await res.json()) as Proof[] | { proofs?: Proof[] };
-  const p = (Array.isArray(raw) ? raw : raw.proofs ?? []).find((x) => x.artifact?.digestB64 === digestB64);
-  if (!p?.commit?.nonceB64) throw new Error("No proof came back.");
+/** One file as one BitGraph (lib/bind-file.ts); the proof that names its nonce. */
+async function bind(name: string, bytes: Uint8Array, type: string): Promise<Proof> {
+  const { proof } = await bindFile(name, bytes, type);
+  const p = proof as Proof;
+  if (!p.commit?.nonceB64) throw new Error("No proof came back.");
   return p;
 }
 
@@ -49,7 +53,7 @@ async function draw(a: Proof): Promise<{ png: Uint8Array; digestB64: string }> {
   return { png: art.png, digestB64: await sha(art.png) };
 }
 
-const proofHref = (p: Proof) => `/proof/${urlSafe(p.artifact!.digestB64!)}?counter=${p.commit!.counter}&epoch=${encodeURIComponent(p.commit!.epochId!)}`;
+const proofHref = (p: Proof, digestB64: string) => `/proof/${urlSafe(digestB64)}?counter=${p.commit!.counter}&epoch=${encodeURIComponent(p.commit!.epochId!)}`;
 
 export function ArtTwo() {
   const [state, setState] = useState<"idle" | "running" | "done" | "error">("idle");
@@ -57,8 +61,8 @@ export function ArtTwo() {
   const [made, setMade] = useState<Made | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const show = useCallback((a: Proof, b: Proof | null, png: Uint8Array) => {
-    setMade((m) => { if (m) URL.revokeObjectURL(m.url); return { a, b, png, url: URL.createObjectURL(new Blob([png.slice()], { type: "image/png" })) }; });
+  const show = useCallback((a: Proof, b: Proof | null, aDigest: string, bDigest: string, png: Uint8Array) => {
+    setMade((m) => { if (m) URL.revokeObjectURL(m.url); return { a, b, aDigest, bDigest, png, url: URL.createObjectURL(new Blob([png.slice()], { type: "image/png" })) }; });
   }, []);
 
   // A link that carries A: draw again from A's nonce, then find B by the picture's digest.
@@ -73,7 +77,7 @@ export function ArtTwo() {
         setStep("Drawing from A’s nonce…");
         const { png, digestB64 } = await draw(a);
         const b = await lookup(digestB64);
-        show(a, b, png); setState("done");
+        show(a, b, q, digestB64, png); setState("done");
         if (b) void cacheArtifactToIDB(new File([png.slice()], `bitgraph-${b.commit!.counter}.png`, { type: "image/png" }), digestB64).catch(() => {});
       } catch { setState("idle"); }
     })();
@@ -89,14 +93,14 @@ export function ArtTwo() {
         asks: "An image drawn from this BitGraph's nonce once it is bound.",
       }, null, 2) + "\n");
       const aDigest = await sha(request);
-      const a = await bind(aDigest);
+      const a = await bind("request.json", request, "application/json");
       void cacheArtifactToIDB(new File([request.slice()], `bitgraph-${a.commit!.counter}-request.json`, { type: "application/json" }), aDigest).catch(() => {});
       setStep("Drawing from A’s nonce…");
       const { png, digestB64 } = await draw(a);
       setStep("Making BitGraph B…");
-      const b = await bind(digestB64);
+      const b = await bind("picture.png", png, "image/png");
       void cacheArtifactToIDB(new File([png.slice()], `bitgraph-${b.commit!.counter}.png`, { type: "image/png" }), digestB64).catch(() => {});
-      show(a, b, png); setState("done");
+      show(a, b, aDigest, digestB64, png); setState("done");
       window.history.replaceState(null, "", `/generate?a=${urlSafe(aDigest)}`);
     } catch (e) {
       setError((e as Error).message); setState("error");
@@ -143,8 +147,8 @@ export function ArtTwo() {
           {!b && <p className="db-bad">This picture has no BitGraph B on the ledger.</p>}
           {/* The links are buttons (2026-10-19), like View proof on Make. */}
           <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <a className="bg-action-link" style={{ margin: 0 }} href={proofHref(a)}>BitGraph A #{fmt(a.commit!.counter!)}, the request</a>
-            {b && <a className="bg-action-link" style={{ margin: 0 }} href={proofHref(b)}>BitGraph B #{fmt(b.commit!.counter!)}, the picture</a>}
+            <a className="bg-action-link" style={{ margin: 0 }} href={proofHref(a, made.aDigest)}>BitGraph A #{fmt(a.commit!.counter!)}, the request</a>
+            {b && <a className="bg-action-link" style={{ margin: 0 }} href={proofHref(b, made.bDigest)}>BitGraph B #{fmt(b.commit!.counter!)}, the picture</a>}
             <a className="bg-action-link" style={{ margin: 0 }} href={made.url} download={`bitgraph-${b?.commit?.counter ?? a.commit!.counter}.png`}>Download the picture</a>
           </div>
         </section>
