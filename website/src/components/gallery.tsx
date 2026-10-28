@@ -2,21 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { fileOf, galleryOf, hrefOf, openItem, thumbOf, type Gallery } from "@/lib/gallery";
+import { galleryOf, hrefOf, openItem, thumbOf, type Gallery } from "@/lib/gallery";
 
-/** One tile: the photo's thumbnail once it is in view and its file is held, else its name. */
+/** One tile: the photo's thumbnail once it is in view, else its name. */
 function Tile({ g, i, current, onOpen }: { g: Gallery; i: number; current: boolean; onOpen: (i: number) => void }) {
   const it = g.items[i]!;
   const ref = useRef<HTMLAnchorElement>(null);
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
-    const f = fileOf(g, i), el = ref.current;
-    if (!f || !el) return;
+    const el = ref.current;
+    if (!el) return;
     let gone = false;
     const io = new IntersectionObserver((es) => {
       if (!es.some((e) => e.isIntersecting)) return;
       io.disconnect();
-      void thumbOf(f).then((u) => { if (!gone) setSrc(u); });
+      void thumbOf(g, i).then((u) => { if (!gone) setSrc(u); });
     }, { rootMargin: "400px" });
     io.observe(el);
     return () => { gone = true; io.disconnect(); };

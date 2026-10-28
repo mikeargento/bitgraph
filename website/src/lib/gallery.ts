@@ -33,6 +33,7 @@ function remembered(): Gallery[] {
 export function setGallery(g: Gallery, files: File[], prepare: (i: number) => Promise<void>) {
   held = { id: g.id, files, prepare };
   memo.set(g.id, g);
+  warmThumbs(g);
   try { localStorage.setItem(KEY, JSON.stringify([g, ...remembered().filter((x) => x.id !== g.id)].slice(0, KEPT))); } catch { /* kept for this visit only */ }
 }
 
@@ -72,28 +73,85 @@ export async function handOriginal(file: File, digest: string, proof: unknown, c
 }
 
 /* Thumbnails: made from the files in hand, a few at a time, each picture decoded straight to a small size so a
-   drop of hundreds of large photos never holds them at full size. */
-const thumbs = new Map<File, Promise<string | null>>();
+   drop of hundreds of large photos never holds them at full size. Each is kept on this device (IndexedDB
+   "bitgraph-thumbs", by the photo's hash), so the grid keeps its pictures after a reload, in a new tab, or from a link,
+   when the files themselves are no longer held. All of a gallery's are made in the background once it is set. */
+const urls = new Map<string, Promise<string | null>>();
 let running = 0;
 const waiting: Array<() => void> = [];
 const slot = () => new Promise<void>((r) => { if (running < 3) { running++; r(); } else waiting.push(() => { running++; r(); }); });
 const done = () => { running--; waiting.shift()?.(); };
 
-export function thumbOf(f: File): Promise<string | null> {
-  let t = thumbs.get(f);
+function thumbDb(): Promise<IDBDatabase> {
+  return new Promise((ok, no) => {
+    const req = indexedDB.open("bitgraph-thumbs", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("thumbs");
+    req.onsuccess = () => ok(req.result);
+    req.onerror = () => no(req.error);
+  });
+}
+async function keptThumb(digest: string): Promise<Blob | null> {
+  try {
+    const db = await thumbDb();
+    try {
+      return await new Promise<Blob | null>((ok) => { const r = db.transaction("thumbs").objectStore("thumbs").get(digest); r.onsuccess = () => ok(r.result instanceof Blob ? r.result : null); r.onerror = () => ok(null); });
+    } finally { db.close(); }
+  } catch { return null; }
+}
+async function keepThumb(digest: string, blob: Blob) {
+  try {
+    const db = await thumbDb();
+    const tx = db.transaction("thumbs", "readwrite");
+    tx.objectStore("thumbs").put(blob, digest);
+    await new Promise((r) => { tx.oncomplete = r; tx.onerror = r; });
+    db.close();
+  } catch { /* shown for this visit only */ }
+}
+async function makeThumb(f: File): Promise<Blob | null> {
+  await slot();
+  try {
+    const bmp = await createImageBitmap(f, { resizeWidth: 360, resizeQuality: "medium" });
+    try {
+      const c = new OffscreenCanvas(bmp.width, bmp.height);
+      c.getContext("2d")!.drawImage(bmp, 0, 0);
+      return await c.convertToBlob({ type: "image/jpeg", quality: 0.82 });
+    } finally { bmp.close(); }
+  } catch { return null; } finally { done(); }
+}
+
+async function cachedFile(digest: string): Promise<File | null> {
+  try {
+    const db = await new Promise<IDBDatabase>((ok, no) => { const r = indexedDB.open("bitgraph-files", 1); r.onupgradeneeded = () => r.result.createObjectStore("files"); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+    try {
+      const rec = await new Promise<{ name?: string; data?: ArrayBuffer } | null>((ok) => { const r = db.transaction("files").objectStore("files").get(digest); r.onsuccess = () => ok(r.result ?? null); r.onerror = () => ok(null); });
+      return rec?.data ? new File([rec.data], rec.name ?? "photo") : null;
+    } finally { db.close(); }
+  } catch { return null; }
+}
+
+/** A photo's thumbnail: kept on this device, or made from its file while the file is held. */
+export function thumbOf(g: Gallery, i: number): Promise<string | null> {
+  const digest = g.items[i]!.digest;
+  let t = urls.get(digest);
   if (!t) {
     t = (async () => {
-      await slot();
-      try {
-        const bmp = await createImageBitmap(f, { resizeWidth: 360, resizeQuality: "medium" });
-        try {
-          const c = new OffscreenCanvas(bmp.width, bmp.height);
-          c.getContext("2d")!.drawImage(bmp, 0, 0);
-          return URL.createObjectURL(await c.convertToBlob({ type: "image/jpeg", quality: 0.82 }));
-        } finally { bmp.close(); }
-      } catch { return null; } finally { done(); }
+      const kept = await keptThumb(digest);
+      if (kept) return URL.createObjectURL(kept);
+      // the file held, or else the copy this browser cached when the photo's page was opened (lib/file-cache)
+      const f = fileOf(g, i) ?? await cachedFile(digest);
+      const made = f ? await makeThumb(f) : null;
+      if (!made) return null;
+      void keepThumb(digest, made);
+      return URL.createObjectURL(made);
     })();
-    thumbs.set(f, t);
+    // a miss is tried again later (its file may be held by then)
+    void t.then((u) => { if (!u) urls.delete(digest); });
+    urls.set(digest, t);
   }
   return t;
+}
+
+/** Makes and keeps all of a gallery's thumbnails, a few at a time, while its files are held. */
+function warmThumbs(g: Gallery) {
+  g.items.forEach((_, i) => { void thumbOf(g, i); });
 }
