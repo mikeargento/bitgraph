@@ -1,143 +1,175 @@
 import type { Metadata } from "next";
-import { FlowFigure, SequenceFigure } from "@/components/primitive-figures";
+import { FlowFigure } from "@/components/primitive-figures";
+import { CopyCode } from "@/components/copy-code";
 
 /**
- * The site is this one page, plus the ledger and the proof pages (2026-10-17).
- * The How it works page
- * folded in here; every old docs address redirects to it (next.config.ts).
+ * The home page (2026-10-27): BitGraph sold as a mechanism to companies that already sell proof. It says what the
+ * mechanism is, what it adds under an existing product, that the evidence checks without us, and the paths to evaluate
+ * and license it. The claims are the Technology page's, short; each is in the v13 enclave and the verifier.
  *
- * Order: the line, the two steps (the drawing), what it proves, two BitGraphs make an
- * interval (2026-10-17: the drawing before the paragraph). Making and checking one (the drop box, the API, everything else) is /make
- * (2026-10-17: everything from the Try it section down).
- *
- * ⚠️ Claim discipline: bound AFTER a moment, never "at" it; the claim is about when the
- * bits were bound, never how old the content is. The time shown is the enclave's own.
+ * ⚠️ Claim discipline, unchanged: bound by a time and after an unpredictable value, never "created at"; it says when
+ * bits were bound, not how old they are or who made them.
  */
 
+const DESCRIPTION =
+  "BitGraph is a recording mechanism for digital proof: one atomic action inside measured AWS Nitro hardware binds a SHA-256 at a counted position, right after a fresh random value, signed and attested. The proof checks offline. Integrate it under the products you already sell.";
+
 export const metadata: Metadata = {
-  // The tab and the search result carry the headline (2026-10-22: a search for the h1 alone landed on "pseudorandom
-  // binary sequence"; the page must own its phrase). "records" is not a verb here (2026-10-21).
-  title: { absolute: "Verifiable sequence for bits. | BitGraph" },
-  description:
-    "Verifiable sequence for bits. BitGraph binds a file's fingerprint, never the file, at a position in a signed sequence that nothing can reorder. One BitGraph fixes a position; any two bracket everything made between them. Checks offline, by anyone.",
-  openGraph: { title: "Verifiable sequence for bits.", description: "Verifiable sequence for bits. BitGraph binds a file's fingerprint, never the file, at a position in a signed sequence that nothing can reorder. One BitGraph fixes a position; any two bracket everything made between them. Checks offline, by anyone." },
-  twitter: { title: "Verifiable sequence for bits.", description: "Verifiable sequence for bits. BitGraph binds a file's fingerprint, never the file, at a position in a signed sequence that nothing can reorder. One BitGraph fixes a position; any two bracket everything made between them. Checks offline, by anyone." },
+  title: { absolute: "BitGraph: a new primitive for digital proof" },
+  description: DESCRIPTION,
+  openGraph: { title: "A new primitive for digital proof.", description: DESCRIPTION },
+  twitter: { title: "A new primitive for digital proof.", description: DESCRIPTION },
 };
+
+const PROPERTIES = [
+  { title: "Unpredictable position", body: "Each record takes the count right after a fresh nonce from the hardware's random number generator, drawn after the digest arrives. A position cannot be reserved ahead and filled later." },
+  { title: "Enforced binding", body: "Nonce and digest are signed together in one indivisible action. If any step fails, nothing is released and the counter does not move. No count is ever given out twice." },
+  { title: "Verifiable sequence", body: "Every record carries the hash of the one before it. Counts climb in order, gaps show, and anything bound between two records was bound after the first and before the second." },
+  { title: "Portable evidence", body: "Each proof carries an AWS Nitro attestation naming the published, reproducible enclave build that made it. It checks offline with an open-source verifier, without asking us." },
+];
+
+const FITS = [
+  { href: "/applications#c2pa", title: "Content Credentials", body: "Bind the asset and its manifest together: the credential gains an independent recording." },
+  { href: "/applications#watermark", title: "Watermark discovery", body: "The watermark finds the record; the original's bytes prove it." },
+  { href: "/applications#capture", title: "Trusted capture", body: "How it was captured, plus when its bytes were recorded." },
+  { href: "/applications#ai", title: "AI agents and audit", body: "Two records bracket a run, every step between them in counted order." },
+];
 
 export default function HomePage() {
   return (
-    <div className="frame home home-typing prose home-scroll">
-      <div className="home-hero">
-        {/* The home's h1 is visible again (2026-10-17, with the new headline). */}
-        {/* One centred first section (2026-10-17): the headline, its sub-headline (which replaced the How BitGraph
-            works heading), the drawing, and two ways to try it. */}
-        {/* 2026-10-18: the h1 alone, no sub-header ("bedrock for bits" before it, the same day). */}
-        {/* 2026-10-19: what BitGraph is, for the partner who already proves origin (Apple Reference Image's clock, for everyone). */}
-        {/* 2026-10-20: "A recorder for computation." (record/stop is the home's own picture), alone: no sub-line. */}
-        {/* 2026-10-21: "verifiable sequence for bits", replacing the recorder line, since BitGraph records nothing. */}
-        <h1 className="home-title">Verifiable sequence for&nbsp;bits.</h1>
-        <div className="home-hero-figure"><FlowFigure /></div>
-        <div className="home-hero-actions">
-          <a className="bg-action-link is-make" href="/make">Make a BitGraph</a>
-          <a className="bg-action-link" href="/demos">Try a demo</a>
+    <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page">
+      <section className="sx-hero" aria-labelledby="home-h">
+        <p className="home-kicker">Cryptographic recording infrastructure</p>
+        <h1 id="home-h">A new primitive for digital&nbsp;proof.</h1>
+        <p className="sx-sub">
+          BitGraph gives digital information a verifiable position. Inside measured hardware, one atomic action binds its SHA-256
+          right after a fresh random value, signed and attested. The proof travels, and checks without us. Build it into the products
+          you already sell.
+        </p>
+        <div className="sx-cta">
+          <a className="bg-action-link is-make" href="/evaluate">Evaluate the technology</a>
+          <a className="bg-action-link" href="/technology">How it works</a>
+          <a className="bg-action-link" href="/ledger">See live proofs</a>
         </div>
-      </div>
+      </section>
 
-      {/* What it proves and how it works, standing alone in one card (2026-10-19):
-          two cards side by side on desks with a gap between them, stacked on phones. */}
-      <section className="home-section" aria-labelledby="home-proves">
-        <div className="proves-card">
-          <div className="proves-half">
-            <p className="home-kicker">What it proves</p>
-            <h2 id="home-proves">Proof of exact bits, and their place in the&nbsp;sequence.</h2>
-            <p>BitGraph gives each file a unique numbered place and a proof you can save, share, and verify offline.</p>
+      <section className="home-section" aria-labelledby="home-mech">
+        <p className="home-kicker">The mechanism</p>
+        <h2 id="home-mech">The recording step is what matters.</h2>
+        <p>
+          A signature proves a key signed. A timestamp authority vouches for a time. Content Credentials carry a signer&rsquo;s
+          assertions. BitGraph constrains the recording itself: a specific, published enclave build binds each digest at a counted,
+          chained position, and the hardware attests to every proof.
+        </p>
+        <div style={{ marginTop: 32 }}><FlowFigure /></div>
+        <div className="sx-cards">
+          {PROPERTIES.map((p) => (
+            <article key={p.title} className="tl-card">
+              <h3>{p.title}</h3>
+              <p>{p.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-fit">
+        <p className="home-kicker">Built to sit underneath</p>
+        <h2 id="home-fit">Keep your product. Upgrade your&nbsp;proof.</h2>
+        <p>
+          BitGraph does not compete with your product; it strengthens the evidence it produces. Your system sends a digest and keeps
+          the proof beside its own record. Your customers, brand and interface stay yours.
+        </p>
+        <div className="sx-cards">
+          {FITS.map((f) => (
+            <a key={f.href} className="tl-card sx-link" href={f.href}>
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </a>
+          ))}
+        </div>
+        <p className="sx-fine" style={{ marginTop: 16 }}>Integration patterns, not announced partnerships. <a href="/applications">All applications</a>.</p>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-verify">
+        <div className="sx-split">
+          <div>
+            <p className="home-kicker">Verification</p>
+            <h2 id="home-verify">The evidence travels.</h2>
             <p>
-              The proof connects that place to your file&rsquo;s exact contents through a digital fingerprint. If the file changes, the
-              fingerprint no longer matches.
+              A proof is a small JSON file. With the data it covers, anyone can check it on their own machine: the AWS signature and
+              certificate chain, the enclave&rsquo;s published measurement, the digest, the signature, the position. Nothing of BitGraph
+              has to be running.
             </p>
-            <p>
-              It proves where the file sits in the sequence. An old file can take a place today; the proof does not establish
-              when it was&nbsp;created.
-            </p>
-            <p className="proves-actions">
-              <a className="bg-action-link" href="/ledger">See every proof</a>
-            </p>
+            <div className="sx-cta"><a className="bg-action-link" href="/evaluate">Verify a real proof</a></div>
           </div>
-          <div className="proves-half">
-            <p className="home-kicker">How it works</p>
-            <h2 id="home-how">Inside secure hardware, BitGraph takes two consecutive&nbsp;counts.</h2>
-            <ol className="proves-steps">
-              <li>A newly generated, unpredictable value takes the first count.</li>
-              <li>Your file&rsquo;s fingerprint is bound at the very next count.</li>
-            </ol>
-            <p>
-              Both counts are signed together. This proves the fingerprint was bound after that unpredictable value, with nothing
-              counted between&nbsp;them.
-            </p>
-            <p>
-              The unpredictable value is generated only after your fingerprint arrives, so a position cannot be reserved and filled
-              later. Each position can be used only&nbsp;once.
-            </p>
-            <p>You can check the proof offline. No blockchain or external clock is required.</p>
+          <div>
+            <div className="code-block mk-code">
+              <pre className="hiw-code">{`$ npx @mikeargento/bitgraph-sdk verify sample.txt \\
+    --proof sample.txt.bitgraph.json
+TRUE
+
+  These exact bytes are file 2 of a tree of 2,
+  whose root was bound by BitGraph's published
+  enclave image v13, as the AWS Nitro hardware
+  attests, at 2026-10-21T01:37:40.960Z.`}</pre>
+              <CopyCode />
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Its own cell (2026-10-19), the same card as What it proves / How it works. */}
-      <section className="home-section" aria-labelledby="home-work">
-        <div className="proves-half">
-        <p className="home-kicker">Work between two</p>
-        {/* Record and stop (2026-10-20). Nothing to plan (2026-10-21: make BitGraphs freely and check later): any two
-            bracket what lies between them. */}
-        <h2 id="home-work">Any two BitGraphs bracket the work between&nbsp;them.</h2>
+      <section className="home-section" aria-labelledby="home-scale">
+        <p className="home-kicker">Scale</p>
+        <h2 id="home-scale">One record, or a million in one.</h2>
         <p>
-          Nothing has to be planned. Make BitGraphs as often as you like; later, any earlier one and any later one bracket
-          everything between them, in&nbsp;order.
+          A collection is bound as one Merkle tree in one action, and each item proves its own inclusion without the others being
+          disclosed. In a measured run, one million files were hashed in 4.2 seconds on a laptop and bound as a single record.
         </p>
-        <p>
-          The demos go one step further: the work is made from A&rsquo;s value, which nobody could know beforehand, so the work
-          could not exist before&nbsp;A.
-        </p>
-        <div style={{ marginTop: 32 }}><SequenceFigure /></div>
-        <div style={{ marginTop: 32 }}><a className="bg-action-link" style={{ margin: 0 }} href="/demos">See it working</a></div>
+        <div className="sx-cta"><a className="bg-action-link" href="/technology#t-trees">How collections work</a></div>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-paths">
+        <p className="home-kicker">Ways to adopt it</p>
+        <h2 id="home-paths">Call it, license it, or build it in with us.</h2>
+        <div className="sx-cards">
+          <a className="tl-card sx-link" href="/integrate">
+            <p className="tl-label">Managed recording</p>
+            <h3>Call the service.</h3>
+            <p>Send digests over HTTP, the SDK or MCP; store the proofs. Nothing to operate.</p>
+          </a>
+          <a className="tl-card sx-link" href="/licensing">
+            <p className="tl-label">Mechanism license</p>
+            <h3>Run it under your control.</h3>
+            <p>License the recording mechanism for your own infrastructure and product.</p>
+          </a>
+          <a className="tl-card sx-link" href="/licensing">
+            <p className="tl-label">Custom integration</p>
+            <h3>Build it in together.</h3>
+            <p>Engineering work for your workflow: collections, credentials, agents, verification.</p>
+          </a>
         </div>
       </section>
 
-      {/* The limits and the trust, short, on the explanation page; in full on Tools (2026-10-18). A pair of cards like
-          the first (2026-10-25), each under the one it answers: what it does not prove under what it proves, what you
-          trust under how it works. */}
       <section className="home-section" aria-labelledby="home-limits">
-        <div className="proves-card">
-          <div className="proves-half">
-            {/* The kicker is the heading; the line under it was cut (2026-10-21). */}
-            <h2 id="home-limits" className="home-kicker">What it does not prove</h2>
-            <ul className="docs-list">
-              <li><strong>Truth.</strong> The proof binds bytes, not their meaning.</li>
-              <li><strong>Authorship or ownership.</strong> It names the enclave that bound the digest, not who made the file or holds its rights.</li>
-              <li><strong>When the content was created.</strong> An old file can be bound today. What is fixed is its place.</li>
-              <li><strong>Completeness.</strong> A record that was never made leaves no trace.</li>
-            </ul>
-            <p>
-              A record changed after it was bound is caught: its hash no longer matches. A record that was false when it was bound is&nbsp;not.
-            </p>
-          </div>
-          <div className="proves-half">
-            <p className="home-kicker">What you trust</p>
-            {/* 2026-10-19: generic, trusted the way SHA-256 is. Kept honest: the hardware root is
-                the one thing relied on, and it is checked, not asked. The specifics (AWS Nitro, PCR0, rebuilding) stay on Tools. */}
-            <h2 id="home-trust">The math, and the measured&nbsp;enclave.</h2>
-            <p>
-              Like SHA-256, a BitGraph is something you check, not someone you ask. The hashes and signatures are standard
-              cryptography. The enclave&rsquo;s exact build is published, and the hardware attests that this build made the proof, so
-              a proof checks on your own machine without asking BitGraph or anyone&nbsp;else.
-            </p>
-            <p className="proves-actions">
-              <a className="bg-action-link" href="/tools">Tools and the full&nbsp;check</a>
-            </p>
-          </div>
-        </div>
+        <p className="home-kicker">Plainly</p>
+        <h2 id="home-limits">What a BitGraph does not prove.</h2>
+        <ul className="docs-list">
+          <li><strong>When content was created.</strong> An old file can be bound today; the proof fixes when it was bound.</li>
+          <li><strong>Who made it, or that it is true.</strong> It binds bytes, not authorship or meaning.</li>
+          <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other was.</li>
+        </ul>
+        <p>What it rests on: AWS Nitro hardware, a published enclave build anyone can rebuild, and standard cryptography. <a href="/technology#t-threat">The threat model</a>.</p>
       </section>
 
+      <section className="home-section" aria-labelledby="home-end">
+        <p className="home-kicker">Argento Computing Inc.</p>
+        <h2 id="home-end">Give your proof a stronger foundation.</h2>
+        <p>Inspect the mechanism, reproduce its guarantees, and talk to us about building it into your infrastructure.</p>
+        <div className="sx-cta">
+          <a className="bg-action-link is-make" href="/evaluate">Request a technical evaluation</a>
+          <a className="bg-action-link" href="/licensing">Licensing</a>
+        </div>
+      </section>
     </div>
   );
 }

@@ -5427,7 +5427,7 @@ html:root:root:root:root:root body .db-copy-line a { color: var(--ink); }
 /* Phones: the bar is the wordmark and a menu button; the menu covers the screen under the bar, the links large, the
    sun/moon at its bottom */
 html:root:root:root:root:root body #site-nav .nav-menu-btn { display: none; }
-@media (max-width: 640px) {
+@media (max-width: 999px) {
   html:root:root:root:root:root:root body #site-nav .bg-nav-links { display: none !important; }
   html:root:root:root:root:root body #site-nav .nav-menu-btn { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin-right: -12px; padding: 0; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
   html:root:root:root:root:root body #site-nav .nav-menu-btn svg { width: 28px; height: 28px; }
@@ -5459,3 +5459,90 @@ html:root:root:root:root:root:root:root:root:root body main a.gal-tile.is-curren
 .gal-bar-go { display: flex; gap: 8px; flex-wrap: wrap; }
 .gal-bar .gal-grid { margin-top: 16px; }
 html:root:root:root:root:root:root:root:root:root body main .pv-log, html:root:root:root:root:root:root:root:root:root body main .pv-log * { font-size: 15px !important; line-height: 1.5 !important; }
+
+/* ── The sales pages (2026-10-27): home, Technology, Applications, Integrate, Evaluate, Licensing. They sit on the
+   Tools page's frame and cards (.docs-page .tools-page); these are the few pieces of their own. Left-aligned
+   throughout, as the rest of the site. */
+html:root:root:root:root body main .sx-hero { padding: 72px 0 56px; max-width: 880px; }
+@media (max-width: 640px) { html:root:root:root:root body main .sx-hero { padding: 40px 0 32px; } }
+html:root:root:root:root:root:root:root:root:root body main .sx-hero h1 { font-size: clamp(34px, 6vw, 56px) !important; line-height: 1.1 !important; letter-spacing: -0.02em !important; font-weight: 700 !important; color: var(--ink) !important; margin: 0 0 20px !important; text-align: left !important; text-wrap: balance; }
+html:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-sub { font-size: 21px !important; line-height: 1.55 !important; color: var(--text) !important; margin: 0 !important; max-width: 760px; }
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-sub { font-size: 18px !important; } }
+html:root:root:root:root body main .sx-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; align-items: center; }
+html:root:root:root:root body main .sx-cta .bg-action-link { margin: 0 !important; }
+html:root:root:root:root body main .sx-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 32px; }
+html:root:root:root:root body main .sx-cards.is-2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+@media (max-width: 640px) { html:root:root:root:root body main .sx-cards, html:root:root:root:root body main .sx-cards.is-2 { grid-template-columns: 1fr; } }
+html:root:root:root:root:root:root:root:root:root body main .sx-cards .tl-card h3 { font-size: 20px !important; margin: 0 0 10px !important; }
+html:root:root:root:root:root:root:root:root:root body main .sx-cards .tl-card p, html:root:root:root:root:root:root:root:root:root body main .sx-cards .tl-card li { font-size: 17px !important; }
+html:root:root:root:root body main a.tl-card.sx-link { text-decoration: none !important; color: inherit; transition: border-color .12s; }
+@media (hover: hover) { html:root:root:root:root body main a.tl-card.sx-link:hover { border-color: var(--dim); } }
+html:root:root:root:root:root:root:root:root:root body main .sx-more { margin-top: auto !important; padding-top: 12px; color: var(--accent) !important; font-size: 16px !important; }
+html:root:root:root:root body main .sx-table-wrap { overflow-x: auto; margin-top: 28px; border: 1px solid var(--line-2, var(--line)); border-radius: 12px; }
+html:root:root:root:root body main table.sx-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+html:root:root:root:root:root:root:root:root:root body main table.sx-table :is(th, td) { text-align: left; vertical-align: top; padding: 12px 14px; border-bottom: 1px solid var(--line-2, var(--line)); font-size: 15px !important; line-height: 1.5 !important; }
+html:root:root:root:root:root:root:root:root:root body main table.sx-table th { color: var(--ink); font-weight: 700; background: var(--panel); }
+html:root:root:root:root body main table.sx-table tr:last-child td { border-bottom: 0; }
+html:root:root:root:root:root:root:root:root:root body main table.sx-table td:first-child { color: var(--ink); font-weight: 600; }
+html:root:root:root:root body main .sx-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+@media (max-width: 640px) { html:root:root:root:root body main .sx-form-row { grid-template-columns: 1fr; } }
+html:root:root:root:root:root body main .sx-form select { width: 100%; box-sizing: border-box; padding: 11px 12px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); font: inherit; font-size: 16px; border-radius: 10px; }
+html:root:root:root:root:root body main .sx-form :is(input, textarea) { border-radius: 10px !important; }
+html:root:root:root:root:root body main .sx-form button[type="submit"] { cursor: pointer; font: inherit; }
+html:root:root:root:root body main .sx-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: start; }
+@media (max-width: 900px) { html:root:root:root:root body main .sx-split { grid-template-columns: 1fr; gap: 24px; } }
+html:root:root:root:root:root:root:root:root:root body main .sx-mono { font-family: var(--font-mono) !important; font-size: 13.5px !important; word-break: break-all; color: var(--dim); }
+html:root:root:root:root:root:root:root:root:root body main .sx-fine { font-size: 15px !important; color: var(--dim) !important; }
+
+/* The bar's one filled button, Evaluate (2026-10-27). */
+html:root:root:root:root:root:root:root body #site-nav a.nav-cta-sx { margin-left: 12px; display: inline-flex; align-items: center; height: 38px; padding: 0 18px; border-radius: 999px; background: var(--btn-primary); color: var(--btn-primary-text) !important; font-size: 15px !important; font-weight: 600; text-decoration: none !important; white-space: nowrap; }
+@media (hover: hover) { html:root:root:root:root:root:root:root body #site-nav a.nav-cta-sx:hover { background: var(--btn-primary-hover); } }
+/* Sales pages: section headings at a size a pitch can carry (2026-10-27). */
+html:root:root:root:root:root:root:root:root:root body main .sx-page .home-section h2 { font-size: clamp(26px, 3.4vw, 34px) !important; line-height: 1.2 !important; letter-spacing: -0.015em !important; text-wrap: balance; }
+/* Focus (2026-10-27): the site-wide 3px Google-blue ring read as stray blue boxes. Keyboard focus is now a thin ring in
+   the ink colour; a form field shows focus by its own border, with no ring around it. */
+html:root:root:root:root body :focus-visible { outline: 2px solid var(--ink) !important; outline-offset: 2px !important; border-radius: inherit; }
+html:root:root:root:root:root body :is(input, select, textarea):focus, html:root:root:root:root:root body :is(input, select, textarea):focus-visible { outline: none !important; border-color: var(--ink) !important; box-shadow: 0 0 0 1px var(--ink) !important; }
+
+/* ── Sales pages: one spacing scale (2026-10-27), measured, not by eye. Every gap between blocks in a section is set
+   here, and margins of the blocks themselves are zeroed, so no element brings its own:
+     kicker to heading 8 · h1 to what follows 20 · h2 to what follows 16 · text to text 16 · around a block (code,
+     table, cards, figure, buttons, form, split) 24 · before a sub-heading 32 · sub-heading to its text 8 ·
+     inside a card 12 (label to title 8) · section to section 96 (48 + 48). */
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.home-section, .sx-hero, .sx-split > div) > * { margin-top: 0 !important; margin-bottom: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.home-section, .sx-hero, .sx-split > div) > * + * { margin-top: 16px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.home-section, .sx-hero, .sx-split > div) > * + :is(.code-block, .sx-table-wrap, .sx-cards, figure, .sx-cta, form, .sx-split, div:has(> figure)),
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.home-section, .sx-hero, .sx-split > div) > :is(.code-block, .sx-table-wrap, .sx-cards, figure, .sx-cta, form, .sx-split, div:has(> figure)) + * { margin-top: 24px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.home-section, .sx-hero, .sx-split > div) > * + h3 { margin-top: 32px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.home-section, .sx-hero, .sx-split > div) > h3 + * { margin-top: 8px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.home-section, .sx-hero, .sx-split > div) > h1 + * { margin-top: 20px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.home-section, .sx-hero, .sx-split > div) > .home-kicker + * { margin-top: 8px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .tl-card > * { margin-top: 0 !important; margin-bottom: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .tl-card > * + * { margin-top: 12px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .tl-card > .tl-label + * { margin-top: 8px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .home-section { padding-top: 48px !important; padding-bottom: 48px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .home-hero + .home-section { padding-top: 24px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page > .sx-hero { padding: 72px 0 48px !important; }
+@media (max-width: 640px) {
+  html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .home-section { padding-top: 40px !important; padding-bottom: 40px !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page > .sx-hero { padding: 40px 0 40px !important; }
+}
+html:root:root:root:root:root:root:root:root:root body main .sx-page .sx-path { display: block; margin-top: 4px; font-family: var(--font-mono) !important; font-size: 13px !important; line-height: 1.5 !important; color: var(--dim) !important; overflow-wrap: anywhere; }
+html:root:root:root:root:root:root:root:root body main .sx-page .sx-tests > li + li { margin-top: 12px !important; }
+html:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.docs-list, .tl-steps) > li:last-child { margin-bottom: 0 !important; }
+/* Cards: the same padding on every side, 28 (20 on phones). Forms: 16 between fields, 8 from a label to its field,
+   24 above the button. */
+html:root:root:root:root:root:root:root:root:root:root body main .sx-page .tl-card { padding: 28px !important; }
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root body main .sx-page .tl-card { padding: 20px !important; } }
+html:root:root:root:root:root:root:root:root:root:root body main .sx-page .sx-form .field { margin: 0 0 16px !important; }
+html:root:root:root:root:root:root:root:root:root:root body main .sx-page .sx-form .field > span { margin: 0 0 8px !important; }
+html:root:root:root:root:root:root:root:root:root:root body main .sx-page .sx-form button[type="submit"] { margin-top: 8px !important; }
+/* A link inside text takes the text's own size and weight, underlined (2026-10-27: links set at 16px bold inside 20px
+   sentences). Stacked split columns sit 48 apart, half a section, since each starts its own idea. */
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(p, li, td) a:not(.bg-action-link) { font-size: inherit !important; font-weight: inherit !important; color: var(--ink) !important; text-decoration: underline !important; text-decoration-thickness: 1px !important; text-underline-offset: 3px !important; }
+@media (max-width: 900px) { html:root:root:root:root:root:root:root:root:root:root body main .sx-page .sx-split { row-gap: 48px !important; } }
+html:root:root:root:root:root body main .sx-page figure.sx-sample { margin: 0; }
+html:root:root:root:root:root body main .sx-page figure.sx-sample img { display: block; width: 100%; max-width: 720px; height: auto; border: 1px solid var(--line-2, var(--line)); border-radius: 12px; }
+/* The verdict card stands on its own now that Proof details no longer folds (2026-10-27): no divider or gap above it. */
+html:root:root:root:root:root:root:root:root body .pv-card > .pv-sub:first-child { margin-top: 0 !important; padding-top: 0 !important; border-top: 0 !important; }
+html:root:root:root:root:root:root:root:root body .pv-card > .pv-sub:first-child .pv-checks-summary { margin-bottom: 0 !important; }

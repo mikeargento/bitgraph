@@ -138,6 +138,9 @@ function formatHashAlg(alg: string): string {
 const staged = (text: string) => <>{text}</>; // approved 2026-10-11; was red while staged
 
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
+  // The Evaluate page's sample (2026-10-27): a ChatGPT image with its OpenAI-signed Content Credentials, bound with them
+  // as one tree (BitGraph #26 of epoch NihRUA…). Hosted so its proof page shows the picture to every visitor.
+  "MXkV_2WRyBSlQV_BdOio2gc1NSrd2Wxl8zW0OrACCDk": { path: "/evaluate/chatgpt-image.png", name: "chatgpt-image.png", mime: "image/png" },
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
   [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },

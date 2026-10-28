@@ -44,7 +44,7 @@ const nextConfig: NextConfig = {
       { source: "/rolls", destination: "/ledger", permanent: false },
       ...[
         "/generate/:path+", "/benchmark", "/ceilings", "/ceilings/:path*", "/deck",
-        "/fuse", "/subjects", "/uses", "/why", "/solutions", "/applications", "/image", "/portrait", "/painting",
+        "/fuse", "/subjects", "/uses", "/why", "/solutions", "/image", "/portrait", "/painting",
         "/three", "/bridge", "/declare", "/actor", "/folder", "/camera", "/camera/:path*", "/floors", "/try",
       ].map((source) => ({ source, destination: home, permanent: false })),
     ];

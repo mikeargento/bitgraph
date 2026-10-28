@@ -61,7 +61,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
   }
 
-  const { name, email, company, message, website } = (body ?? {}) as {
+  const { name, email, company, message, website, topic } = (body ?? {}) as {
+    topic?: unknown;
     name?: unknown;
     email?: unknown;
     company?: unknown;
@@ -99,6 +100,7 @@ export async function POST(req: Request) {
   const safeEmail = email.trim();
   const safeCompany = typeof company === "string" ? company.trim() : "";
   const safeMessage = message.trim();
+  const safeTopic = topic === "Licensing" || topic === "Evaluation" ? topic : "";
 
   const resend = new Resend(apiKey);
 
@@ -107,7 +109,8 @@ export async function POST(req: Request) {
       from: SENDER,
       to: RECIPIENT,
       replyTo: safeEmail,
-      subject: `[bitgraph.ing] ${safeName}${safeCompany ? ` (${safeCompany})` : ""}`,
+      // A licensing or evaluation request is marked as such in the subject.
+      subject: `[bitgraph.ing]${safeTopic ? ` ${safeTopic}:` : ""} ${safeName}${safeCompany ? ` (${safeCompany})` : ""}`,
       text: [
         `From: ${safeName} <${safeEmail}>`,
         ...(safeCompany ? [`Company: ${safeCompany}`] : []),

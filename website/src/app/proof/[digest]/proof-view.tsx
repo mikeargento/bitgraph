@@ -329,9 +329,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const fo = m.floorOf ?? null;
   const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null;
   const c = m.checks;
-  const [details, setDetails] = useState(false);
-  // a proof that fails a check opens its details: a failure is never folded away
-  useEffect(() => { if (c.state === "done" && c.verdict === "FALSE") setDetails(true); }, [c.state, c.verdict]);
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
   const badCount = c.claims.filter((x) => x.result === "FALSE").length;
   const commit = m.proof.commit;
@@ -533,7 +530,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   );
 
   /* Every proof leads with its file (the photo, its BitGraphed file or a copy, any other file, or the drop box), one line
-     saying what the BitGraph says, the downloads, and the proof itself folded under Proof details. */
+     saying what the BitGraph says, the downloads, and the proof itself in full. */
   {
     const verdictWord = c.state === "done" ? (c.verdict === "TRUE" ? "\u2713 Valid proof" : c.verdict === "FALSE" ? "\u2717 Not a valid proof" : "Undetermined") : c.state === "failed" ? "Not checked" : "Checking\u2026";
     const who = m.c2pa?.present ? [m.c2pa.creator, m.c2pa.signatureIssuer ? `signed by ${m.c2pa.signatureIssuer}` : null].filter(Boolean).join(", ") : "";
@@ -551,21 +548,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           </div>
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
         </section>
-        <section className="pv-card pv-details pv-details-fold">
-          <button type="button" className="pv-fold-head" aria-expanded={details} onClick={() => setDetails((o) => !o)}>
-            <span>Proof details</span>
-            {/* the checks' tally beside the title, so the verdict shows with the details folded */}
-            <span className={`pv-fold-tally${c.state === "done" && c.verdict === "FALSE" ? " is-fail" : ""}`}>
-              {c.state === "done" ? (badCount ? `\u2717 ${badCount} failed` : `\u2713 ${okCount} checks passed`) : c.state === "running" ? "Checking\u2026" : ""}
-            </span>
-            <svg className="pv-chevron" width="18" height="18" viewBox="0 0 24 24" aria-hidden style={{ transform: details ? "rotate(90deg)" : undefined }}><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
-        </section>
-        {details && (
+        {/* Every proof opens in full: no Proof details fold. The verdict and its tally lead, then when, who, and how. */}
+        {(
           <>
-            {/* the verdict, then when (the claim itself), then who, then how it is built */}
-            {/* the tally is on the fold already; the checks card shows when there is more to say (a failure, a wait) */}
-            {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
+            <section className="pv-card">{checksBlock}</section>
             {timeCard}
             {m.c2pa?.present && <section className="pv-card"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></section>}
             {counterCard}

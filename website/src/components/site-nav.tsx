@@ -13,19 +13,22 @@ import { ThemeToggle } from "@/components/theme-toggle";
  * Demos joined the bar 2026-10-20, and Contact briefly with it before moving to the footer: on desks the links sit in
  * the bar; on phones they fold into a menu button that opens a sheet under the bar.
  */
-const LINKS: Array<{ href: string; label: string }> = [
-  // One job each: Make binds a drop, Check looks a file up (its bytes, or a copy's watermark) and makes nothing,
-  // Proofs is the ledger.
-  { href: "/make", label: "Make" },
-  { href: "/check", label: "Check" },
-  { href: "/ledger", label: "Proofs" },
-  { href: "/demos", label: "Demos" },
-  { href: "/tools", label: "Tools" },
+const LINKS: Array<{ href: string; label: string; also?: string[] }> = [
+  // The site sells the mechanism to companies that sell proof (2026-10-27): what it is, where it fits, how to build
+  // on it, how to license it. Make, Check, the ledger and the demos are its evidence, under Try it.
+  { href: "/technology", label: "Technology" },
+  { href: "/applications", label: "Applications" },
+  { href: "/integrate", label: "Integrate" },
+  { href: "/licensing", label: "Licensing" },
+  { href: "/tools", label: "Docs" },
+  { href: "/demos", label: "Try it", also: ["/make", "/check", "/ledger", "/jev", "/generate", "/exam"] },
 ];
+const CTA = { href: "/evaluate", label: "Evaluate" };
 
 export function SiteNav() {
   const pathname = usePathname();
-  const current = (href: string) => (pathname === href || pathname.startsWith(href + "/") ? "page" : undefined);
+  const on = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const current = (href: string, also: string[] = []) => (on(href) || also.some(on) ? "page" : undefined);
   // Phones: the links fold into a menu under the bar, the sun/moon at its bottom; a new page closes it.
   const [open, setOpen] = useState(false);
   useEffect(() => { setOpen(false); }, [pathname]);
@@ -49,10 +52,11 @@ export function SiteNav() {
         </Link>
         <nav aria-label="Site" className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
           {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="nav-btn nav-box nav-desk" aria-current={current(l.href)} style={{ textDecoration: "none" }}>
+            <Link key={l.href} href={l.href} className="nav-btn nav-box nav-desk" aria-current={current(l.href, l.also)} style={{ textDecoration: "none" }}>
               {l.label}
             </Link>
           ))}
+          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}>{CTA.label}</Link>
           {/* The sun/moon, upper right again (2026-10-21). */}
           <ThemeToggle />
         </nav>
@@ -67,8 +71,9 @@ export function SiteNav() {
       {open && (
         <nav id="nav-sheet" aria-label="Site" className="nav-sheet">
           {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="nav-sheet-link" aria-current={current(l.href)} onClick={() => setOpen(false)}>{l.label}</Link>
+            <Link key={l.href} href={l.href} className="nav-sheet-link" aria-current={current(l.href, l.also)} onClick={() => setOpen(false)}>{l.label}</Link>
           ))}
+          <Link href={CTA.href} className="nav-sheet-link" aria-current={current(CTA.href)} onClick={() => setOpen(false)}>{CTA.label}</Link>
           <div className="nav-sheet-theme"><ThemeToggle /></div>
         </nav>
       )}

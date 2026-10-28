@@ -193,18 +193,18 @@ export function SequenceFigure() {
 /** The simple picture: content → [enclave: 1 nonce → 2 bind] → proof, the content entering at step 2 (2026-10-17: simplified to content alone). */
 export function FlowFigure() {
   return (
-    <figure className="pf-figure pf-flow" aria-label="Content goes into the enclave and runs straight through one atomic action: step 1 makes a position commitment, unpredictable and unused, step 2 binds the content right after it and signs both. The result is a proof anyone can check offline.">
-      <div className="pf-box pf-grey pf-f-content"><div className="pf-title">Content</div><div className="pf-sub">Any bits</div></div>
+    <figure className="pf-figure pf-flow" aria-label="The content's SHA-256 goes into the enclave, which runs one atomic action: count N takes a fresh hardware nonce, count N+1 binds the digest right after it, both signed and attested. The result is a proof anyone can check offline.">
+      <div className="pf-box pf-grey pf-f-content"><div className="pf-title">SHA-256</div><div className="pf-sub">Of any data</div></div>
       <span className="pf-arrow pf-f-a1" aria-hidden="true" />
       <div className="pf-f-enclave" aria-hidden="true" />
-      <div className="pf-enclave-label pf-f-label">Secure enclave / TEE</div>
-      <div className="pf-box pf-purple pf-f-nonce"><div className="pf-title">1. Position commitment</div><div className="pf-sub">Unpredictable and unused</div></div>
+      <div className="pf-enclave-label pf-f-label">Measured AWS Nitro enclave</div>
+      <div className="pf-box pf-purple pf-f-nonce"><div className="pf-title">Count N: nonce</div><div className="pf-sub">Fresh from the hardware RNG</div></div>
       <span className="pf-arrow pf-f-a2" aria-hidden="true" />
-      <div className="pf-box pf-green pf-f-bind"><div className="pf-title">2. Content fills position</div><div className="pf-sub">Position consumed</div></div>
+      <div className="pf-box pf-green pf-f-bind"><div className="pf-title">Count N+1: digest</div><div className="pf-sub">Bound right after, signed together</div></div>
       {/* Inside the enclave, under its two steps (2026-10-17), since the text describes the TEE's action. */}
       <div className="pf-f-note">One atomic action. If any step fails, nothing is released and the counter does not move.</div>
       <span className="pf-arrow pf-f-a3" aria-hidden="true" />
-      <div className="pf-box pf-green pf-f-proof"><div className="pf-title">Portable proof</div><div className="pf-sub">Checks offline, by anyone</div></div>
+      <div className="pf-box pf-green pf-f-proof"><div className="pf-title">Attested proof</div><div className="pf-sub">Checks offline, by anyone</div></div>
     </figure>
   );
 }

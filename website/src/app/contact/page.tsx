@@ -1,100 +1,32 @@
-"use client";
+import type { Metadata } from "next";
+import { InquiryForm } from "@/components/inquiry-form";
 
-import { useState } from "react";
+/** Contact (2026-10-27): the same form as Licensing and Evaluate, posting the same way (/api/contact). */
+export const metadata: Metadata = {
+  title: "Contact",
+  description: "Contact Argento Computing Inc., the company that built and runs BitGraph.",
+};
 
-type Status = "idle" | "sending" | "sent" | "error";
-
-/**
- * The contact form. It posts to /api/contact, which relays the message by
- * email; the page reports exactly what the route answered. Michael Argento
- * reads and answers these himself.
- */
 export default function ContactPage() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [company, setCompany] = useState("");
-  const [message, setMessage] = useState("");
-  const [website, setWebsite] = useState(""); // honeypot, hidden from people
-  const [status, setStatus] = useState<Status>("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (status === "sending") return;
-    setStatus("sending");
-    setErrorMsg("");
-    try {
-      const resp = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, company, message, website }),
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        setStatus("error");
-        setErrorMsg(data.error || `The message was not sent (the server answered ${resp.status}).`);
-        return;
-      }
-      setStatus("sent");
-    } catch {
-      setStatus("error");
-      setErrorMsg("The message was not sent: the network request failed. Try again, or email directly.");
-    }
-  }
-
   return (
-    <div className="frame prose contact-form-page" style={{ padding: "56px 0 96px" }}>
-      {/* The form is the contact page again, reached from the footer (2026-10-20). */}
-      {/* The site's eyebrow, not a big h1, matching the other pages (2026-10-20). */}
-      <h1 className="sr-only">Contact</h1>
-      <p className="home-kicker">Contact</p>
-      {/* ONE column, the form's own width (2026-09-17: the text read badly).
-          The sentences used to fill the 1040px frame while the fields
-          stopped at 560, so a paragraph ran twice the width of the inputs under
-          it and the page read as two pages. A form page's measure is its form. */}
-      <div style={{ maxWidth: 560 }}>
-      <p className="lede">
-        BitGraph is built and run by Argento Computing Inc. Email <a href="mailto:mike@bitgraph.ing">mike@bitgraph.ing</a> or use the form; both reach the same inbox.
-      </p>
-        {status === "sent" ? (
-          <div className="callout is-ok" role="status">
-            <span className="kicker">Sent</span>
-            <p>Your message was delivered. You will hear back at the address you gave.</p>
+    <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page">
+      <div className="home-hero"><h1 className="sr-only">Contact.</h1></div>
+      <section className="home-section" aria-labelledby="c-h">
+        <div className="sx-split">
+          <div>
+            <p className="home-kicker">Contact</p>
+            <h2 id="c-h">Talk to us.</h2>
+            <p>
+              BitGraph is built and run by Argento Computing Inc. Questions about the technology, an integration, licensing, or anything
+              else reach us directly. Nothing you send is published.
+            </p>
+            <p>For a licensing conversation or a technical evaluation, the <a href="/licensing#lic-form">licensing</a> and <a href="/evaluate">evaluation</a> forms ask the right questions.</p>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} noValidate aria-describedby={status === "error" ? "contact-error" : undefined}>
-            <div aria-hidden="true" style={{ position: "absolute", left: -10000, width: 1, height: 1, overflow: "hidden" }}>
-              <label>Website<input type="text" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} /></label>
-            </div>
-            <label className="field">
-              <span>Name</span>
-              <input type="text" required value={name} onChange={(e) => setName(e.target.value)} maxLength={200} autoComplete="name" />
-            </label>
-            <label className="field">
-              <span>Email</span>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} autoComplete="email" />
-            </label>
-            <label className="field">
-              <span>Company <span className="dim" style={{ fontWeight: 400 }}>(optional)</span></span>
-              <input type="text" value={company} onChange={(e) => setCompany(e.target.value)} maxLength={200} autoComplete="organization" />
-            </label>
-            <label className="field">
-              <span>Message</span>
-              <textarea required value={message} onChange={(e) => setMessage(e.target.value)} minLength={10} maxLength={5000} rows={7} />
-              <span className="meta" style={{ display: "block", textAlign: "right", fontWeight: 400, marginTop: 4 }}>{message.length}/5000</span>
-            </label>
-            {status === "error" && (
-              <div className="callout is-err" id="contact-error" role="alert">
-                <span className="kicker">Not sent</span>
-                <p>{errorMsg}</p>
-              </div>
-            )}
-            <button type="submit" className="bg-action-link is-make" style={{ margin: 0 }} disabled={status === "sending"}>
-              {status === "sending" ? "Sending…" : "Send message"}
-            </button>
-          </form>
-        )}
-      </div>
+          <div>
+            <InquiryForm topic="Contact" />
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
