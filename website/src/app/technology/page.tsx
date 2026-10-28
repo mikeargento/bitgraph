@@ -30,6 +30,7 @@ const SECTIONS = [
   ["t-attest", "The measured enclave"],
   ["t-time", "Time"],
   ["t-trees", "Collections"],
+  ["t-redact", "Without disclosure"],
   ["t-format", "The proof"],
   ["t-verify", "Verification"],
   ["t-threat", "Threat model"],
@@ -175,6 +176,21 @@ export default function TechnologyPage() {
               Measured 2026-10-12, two runs: one million synthetic files hashed in 4.2 to 4.4 s on an 8-core Apple M3 laptop, and the
               proof back 10.5 to 16 s after the drop. Those runs used an earlier bind flow; the current one has not yet been benchmarked
               at that size.
+            </p>
+          </section>
+
+          <section className="home-section" aria-labelledby="t-redact">
+            <p className="home-kicker">Without disclosure</p>
+            <h2 id="t-redact">Prove a record exists without showing what it bound.</h2>
+            <p>
+              Each proof holds two signed records: the slot at count N, with the nonce, epoch and key and no field from the content; and the
+              binding at count N+1, which names the digest. The slot record is signed on its own. So a holder can withhold the binding and
+              the content entirely and still show the slot: an auditor checks its signature under the same key as an attested proof from
+              that epoch, and learns that the measured enclave established that position, without learning what was bound there.
+            </p>
+            <p className="sx-fine">
+              Built into the proof format today. The check uses the verifier&rsquo;s existing signature and canonical-encoding steps; it is not
+              yet a one-line command.
             </p>
           </section>
 

@@ -23,9 +23,9 @@ export function MechanismFigure() {
       <div className="mf-enclave">
         <div className="mf-label">Measured AWS Nitro enclave</div>
         <div className="mf-inner">
-          <Box title="Count N: nonce" sub="Fresh from the hardware RNG" />
+          <Box title="Count N: nonce" sub={<><span className="mf-keep">Fresh from</span><br /><span className="mf-keep">the hardware RNG</span></>} />
           <Arrow />
-          <Box title="Count N+1: digest" sub={<>Bound right after,<br /><span className="mf-keep">signed together</span></>} />
+          <Box title="Count N+1: digest" sub={<><span className="mf-keep">Bound right after,</span><br /><span className="mf-keep">signed together</span></>} />
         </div>
         <div className="mf-note">One atomic action. If any step fails, nothing is released and the counter does not move.</div>
       </div>

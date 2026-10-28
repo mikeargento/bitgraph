@@ -50,6 +50,7 @@ export default function LicensingPage() {
               <li>Your product experience, your customer relationship</li>
               <li>White-label where the agreement allows</li>
               <li>The requirements for a deployment you operate, such as its own measured enclave build, are worked out with you</li>
+              <li>Not tied to one vendor&rsquo;s hardware: the mechanism is defined for any protected environment, including secure elements and HSMs, confidential virtual machines, a processor instruction or a dedicated circuit. It runs on AWS Nitro today.</li>
             </ul>
           </article>
           <article className="tl-card">
