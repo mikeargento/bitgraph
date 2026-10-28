@@ -573,16 +573,19 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {anywhereCard}
             {rawCard}
             {/* The same bytes bound more than once: a footnote, one folded line, a log of them all oldest first, the first
-                (the one that counts) and this page marked. */}
+                (the original, the one that counts) and this page marked. */}
             {m.bindings && m.bindings.length > 1 && (
               <details className="pv-log">
                 <summary>{`This file has been BitGraphed ${fmtNum(m.bindings.length)} times`}</summary>
                 <ol aria-label="Every BitGraph of this file, oldest first">
                   {m.bindings.map((b, i) => (
                     <li key={`${b.epochId}:${b.counter}`}>
-                      {b.current ? <span className="pv-log-here">BitGraph #{fmtNum(b.counter)}</span> : <a href={b.href}>BitGraph #{fmtNum(b.counter)}</a>}
-                      {b.ms !== null && <span>{`${longDateTz(new Date(b.ms))}, ${timeTz(new Date(b.ms))}`}</span>}
-                      {(i === 0 || b.current) && <span className="pv-log-tag">{[i === 0 ? "first" : null, b.current ? "this page" : null].filter(Boolean).join(", ")}</span>}
+                      <span className="pv-log-n">{`${i + 1}.`}</span>
+                      <span className="pv-log-body">
+                        {b.current ? <span className="pv-log-here">BitGraph #{fmtNum(b.counter)}</span> : <a href={b.href}>BitGraph #{fmtNum(b.counter)}</a>}
+                        {b.ms !== null && <span>{`${longDateTz(new Date(b.ms))}, ${timeTz(new Date(b.ms))}`}</span>}
+                        {(i === 0 || b.current) && <span className="pv-log-tag">{[i === 0 ? "original" : null, b.current ? "this page" : null].filter(Boolean).join(", ")}</span>}
+                      </span>
                     </li>
                   ))}
                 </ol>
