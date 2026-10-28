@@ -5,7 +5,7 @@
  * for a fresh hardware nonce and count N+1 for the digest, signed together; out comes an attested proof. Its own small
  * layout (.mf in globals.css): one row when every title fits on a line, one column below 1150px, never in between.
  */
-function Box({ title, sub }: { title: string; sub: string }) {
+function Box({ title, sub }: { title: string; sub: React.ReactNode }) {
   return (
     <div className="mf-box">
       <div className="mf-title">{title}</div>
@@ -25,7 +25,7 @@ export function MechanismFigure() {
         <div className="mf-inner">
           <Box title="Count N: nonce" sub="Fresh from the hardware RNG" />
           <Arrow />
-          <Box title="Count N+1: digest" sub="Bound right after, signed together" />
+          <Box title="Count N+1: digest" sub={<>Bound right after,<br /><span className="mf-keep">signed together</span></>} />
         </div>
         <div className="mf-note">One atomic action. If any step fails, nothing is released and the counter does not move.</div>
       </div>
