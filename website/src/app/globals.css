@@ -5602,3 +5602,11 @@ html:root:root:root:root:root:root:root:root:root:root:root body main .bg-action
 /* A code word and the full stop or comma after it stay together (2026-10-28: the stop was breaking onto a line alone). */
 html:root:root:root:root body main .nb { white-space: nowrap; }
 html:root:root:root:root:root body .pv-photo-check { margin-top: 4px; font-size: 15px; color: var(--ok, #188038); }
+/* The "On this page" list (2026-10-28): a navigation list, not body text. 15px, no underline, one line per entry in a
+   column wide enough for the longest, the current section in ink. */
+@media (min-width: 1000px) {
+  html:root:root:root:root:root:root:root:root:root:root:root body main .tools-page .tl-body { grid-template-columns: 220px minmax(0, 1fr) !important; column-gap: 48px !important; }
+}
+html:root:root:root:root:root:root:root:root:root:root:root:root body main .tools-page .tl-toc a { font-size: 15px !important; line-height: 1.4 !important; padding: 5px 0 5px 14px !important; color: var(--dim) !important; text-decoration: none !important; white-space: nowrap; font-weight: 400 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root body main .tools-page .tl-toc a:hover, html:root:root:root:root:root:root:root:root:root:root:root:root body main .tools-page .tl-toc a.is-here { color: var(--ink) !important; border-left-color: var(--ink) !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .tools-page .tl-toc .tl-label { margin-bottom: 8px !important; }
