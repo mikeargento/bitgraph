@@ -123,7 +123,8 @@ TRUE
         <h2 id="home-scale">One record, or a million in one.</h2>
         <p>
           A collection is bound as one Merkle tree in one action, and each item proves its own inclusion without the others being
-          disclosed. In a measured run, one million files were hashed in 4.2 seconds on a laptop and bound as a single record.
+          disclosed. Measured on the current flow: one million files hashed and built into a tree in 4.6 seconds on a laptop, and bound
+          as one BitGraph 6.1 seconds after the drop.
         </p>
         <div className="sx-cta"><a className="bg-action-link" href="/technology#t-trees">How collections work</a></div>
       </section>

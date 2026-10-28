@@ -1,0 +1,26 @@
+{
+  "real": true,
+  "count": 1000000,
+  "files": 1000001,
+  "cpu": "Apple M3, 8 cores, 8 GB",
+  "node": "v24.13.1",
+  "flow": "make/tree-member-1 (digest leaves, Base floor leaf, one atomic bind)",
+  "floor": {
+    "chain": "base-mainnet",
+    "blockNumber": 53207880,
+    "blockHash": "0xc5b1fd88276d76e8dd558673a31f87309e5ff0ecf04222258c06eb7f0f834108",
+    "blockTimestamp": 1793205107
+  },
+  "hashS": 1.879715792,
+  "baseReadS": 0.2979311250000001,
+  "treeS": 2.3849486250000003,
+  "hashAndTreeS": 4.562595542,
+  "bindS": 1.5412026669999996,
+  "dropToProofS": 6.103798209,
+  "memberCheckS": 0.08431295799999952,
+  "memberOk": true,
+  "counter": "34",
+  "epochId": "NihRUA1VRsV4cqmwWDO/4viNR7YhJRdCb75lGASeV3E=",
+  "rootDigestB64": "l4eT6Fpyu9/6YmlFOOoC9BaYrHNQLJpDsnWJJcxfgJI=",
+  "wallClock": "2026-10-28T16:31:51.858Z"
+}

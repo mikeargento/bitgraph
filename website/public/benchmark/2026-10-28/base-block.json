@@ -1,0 +1,9 @@
+{
+  "format": "bitgraph-base-block/1",
+  "chain": "base-mainnet",
+  "chainId": 8453,
+  "number": 53207880,
+  "hash": "0xc5b1fd88276d76e8dd558673a31f87309e5ff0ecf04222258c06eb7f0f834108",
+  "timestamp": 1793205107,
+  "note": "The first leaf of a BitGraph tree. Everything in the tree was bound after this Base block existed."
+}

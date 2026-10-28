@@ -1,0 +1,2 @@
+Merkle root (RFC 6962, SHA-256; each leaf is a file's SHA-256) of 1000001 files:
+f0fa48853570e668c0d3d56933fde1fbc4ea7b78ebdb615a582b716a4bec2a12
