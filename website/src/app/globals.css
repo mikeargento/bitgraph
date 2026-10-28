@@ -5671,3 +5671,8 @@ html:root:root:root:root:root body main .mf-box { padding: 22px 16px !important;
 }
 /* The footer's sun/moon: in line with the links, on every screen. */
 html:root:root:root:root:root body footer .bg-footer-theme { display: inline-flex; align-items: center; margin-left: 4px; }
+/* The footer's sun/moon, in line with the footer links: the same height as their line, no padding or border. */
+html:root:root:root:root:root:root body footer .bg-footer-theme { margin: 0 !important; }
+html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 20px !important; height: 20px !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; color: var(--dim) !important; cursor: pointer; vertical-align: middle; line-height: 0 !important; }
+html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle svg { width: 16px !important; height: 16px !important; display: block; }
+@media (hover: hover) { html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle:hover { color: var(--ink) !important; } }
