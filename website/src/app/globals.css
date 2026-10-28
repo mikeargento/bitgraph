@@ -5676,3 +5676,5 @@ html:root:root:root:root:root:root body footer .bg-footer-theme { margin: 0 !imp
 html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 20px !important; height: 20px !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; color: var(--dim) !important; cursor: pointer; vertical-align: middle; line-height: 0 !important; }
 html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle svg { width: 16px !important; height: 16px !important; display: block; }
 @media (hover: hover) { html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle:hover { color: var(--ink) !important; } }
+/* Centred on the letters, not the line box: Newsreader's lowercase sits high in its line, so the icon rises with it. */
+html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle { position: relative; top: -3px; }
