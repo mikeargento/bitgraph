@@ -15,7 +15,7 @@ export default function ContactPage() {
         <div className="sx-split">
           <div>
             <p className="home-kicker">Contact</p>
-            <h2 id="c-h">Talk to us.</h2>
+            <h2 id="c-h">Talk with us.</h2>
             <p>
               BitGraph is built and run by Argento Computing Inc. Questions about the technology, an integration, licensing, or anything
               else reach us directly. Nothing you send is published.

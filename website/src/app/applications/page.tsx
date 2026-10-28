@@ -107,7 +107,7 @@ export default function ApplicationsPage() {
         <p>Anything that can be hashed can be recorded. Tell us what your product produces and where the recording step would sit.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/evaluate">Evaluate the technology</a>
-          <a className="bg-action-link" href="/licensing#lic-form">Talk to us</a>
+          <a className="bg-action-link" href="/licensing#lic-form">Talk with us</a>
         </div>
       </section>
     </div>

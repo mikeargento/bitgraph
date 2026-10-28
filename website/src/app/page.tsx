@@ -165,7 +165,7 @@ TRUE
       <section className="home-section" aria-labelledby="home-end">
         <p className="home-kicker">Argento Computing Inc.</p>
         <h2 id="home-end">Give your proof a stronger foundation.</h2>
-        <p>Inspect the mechanism, reproduce its guarantees, and talk to us about building it into your infrastructure.</p>
+        <p>Inspect the mechanism, reproduce its guarantees, and talk with us about building it into your infrastructure.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/evaluate">Request a technical evaluation</a>
           <a className="bg-action-link" href="/licensing">Licensing</a>

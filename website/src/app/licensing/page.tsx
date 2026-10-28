@@ -84,7 +84,7 @@ export default function LicensingPage() {
             </p>
           </div>
           <div>
-            <p className="home-kicker" id="lic-form">Talk to us</p>
+            <p className="home-kicker" id="lic-form">Talk with us</p>
             <h2>Start a licensing conversation.</h2>
             <p className="sx-fine">It reaches Argento Computing directly. Nothing you send is published.</p>
             <InquiryForm topic="Licensing" />
