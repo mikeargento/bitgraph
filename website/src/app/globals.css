@@ -5663,3 +5663,9 @@ html:root:root:root:root:root body main .mf-box { padding: 22px 16px !important;
   html:root:root:root:root:root:root:root:root:root body main .mf-enclave { padding-left: 20px !important; padding-right: 20px !important; }
 }
 @media (min-width: 960px) and (max-width: 1149px) { html:root:root:root:root:root body main .mf-box { padding-left: 10px !important; padding-right: 10px !important; } html:root:root:root:root:root body main .mf-arrow { flex-basis: 28px !important; margin: 0 4px !important; } html:root:root:root:root:root body main .mf-enclave { padding-left: 14px !important; padding-right: 14px !important; } }
+/* Phones: the hero's primary button on its own line, full width; the two secondary ones side by side under it, tight. */
+@media (max-width: 640px) {
+  html:root:root:root:root:root:root:root:root body main .sx-hero .sx-cta { gap: 8px !important; }
+  html:root:root:root:root:root:root:root:root body main .sx-hero .sx-cta > .bg-action-link { flex: 1 1 0; justify-content: center; text-align: center; }
+  html:root:root:root:root:root:root:root:root body main .sx-hero .sx-cta > .bg-action-link.is-make { flex: 1 0 100%; }
+}
