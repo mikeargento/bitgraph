@@ -56,9 +56,9 @@ export function SiteNav() {
               {l.label}
             </Link>
           ))}
-          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}>{CTA.label}</Link>
-          {/* The sun/moon, upper right again (2026-10-21). */}
+          {/* The sun/moon sits before the filled button, so the button closes the bar at the right edge (2026-10-28). */}
           <ThemeToggle />
+          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}>{CTA.label}</Link>
         </nav>
         <button type="button" className="nav-menu-btn" aria-label={open ? "Close the menu" : "Open the menu"} aria-expanded={open} aria-controls="nav-sheet" onClick={() => setOpen((o) => !o)}>
           <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
