@@ -37,7 +37,7 @@ import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
 import { noteCopyOf, noteCredentialsMatch, noteDroppedCopy } from "@/lib/trustmark/copy-note";
 import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
-import { MAX_GALLERY, setGallery, type Gallery } from "@/lib/gallery";
+import { MAX_GALLERY, handOriginal, setGallery, type Gallery, type GalleryItem } from "@/lib/gallery";
 import { DropGallery } from "@/components/gallery";
 
 const MAX_FILES = 25;
@@ -305,6 +305,24 @@ async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
  *  offers to make the ones that are new (/make). */
 /** canMake (the Proofs page): a check that offers to make a BitGraph of whatever is not on record yet, one press each
  *  drop, instead of making it at once as "make" does. */
+/** A checked photo as a gallery item: the BitGraph it leads to, and how its file is handed to that page. */
+type Found = { file: File; item: GalleryItem; prepare: () => Promise<void> };
+function foundOriginal(file: File, digest: string, proof: Proof): Found | null {
+  const c = proof.commit as { counter?: string | number; epochId?: string } | undefined;
+  if (c?.counter === undefined || !c.epochId) return null;
+  const item = { digest, name: file.name, counter: String(c.counter), epochId: String(c.epochId) };
+  return { file, item, prepare: () => handOriginal(file, digest, proof, item.counter, item.epochId) };
+}
+/** The checked photos of a drop as a gallery, each once, when there are two or more. */
+function galleryOfFound(found: Found[]): Gallery | null {
+  const seen = new Set<string>();
+  const kept = found.filter((x) => { const k = `${x.item.digest}@${x.item.counter}`; return !seen.has(k) && !!seen.add(k); });
+  if (kept.length < 2 || kept.length > MAX_GALLERY) return null;
+  const g = { id: `check-${Date.now()}`, items: kept.map((x) => x.item) };
+  setGallery(g, kept.map((x) => x.file), (i) => kept[i]!.prepare());
+  return g;
+}
+
 export function DropBox({ mode = "make", variant = "zone", canMake = false }: { mode?: "make" | "check"; variant?: "zone" | "buttons"; canMake?: boolean }) {
   // The drop box on /make makes and checks (2026-10-17), both in one box. The ledger's search
   // (mode "check", variant "buttons": two Finder buttons, no box) only looks files up and never makes one.
@@ -323,6 +341,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
   const [bulk, setBulk] = useState<{ total: number; made: number; found: number; missing: number; failed: number; done: boolean; proofs: Proof[]; ms: number } | null>(null);
   // The files of a big check that are not on record yet, one per digest: on Proofs, offered to be made in one press.
   const [bulkNew, setBulkNew] = useState<File[]>([]);
+  // A check of several photos: those that lead to a proof, as a gallery (as a drop of photos on Make).
+  const [checked, setChecked] = useState<Gallery | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -384,7 +404,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
   /* A big drop: hash everything here, then bind in batches of 50 (make) or look each up (check). Rate limits are
      waited out, never treated as failures; the enclave's daily restart (503) is waited out too. */
   const takeMany = useCallback(async (files: File[]) => {
-    setRows([]); setStatus(null); setBulkNew([]);
+    setRows([]); setStatus(null); setBulkNew([]); setChecked(null);
     const total = files.length;
     const t0 = performance.now();
     const st = { total, made: 0, found: 0, missing: 0, failed: 0, done: false, proofs: [] as Proof[], ms: 0 };
@@ -400,6 +420,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     const todo = digests.filter(Boolean);
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
     const unknown = new Set<string>(); // a lookup that failed: never made, since it may already be a BitGraph
+    const firstOf = new Map<string, Proof>();
     {
       let looked = 0;
       // One request per 2,000 files, three at a time (2026-10-18: a 10,000 file drop was slow to
@@ -417,8 +438,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           attachEnvironments(results as never, body.environments);
           batch.forEach((d, i) => {
             const r = results[keys[i]!];
-            const first = r?.proofs?.[0]?.proof;
-            if (!r || r.unavailable) { st.failed++; unknown.add(d); } else if (first) { st.found++; st.proofs.push(first); } else st.missing++;
+            const first = earliestOf(r?.proofs ?? []);
+            if (!r || r.unavailable) { st.failed++; unknown.add(d); } else if (first) { st.found++; st.proofs.push(first); firstOf.set(d, first); } else st.missing++;
           });
         } catch { for (const d of batch) { st.failed++; unknown.add(d); } }
         looked += batch.length;
@@ -463,6 +484,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       });
     }
     st.done = true; setStatus(null); show();
+    if (mode === "check") setChecked(galleryOfFound(files.flatMap((f, i) => { const d = digests[i], p = d ? firstOf.get(d) : undefined; const x = p && looksLikePhoto(f) ? foundOriginal(f, d!, p) : null; return x ? [x] : []; })));
   }, [mode, canMake]);
 
   const downloadAll = () => {
@@ -532,7 +554,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
   }, []);
 
   const takePlugins = useCallback(async (files: File[], list?: Array<{ hex: string; name: string }>) => {
-    setRows([]); setBulk(null); setBatch(null); setPairing(null); setPlug(null); setPlugError(null); setBusy(true);
+    setRows([]); setBulk(null); setBatch(null); setPairing(null); setPlug(null); setPlugError(null); setChecked(null); setBusy(true);
     // ?timer times the run from the drop to the proof (2026-10-18: for timing the 100,000-file tree).
     const t0 = performance.now();
     const secs = () => ((performance.now() - t0) / 1000).toFixed(1);
@@ -589,10 +611,11 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         const byDigest = new Map<string, File>();
         dropped.forEach((l, k) => { const f = files[k]!; if (looksLikePhoto(f) && !byDigest.has(l[2])) byDigest.set(l[2], f); });
         if (byDigest.size >= 2 && byDigest.size <= MAX_GALLERY && b.commit?.counter && b.commit?.epochId) {
-          const seen = new Set<string>();
-          const items = t.leaves.filter((l) => byDigest.has(l[2]) && !seen.has(l[2]) && seen.add(l[2])).map((l) => ({ digest: l[2], name: byDigest.get(l[2])!.name }));
-          gallery = { id: contentDigest, counter: String(b.commit.counter), epochId: String(b.commit.epochId), items };
-          setGallery(gallery, byDigest, (d) => { const i = t.leaves.findIndex((l) => l[2] === d); return i >= 0 ? withMember(b as Record<string, unknown>, blocks[i]!) : null; });
+          const seen = new Set<string>(), counter = String(b.commit.counter), epochId = String(b.commit.epochId);
+          const at = t.leaves.flatMap((l, i) => (byDigest.has(l[2]) && !seen.has(l[2]) && seen.add(l[2]) ? [i] : []));
+          gallery = { id: contentDigest, items: at.map((i) => ({ digest: t.leaves[i]![2], name: byDigest.get(t.leaves[i]![2])!.name, counter, epochId })) };
+          const held = at.map((i) => byDigest.get(t.leaves[i]![2])!);
+          setGallery(gallery, held, (k) => handOriginal(held[k]!, t.leaves[at[k]!]![2], withMember(b as Record<string, unknown>, blocks[at[k]!]!), counter, epochId));
         }
       }
       if (!opensProof) setPlug({ gallery, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: already ? null : "waiting", ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
@@ -697,7 +720,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     // A BitGraphed file carries its proof after the file's own bytes: look up the file it wraps, never record the
     // wrapper as new bytes (2026-10-20). photo.bitgraph.jpg is checked as photo.jpg.
     const files = await unwrapBitGraphed(filesIn);
-    setBatch(null); setPairing(null);
+    setBatch(null); setPairing(null); setChecked(null);
     // Proof files in the drop: a list, or more than one single proof. They are paired with the rest, never made.
     const proofs = new Map<string, Proof>();
     const proofFiles = new Set<File>();
@@ -812,6 +835,21 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       patch(r.key, p);
       return { ...r, ...p };
     });
+    // Several photos checked: each that leads to a proof, its own first BitGraph, the original's for a copy, or its tree's
+    if (!single) {
+      setChecked(galleryOfFound(ended2.flatMap((r, k): Found[] => {
+        const f = picked[k]!;
+        if (!looksLikePhoto(f) || !r.digestB64) return [];
+        if (r.state === "found" && r.proof && !r.isProofFile) { const x = foundOriginal(f, r.digestB64, r.proof); return x ? [x] : []; }
+        if (r.state === "trustmark" && r.trustmark?.verdict === "match" && r.bytes) {
+          const v = r.trustmark, o = v.original, bytes = r.bytes;
+          const item = { digest: o.photoDigestB64, name: f.name, counter: String(o.counter), epochId: String(o.epochId) };
+          return [{ file: f, item, prepare: async () => setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, tag: o.tag }) }];
+        }
+        if (r.state === "in-tree" && r.tree) return [{ file: f, item: { digest: r.tree.proof.digestB64, name: f.name, counter: r.tree.proof.counter, epochId: r.tree.proof.epochId }, prepare: async () => {} }];
+        return [];
+      })));
+    }
     if (single && ended2[0]?.state === "trustmark" && ended2[0]?.trustmark?.verdict === "match") return; // led to its original
     if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "trustmark")) { setRows(ended2); setStatus(null); return; }
     const fresh_new = ended2.filter((r) => r.state === "new" && r.digestB64);
@@ -1040,6 +1078,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         </div>
       )}
 
+      {checked && (rows.length > 0 || bulk) && <div className="plug-result"><div className="plug-row plug-gallery"><DropGallery g={checked} /></div></div>}
       {rows.length > 0 && (
         <div className="db-rows">
           {rows.map((r) => (

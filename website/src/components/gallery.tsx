@@ -10,7 +10,7 @@ function Tile({ g, i, current, onOpen }: { g: Gallery; i: number; current: boole
   const ref = useRef<HTMLAnchorElement>(null);
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
-    const f = fileOf(g, it.digest), el = ref.current;
+    const f = fileOf(g, i), el = ref.current;
     if (!f || !el) return;
     let gone = false;
     const io = new IntersectionObserver((es) => {
@@ -20,7 +20,7 @@ function Tile({ g, i, current, onOpen }: { g: Gallery; i: number; current: boole
     }, { rootMargin: "400px" });
     io.observe(el);
     return () => { gone = true; io.disconnect(); };
-  }, [g, it.digest]);
+  }, [g, i]);
   return (
     <a ref={ref} href={hrefOf(g, i)} className={`gal-tile${current ? " is-current" : ""}`} title={it.name} aria-current={current ? "page" : undefined}
       onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); onOpen(i); }}>
@@ -37,7 +37,7 @@ export function GalleryGrid({ g, current, onOpen }: { g: Gallery; current?: numb
   );
 }
 
-/** A drop's photos from the Make page: the grid, each tile opening its photo's proof. */
+/** A drop's photos, on Make or Check: the grid, each tile opening its photo's proof. */
 export function DropGallery({ g }: { g: Gallery }) {
   const router = useRouter();
   return (
