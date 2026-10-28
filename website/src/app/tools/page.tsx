@@ -61,7 +61,7 @@ export default function ToolsPage() {
 }`}</Code>
             <dl className="tl-verbs">
               <dt><code>bitgraph_record</code></dt>
-              <dd>Makes a BitGraph of each file or folder; the proof is saved beside it as <code>&lt;file&gt;.bitgraph.json</code>.</dd>
+              <dd>Makes a BitGraph of each file or folder; the proof is saved beside it as <span className="nb"><code>&lt;file&gt;.bitgraph.json</code>.</span></dd>
               <dt><code>bitgraph_check</code></dt>
               <dd>Whether files or digests are on record, and where. Read-only.</dd>
               <dt><code>bitgraph_get_proof</code></dt>
@@ -169,14 +169,14 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
               Drop more than one file on the Proofs page and make them, and they become one BitGraph: the drop is one moment, so they take one position.
               The files are hashed into a Merkle tree in your browser (RFC 6962, SHA-256: a leaf is SHA-256 of a zero byte and the file, a
               node is SHA-256 of a one byte and its two children, and an odd last node rises unchanged). One BitGraph is made of{" "}
-              <code>merkle-root.txt</code>, a short text file holding the root. You keep <code>merkle-tree.json</code>, which lists every
+              <span className="nb"><code>merkle-root.txt</code>,</span> a short text file holding the root. You keep <span className="nb"><code>merkle-tree.json</code>,</span> which lists every
               file&rsquo;s leaf and every level. One position covers a million files as well as one.
             </p>
             <p>
               To check a file, drop it on the Proofs page by itself. When the tree is made, each file gets a sealed entry that only its own
               bytes can open; the page finds it, walks the file up the tree to the root, and checks the root against its BitGraph. With{" "}
               <code>merkle-tree.json</code> and <code>merkle-root.txt</code> it works without any entry. By hand: hash the file as a leaf,
-              combine it with its neighbours up the levels, compare with the root in <code>merkle-root.txt</code>, and verify{" "}
+              combine it with its neighbours up the levels, compare with the root in <span className="nb"><code>merkle-root.txt</code>,</span> and verify{" "}
               <code>merkle-root.txt</code> against its proof like any file.
             </p>
 
@@ -189,7 +189,7 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
               Every BitGraph made through this site gets it. Three steps, two BitGraphs:
             </p>
             <ol className="tl-steps">
-              <li><strong>BitGraph 1 is the floor.</strong> The latest Base block (number, hash, time) is written to <code>base-floor.json</code> and bound, in the same request as the content. A block hash cannot be known before its block exists. (A tree carries the block as its first leaf instead, <code>base-block.json</code>, so the root itself holds the floor.)</li>
+              <li><strong>BitGraph 1 is the floor.</strong> The latest Base block (number, hash, time) is written to <code>base-floor.json</code> and bound, in the same request as the content. A block hash cannot be known before its block exists. (A tree carries the block as its first leaf instead, <span className="nb"><code>base-block.json</code>,</span> so the root itself holds the floor.)</li>
               <li><strong>BitGraph 2 is the content,</strong> bound right after BitGraph 1 in the same sequence.</li>
               <li><strong>The ceiling.</strong> BitGraph 2&rsquo;s proof hash is written to Base by BitGraph&rsquo;s writer, in a later block. The proof existed by then.</li>
             </ol>
@@ -333,18 +333,18 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
             <h2 id="d-ref">The proof, and the full check.</h2>
             <p>A small signed JSON document:</p>
             <dl className="tl-fields">
-              <dt><code>artifact</code></dt><dd><code>hashAlg</code> (<code>sha256</code>) and <code>digestB64</code>, the content&rsquo;s SHA-256.</dd>
+              <dt><code>artifact</code></dt><dd><code>hashAlg</code> (<code>sha256</code>) and <span className="nb"><code>digestB64</code>,</span> the content&rsquo;s SHA-256.</dd>
               <dt><code>commit.nonceB64</code></dt><dd>The nonce, revealed now that the content is bound.</dd>
               <dt><code>commit.slotCounter</code></dt><dd>The nonce&rsquo;s count (N).</dd>
               <dt><code>commit.counter</code></dt><dd>The content&rsquo;s count (N+1), a decimal string.</dd>
-              <dt><code>commit.slotHashB64</code></dt><dd>The SHA-256 of the nonce&rsquo;s signed position record, carried in <code>slotAllocation</code>.</dd>
+              <dt><code>commit.slotHashB64</code></dt><dd>The SHA-256 of the nonce&rsquo;s signed position record, carried in <span className="nb"><code>slotAllocation</code>.</span></dd>
               <dt><code>commit.prevB64</code></dt><dd>The previous BitGraph: the hash of the BitGraph before this one. Every BitGraph names the one before it inside its signed body, so the sequence is a chain that only the enclave can extend, and nothing can be inserted or removed without breaking it.</dd>
               <dt><code>commit.epochId</code></dt><dd>The epoch: the base64 SHA-256 of its public key and boot nonce.</dd>
-              <dt><code>commit.chainId</code></dt><dd><code>bitgraph:main</code>.</dd>
+              <dt><code>commit.chainId</code></dt><dd><span className="nb"><code>bitgraph:main</code>.</span></dd>
               <dt><code>commit.atomic</code></dt><dd><code>true</code>: the nonce and the content were bound in one action.</dd>
-              <dt><code>signer</code></dt><dd>The enclave&rsquo;s Ed25519 <code>publicKeyB64</code> and <code>signatureB64</code>.</dd>
+              <dt><code>signer</code></dt><dd>The enclave&rsquo;s Ed25519 <code>publicKeyB64</code> and <span className="nb"><code>signatureB64</code>.</span></dd>
               <dt><code>environment</code></dt><dd><code>enforcement</code> (<code>measured-tee</code>), <code>measurement</code> (PCR0) and the Nitro <code>attestation</code> document.</dd>
-              <dt><code>proofHash</code></dt><dd>The SHA-256 of the signed body, added after signing; it is the attestation&rsquo;s <code>user_data</code>.</dd>
+              <dt><code>proofHash</code></dt><dd>The SHA-256 of the signed body, added after signing; it is the attestation&rsquo;s <span className="nb"><code>user_data</code>.</span></dd>
             </dl>
             <p>
               The signature covers the canonical form of the body: object keys sorted by Unicode code point, serialized with no whitespace,
@@ -354,7 +354,7 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
 
             <h3 className="tl-h3">What a full check does, in order</h3>
             <ol className="tl-steps">
-              <li>Hash the file and compare it with <code>artifact.digestB64</code>.</li>
+              <li>Hash the file and compare it with <span className="nb"><code>artifact.digestB64</code>.</span></li>
               <li>Rebuild the signed body in canonical form and check the Ed25519 signature.</li>
               <li>Check the nonce&rsquo;s position record: its own signature, its hash in the commit, the same nonce and key, its count below the content&rsquo;s.</li>
               <li>Check the attestation: a COSE_Sign1 document signed with ES384, whose certificate chain ends at the AWS Nitro root; its PCR0 must equal <code>environment.measurement</code> and its <code>user_data</code> the proof hash.</li>

@@ -83,7 +83,7 @@ export default function TechnologyPage() {
             <p className="home-kicker">The mechanism</p>
             <h2 id="t-mech">What happens when a digest arrives.</h2>
             <ol className="tl-steps">
-              <li><strong>Gate.</strong> The enclave refuses to bind until the host has initialised it, and accepts only a canonical 32-byte SHA-256.</li>
+              <li><strong>Gate.</strong> The enclave refuses to bind until the host has initialised it, and accepts only a canonical 32-byte&nbsp;SHA-256.</li>
               <li><strong>Nonce.</strong> 32 bytes are drawn from the Nitro Secure Module&rsquo;s hardware RNG, after the digest arrives and inside the enclave. Nobody, the host included, sees it before the proof is released.</li>
               <li><strong>Count N: the slot.</strong> A slot record (nonce, count N, epoch, key) is signed with the enclave&rsquo;s Ed25519 key and hashed.</li>
               <li><strong>Count N+1: the content.</strong> The commit names the digest, count N+1, the slot&rsquo;s count and hash, the epoch, and the hash of the previous proof.</li>
@@ -108,7 +108,7 @@ export default function TechnologyPage() {
             </p>
             <p className="sx-fine">
               Tested on the unmodified enclave code with injected faults in the RNG, the signer and the attestation:{" "}
-              <code>server/commit-service/src/enclave/__tests__/bind-failure.test.ts</code>.
+              <span className="nb"><code>server/commit-service/src/enclave/__tests__/bind-failure.test.ts</code>.</span>
             </p>
           </section>
 
@@ -116,7 +116,7 @@ export default function TechnologyPage() {
             <p className="home-kicker">The sequence</p>
             <h2 id="t-seq">Counted, chained, gaps visible.</h2>
             <p>
-              Every proof after an epoch&rsquo;s first carries <code>prevB64</code>, the SHA-256 of the whole previous proof. Within an
+              Every proof after an epoch&rsquo;s first carries <span className="nb"><code>prevB64</code>,</span> the SHA-256 of the whole previous proof. Within an
               epoch the counts climb by two per BitGraph, nonce then content. Given a run of proofs, the verifier checks that each is
               atomic, that counts are consecutive and that each links to the one before; a missing proof shows as a gap
               (<code>verifyStretch</code>). Anything bound between BitGraph A and BitGraph B was bound after A and before B
@@ -179,7 +179,7 @@ export default function TechnologyPage() {
               download the run&rsquo;s files: <a href="/benchmark/2026-10-28/timings.json" download>timings</a>,{" "}
               <a href="/benchmark/2026-10-28/seed.txt" download>corpus seed</a>, <a href="/benchmark/2026-10-28/merkle-root.txt" download>root text</a> and{" "}
               <a href="/benchmark/2026-10-28/merkle-root.txt.bitgraph.json" download>proof file</a>. Reproduce it with{" "}
-              <code>website/scripts/bench-million.mjs</code>.
+              <span className="nb"><code>website/scripts/bench-million.mjs</code>.</span>
             </p>
           </section>
 
@@ -194,7 +194,7 @@ export default function TechnologyPage() {
             </p>
             <p className="sx-fine">
               Built into the proof format today. The check uses the verifier&rsquo;s existing signature and canonical-encoding steps; it is not
-              yet a one-line command.
+              yet a one-line&nbsp;command.
             </p>
           </section>
 
@@ -233,7 +233,7 @@ export default function TechnologyPage() {
             </ol>
             <p className="sx-fine">
               A key anyone can generate can sign a body that passes a signature check alone. It fails the attested check, because no AWS
-              document covers it. The verifier&rsquo;s own test does exactly this: <code>packages/verify/src/__tests__/attested.test.ts</code>.
+              document covers it. The verifier&rsquo;s own test does exactly this: <span className="nb"><code>packages/verify/src/__tests__/attested.test.ts</code>.</span>
             </p>
           </section>
 

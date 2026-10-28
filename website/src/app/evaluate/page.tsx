@@ -89,7 +89,7 @@ TRUE
   These exact bytes are file 3 of a tree of 4, … at 2026-10-28T03:09:03.881Z.`}</Code>
         <p className="sx-fine">
           The two proofs share one root and one attested time. Check the credential itself, OpenAI&rsquo;s signature and the tool it
-          names, with any C2PA tool such as <code>c2patool</code>. The two answers are independent: OpenAI&rsquo;s credential says what
+          names, with any C2PA tool such as <span className="nb"><code>c2patool</code>.</span> The two answers are independent: OpenAI&rsquo;s credential says what
           made the image; BitGraph says when these exact bytes were bound.
         </p>
       </section>
@@ -132,7 +132,7 @@ ${V} yourfile --proof yourfile.bitgraph.json`}</Code>
 ./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v13 ${PUBLISHED_PCR0}`}</Code>
         <p className="sx-fine">
           The measurement reproduces; the image file does not byte-for-byte, because its header embeds a build time. Pins and notes:{" "}
-          <code>server/commit-service/reproducible-build/PINS.md</code>.
+          <span className="nb"><code>server/commit-service/reproducible-build/PINS.md</code>.</span>
         </p>
       </section>
 

@@ -538,20 +538,22 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <div className="pv">
         <h1 className="sr-only">BitGraph proof</h1>
         <section className="pv-card pv-photo">
-          {m.filePane}
           <div className="pv-photo-strip">
-            {/* The BitGraph's name leads; a proof that fails says so in its place, never folded away. */}
+            {/* The name, time and signer lead, above the picture (2026-10-28), so a big photo never hides what it is; a proof that fails says so in its place, never folded away. */}
             <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>
             {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
             {m.attestedMs !== null && <div className="pv-photo-meta">{longDateTz(new Date(m.attestedMs))}, {timeTz(new Date(m.attestedMs))}</div>}
             {who && <div className="pv-photo-who">{who}</div>}
+            {/* The check's verdict, as one line: it ran in this browser. A failure or a wait gets its own card below. */}
+            {c.state === "done" && c.verdict === "TRUE" && <div className="pv-photo-check">{"\u2713"} Checked in this browser, {okCount} checks</div>}
           </div>
+          {m.filePane}
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
         </section>
         {/* Every proof opens in full: no Proof details fold. The verdict and its tally lead, then when, who, and how. */}
         {(
           <>
-            <section className="pv-card">{checksBlock}</section>
+            {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
             {timeCard}
             {m.c2pa?.present && <section className="pv-card"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></section>}
             {counterCard}

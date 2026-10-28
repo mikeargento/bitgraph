@@ -5314,7 +5314,7 @@ html:root:root:root:root:root:root:root:root:root body .copy-line .pv-copy { top
 .pv-inline-link { appearance: none; background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
 
 /* A proof page that holds a picture leads with it (proof-view, m.photo): one line under the photo, then the download. */
-.pv-photo-strip { margin-top: 16px; }
+.pv-photo-strip { margin-top: 0; margin-bottom: 16px; }
 .pv-photo-title { font-size: 20px; font-weight: 600; color: var(--ink); }
 .pv-photo-strip .pv-verdict { margin-top: 2px; font-size: 16px; font-weight: 600; }
 .pv-photo-meta { margin-top: 4px; font-size: 15px; color: var(--text); }
@@ -5591,3 +5591,14 @@ html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-li
   html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover::after { transform: translateX(4px); color: var(--ink); }
 }
 html:root:root:root:root:root:root:root:root:root:root body main article.tl-card { cursor: default; }
+/* ── One type scale, site-wide (2026-10-28, measured across every page): section headings 34, card and subsection
+   titles 20 and 24, section kickers 18, card labels 15, every pill button 44 tall. The sales pages had these; Make,
+   Check, Tools and the ledger drifted (24px headings, 20px labels, 38px and 47px buttons). */
+html:root:root:root:root:root:root:root:root:root:root:root body main :is(.docs-page, .tools-page) .home-section > h2 { font-size: clamp(26px, 3.4vw, 34px) !important; line-height: 1.2 !important; letter-spacing: -0.015em !important; text-wrap: balance; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .home-kicker { font-size: 18px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .tl-label { font-size: 15px !important; line-height: 1.4 !important; letter-spacing: 0.06em !important; text-transform: uppercase !important; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .bg-action-link { min-height: 44px !important; padding-top: 0 !important; padding-bottom: 0 !important; line-height: 20px !important; box-sizing: border-box; display: inline-flex !important; align-items: center !important; }
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root body main .home-kicker { font-size: 16px !important; } }
+/* A code word and the full stop or comma after it stay together (2026-10-28: the stop was breaking onto a line alone). */
+html:root:root:root:root body main .nb { white-space: nowrap; }
+html:root:root:root:root:root body .pv-photo-check { margin-top: 4px; font-size: 15px; color: var(--ok, #188038); }

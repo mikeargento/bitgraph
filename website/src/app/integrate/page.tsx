@@ -75,7 +75,7 @@ curl -X POST https://bitgraph.ing/api/proofs/batch \\
   -H 'content-type: application/json' -d '{"digests":["<b64url>", …]}'   # up to 2,000 per call`}</Code>
             <p className="sx-fine">
               A 503 with <code>&quot;code&quot;:&quot;tee-restarting&quot;</code> means the enclave is starting a new epoch; retry after a
-              few seconds. A 429 carries <code>Retry-After</code>.
+              few seconds. A 429 carries <span className="nb"><code>Retry-After</code>.</span>
             </p>
           </section>
 
@@ -117,8 +117,8 @@ npx -p @mikeargento/bitgraph-sdk bitgraph check run-042.log --json`}</Code>
   }
 }`}</Code>
             <p>
-              Tools: <code>bitgraph_record</code>, <code>bitgraph_check</code>, <code>bitgraph_get_proof</code>. Clients that connect by URL
-              use <code>https://bitgraph.ing/mcp</code>, which binds digests (<code>bitgraph_bind</code>) and looks them up.
+              Tools: <span className="nb"><code>bitgraph_record</code>,</span> <span className="nb"><code>bitgraph_check</code>,</span> <span className="nb"><code>bitgraph_get_proof</code>.</span> Clients that connect by URL
+              use <span className="nb"><code>https://bitgraph.ing/mcp</code>,</span> which binds digests (<code>bitgraph_bind</code>) and looks them up.
             </p>
           </section>
 
