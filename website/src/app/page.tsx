@@ -43,7 +43,7 @@ export default function HomePage() {
         <h1 id="home-h">A new primitive for digital&nbsp;proof.</h1>
         <p className="sx-sub">
           BitGraph gives digital information a verifiable position. Inside measured hardware, one atomic action binds its SHA-256
-          right after a fresh random value, signed and attested. The proof travels, and checks without us. Build it into the products
+          right after a fresh random value, signed and attested. The proof travels, and checks offline, by anyone. Build it into the products
           you already sell.
         </p>
         <div className="sx-cta">
