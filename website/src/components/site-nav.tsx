@@ -5,7 +5,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * The bar, in its own look (2026-10-17): the wordmark, then the links, Make at the right. The sun/moon left the bar for
@@ -29,7 +28,7 @@ export function SiteNav() {
   const pathname = usePathname();
   const on = (href: string) => pathname === href || pathname.startsWith(href + "/");
   const current = (href: string, also: string[] = []) => (on(href) || also.some(on) ? "page" : undefined);
-  // Phones: the links fold into a menu under the bar, the sun/moon at its bottom; a new page closes it.
+  // Phones: the links fold into a menu under the bar; a new page closes it.
   const [open, setOpen] = useState(false);
   useEffect(() => { setOpen(false); }, [pathname]);
   // the page under the open menu stays still, and Esc closes it
@@ -56,7 +55,7 @@ export function SiteNav() {
               {l.label}
             </Link>
           ))}
-          {/* The bar is the links and the one button; the sun/moon lives in the footer on desks and in the menu on phones (2026-10-28). */}
+          {/* The bar is the links and the one button; the sun/moon lives in the footer, on every screen (2026-10-28). */}
           <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}>{CTA.label}</Link>
         </nav>
         <button type="button" className="nav-menu-btn" aria-label={open ? "Close the menu" : "Open the menu"} aria-expanded={open} aria-controls="nav-sheet" onClick={() => setOpen((o) => !o)}>
@@ -73,7 +72,6 @@ export function SiteNav() {
             <Link key={l.href} href={l.href} className="nav-sheet-link" aria-current={current(l.href, l.also)} onClick={() => setOpen(false)}>{l.label}</Link>
           ))}
           <Link href={CTA.href} className="nav-sheet-link" aria-current={current(CTA.href)} onClick={() => setOpen(false)}>{CTA.label}</Link>
-          <div className="nav-sheet-theme"><ThemeToggle /></div>
         </nav>
       )}
     </div>

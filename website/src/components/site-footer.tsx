@@ -53,7 +53,7 @@ export function SiteFooter() {
           {links.map((l) => (
             <a key={l.href} href={l.href} style={linkStyle} {...(l.href.startsWith("http") ? { target: "_blank", rel: "noopener" } : {})}>{l.label}</a>
           ))}
-          {/* The sun/moon, at the footer's right on desks (2026-10-28); phones have it in the menu. */}
+          {/* The sun/moon, at the footer's right, on every screen (2026-10-28). */}
           <span className="bg-footer-theme"><ThemeToggle /></span>
         </div>
       </div>

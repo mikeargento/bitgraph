@@ -5669,6 +5669,5 @@ html:root:root:root:root:root body main .mf-box { padding: 22px 16px !important;
   html:root:root:root:root:root:root:root:root body main .sx-hero .sx-cta > .bg-action-link { flex: 1 1 0; justify-content: center; text-align: center; min-height: 52px !important; }
   html:root:root:root:root:root:root:root:root body main .sx-hero .sx-cta > .bg-action-link.is-make { flex: 1 0 100%; }
 }
-/* The footer's sun/moon: in line with the links, hidden on phones (the menu has it). */
+/* The footer's sun/moon: in line with the links, on every screen. */
 html:root:root:root:root:root body footer .bg-footer-theme { display: inline-flex; align-items: center; margin-left: 4px; }
-@media (max-width: 999px) { html:root:root:root:root:root body footer .bg-footer-theme { display: none; } }
