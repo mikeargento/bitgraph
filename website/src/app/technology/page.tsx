@@ -176,7 +176,7 @@ export default function TechnologyPage() {
               Measured 2026-10-28 on the current flow, in Node on an 8-core Apple M3 laptop: one million files hashed in 1.9 s, the
               tree built in 2.4 s, and the root bound as <a href="/proof/l4eT6Fpyu9_6YmlFOOoC9BaYrHNQLJpDsnWJJcxfgJI?counter=34&amp;epoch=NihRUA1VRsV4cqmwWDO_4viNR7YhJRdCb75lGASeV3E">BitGraph #34</a> 6.1 s
               after the drop. Reproduce it with <code>website/scripts/bench-million.mjs</code>; the run&rsquo;s{" "}
-              <a href="/benchmark/2026-10-28/timings.json">timings</a>, <a href="/benchmark/2026-10-28/seed.txt">corpus seed</a> and{" "}
+              <a href="/benchmark/2026-10-28/timings.json" download>timings</a>, <a href="/benchmark/2026-10-28/seed.txt" download>corpus seed</a> and{" "}
               <a href="/benchmark/2026-10-28/merkle-root.txt.bitgraph.json" download>proof</a> are published.
             </p>
           </section>
