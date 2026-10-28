@@ -56,8 +56,7 @@ export function SiteNav() {
               {l.label}
             </Link>
           ))}
-          {/* The sun/moon sits before the filled button, so the button closes the bar at the right edge (2026-10-28). */}
-          <ThemeToggle />
+          {/* The bar is the links and the one button; the sun/moon lives in the footer on desks and in the menu on phones (2026-10-28). */}
           <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}>{CTA.label}</Link>
         </nav>
         <button type="button" className="nav-menu-btn" aria-label={open ? "Close the menu" : "Open the menu"} aria-expanded={open} aria-controls="nav-sheet" onClick={() => setOpen((o) => !o)}>
