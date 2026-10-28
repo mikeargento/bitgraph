@@ -582,7 +582,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
                   {at > 0 && <p className="pv-log-first">A later BitGraph of this file. The first is <a href={first.href}>BitGraph #{fmtNum(first.counter)}</a>{when(first) ? `, ${when(first)}` : ""}.</p>}
                   {others.length > 0 && (
                     <details>
-                      <summary>{at > 0 ? `Bound ${fmtNum(all.length)} times in all` : `Bound again ${others.length === 1 ? "once" : `${fmtNum(others.length)} times`} since`}</summary>
+                      <summary>{`This file has been BitGraphed ${fmtNum(all.length)} times`}</summary>
                       <ol aria-label="Later BitGraphs of this file, oldest first">
                         {others.map((b) => (
                           <li key={`${b.epochId}:${b.counter}`}><a href={b.href}>BitGraph #{fmtNum(b.counter)}</a>{when(b) ? <span>{when(b)}</span> : null}</li>
