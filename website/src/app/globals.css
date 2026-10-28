@@ -5639,3 +5639,15 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root body main 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root body main .code-copy-label { font-size: 15px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root body main dt { font-size: 20px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.mf-keep, .field > span .dim, label .dim) { font-size: inherit !important; }
+/* The mechanism figure stands on its own (2026-10-28): 48 above and below like a section, every box one height, more
+   air inside the enclave. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .home-section > .mf { margin-top: 48px !important; margin-bottom: 48px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .home-section > .mf + * { margin-top: 48px !important; }
+html:root:root:root:root:root body main .mf { align-items: center !important; }
+html:root:root:root:root:root body main .mf-box { display: flex; flex-direction: column; justify-content: center; min-height: 116px; box-sizing: border-box; }
+html:root:root:root:root:root body main .mf > .mf-arrow { align-self: center; }
+html:root:root:root:root:root body main .mf-enclave { padding: 28px 28px 24px !important; }
+html:root:root:root:root:root:root:root:root:root:root body main .mf-label { margin-bottom: 20px !important; }
+html:root:root:root:root:root:root:root:root:root:root body main .mf-note { margin-top: 20px !important; }
+html:root:root:root:root:root body main .mf-box { padding: 22px 16px !important; }
+@media (max-width: 640px) { html:root:root:root:root:root body main .mf-enclave { padding: 20px 16px 18px !important; } }
