@@ -49,7 +49,8 @@ export default function HomePage() {
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/evaluate">Evaluate the technology</a>
           <a className="bg-action-link" href="/technology">How it works</a>
-          <a className="bg-action-link" href="/ledger">See live proofs</a>
+          {/* The sample on Evaluate: a ChatGPT image and its OpenAI-signed Content Credentials, bound in one tree. */}
+          <a className="bg-action-link" href="/proof/MXkV_2WRyBSlQV_BdOio2gc1NSrd2Wxl8zW0OrACCDk?counter=26&epoch=NihRUA1VRsV4cqmwWDO_4viNR7YhJRdCb75lGASeV3E">View a proof</a>
         </div>
       </section>
 
