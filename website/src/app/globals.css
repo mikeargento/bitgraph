@@ -5619,3 +5619,23 @@ html:root:root:root:root:root:root:root:root:root:root:root body main .tools-pag
 html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .code-block { max-width: 100%; min-width: 0; overflow-x: auto; box-sizing: border-box; }
 html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .code-block pre { overflow-x: auto; max-width: 100%; }
 html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.home-section, .sx-hero, .tl-main, .tl-card) { min-width: 0; max-width: 100%; }
+/* ── The type scale, seven sizes with one role each (2026-10-28, after counting eleven in use):
+   56 hero · 34 section · 24 subsection · 22 lede · 20 body · 17 secondary (cards, buttons) · 15 small (kickers, labels,
+   fine print, tables, code, metadata). On phones the top three steps come down with the viewport; the rest hold. */
+html:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-sub { font-size: 22px !important; line-height: 1.5 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root body main .home-kicker { font-size: 15px !important; line-height: 1.4 !important; letter-spacing: 0.08em !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root body main .bg-action-link { font-size: 17px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.sx-fine, .sx-mono, .sx-path, .pv-log, .pv-log *, .pv-photo-meta, .pv-photo-who, .pv-photo-check, .pv-checks-summary, .pv-checks-count, .pv-sub-title, .pv-sub-note, .pv-note, .plug-sub, .db-size, .db-zone-sub, table.sx-table :is(th, td), .tl-note) { font-size: 15px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root body main :is(p, li, td, span, div) > code { font-size: 15px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .tl-card :is(p, li) { font-size: 17px !important; line-height: 1.55 !important; }
+@media (max-width: 640px) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-sub { font-size: 19px !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root body main .home-kicker { font-size: 14px !important; }
+}
+html:root:root:root:root:root:root:root:root:root:root:root:root:root body main .tl-label, html:root:root:root:root:root:root:root:root:root:root:root:root:root body main .tl-card .tl-label { font-size: 15px !important; line-height: 1.4 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.db-zone-pick, .db-zone-title, label, .field > span) { font-size: 17px !important; }
+/* Words inside a sentence take the sentence's size: a bold word was set at 16px inside 20px text. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(p, li, dd, dt, td, th, summary, figcaption) :is(strong, em, b, i, span:not(.code-copy-label)) { font-size: inherit !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root body main .code-copy-label { font-size: 15px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root body main dt { font-size: 20px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.mf-keep, .field > span .dim, label .dim) { font-size: inherit !important; }
