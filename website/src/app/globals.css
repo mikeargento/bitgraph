@@ -5546,3 +5546,29 @@ html:root:root:root:root:root body main .sx-page figure.sx-sample img { display:
 /* The verdict card stands on its own now that Proof details no longer folds (2026-10-27): no divider or gap above it. */
 html:root:root:root:root:root:root:root:root body .pv-card > .pv-sub:first-child { margin-top: 0 !important; padding-top: 0 !important; border-top: 0 !important; }
 html:root:root:root:root:root:root:root:root body .pv-card > .pv-sub:first-child .pv-checks-summary { margin-bottom: 0 !important; }
+
+/* The sales pages' mechanism figure (components/mechanism-figure.tsx). A row from 1150px, where every title fits on one
+   line, and a column below; the arrows turn with it. */
+html:root:root:root:root body main .mf { margin: 0; display: flex; align-items: center; gap: 0; --mf-line: var(--fig-line, #6a6865); }
+html:root:root:root:root body main .mf-box { flex: 1 1 0; min-width: 0; background: var(--fig-fill, var(--panel)); border: 1.5px solid var(--mf-line); border-radius: 10px; padding: 18px 14px; text-align: center; }
+html:root:root:root:root:root:root:root:root:root:root body main .mf-title { font-size: 17px !important; font-weight: 700 !important; color: var(--ink) !important; line-height: 1.3 !important; margin: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root body main .mf-sub { font-size: 15px !important; color: var(--dim) !important; line-height: 1.4 !important; margin: 4px 0 0 !important; }
+html:root:root:root:root body main .mf-enclave { flex: 2.4 1 0; min-width: 0; background: var(--fig-enclave, #e6e3d9); border-radius: 14px; padding: 20px 20px 18px; }
+html:root:root:root:root:root:root:root:root:root:root body main .mf-label { font-size: 15px !important; font-weight: 700 !important; color: var(--ink) !important; text-align: center; margin: 0 0 16px !important; }
+html:root:root:root:root body main .mf-inner { display: flex; align-items: center; }
+html:root:root:root:root:root:root:root:root:root:root body main .mf-note { font-size: 15px !important; color: var(--dim) !important; text-align: center; line-height: 1.45 !important; margin: 16px 0 0 !important; text-wrap: balance; }
+html:root:root:root:root body main .mf-arrow { flex: 0 0 40px; height: 2px; background: linear-gradient(to right, var(--mf-line) calc(100% - 9px), transparent 0); position: relative; margin: 0 8px; }
+html:root:root:root:root body main .mf-arrow::after { content: ""; position: absolute; right: 0; top: 50%; transform: translateY(-50%); border: 0 solid transparent; border-top-width: 5px; border-bottom-width: 5px; border-left: 9px solid var(--mf-line); }
+@media (max-width: 1149px) {
+  html:root:root:root:root body main .mf, html:root:root:root:root body main .mf-inner { flex-direction: column; align-items: stretch; }
+  html:root:root:root:root body main .mf-box, html:root:root:root:root body main .mf-enclave { flex: none; }
+  html:root:root:root:root body main .mf-arrow { flex: 0 0 32px; width: 2px; height: 32px; align-self: center; margin: 8px 0; background: linear-gradient(to bottom, var(--mf-line) calc(100% - 9px), transparent 0); }
+  html:root:root:root:root body main .mf-arrow::after { right: auto; left: 50%; top: auto; bottom: 0; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 9px solid var(--mf-line); border-bottom: 0; }
+}
+/* Form selects: our own chevron, 16px in from the edge, in the text colour (2026-10-27: the browser's arrow sat
+   against the edge). The colour follows the theme through a mask, so one rule serves light and dark. */
+html:root:root:root:root:root:root body main .sx-form .field select { appearance: none; -webkit-appearance: none; padding-right: 44px !important; background-image: none !important; cursor: pointer; }
+html:root:root:root:root:root:root body main .sx-form .field:has(select) { position: relative; }
+html:root:root:root:root:root:root body main .sx-form .field:has(select)::after { content: ""; position: absolute; right: 16px; bottom: 21px; width: 12px; height: 8px; background: var(--dim); pointer-events: none;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }

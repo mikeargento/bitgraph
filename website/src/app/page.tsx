@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FlowFigure } from "@/components/primitive-figures";
+import { MechanismFigure } from "@/components/mechanism-figure";
 import { CopyCode } from "@/components/copy-code";
 
 /**
@@ -62,7 +62,7 @@ export default function HomePage() {
           assertions. BitGraph constrains the recording itself: a specific, published enclave build binds each digest at a counted,
           chained position, and the hardware attests to every proof.
         </p>
-        <div style={{ marginTop: 32 }}><FlowFigure /></div>
+        <MechanismFigure />
         <div className="sx-cards">
           {PROPERTIES.map((p) => (
             <article key={p.title} className="tl-card">
