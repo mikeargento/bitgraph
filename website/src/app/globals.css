@@ -5414,7 +5414,8 @@ html:root:root:root:root:root body .db-zone-touch { display: none; }
 /* Every BitGraph of the same bytes, oldest first, in Proof details */
 /* A file's later BitGraphs: a footnote under the proof details, folded away. */
 html:root:root:root:root:root body .pv-log { margin: 20px 0 0; font-size: 13.5px; color: var(--dim); }
-html:root:root:root:root:root body .pv-log-first { margin: 0 0 8px; color: var(--dim); }
+html:root:root:root:root:root body .pv-log-here { color: var(--ink); }
+html:root:root:root:root:root body .pv-log-tag { color: var(--dim); font-style: italic; }
 html:root:root:root:root:root body .pv-log summary { cursor: pointer; color: var(--dim); width: fit-content; }
 html:root:root:root:root:root body .pv-log ol { list-style: none; margin: 8px 0 0; padding: 0 0 0 14px; display: grid; gap: 4px; }
 html:root:root:root:root:root body .pv-log li { display: flex; flex-wrap: wrap; gap: 0 10px; }

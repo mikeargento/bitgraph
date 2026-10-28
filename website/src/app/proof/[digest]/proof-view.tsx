@@ -572,27 +572,22 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {sigCard}
             {anywhereCard}
             {rawCard}
-            {/* The same bytes bound more than once: the first is the one that counts, so the others are a footnote, a log
-                folded away under the details. A later one's page names the first. */}
-            {m.bindings && m.bindings.length > 1 && (() => {
-              const all = m.bindings, at = all.findIndex((b) => b.current), others = all.filter((_, i) => i !== at && i !== 0), first = all[0]!;
-              const when = (b: typeof first) => (b.ms !== null ? `${longDateTz(new Date(b.ms))}, ${timeTz(new Date(b.ms))}` : null);
-              return (
-                <div className="pv-log">
-                  {at > 0 && <p className="pv-log-first">A later BitGraph of this file. The first is <a href={first.href}>BitGraph #{fmtNum(first.counter)}</a>{when(first) ? `, ${when(first)}` : ""}.</p>}
-                  {others.length > 0 && (
-                    <details>
-                      <summary>{`This file has been BitGraphed ${fmtNum(all.length)} times`}</summary>
-                      <ol aria-label="Later BitGraphs of this file, oldest first">
-                        {others.map((b) => (
-                          <li key={`${b.epochId}:${b.counter}`}><a href={b.href}>BitGraph #{fmtNum(b.counter)}</a>{when(b) ? <span>{when(b)}</span> : null}</li>
-                        ))}
-                      </ol>
-                    </details>
-                  )}
-                </div>
-              );
-            })()}
+            {/* The same bytes bound more than once: a footnote, one folded line, a log of them all oldest first, the first
+                (the one that counts) and this page marked. */}
+            {m.bindings && m.bindings.length > 1 && (
+              <details className="pv-log">
+                <summary>{`This file has been BitGraphed ${fmtNum(m.bindings.length)} times`}</summary>
+                <ol aria-label="Every BitGraph of this file, oldest first">
+                  {m.bindings.map((b, i) => (
+                    <li key={`${b.epochId}:${b.counter}`}>
+                      {b.current ? <span className="pv-log-here">BitGraph #{fmtNum(b.counter)}</span> : <a href={b.href}>BitGraph #{fmtNum(b.counter)}</a>}
+                      {b.ms !== null && <span>{`${longDateTz(new Date(b.ms))}, ${timeTz(new Date(b.ms))}`}</span>}
+                      {(i === 0 || b.current) && <span className="pv-log-tag">{[i === 0 ? "first" : null, b.current ? "this page" : null].filter(Boolean).join(", ")}</span>}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            )}
           </>
         )}
       </div>
