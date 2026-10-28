@@ -5610,3 +5610,12 @@ html:root:root:root:root:root body .pv-photo-check { margin-top: 4px; font-size:
 html:root:root:root:root:root:root:root:root:root:root:root:root body main .tools-page .tl-toc a { font-size: 15px !important; line-height: 1.4 !important; padding: 5px 0 5px 14px !important; color: var(--dim) !important; text-decoration: none !important; white-space: nowrap; font-weight: 400 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root body main .tools-page .tl-toc a:hover, html:root:root:root:root:root:root:root:root:root:root:root:root body main .tools-page .tl-toc a.is-here { color: var(--ink) !important; border-left-color: var(--ink) !important; }
 html:root:root:root:root:root:root:root:root:root:root:root body main .tools-page .tl-toc .tl-label { margin-bottom: 8px !important; }
+/* On phones a code block scrolls sideways inside its own box and never widens the page (2026-10-28: on an iPhone the
+   home page's verification section ran off the right edge, pushed by the sample command). */
+@media (max-width: 900px) {
+  html:root:root:root:root:root:root:root:root:root:root:root body main .sx-split { grid-template-columns: minmax(0, 1fr) !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root body main .sx-split > * { min-width: 0 !important; max-width: 100% !important; }
+}
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .code-block { max-width: 100%; min-width: 0; overflow-x: auto; box-sizing: border-box; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .code-block pre { overflow-x: auto; max-width: 100%; }
+html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :is(.home-section, .sx-hero, .tl-main, .tl-card) { min-width: 0; max-width: 100%; }
