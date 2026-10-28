@@ -305,6 +305,23 @@ async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
  *  offers to make the ones that are new (/make). */
 /** canMake (the Proofs page): a check that offers to make a BitGraph of whatever is not on record yet, one press each
  *  drop, instead of making it at once as "make" does. */
+/** Each file's first BitGraph, by its SHA-256 (standard base64), in one request per 2,000. */
+async function firstsOf(digests: string[]): Promise<Map<string, Proof>> {
+  const out = new Map<string, Proof>();
+  for (let i = 0; i < digests.length; i += 2000) {
+    const batch = digests.slice(i, i + 2000), keys = batch.map(toUrlSafe);
+    try {
+      const res = await fetch("/api/proofs/batch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ digests: keys }) });
+      if (!res.ok) continue;
+      const body = (await res.json()) as { results?: Record<string, { proofs?: Array<{ proof: Proof; envRef?: string }> }>; environments?: Record<string, Record<string, unknown>> };
+      const results = body.results ?? {};
+      attachEnvironments(results as never, body.environments);
+      batch.forEach((d, k) => { const f = earliestOf(results[keys[k]!]?.proofs ?? []); if (f) out.set(d, f); });
+    } catch { /* that batch opens the new BitGraph */ }
+  }
+  return out;
+}
+
 /** A checked photo as a gallery item: the BitGraph it leads to, and how its file is handed to that page. */
 type Found = { file: File; item: GalleryItem; prepare: () => Promise<void> };
 function foundOriginal(file: File, digest: string, proof: Proof): Found | null {
@@ -614,8 +631,23 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           const seen = new Set<string>(), counter = String(b.commit.counter), epochId = String(b.commit.epochId);
           const at = t.leaves.flatMap((l, i) => (byDigest.has(l[2]) && !seen.has(l[2]) && seen.add(l[2]) ? [i] : []));
           gallery = { id: contentDigest, items: at.map((i) => ({ digest: t.leaves[i]![2], name: byDigest.get(t.leaves[i]![2])!.name, counter, epochId })) };
-          const held = at.map((i) => byDigest.get(t.leaves[i]![2])!);
-          setGallery(gallery, held, (k) => handOriginal(held[k]!, t.leaves[at[k]!]![2], withMember(b as Record<string, unknown>, blocks[at[k]!]!), counter, epochId));
+          const held = at.map((i) => byDigest.get(t.leaves[i]![2])!), g0 = gallery;
+          // Each photo opens its first BitGraph, the one that counts: a photo bound before points there, and only a
+          // photo new to the ledger opens this one. Looked up after the bind, so the bind never waits on it.
+          const firsts = firstsOf(g0.items.map((it) => it.digest)).catch(() => new Map<string, Proof>());
+          const isThis = (p: Proof) => String(p.commit?.counter) === counter && String(p.commit?.epochId) === epochId;
+          const prepare = async (k: number) => {
+            const it = g0.items[k]!, first = (await Promise.race([firsts, new Promise<null>((r) => setTimeout(() => r(null), 3000))]))?.get(it.digest);
+            if (first && !isThis(first)) await handOriginal(held[k]!, it.digest, first, String(first.commit!.counter), String(first.commit!.epochId));
+            else await handOriginal(held[k]!, it.digest, withMember(b as Record<string, unknown>, blocks[at[k]!]!), counter, epochId);
+          };
+          setGallery(g0, held, prepare);
+          void firsts.then((m) => {
+            if (![...m.values()].some((p) => !isThis(p))) return;
+            const g1 = { ...g0, items: g0.items.map((it) => { const p = m.get(it.digest); return p && !isThis(p) ? { ...it, counter: String(p.commit!.counter), epochId: String(p.commit!.epochId) } : it; }) };
+            setGallery(g1, held, prepare);
+            setPlug((p) => (p && p.b === b ? { ...p, gallery: g1 } : p));
+          });
         }
       }
       if (!opensProof) setPlug({ gallery, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: already ? null : "waiting", ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });

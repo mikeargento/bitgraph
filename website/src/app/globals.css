@@ -5412,15 +5412,13 @@ html:root:root:root:root:root body .db-zone-touch { display: none; }
 }
 
 /* Every BitGraph of the same bytes, oldest first, in Proof details */
-html:root:root:root:root:root:root body .pv-bindings { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; font-size: 15px; }
-html:root:root:root:root:root:root:root body .pv-bindings li { display: grid; grid-template-columns: 1.6em 1fr; align-items: baseline; color: var(--dim); font-weight: 400; }
-html:root:root:root:root:root body .pv-bindings-body { display: flex; flex-direction: column; gap: 2px; }
-html:root:root:root:root:root body .pv-bindings-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; color: var(--ink); }
-html:root:root:root:root:root:root:root body .pv-bindings li a { color: var(--ink); font-weight: 400; text-decoration: underline !important; text-underline-offset: 3px; }
-html:root:root:root:root:root:root:root body .pv-bindings li.is-current .pv-bindings-name > span:first-child { font-weight: 700; }
-html:root:root:root:root:root body .pv-bindings-n { color: var(--dim); font-variant-numeric: tabular-nums; }
-html:root:root:root:root:root body .pv-bindings-when { font-size: 14px; color: var(--dim); }
-html:root:root:root:root:root body .pv-bindings-tag { font-size: 12.5px; color: var(--ink); border: 1px solid var(--line); padding: 0 8px; border-radius: 999px; }
+/* A file's later BitGraphs: a footnote under the proof details, folded away. */
+html:root:root:root:root:root body .pv-log { margin: 20px 0 0; font-size: 13.5px; color: var(--dim); }
+html:root:root:root:root:root body .pv-log-first { margin: 0 0 8px; color: var(--dim); }
+html:root:root:root:root:root body .pv-log summary { cursor: pointer; color: var(--dim); width: fit-content; }
+html:root:root:root:root:root body .pv-log ol { list-style: none; margin: 8px 0 0; padding: 0 0 0 14px; display: grid; gap: 4px; }
+html:root:root:root:root:root body .pv-log li { display: flex; flex-wrap: wrap; gap: 0 10px; }
+html:root:root:root:root:root:root:root body .pv-log a { color: var(--dim); font-weight: 400; text-decoration: underline !important; text-underline-offset: 3px; }
 html:root:root:root:root:root body .db-copy-line { margin-top: 14px; text-align: center; font-size: 15px; color: var(--dim); }
 html:root:root:root:root:root body .db-copy-line a { color: var(--ink); }
 /* Phones: the bar is the wordmark and a menu button; the menu covers the screen under the bar, the links large, the
@@ -5457,3 +5455,4 @@ html:root:root:root:root:root:root:root:root:root body main a.gal-tile.is-curren
 .gal-bar-name { color: var(--dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gal-bar-go { display: flex; gap: 8px; flex-wrap: wrap; }
 .gal-bar .gal-grid { margin-top: 16px; }
+html:root:root:root:root:root:root:root:root:root body main .pv-log, html:root:root:root:root:root:root:root:root:root body main .pv-log * { font-size: 15px !important; line-height: 1.5 !important; }

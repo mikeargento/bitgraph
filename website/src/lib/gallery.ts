@@ -61,7 +61,8 @@ export function fileOf(g: Gallery, i: number): File | null {
 /** Opens a photo's proof, handing its file over first when it is held. */
 export async function openItem(g: Gallery, i: number, push: (href: string) => void) {
   if (held?.id === g.id) await held.prepare(i).catch(() => {});
-  push(hrefOf(g, i));
+  // a gallery updated since it was drawn (each photo's first BitGraph found) opens where it points now
+  push(hrefOf(memo.get(g.id) ?? g, i));
 }
 
 /** The hand-over for an original: its file to the page's cache, its proof seeded so the page never waits on an index. */

@@ -567,32 +567,32 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {/* the tally is on the fold already; the checks card shows when there is more to say (a failure, a wait) */}
             {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
             {timeCard}
-            {/* The same bytes bound more than once: each BitGraph in order, the first the one that counts. */}
-            {m.bindings && m.bindings.length > 1 && (
-              <section className="pv-card">
-                <div className="pv-section-title">Every BitGraph of this file</div>
-                <ol className="pv-bindings" aria-label="Every BitGraph of this file, oldest first">
-                  {m.bindings.map((b, i) => (
-                    <li key={`${b.epochId}:${b.counter}`} className={b.current ? "is-current" : undefined}>
-                      <span className="pv-bindings-n">{i + 1}</span>
-                      <span className="pv-bindings-body">
-                        <span className="pv-bindings-name">
-                          {b.current ? <span>BitGraph #{fmtNum(b.counter)}</span> : <a href={b.href}>BitGraph #{fmtNum(b.counter)}</a>}
-                          {/* the first is the one that counts; the page's own is marked whichever it is */}
-                          {(i === 0 || b.current) && <span className="pv-bindings-tag">{[i === 0 ? "First" : null, b.current ? "This page" : null].filter(Boolean).join(" \u00b7 ")}</span>}
-                        </span>
-                        {b.ms !== null && <span className="pv-bindings-when">{longDateTz(new Date(b.ms))}, {timeTz(new Date(b.ms))}</span>}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            )}
             {m.c2pa?.present && <section className="pv-card"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></section>}
             {counterCard}
             {sigCard}
             {anywhereCard}
             {rawCard}
+            {/* The same bytes bound more than once: the first is the one that counts, so the others are a footnote, a log
+                folded away under the details. A later one's page names the first. */}
+            {m.bindings && m.bindings.length > 1 && (() => {
+              const all = m.bindings, at = all.findIndex((b) => b.current), others = all.filter((_, i) => i !== at && i !== 0), first = all[0]!;
+              const when = (b: typeof first) => (b.ms !== null ? `${longDateTz(new Date(b.ms))}, ${timeTz(new Date(b.ms))}` : null);
+              return (
+                <div className="pv-log">
+                  {at > 0 && <p className="pv-log-first">A later BitGraph of this file. The first is <a href={first.href}>BitGraph #{fmtNum(first.counter)}</a>{when(first) ? `, ${when(first)}` : ""}.</p>}
+                  {others.length > 0 && (
+                    <details>
+                      <summary>{at > 0 ? `Bound ${fmtNum(all.length)} times in all` : `Bound again ${others.length === 1 ? "once" : `${fmtNum(others.length)} times`} since`}</summary>
+                      <ol aria-label="Later BitGraphs of this file, oldest first">
+                        {others.map((b) => (
+                          <li key={`${b.epochId}:${b.counter}`}><a href={b.href}>BitGraph #{fmtNum(b.counter)}</a>{when(b) ? <span>{when(b)}</span> : null}</li>
+                        ))}
+                      </ol>
+                    </details>
+                  )}
+                </div>
+              );
+            })()}
           </>
         )}
       </div>
