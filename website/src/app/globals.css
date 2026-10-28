@@ -5547,8 +5547,7 @@ html:root:root:root:root:root body main .sx-page figure.sx-sample img { display:
 html:root:root:root:root:root:root:root:root body .pv-card > .pv-sub:first-child { margin-top: 0 !important; padding-top: 0 !important; border-top: 0 !important; }
 html:root:root:root:root:root:root:root:root body .pv-card > .pv-sub:first-child .pv-checks-summary { margin-bottom: 0 !important; }
 
-/* The sales pages' mechanism figure (components/mechanism-figure.tsx). A row from 1150px, where every title fits on one
-   line, and a column below; the arrows turn with it. */
+/* The sales pages' mechanism figure (components/mechanism-figure.tsx). A row from 960px, and a column below; the arrows turn with it. */
 html:root:root:root:root body main .mf { margin: 0; display: flex; align-items: center; gap: 0; --mf-line: var(--fig-line, #6a6865); }
 html:root:root:root:root body main .mf-box { flex: 1 1 0; min-width: 0; background: var(--fig-fill, var(--panel)); border: 1.5px solid var(--mf-line); border-radius: 10px; padding: 18px 14px; text-align: center; }
 html:root:root:root:root:root:root:root:root:root:root body main .mf-title { font-size: 17px !important; font-weight: 700 !important; color: var(--ink) !important; line-height: 1.3 !important; margin: 0 !important; }
@@ -5559,7 +5558,7 @@ html:root:root:root:root body main .mf-inner { display: flex; align-items: cente
 html:root:root:root:root:root:root:root:root:root:root body main .mf-note { font-size: 15px !important; color: var(--dim) !important; text-align: center; line-height: 1.45 !important; margin: 16px 0 0 !important; text-wrap: balance; }
 html:root:root:root:root body main .mf-arrow { flex: 0 0 40px; height: 2px; background: linear-gradient(to right, var(--mf-line) calc(100% - 9px), transparent 0); position: relative; margin: 0 8px; }
 html:root:root:root:root body main .mf-arrow::after { content: ""; position: absolute; right: 0; top: 50%; transform: translateY(-50%); border: 0 solid transparent; border-top-width: 5px; border-bottom-width: 5px; border-left: 9px solid var(--mf-line); }
-@media (max-width: 1149px) {
+@media (max-width: 959px) {
   html:root:root:root:root body main .mf, html:root:root:root:root body main .mf-inner { flex-direction: column; align-items: stretch; }
   html:root:root:root:root body main .mf-box, html:root:root:root:root body main .mf-enclave { flex: none; }
   html:root:root:root:root body main .mf-arrow { flex: 0 0 32px; width: 2px; height: 32px; align-self: center; margin: 8px 0; background: linear-gradient(to bottom, var(--mf-line) calc(100% - 9px), transparent 0); }
@@ -5651,3 +5650,16 @@ html:root:root:root:root:root:root:root:root:root:root body main .mf-label { mar
 html:root:root:root:root:root:root:root:root:root:root body main .mf-note { margin-top: 20px !important; }
 html:root:root:root:root:root body main .mf-box { padding: 22px 16px !important; }
 @media (max-width: 640px) { html:root:root:root:root:root body main .mf-enclave { padding: 20px 16px 18px !important; } }
+/* Phones: the figure is one column, every box full width at its natural height. */
+@media (max-width: 959px) {
+  html:root:root:root:root:root:root:root:root body main .mf, html:root:root:root:root:root:root:root:root body main .mf-inner { align-items: stretch !important; }
+  html:root:root:root:root:root:root:root:root body main .mf-box { width: 100% !important; min-height: 0 !important; }
+  html:root:root:root:root:root:root:root:root body main .mf > .mf-arrow, html:root:root:root:root:root:root:root:root body main .mf-inner > .mf-arrow { align-self: center !important; }
+}
+@media (max-width: 959px) {
+  /* all four boxes one size: the outer two inset by the enclave's padding, every box the same minimum height */
+  html:root:root:root:root:root:root:root:root:root body main .mf > .mf-box { width: auto !important; margin-left: 20px !important; margin-right: 20px !important; }
+  html:root:root:root:root:root:root:root:root:root body main .mf-box { min-height: 104px !important; }
+  html:root:root:root:root:root:root:root:root:root body main .mf-enclave { padding-left: 20px !important; padding-right: 20px !important; }
+}
+@media (min-width: 960px) and (max-width: 1149px) { html:root:root:root:root:root body main .mf-box { padding-left: 10px !important; padding-right: 10px !important; } html:root:root:root:root:root body main .mf-arrow { flex-basis: 28px !important; margin: 0 4px !important; } html:root:root:root:root:root body main .mf-enclave { padding-left: 14px !important; padding-right: 14px !important; } }

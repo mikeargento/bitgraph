@@ -3,7 +3,7 @@
 /**
  * The mechanism, for the sales pages (2026-10-27): a digest goes into the enclave, which in one atomic action takes count N
  * for a fresh hardware nonce and count N+1 for the digest, signed together; out comes an attested proof. Its own small
- * layout (.mf in globals.css): one row when every title fits on a line, one column below 1150px, never in between.
+ * layout (.mf in globals.css): one row from 960px, one column below, never in between.
  */
 function Box({ title, sub }: { title: string; sub: React.ReactNode }) {
   return (
