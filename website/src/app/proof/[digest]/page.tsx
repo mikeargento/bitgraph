@@ -27,6 +27,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB, getBitGraphedFromIDB, putBitGraphedToIDB } from "@/lib/file-cache";
 import { warmModels } from "@/lib/trustmark/runtime";
+import { GalleryBar } from "@/components/gallery";
 import { boundThumbnail, type BoundThumbnail } from "@/lib/trustmark/bound-thumbnail";
 import { redrawRecordedArt } from "@/lib/art-position";
 import { ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, ART_ALGORITHM_V19, toBase64Url, type ArtRecipe } from "@/lib/commitment-art";
@@ -1268,6 +1269,8 @@ export default function ProofPage() {
    */
   if (error || !proof) return (
     <Shell>
+      {/* a photo of a drop steps on from here too */}
+      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto" }}><GalleryBar digest={digestParam} top={56} /></div>
       <div style={{ padding: "96px 20px 80px", textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
         {retired ? (
           <>
@@ -2220,6 +2223,7 @@ export default function ProofPage() {
 
       {/* 56px from the nav, as every page's top. */}
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
+        <GalleryBar digest={digestParam} />
         <ProofView m={(() => {
           const kind: ProofViewModel["kind"] = isEth ? "anchor" : isInterval ? "interval" : "file";
           const stdB64 = (x: string | null | undefined) => (typeof x === "string" ? x : "");

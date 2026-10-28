@@ -37,6 +37,8 @@ import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
 import { noteCopyOf, noteCredentialsMatch, noteDroppedCopy } from "@/lib/trustmark/copy-note";
 import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
+import { MAX_GALLERY, setGallery, type Gallery } from "@/lib/gallery";
+import { DropGallery } from "@/components/gallery";
 
 const MAX_FILES = 25;
 
@@ -337,6 +339,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     lookup?: { stored: number; total: number; state: "sealing" | "saving" | "done" | "failed"; note?: string };
     /** The tree was already a BitGraph: nothing was bound, its index was finished (2026-10-20). */
     already?: boolean;
+    /** Two or more photos in the drop: each one's proof, a page at a time or as a grid. */
+    gallery?: Gallery;
   } | null>(null);
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
@@ -578,7 +582,20 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       // One file goes straight on to its proof page (below), so the tree's panel is never drawn for it: shown for the
       // moment its index is written, it would flash up under "Opening the proof…" before the page changes.
       const opensProof = !list && files.length === 1 && !timer;
-      if (!opensProof) setPlug({ tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: already ? null : "waiting", ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
+      // The drop's photos, in the tree's order, as a gallery: each opens its own proof, handed over with its place in
+      // the tree so it never waits on the index.
+      let gallery: Gallery | undefined;
+      if (!opensProof && !list) {
+        const byDigest = new Map<string, File>();
+        dropped.forEach((l, k) => { const f = files[k]!; if (looksLikePhoto(f) && !byDigest.has(l[2])) byDigest.set(l[2], f); });
+        if (byDigest.size >= 2 && byDigest.size <= MAX_GALLERY && b.commit?.counter && b.commit?.epochId) {
+          const seen = new Set<string>();
+          const items = t.leaves.filter((l) => byDigest.has(l[2]) && !seen.has(l[2]) && seen.add(l[2])).map((l) => ({ digest: l[2], name: byDigest.get(l[2])!.name }));
+          gallery = { id: contentDigest, counter: String(b.commit.counter), epochId: String(b.commit.epochId), items };
+          setGallery(gallery, byDigest, (d) => { const i = t.leaves.findIndex((l) => l[2] === d); return i >= 0 ? withMember(b as Record<string, unknown>, blocks[i]!) : null; });
+        }
+      }
+      if (!opensProof) setPlug({ gallery, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: already ? null : "waiting", ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
       // Each file is indexed under its own hash with the tree's floor (lib/tree-member.ts): written after the proof is
       // shown, so the BitGraph never waits on it; the server checks every path to the root before it writes.
       type Lookup = { stored: number; total: number; state: "sealing" | "saving" | "done" | "failed"; note?: string };
@@ -937,6 +954,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               </div>
             </div>
           )}
+          {plug.gallery && <div className="plug-row plug-gallery"><DropGallery g={plug.gallery} /></div>}
           <div className="plug-foot">
             <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={downloadPlug}>Download everything</button>
           </div>

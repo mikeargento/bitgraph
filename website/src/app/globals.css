@@ -5439,3 +5439,21 @@ html:root:root:root:root:root body #site-nav .nav-menu-btn { display: none; }
 }
 /* Make and Check: the box under the page's opening paragraph, as Tools has its cards */
 html:root:root:root:root:root body .page-box { margin-top: 32px; }
+
+/* A drop's photos as a gallery: the grid on Make, and previous / next / the grid on each photo's proof page. */
+html:root:root .plug-row.plug-gallery { display: block; }
+html:root:root .gal-drop .plug-sub { white-space: normal; margin: 0 0 12px; }
+.gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+@media (max-width: 640px) { .gal-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; } }
+html:root:root:root:root:root:root:root:root:root body main a.gal-tile { position: relative; display: block; aspect-ratio: 1; overflow: hidden; background: var(--line-2); border: 1px solid var(--line); text-decoration: none !important; }
+.gal-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gal-tile-name { position: absolute; inset: 0; padding: 8px; font-size: 12px; line-height: 1.3; color: var(--dim); overflow: hidden; word-break: break-all; }
+html:root:root:root:root:root:root:root:root:root body main a.gal-tile.is-current { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: hover) { html:root:root:root:root:root:root:root:root:root body main a.gal-tile:hover { border-color: var(--dim); } }
+.gal-bar { margin: 0 0 24px; padding: 0 0 20px; border-bottom: 1px solid var(--line-2); }
+.gal-bar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
+.gal-bar-where { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gal-bar-count { color: var(--ink); font-weight: 600; }
+.gal-bar-name { color: var(--dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gal-bar-go { display: flex; gap: 8px; flex-wrap: wrap; }
+.gal-bar .gal-grid { margin-top: 16px; }
