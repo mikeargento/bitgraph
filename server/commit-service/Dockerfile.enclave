@@ -1,4 +1,4 @@
-# Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+# Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 # Nitro Enclave Docker image — builds the EIF via nitro-cli
 #
 # REPRODUCIBLE BUILD: every input below is pinned so two people building from
