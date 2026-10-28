@@ -5581,11 +5581,13 @@ html:root:root:root:root:root body main .mf-keep { white-space: nowrap; }
    "already sell." by itself). */
 html:root:root:root:root:root:root:root:root:root body main .sx-page :is(p, li, .sx-sub) { text-wrap: pretty; }
 html:root:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-sub { text-wrap: balance !important; max-width: 820px !important; }
-/* Clickable cards are marked before anyone hovers (2026-10-28): an arrow after the title, and on hover the title
-   underlines as well as the border darkening. A static card (a text panel) has no arrow and no hover change. */
-html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link h3::after { content: "\2192"; display: inline-block; margin-left: 0.4em; font-weight: 400; color: var(--dim); transition: transform .12s, color .12s; }
+/* Clickable cards are marked before anyone hovers (2026-10-28): an arrow in the bottom-right corner, below the text
+   so it never wraps into a title, and on hover the title underlines as well as the border darkening. A static card (a
+   text panel) has no arrow and no hover change. */
+html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link { position: relative; padding-bottom: 52px !important; }
+html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link::after { content: "\2192"; position: absolute; right: 24px; bottom: 18px; font-size: 20px; line-height: 1; color: var(--dim); transition: transform .12s, color .12s; }
 @media (hover: hover) {
   html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover h3 { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
-  html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover h3::after { transform: translateX(3px); color: var(--ink); }
+  html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover::after { transform: translateX(4px); color: var(--ink); }
 }
 html:root:root:root:root:root:root:root:root:root:root body main article.tl-card { cursor: default; }
