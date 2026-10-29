@@ -3180,7 +3180,7 @@ function stdDigest(digestParam: string): string {
 /* ── The thumbnail this BitGraph's BitGraphed file bound, shown when a copy, not the photo, is in hand: the picture this
    BitGraph bound, captioned for what it is: a reference, not the photo. ── */
 
-function BoundThumbView({ t, caption }: { t: BoundThumbnail; caption?: string }) {
+function BoundThumbView({ t, caption }: { t: BoundThumbnail; caption?: React.ReactNode }) {
   // No lightbox: at 512 pixels it is already shown about as large as it holds.
   return (
     <figure className="pv-bound-thumb">
