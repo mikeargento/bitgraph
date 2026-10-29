@@ -69,7 +69,7 @@ export function SourceLine(pos: Pos) {
   };
   return (
     <div className="pv-source">
-      <span>The original file is online at {source.host} · checked {relativeTime(source.verifiedAt)}</span>
+      <span><strong>Original</strong> online at {source.host} · checked {relativeTime(source.verifiedAt)}</span>
       <button type="button" className="pv-source-dl" onClick={() => void download()} disabled={dl.state === "fetching" || dl.state === "hashing"}>
         {dl.state === "fetching" ? `Fetching… ${mb(dl.got)} of ${mb(source.bytes)}` : dl.state === "hashing" ? "Checking…" : `Download original (${mb(source.bytes)})`}
       </button>
@@ -111,10 +111,10 @@ export function SourceField({ pos, file }: { pos: Pos; file?: { name: string; da
   return (
     <div className="pv-source-field">
       {!open ? (
-        <button type="button" className="pv-source-add" onClick={() => setOpen(true)}>{source ? "Change where this original is hosted" : holds ? "Is this file online somewhere? Add the link" : "Is the original file online somewhere? Add the link"}</button>
+        <button type="button" className="pv-source-add" onClick={() => setOpen(true)}>{source ? "Change the link to the original" : "Link the original"}</button>
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); void submit(url); }}>
-          <label className="pv-source-label" htmlFor="src-url">Where is the original file?</label>
+          <label className="pv-source-label" htmlFor="src-url">Link the original: where is the file?</label>
           <div className="pv-source-row">
             <input id="src-url" type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…  (Drive, Dropbox, OneDrive, GitHub, S3 or any web address)" autoComplete="off" spellCheck={false} />
             <button type="submit" className="bg-action-link" style={{ margin: 0, flex: "none" }} disabled={state.kind === "checking" || !url.trim()}>{state.kind === "checking" ? "Checking…" : "Check and add"}</button>
@@ -122,7 +122,7 @@ export function SourceField({ pos, file }: { pos: Pos; file?: { name: string; da
           <p className="pv-source-fine">Paste a link to the exact file, shared as &ldquo;anyone with the link&rdquo;. We download it and check that it is the very same file before the link is shown; any other file is refused.</p>
         </form>
       )}
-      {state.kind === "ok" && <p className="pv-source-ok">{"✓"} Verified: this original is hosted at {state.host}.</p>}
+      {state.kind === "ok" && <p className="pv-source-ok">{"✓"} Checked: the original is at {state.host}.</p>}
       {state.kind === "bad" && <p className="pv-source-bad">{state.why}</p>}
     </div>
   );

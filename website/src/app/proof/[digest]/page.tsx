@@ -2298,12 +2298,12 @@ export default function ProofPage() {
             // thumbnail, when its BitGraphed file published one), and the visitor already holds their own file.
             boundThumb === undefined ? null : (
               <div className="pv-pane-in">
-                {boundThumb && typeof boundThumb === "object" && <BoundThumbView t={boundThumb} caption="The picture this BitGraph recorded. You have a copy of it; only the original file proves it." />}
+                {boundThumb && typeof boundThumb === "object" && <BoundThumbView t={boundThumb} caption={<><strong>Not the original.</strong> You have a copy of the picture this BitGraph recorded.</>} />}
                 {boundThumb === null && heldCopy.found && (
-                  <p className="pv-note">Your copy matches this BitGraph. No preview of the picture was saved with it yet.</p>
+                  <p className="pv-note"><strong>Not the original.</strong> You have a copy of the picture this BitGraph recorded. No preview was saved with it yet.</p>
                 )}
-                {boundThumb === "failed" && <p className="pv-note">Your copy matches this BitGraph. The preview saved with it could not be shown.</p>}
-                {boundThumb === "unavailable" && <p className="pv-note">Your copy matches this BitGraph. Its preview could not be loaded just now.</p>}
+                {boundThumb === "failed" && <p className="pv-note"><strong>Not the original.</strong> You have a copy of the picture this BitGraph recorded. Its preview could not be shown.</p>}
+                {boundThumb === "unavailable" && <p className="pv-note"><strong>Not the original.</strong> You have a copy of the picture this BitGraph recorded. Its preview could not be loaded just now.</p>}
                 {heldCopy.others && heldCopy.others.length > 0 && (
                   <p className="pv-note">
                     The same picture was also recorded as {heldCopy.others.map((o, i) => {
