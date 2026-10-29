@@ -616,8 +616,12 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       if (!list && files.length === 1) {
         const f = files[0]!;
         setStatus("Checking the ledger…");
-        const digest = await digestOf(new Uint8Array(await f.arrayBuffer()));
-        const before = await fetch(`/api/proofs/${toUrlSafe(digest)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null) as { proofs?: Array<{ proof: Proof; writeTime?: number | null; kind?: string }> } | null;
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const digest = await digestOf(bytes);
+        const res = await fetch(`/api/proofs/${toUrlSafe(digest)}`).catch(() => null);
+        // never recorded blind: there is one BitGraph per file, and that cannot be known while the ledger is unreachable
+        if (!res?.ok) { setStatus(null); setPlugError("Could not check the ledger just now. Try again in a moment."); return; }
+        const before = (await res.json().catch(() => null)) as { proofs?: Array<{ proof: Proof; writeTime?: number | null; kind?: string }> } | null;
         const first = earliestOf((before?.proofs ?? []).filter((e) => !e.kind || e.kind === "recorded"));
         const fc = first?.commit as { counter?: string; epochId?: string } | undefined;
         if (fc?.counter && fc.epochId) {
@@ -625,6 +629,23 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           void cacheArtifactToIDB(f, digest).catch(() => {});
           router.push(`/proof/${toUrlSafe(digest)}?counter=${encodeURIComponent(fc.counter)}&epoch=${encodeURIComponent(toUrlSafe(fc.epochId))}`);
           return;
+        }
+        // A picture that looks like a recorded one (a re-export, a re-save, a copy) is that picture: its original's
+        // proof opens, with this file carried as a copy, and nothing is recorded. Only a picture the find cannot match
+        // is different enough to be an original of its own.
+        if (looksLikePhoto(f)) {
+          setStatus("Looking for the original…");
+          const img = await decodeForReading(f).catch(() => null);
+          const v = img ? await judgeLooks(img, { search: true }).catch(() => null) : null;
+          if (v?.verdict === "unavailable") { setStatus(null); setPlugError("Could not check the ledger just now. Try again in a moment."); return; }
+          if (v?.verdict === "match") {
+            const o = v.original;
+            setStatus("This picture is already a BitGraph. Opening the original…");
+            noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
+            setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o, others: v.others.map((m) => m.original) });
+            router.push(`/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`);
+            return;
+          }
         }
       }
       /* Every drop, one file or many, is one tree and one BitGraph (2026-10-20). Its first leaf is the latest Base
