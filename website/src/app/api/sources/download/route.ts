@@ -23,7 +23,12 @@ export async function GET(req: Request) {
     const note = await getSourceNote(digest, epochId, counter);
     if (!note || (note.failedAt ?? 0) > note.verifiedAt) return NextResponse.json({ error: "No hosted original on record." }, { status: 404 });
     const o = await openSource(note.url);
-    if (!o.ok) return NextResponse.json({ error: o.error }, { status: 502 });
+    if (!o.ok) {
+      // the host no longer serves the file (gone, or shut to the public): the link is marked failed at once, so the
+      // page stops offering it and a new link may be offered, rather than waiting for the daily re-check
+      if (/\((404|410|401|403)\)/.test(o.error)) void putSourceNote(digest, epochId, counter, { ...note, failedAt: Date.now() }).catch(() => false);
+      return NextResponse.json({ error: o.error }, { status: 502 });
+    }
     const hash = createHash("sha256");
     let bytes = 0;
     const body = o.res.body!.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
