@@ -68,3 +68,19 @@ export async function candidates(eref: number, counter: number, tag: number): Pr
   const body = (await res.json().catch(() => null)) as { entries?: Published[] } | null;
   return (body?.entries ?? []).filter((e) => typeof e?.recordB64 === "string" && e.proof && typeof e.proof === "object");
 }
+
+/** A found photo's fingerprint record, published when its tree binds one: photos bound before Make published records
+ *  (2026-10-29) become findable by their looks the first time their original is checked, on Check or on its own proof
+ *  page. The record is computed from the file in hand, looked up by its own hash, and the server checks it against the
+ *  tree before keeping it; a record already kept still gets its place in the find index. */
+export async function publishFoundRecord(f: Blob, photoDigestB64: string): Promise<void> {
+  const { decodeForRecord, fingerprintOf, recordBytesOf } = await import("./record");
+  const img = await decodeForRecord(f);
+  if (!img) return;
+  const bytes = recordBytesOf(photoDigestB64, fingerprintOf(img));
+  const d = (await digestB64(bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const res = await fetch(`/api/proofs/${d}`).catch(() => null);
+  const body = res?.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ kind?: string }> } | null) : null;
+  if (!body?.proofs?.some((p) => p.kind === "recorded")) return;
+  await publishRecord(bytes);
+}

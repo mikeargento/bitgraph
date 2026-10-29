@@ -73,6 +73,7 @@ import { Shell } from "./proof-skeleton";
 import { Wait } from "@/components/wait";
 import { decodePhoto, looksLikePhoto } from "@/lib/trustmark/record";
 import { judge as judgeLooks } from "@/lib/trustmark/check";
+import { publishFoundRecord } from "@/lib/trustmark/ledger";
 import { setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { SourceField, SourceLine, noteDropUrl } from "@/components/source-link";
@@ -2854,7 +2855,12 @@ function BringYourFile({
     const pageOf = (digestB64: string) => `/proof/${toUrlSafeB64(digestB64)}?counter=${encodeURIComponent(counter)}&epoch=${encodeURIComponent(toUrlSafeB64(epoch))}`;
     // this page's own file, when the page is a file of a tree (its proof's artifact is the tree's root, not the file)
     const own = seen.get(cacheKey);
-    if (own && treeMemberOf(proof as never) && checkTreeMember(proof as never, cacheKey)) { await accept(own); return true; }
+    if (own && treeMemberOf(proof as never) && checkTreeMember(proof as never, cacheKey)) {
+      await accept(own);
+      // the original in hand: its fingerprint record joins the find index, so copies of it lead here (catch-up for photos bound before 2026-10-29)
+      if (looksLikePhoto(own)) void publishFoundRecord(own, cacheKey).catch(() => {});
+      return true;
+    }
     for (const d of [...seen.keys()].slice(0, 50)) {
       if (d === cacheKey) continue;
       const res = await fetch(`/api/proofs/${toUrlSafeB64(d)}`).catch(() => null);
@@ -2868,7 +2874,8 @@ function BringYourFile({
     if (files.length !== 1 || !looksLikePhoto(files[0]!)) return false;
     const img = await decodePhoto(files[0]!);
     const v = img ? await judgeLooks(img).catch(() => null) : null;
-    if (v?.verdict !== "match" || String(v.original.counter) !== counter || v.original.epochId !== epoch) return false;
+    // the same photo at another of its positions is still this page's photo: its record may be indexed under any one
+    if (v?.verdict !== "match") return false;
     // the copy is shown in the photo's own file pane, labelled for what it is: on the tree's page, that page opens with it
     const wrapped = carriers.has(files[0]!);
     // a BitGraphed file keeps its own name (the file inside it was named without the .bitgraph)

@@ -32,7 +32,7 @@ import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
 import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
-import { publishRecord } from "@/lib/trustmark/ledger";
+import { publishFoundRecord, publishRecord } from "@/lib/trustmark/ledger";
 import { SourceHint } from "@/components/source-link";
 import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
 import { judge as judgeLooks, type LooksVerdict } from "@/lib/trustmark/check";
@@ -267,21 +267,6 @@ function LooksLine({ v }: { v: LooksVerdict }) {
       <span className="db-size">Match {v.score.toFixed(2)} against the record bound beside the original. Its proof page proves the original file.</span>
     </>
   );
-}
-
-/** A found photo's fingerprint record, published when its tree binds one: photos bound before Make published records
- *  (2026-10-29) become findable by their looks the first time their original is checked. The record is computed from
- *  the file in hand, looked up by its own hash (a member of a tree, or not), and the server checks it against the
- *  tree before keeping it; a record already kept still gets its place in the find index. */
-async function publishFoundRecord(f: File, photoDigestB64: string) {
-  const img = await decodeForRecord(f);
-  if (!img) return;
-  const bytes = recordBytesOf(photoDigestB64, fingerprintOf(img));
-  const d = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource)));
-  const res = await fetch(`/api/proofs/${toUrlSafe(d)}`).catch(() => null);
-  const body = res?.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ kind?: string }> } | null) : null;
-  if (!body?.proofs?.some((p) => p.kind === "recorded")) return;
-  await publishRecord(bytes);
 }
 
 /** The earliest of a file's BitGraphs, by the enclave's signed time, then by count. */
