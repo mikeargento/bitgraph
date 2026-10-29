@@ -186,7 +186,6 @@ TRUE
 
 
       <section className="home-section" aria-labelledby="home-end">
-        <p className="home-kicker">Argento Computing Inc.</p>
         <h2 id="home-end">The next time a customer asks why they should believe you, you&rsquo;ll have a better&nbsp;answer.</h2>
         <p>Verify a real proof in two minutes, read the mechanism, and talk with us about putting it under what you already sell.</p>
         <div className="sx-cta">
