@@ -137,6 +137,9 @@ function formatHashAlg(alg: string): string {
 /** New words staged for review, in red until approved (the site's staging convention). */
 const staged = (text: string) => <>{text}</>; // approved 2026-10-11; was red while staged
 
+/** A hosted original this large or smaller is fetched and shown unasked (2026-10-29); above it, the strip offers the download. */
+const HOSTED_PREVIEW_MAX_BYTES = 40 * 1024 * 1024;
+
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
   // The Evaluate page's sample (2026-10-27): a ChatGPT image with its OpenAI-signed Content Credentials, bound with them
   // as one tree (BitGraph #26 of epoch NihRUA…). Hosted so its proof page shows the picture to every visitor.
@@ -335,6 +338,8 @@ export default function ProofPage() {
   /* A copy of this page's photo (its BitGraphed file, a screenshot, a feed's copy) whose hidden pointer led here: shown in
      the file pane with a label for what it is, never taken for the original (nothing is checked or made from it). */
   const [heldCopy, setHeldCopyState] = useState<HeldCopy | null>(null);
+  // true when the file in the pane came from the holder's hosted link, not from this visitor: no "add a link" field then
+  const [hostedOriginal, setHostedOriginal] = useState(false);
   // the shown photo's full-size Open link, set by its card, shown beside the downloads
   const [photoOpenUrl, setPhotoOpenUrl] = useState<string | null>(null);
   useEffect(() => { const c = takeHeldCopy(digestParam); if (c) setHeldCopyState(c); }, [digestParam]);
@@ -787,6 +792,43 @@ export default function ProofPage() {
       if (!settled) examplePulled.current = false;
     };
   }, [digestParam]);
+
+  /* A hosted original (components/source-link, 2026-10-29): once a holder has added a link whose bytes hash to the bound
+     digest, every visitor's page fetches the file through our hashing route, hashes it again here, and shows it exactly
+     as a dropped original: the picture in the pane and the checks run on bytes in hand. Only files under a size cap are
+     pulled unasked; the strip's download covers the rest. */
+  const hostedPulled = useRef(false);
+  const hostedEpoch = proof?.commit?.epochId ? String(proof.commit.epochId) : null, hostedCounter = proof?.commit?.counter !== undefined ? String(proof.commit.counter) : null;
+  useEffect(() => {
+    if (!hostedEpoch || !hostedCounter || cachedFile || heldCopy || hostedPulled.current) return;
+    const d = decodeURIComponent(digestParam);
+    if (Object.hasOwn(EXAMPLE_FILES, d)) return;
+    hostedPulled.current = true;
+    let cancelled = false, settled = false;
+    const q = `digest=${encodeURIComponent(stdDigest(digestParam))}&epoch=${encodeURIComponent(hostedEpoch.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}&counter=${encodeURIComponent(hostedCounter)}`;
+    void (async () => {
+      try {
+        const s = await fetch(`/api/sources?${q}`);
+        const body = s.ok ? ((await s.json()) as { source?: { name: string | null; bytes: number } | null }) : null;
+        const source = body?.source;
+        if (!source || source.bytes > HOSTED_PREVIEW_MAX_BYTES || cancelled) return;
+        const r = await fetch(`/api/sources/download?${q}`);
+        if (!r.ok || cancelled) return;
+        const data = await (await r.blob()).arrayBuffer();
+        if ((await hashBytes(new Uint8Array(data))) !== stdDigest(digestParam) || cancelled) return;
+        settled = true;
+        const name = source.name ?? "original";
+        setHostedOriginal(true);
+        setCachedFile({ name, data });
+        try {
+          const { readC2PA } = await import("@/lib/c2pa-reader");
+          const c2pa = await readC2PA(new Blob([new Uint8Array(data)]));
+          if (!cancelled) setCachedFile({ name, data, c2pa, c2paChecked: true });
+        } catch { /* the picture still shows without the card */ }
+      } catch { /* the strip's download and the drop box remain */ }
+    })();
+    return () => { cancelled = true; if (!settled) hostedPulled.current = false; };
+  }, [digestParam, hostedEpoch, hostedCounter, cachedFile, heldCopy]);
 
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
@@ -2470,7 +2512,7 @@ export default function ProofPage() {
             // the hosted original: shown to everyone once a holder has added a verified link; the field only to a holder
             ...(kind === "file" && commit?.epochId && commit?.counter ? (() => {
               const pos = { digest: stdDigest(digestParam), epoch: String(commit.epochId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), counter: String(commit.counter) };
-              return { sourceLine: <SourceLine {...pos} />, sourceField: cachedFile && !heldCopy ? <SourceField pos={pos} file={cachedFile} /> : null };
+              return { sourceLine: <SourceLine {...pos} />, sourceField: cachedFile && !heldCopy && !hostedOriginal ? <SourceField pos={pos} file={cachedFile} /> : null };
             })() : {}),
             bindings: bindings?.map((b) => ({ ...b, current: b.counter === Number(proof?.commit?.counter) && b.epochId === String(proof?.commit?.epochId ?? "") })) ?? [],
             droppedCopy,
