@@ -20,12 +20,12 @@ export default function MakePage() {
 
       <section className="home-section" aria-labelledby="m-intro">
         <p className="home-kicker">Make</p>
-        <h2 id="m-intro">Bind your files in a BitGraph.</h2>
+        <h2 id="m-intro">Record a BitGraph of your files.</h2>
         <p>
-          A BitGraph proves these exact bits existed by the time they were bound, and could not have been bound before. Many files at
-          once become one tree and one BitGraph, and each file in it can be checked on its own. A photo&rsquo;s fingerprint is bound beside
-          it, so a copy with everything stripped still leads back here by what it looks like. BitGraphs are permanent, and the same file
-          dropped again gets a BitGraph of its own.
+          A BitGraph proves these exact bits existed by the time they were recorded, and could not have been recorded before. Many files
+          at once become one tree and one BitGraph, and each file in it can be checked on its own. A photo&rsquo;s fingerprint is recorded
+          beside it, so a copy with everything stripped still leads back here by what it looks like. BitGraphs are permanent, and the same
+          file dropped again gets a BitGraph of its own.
         </p>
         <div className="page-box"><DropBox mode="make" /></div>
       </section>
