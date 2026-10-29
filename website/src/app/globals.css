@@ -5733,3 +5733,16 @@ html:root:root:root:root:root body main .pv-moment-actions { margin-top: 12px; }
 
 /* The source bar under the picture (2026-10-29): buttons in the shared row; the host credited quietly. */
 html:root:root:root:root:root body main .pv-source-credit { margin: 8px 0 0; font-size: 14px; color: var(--dim); }
+
+/* The counter card as four boxes, and the signature and enclave folds as a pair (2026-10-29): side by side on a wide
+   screen, stacked on a phone. An open fold takes the full width. */
+.pv-counter-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.pv-counter-grid .pv-row { grid-template-columns: 1fr; gap: 4px; border: 1px solid var(--line); border-top: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.pv-counter-grid .pv-row:first-child { border-top: 1px solid var(--line); }
+.pv-details-pair { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.pv-details-pair .pv-fold { margin-bottom: 0; }
+@media (min-width: 720px) {
+  .pv-counter-grid { grid-template-columns: 1fr 1fr; }
+  .pv-details-pair { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pv-details-pair .pv-fold.is-open { grid-column: 1 / -1; }
+}

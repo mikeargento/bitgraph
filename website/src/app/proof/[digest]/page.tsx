@@ -3184,6 +3184,8 @@ function CopyOptions({ proof, heldCopy, digestParam, setBound, onMatch, onResolv
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<"choose" | "find" | "link" | null>(null);
+  // the bottom card's "Find or link original" opens the find box here
+  useEffect(() => { const on = () => setOpen("find"); window.addEventListener("bitgraph-find-original", on); return () => window.removeEventListener("bitgraph-find-original", on); }, []);
   const others = heldCopy.others ?? [];
   const all = [heldCopy.found, ...others].filter((x): x is Original => !!x);
   const pos = { digest: toUrlSafeB64(stdDigest(digestParam)), epoch: toUrlSafeB64(String(proof.commit?.epochId ?? "")), counter: String(proof.commit?.counter ?? "") };

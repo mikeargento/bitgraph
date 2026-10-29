@@ -368,19 +368,22 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
       <section className="pv-card">
         <div className="pv-section-title">Monotonic counter</div>
-        {/* The previous BitGraph, named first, so the card reads as the chain it is (2026-10-19: prevB64 is the key;
-            "prevBitGraph" is the readers' name). Shown by its hash: proofs are not looked up by position (2026-10-09), so
-            the page cannot open the BitGraph before this one; whoever holds both proofs can check the link offline. */}
-        {(commit as { prevB64?: string }).prevB64 && (
-          <Row f={{ label: "Previous BitGraph", value: (commit as { prevB64?: string }).prevB64!, mono: true }} />
-        )}
-        {nonceCount !== null && (
-          <Row f={{ label: `#${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} />
-        )}
-        {contentCount !== null && (
-          <Row f={{ label: `#${fmtNum(contentCount)}: Content hash`, value: m.proof.artifact.digestB64, mono: true }} />
-        )}
-        {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
+        {/* Four boxes, two by two on a wide screen and stacked on a phone (2026-10-29). The previous BitGraph is named
+            first, so the card reads as the chain it is (prevB64 is the key; "prevBitGraph" is the readers' name). Shown
+            by its hash: proofs are not looked up by position, so the page cannot open the BitGraph before this one;
+            whoever holds both proofs can check the link offline. */}
+        <div className="pv-counter-grid">
+          {(commit as { prevB64?: string }).prevB64 && (
+            <Row f={{ label: "Previous BitGraph", value: (commit as { prevB64?: string }).prevB64!, mono: true }} />
+          )}
+          {nonceCount !== null && (
+            <Row f={{ label: `#${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} />
+          )}
+          {contentCount !== null && (
+            <Row f={{ label: `#${fmtNum(contentCount)}: Content hash`, value: m.proof.artifact.digestB64, mono: true }} />
+          )}
+          {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
+        </div>
       </section>
     </>
   );
@@ -478,7 +481,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const sigCard = (
     <>
       {/* ── Signature and enclave ── */}
-      <section className="pv-card pv-details">
+      <section className="pv-card pv-details pv-details-pair">
         <Fold title="Signature">{m.signatureRows.map((f) => <Row key={f.label} f={f} />)}</Fold>
         <Fold title={m.proof.environment?.enforcement === "measured-tee" ? "Hardware enclave" : "Software"}>
           {m.enclaveRows.map((f) => <Row key={f.label} f={f} />)}
@@ -492,15 +495,17 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       {/* ── Check it anywhere ── */}
       <section className="pv-card">
         <div className="pv-section-title">Check it anywhere</div>
-        <div className="pv-offline-text">Download the proof and check it offline, beside the file:</div>
-        <div className="pv-photo-actions" style={{ margin: "16px 0" }}>
+        <div className="pv-photo-actions" style={{ margin: "0 0 16px" }}>
           <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={download}>Download proof</button>
-          {/* The BitGraphed file: the file with its proof inside, one file that checks with nothing else (2026-10-20). */}
-          {bitgraphed && (
+          {/* Beside it: the BitGraphed file (the file with its proof inside) when the original is in hand; otherwise
+              the way to the original, which opens the content card's find or link (2026-10-29). */}
+          {bitgraphed ? (
             <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>
               {bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}
             </button>
-          )}
+          ) : m.kind === "file" ? (
+            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => { document.querySelector(".pv-card.pv-photo")?.scrollIntoView({ behavior: "smooth", block: "start" }); window.dispatchEvent(new Event("bitgraph-find-original")); }}>Find or link original</button>
+          ) : null}
         </div>
         {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
             not landed yet. */}
