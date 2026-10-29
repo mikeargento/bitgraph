@@ -50,18 +50,22 @@ export function DropGallery({ g }: { g: Gallery }) {
 
 /** On a photo's proof page, when the photo came in a drop of several: previous, next and the grid of them all. The
  *  arrow keys step too. */
-let gridOpen = false;
 export function GalleryBar({ digest, top }: { digest: string; top?: number }) {
   const router = useRouter();
   const [at, setAt] = useState<{ g: Gallery; index: number } | null>(null);
-  // the grid stays open from page to page while stepping through
-  const [grid, setGridState] = useState(gridOpen);
-  const setGrid = (f: (v: boolean) => boolean) => setGridState((v) => (gridOpen = f(v)));
+  const [grid, setGrid] = useState(false);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     setAt(galleryOf(digest, q.get("counter"), q.get("epoch")));
   }, [digest]);
-  const go = (i: number) => { if (at && i >= 0 && i < at.g.items.length) void openItem(at.g, i, router.push); };
+  // opening a photo closes the grid and shows its proof from the top; with hundreds of thumbnails the proof would
+  // otherwise land below the fold and the page would look unchanged
+  const go = (i: number) => {
+    if (!at || i < 0 || i >= at.g.items.length) return;
+    setGrid(false);
+    window.scrollTo({ top: 0 });
+    void openItem(at.g, i, router.push);
+  };
   const goRef = useRef(go);
   goRef.current = go;
   useEffect(() => {
