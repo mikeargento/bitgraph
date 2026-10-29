@@ -1274,7 +1274,7 @@ export async function getSourceNote(digestB64: string, epochId: string, counter:
     throw new LedgerUnavailableError("source note", err);
   }
 }
-/** Writes (or replaces) a file's source note; a verified link always replaces an older one. */
+/** Writes a file's source note (app/api/sources writes one only where no standing link exists). */
 export async function putSourceNote(digestB64: string, epochId: string, counter: string, note: SourceNote): Promise<boolean> {
   if (!ledgerWritesOn()) return false;
   await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: positionKey("sources", digestB64, epochId, counter), Body: JSON.stringify(note, null, 1), ContentType: "application/json" }));

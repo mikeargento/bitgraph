@@ -74,6 +74,10 @@ export async function POST(req: Request) {
       return e.kind === "recorded" && String(c?.epochId) === target.epochId && String(c?.counter) === target.counter;
     });
     if (!bound) return NextResponse.json({ error: "This file is not a BitGraph at that position." }, { status: 404 });
+    // a verified link is never replaced: once the original is linked, it stays linked; only a link that has since
+    // stopped serving the bytes (failed) can be succeeded by another
+    const standing = await getSourceNote(target.digest, target.epochId, target.counter);
+    if (standing && (standing.failedAt ?? 0) <= standing.verifiedAt) return NextResponse.json({ error: "This original is already linked." }, { status: 409 });
     const name = typeof body.name === "string" && body.name.length <= 255 ? body.name : undefined;
     const note: SourceNote = { format: "bitgraph-source/1", url: rewritten.url, host: r.host, name, bytes: r.bytes, contentType: r.contentType, addedAt: Date.now(), verifiedAt: Date.now() };
     await putSourceNote(target.digest, target.epochId, target.counter, note);

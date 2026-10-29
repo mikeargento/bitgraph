@@ -11,8 +11,8 @@ import { relativeTime } from "@/lib/explorer";
  *   SourceField   under the picture, one row of buttons: Download original (only when the page shows the original;
  *                 the bytes come through our hash and are hashed again here before they are saved), Link original
  *                 while no link exists (anyone may offer one, since the server admits a link only after it fetches the
- *                 file and finds it hashes to the bound digest), Change the link for a holder of the exact bytes. The
- *                 host is credited in a quiet line under the row.
+ *                 file and finds it hashes to the bound digest). A standing link is never changed. The host is
+ *                 credited in a quiet line under the row.
  *   SourceHint    on a Check row for a copy: "original available".
  * A link dragged in with the file (an image from a page, a public bucket address) fills the field by itself.
  */
@@ -110,17 +110,17 @@ export function SourceField({ pos, file, among, onLanded, bare, original }: { po
     return () => { gone = true; };
   }, [file, pos.digest, submit]);
   if (!bare && source === undefined) return null;
-  // the row: Download original only when the original is what the page shows; Link original until a link exists;
-  // Change the link for the holder of the exact bytes
+  // the row: Download original only when the original is what the page shows; Link original until a link exists.
+  // A standing link is never changed (the server refuses a second one), so there is no Change.
   const canDownload = !!original && !!source;
-  const canLink = !source || holds;
+  const canLink = !source;
   if (!bare && !canDownload && !canLink) return null;
   return (
     <div className={bare ? "pv-source-field is-bare" : "pv-source-field"}>
       {!open && (canDownload || canLink) && (
         <div className="pv-photo-actions" style={{ marginTop: 0 }}>
           {canDownload && <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => void download()} disabled={busy}>{dlLabel}</button>}
-          {canLink && <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => setOpen(true)}>{source ? "Change the link" : "Link original"}</button>}
+          {canLink && <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => setOpen(true)}>Link original</button>}
         </div>
       )}
       {open && (
