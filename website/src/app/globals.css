@@ -5600,7 +5600,6 @@ html:root:root:root:root:root:root:root:root:root:root:root body main .bg-action
 @media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root body main .home-kicker { font-size: 16px !important; } }
 /* A code word and the full stop or comma after it stay together (2026-10-28: the stop was breaking onto a line alone). */
 html:root:root:root:root body main .nb { white-space: nowrap; }
-html:root:root:root:root:root body .pv-photo-check { margin-top: 4px; font-size: 15px; color: var(--ok, #188038); }
 /* The "On this page" list (2026-10-28): a navigation list, not body text. 15px, no underline, one line per entry in a
    column wide enough for the longest, the current section in ink. */
 @media (min-width: 1000px) {
@@ -5624,7 +5623,7 @@ html:root:root:root:root:root:root:root:root:root:root:root body main .sx-page :
 html:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-sub { font-size: 22px !important; line-height: 1.5 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root body main .home-kicker { font-size: 15px !important; line-height: 1.4 !important; letter-spacing: 0.08em !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root body main .bg-action-link { font-size: 17px !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.sx-fine, .sx-mono, .sx-path, .pv-log, .pv-log *, .pv-photo-meta, .pv-photo-who, .pv-photo-check, .pv-checks-summary, .pv-checks-count, .pv-sub-title, .pv-sub-note, .pv-note, .plug-sub, .db-size, .db-zone-sub, table.sx-table :is(th, td), .tl-note) { font-size: 15px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.sx-fine, .sx-mono, .sx-path, .pv-log, .pv-log *, .pv-photo-meta, .pv-photo-who, .pv-checks-summary, .pv-checks-count, .pv-sub-title, .pv-sub-note, .pv-note, .plug-sub, .db-size, .db-zone-sub, table.sx-table :is(th, td), .tl-note) { font-size: 15px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root body main :is(p, li, td, span, div) > code { font-size: 15px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-page .tl-card :is(p, li) { font-size: 17px !important; line-height: 1.55 !important; }
 @media (max-width: 640px) {

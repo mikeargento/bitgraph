@@ -547,8 +547,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
             {m.attestedMs !== null && <div className="pv-photo-meta">{longDateTz(new Date(m.attestedMs))}, {timeTz(new Date(m.attestedMs))}</div>}
             {who && <div className="pv-photo-who">{who}</div>}
-            {/* The check's verdict, as one line: it ran in this browser. A failure or a wait gets its own card below. */}
-            {c.state === "done" && c.verdict === "TRUE" && <div className="pv-photo-check">{"\u2713"} Checked in this browser, {okCount} checks</div>}
+            {/* A failure or a wait gets its own card below; a pass says nothing here, the checks card tallies it. */}
             {m.sourceLine}
           </div>
           {m.filePane}
