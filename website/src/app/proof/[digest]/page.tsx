@@ -75,6 +75,7 @@ import { decodePhoto, looksLikePhoto } from "@/lib/trustmark/record";
 import { judge as judgeLooks } from "@/lib/trustmark/check";
 import { setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
+import { SourceField, SourceLine, noteDropUrl } from "@/components/source-link";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
 import { parseRecord } from "@/lib/trustmark/record";
 import { epochRef } from "@/lib/trustmark/payload";
@@ -2465,6 +2466,11 @@ export default function ProofPage() {
             downloadNotes,
             carrierNote: carrierMsg,
             copyOf,
+            // the hosted original: shown to everyone once a holder has added a verified link; the field only to a holder
+            ...(kind === "file" && commit?.epochId && commit?.counter ? (() => {
+              const pos = { digest: stdDigest(digestParam), epoch: String(commit.epochId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), counter: String(commit.counter) };
+              return { sourceLine: <SourceLine {...pos} />, sourceField: cachedFile && !heldCopy ? <SourceField pos={pos} file={cachedFile} /> : null };
+            })() : {}),
             bindings: bindings?.map((b) => ({ ...b, current: b.counter === Number(proof?.commit?.counter) && b.epochId === String(proof?.commit?.epochId ?? "") })) ?? [],
             droppedCopy,
             checkText,
@@ -2933,7 +2939,7 @@ function BringYourFile({
          await later reports "no directories" and quietly searches only the
          loose files. One big mixed dump — files, folders, folders with
          subfolders — is the case this box is for. */
-      onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(captureDrop(e.dataTransfer)); }}
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); noteDropUrl(e.dataTransfer); void check(captureDrop(e.dataTransfer)); }}
       /* The same instrument as the home page's, not a footnote to the proof:
          this box is how a stranger who was handed a file actually uses the
          page. Same mark, same blue on hover and drag. Dashed edges from the

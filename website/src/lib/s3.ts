@@ -1257,6 +1257,30 @@ export const trustmarkRecordPrefix = (eref: number, counter: number) => `trustma
 export const trustmarkRecordKey = (eref: number, counter: number, epochId: string, recordDigestB64: string) =>
   `${trustmarkRecordPrefix(eref, counter)}${toSafe(epochId)}/${toSafe(recordDigestB64)}.json`;
 
+/* Hosted originals (app/api/sources, lib/source-url): where the holder keeps the exact file, kept under the file's
+ * position once the server has fetched it and found it hashes to the bound digest. Not in the proof, not in the tree:
+ * a link can be added, replaced or fail without touching anything bound.
+ *   sources/<digest, url-safe>/<epochId, url-safe>-<counter, padded>.json
+ */
+export type SourceNote = { format: "bitgraph-source/1"; url: string; host: string; name?: string; bytes: number; contentType?: string | null; addedAt: number; verifiedAt: number; failedAt?: number };
+export async function getSourceNote(digestB64: string, epochId: string, counter: string): Promise<SourceNote | null> {
+  try {
+    const r = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: positionKey("sources", digestB64, epochId, counter) }));
+    const body = await r.Body?.transformToString();
+    return body ? (JSON.parse(body) as SourceNote) : null;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw new LedgerUnavailableError("source note", err);
+  }
+}
+/** Writes (or replaces) a file's source note; a verified link always replaces an older one. */
+export async function putSourceNote(digestB64: string, epochId: string, counter: string, note: SourceNote): Promise<boolean> {
+  if (!ledgerWritesOn()) return false;
+  await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: positionKey("sources", digestB64, epochId, counter), Body: JSON.stringify(note, null, 1), ContentType: "application/json" }));
+  return true;
+}
+
 /* Finding a copy's original (app/api/find): every published record's pHash, as a key, so a copy with everything stripped is matched by what
  * it looks like. A listing of the prefix is the whole index; nothing is read until a pHash is close.
  *   find/phash/<pHash, 16 hex>/<epochRef>/<counter>/<epochId, url-safe>/<record digest, url-safe>

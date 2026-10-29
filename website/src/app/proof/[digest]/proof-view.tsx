@@ -121,6 +121,9 @@ export interface ProofViewModel {
   leadFallback: ReactNode;
   /** The file pane: the preview, the drop box, or for an anchor the block row. */
   filePane: ReactNode;
+  /** The hosted original (components/source-link): the line in the strip for everyone, and the holder's field under the pane. */
+  sourceLine?: ReactNode;
+  sourceField?: ReactNode;
   /** The shown photo at full size, opened in a new tab beside the downloads. */
   openUrl?: string | null;
   c2pa: C2PAReadResult | null;
@@ -546,8 +549,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {who && <div className="pv-photo-who">{who}</div>}
             {/* The check's verdict, as one line: it ran in this browser. A failure or a wait gets its own card below. */}
             {c.state === "done" && c.verdict === "TRUE" && <div className="pv-photo-check">{"\u2713"} Checked in this browser, {okCount} checks</div>}
+            {m.sourceLine}
           </div>
           {m.filePane}
+          {m.sourceField}
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
         </section>
         {/* Every proof opens in full: no Proof details fold. The verdict and its tally lead, then when, who, and how. */}

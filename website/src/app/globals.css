@@ -5683,3 +5683,19 @@ html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle { 
 @media (min-width: 641px) { html:root:root:root:root:root:root body main .sx-cards.is-2x2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
 @media (min-width: 900px) { html:root:root:root:root:root:root body main .sx-cards.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
 
+
+/* The hosted original (components/source-link, 2026-10-29): one line in the strip, the holder's field under the pane. */
+html:root:root:root:root:root body .pv-source { margin-top: 6px; font-size: 15px; color: var(--dim); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+html:root:root:root:root:root body .pv-source-dl { font: inherit; font-weight: 600; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+html:root:root:root:root:root body .pv-source-dl:disabled { cursor: default; text-decoration: none; color: var(--dim); }
+html:root:root:root:root:root body main :is(.pv-source-ok, .pv-source-bad, .pv-source-fine, .pv-source-label) { margin: 0; font-size: 15px; }
+html:root:root:root:root:root body main .pv-source-ok { color: var(--ok, #188038); }
+html:root:root:root:root:root body main .pv-source-bad { color: #b3261e; }
+html:root:root:root:root:root body main .pv-source-field { margin-top: 16px; }
+html:root:root:root:root:root body main .pv-source-add { font: inherit; font-size: 15px; color: var(--dim); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+html:root:root:root:root:root body main .pv-source-label { display: block; color: var(--ink); font-weight: 600; margin-bottom: 8px; }
+html:root:root:root:root:root body main .pv-source-row { display: flex; gap: 8px; flex-wrap: wrap; }
+html:root:root:root:root:root body main .pv-source-row input { flex: 1 1 320px; min-width: 0; font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel, #fff); color: var(--ink); }
+html:root:root:root:root:root body main .pv-source-row input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+html:root:root:root:root:root body main .pv-source-fine { margin-top: 8px; color: var(--dim); }
+html:root:root:root:root:root body main .pv-source-field .pv-source-ok, html:root:root:root:root:root body main .pv-source-field .pv-source-bad { margin-top: 8px; }
