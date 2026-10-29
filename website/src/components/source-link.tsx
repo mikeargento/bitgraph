@@ -119,7 +119,9 @@ export function SourceField({ pos, file, among, onLanded, bare }: { pos: Pos; fi
   return (
     <div className={bare ? "pv-source-field is-bare" : "pv-source-field"}>
       {!open ? (
-        <button type="button" className="pv-source-add" onClick={() => setOpen(true)}>{source ? "Change the link to the original" : "Link the original"}</button>
+        <div className="pv-photo-actions" style={{ marginTop: 0 }}>
+          <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => setOpen(true)}>{source ? "Change the link to the original" : "Link original"}</button>
+        </div>
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); void submit(url); }}>
           <label className="pv-source-label" htmlFor="src-url">Where is the original file?</label>
