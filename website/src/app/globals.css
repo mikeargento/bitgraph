@@ -5679,5 +5679,7 @@ html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle sv
 /* Centred on the letters, not the line box: Newsreader's lowercase sits high in its line, so the icon rises with it. */
 html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle { position: relative; top: -3px; }
 /* Six cards sit three across, never four and two. */
+/* Four cards as two by two, never four narrow ones (2026-10-29). */
+@media (min-width: 641px) { html:root:root:root:root:root:root body main .sx-cards.is-2x2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
 @media (min-width: 900px) { html:root:root:root:root:root:root body main .sx-cards.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
 

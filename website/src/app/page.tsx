@@ -101,7 +101,7 @@ export default function HomePage() {
           BitGraph does not compete with your product; it strengthens the evidence it produces. Your system sends a digest and keeps
           the proof beside its own record. Your customers, brand and interface stay yours.
         </p>
-        <div className="sx-cards">
+        <div className="sx-cards is-2x2">
           {FITS.map((f) => (
             <a key={f.href} className="tl-card sx-link" href={f.href}>
               <h3>{f.title}</h3>
