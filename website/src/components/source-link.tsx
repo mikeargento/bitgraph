@@ -72,7 +72,6 @@ export function SourceLine(pos: Pos) {
       <button type="button" className="pv-source-dl" onClick={() => void download()} disabled={dl.state === "fetching" || dl.state === "hashing"}>
         {dl.state === "fetching" ? `Fetching… ${mb(dl.got)} of ${mb(source.bytes)}` : dl.state === "hashing" ? "Checking…" : `Download original (${mb(source.bytes)})`}
       </button>
-      {dl.state === "ok" && <span className="pv-source-ok">{"✓"} Checked in this browser: the bytes are the original&rsquo;s.</span>}
       {dl.state === "bad" && <span className="pv-source-bad">Download stopped: {dl.why}.</span>}
     </div>
   );
