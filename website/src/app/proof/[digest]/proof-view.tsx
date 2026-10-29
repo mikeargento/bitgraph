@@ -678,7 +678,7 @@ function ContentCredentials({ c2pa, recorded, match }: { c2pa: C2PAReadResult; r
         </div>
       )}
       {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
-      {openai && <div className="pv-sub-note"><a className="pv-link" href="https://help.openai.com/en/articles/8912793" target="_blank" rel="noopener">Verify with OpenAI &#8599;</a></div>}
+      {openai && <div className="pv-sub-note"><a className="pv-link" href="https://openai.com/research/verify/" target="_blank" rel="noopener">Verify with OpenAI &#8599;</a></div>}
     </div>
   );
 }
