@@ -5728,3 +5728,5 @@ html:root:root:root:root:root:root:root:root:root body main .pv-moment-title { f
 html:root:root:root:root:root:root:root:root:root body main .pv-moment.is-accent .pv-moment-title, html:root:root:root:root:root:root:root:root:root body main .pv-moment.is-accent .pv-time-box { font-size: 28px !important; font-weight: 700; letter-spacing: -0.01em; }
 html:root:root:root:root:root:root:root:root:root body main .pv-moment-title .pv-time-box { background: none !important; padding: 0 !important; margin: 0 !important; border-radius: 0 !important; }
 html:root:root:root:root:root body main .pv-moment-actions { margin-top: 12px; }
+/* The recorded instant first (2026-10-29): the claim, then the floor and ceiling that bound it. */
+.pv-moment.is-accent { order: -1; }
