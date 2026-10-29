@@ -27,7 +27,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { GalleryBar } from "@/components/gallery";
-import { boundThumbnail, foundThumbnail, type BoundThumbnail, type ThumbnailLook } from "@/lib/trustmark/bound-thumbnail";
+import { boundThumbnail, foundThumbnailAmong, type BoundThumbnail, type ThumbnailLook } from "@/lib/trustmark/bound-thumbnail";
 import { redrawRecordedArt } from "@/lib/art-position";
 import { ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, ART_ALGORITHM_V19, toBase64Url, type ArtRecipe } from "@/lib/commitment-art";
 import { planV16, svgFromPngV16, svgTextV16 } from "@/lib/commitment-art-v16";
@@ -679,17 +679,18 @@ export default function ProofPage() {
   // undefined while the check runs: the file pane waits for it, so the full find-the-file box never flashes first
   const [boundThumb, setBoundThumb] = useState<ThumbnailLook | undefined>(undefined);
   // A copy found by its looks (check.ts) opens the reference the same way, by the record it matched, at whichever of
-  // the photo's positions published it.
-  const foundAt = heldCopy?.found;
+  // the photo's positions published it; when this BitGraph bound none, the reference of another BitGraph of the same
+  // picture the copy matched stands in, and the caption says whose it is.
+  const foundAt = heldCopy?.found, foundOthers = heldCopy?.others;
   useEffect(() => {
     const tag = heldCopy?.tag;
     if (!proof || cachedFile || (tag === undefined && !foundAt) || (tag !== undefined && !atomicCarrier && !foundAt)) { setBoundThumb(null); return; }
     let gone = false, url: string | null = null;
     setBoundThumb(undefined);
-    const look = foundAt ? foundThumbnail(foundAt) : boundThumbnail(proof as never, tag!);
+    const look = foundAt ? foundThumbnailAmong(foundAt, foundOthers ?? []) : boundThumbnail(proof as never, tag!);
     void look.then((t) => { const got = t && typeof t === "object" ? t : null; if (gone) { if (got) URL.revokeObjectURL(got.url); return; } url = got?.url ?? null; setBoundThumb(t); }).catch(() => { if (!gone) setBoundThumb("unavailable"); });
     return () => { gone = true; if (url) URL.revokeObjectURL(url); };
-  }, [proof, atomicCarrier, cachedFile, heldCopy?.tag, foundAt]);
+  }, [proof, atomicCarrier, cachedFile, heldCopy?.tag, foundAt, foundOthers]);
   const [copyOf, setCopyOf] = useState<ReturnType<typeof copyOfNote>>(null);
   useEffect(() => { setCopyOf(copyOfNote(digestParam)); }, [digestParam]);
   // Every BitGraph of this file's exact bytes, oldest first: the same file bound again is listed, never merged, and the
@@ -2297,7 +2298,7 @@ export default function ProofPage() {
             // thumbnail, when its BitGraphed file published one), and the visitor already holds their own file.
             boundThumb === undefined ? null : (
               <div className="pv-pane-in">
-                {boundThumb && typeof boundThumb === "object" && <BoundThumbView t={boundThumb} caption="The reference this BitGraph bound. You hold a copy; only the original’s exact bytes prove it." />}
+                {boundThumb && typeof boundThumb === "object" && <BoundThumbView t={boundThumb} caption={boundThumb.from ? `The reference BitGraph #${boundThumb.from.counter.toLocaleString("en-US")} bound: the same picture as a different file; this BitGraph bound none of its own. You hold a copy; only the original’s exact bytes prove it.` : "The reference this BitGraph bound. You hold a copy; only the original’s exact bytes prove it."} />}
                 {boundThumb === null && heldCopy.found && (
                   <p className="pv-note">Your copy matches the fingerprint this BitGraph bound. No reference picture was bound with it; its holder adds one by checking the original once.</p>
                 )}

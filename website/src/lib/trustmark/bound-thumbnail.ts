@@ -18,7 +18,8 @@ import type { Original } from "./check.ts";
 import { decodePhoto, parseRecord } from "./record.ts";
 import type { Proof } from "@/lib/plugins";
 
-export type BoundThumbnail = { url: string; counter: number; score: number };
+/** `from`: the BitGraph whose tree bound this thumbnail, when it is not the page's own (see foundThumbnailAmong). */
+export type BoundThumbnail = { url: string; counter: number; score: number; from?: Original };
 /** null: no thumbnail is published for this record. "failed": one is, and it did not check (a thumbnail of another
  *  picture, a broken file), so nothing is shown; "unavailable": the ledger could not be read just now. */
 export type ThumbnailLook = BoundThumbnail | null | "failed" | "unavailable";
@@ -61,4 +62,20 @@ export async function foundThumbnail(o: Original): Promise<ThumbnailLook> {
   if (!at || !nonce) return null;
   const eref = await epochRef(o.epochId);
   return boundThumbnail(at, await tagOf(nonce, o.phash, eref, o.counter), o.recordDigestB64);
+}
+
+/** The reference for `o`, or failing that one bound by another BitGraph of the same picture (`among`: the other
+ *  originals the same copy matched, in their ranked order). The same picture bound twice (an export made again) has
+ *  one reference worth showing wherever the copy led; the borrowed thumbnail still checked against the fingerprint
+ *  its own BitGraph bound, and the copy matched both, so it says `from` whose it is. Never the original: a thumbnail
+ *  is all a record publishes. */
+export async function foundThumbnailAmong(o: Original, among: Original[]): Promise<ThumbnailLook> {
+  const own = await foundThumbnail(o);
+  if (own && typeof own === "object") return own;
+  for (const other of among) {
+    if (other === o || (other.photoDigestB64 === o.photoDigestB64 && other.epochId === o.epochId && other.counter === o.counter)) continue;
+    const t = await foundThumbnail(other).catch(() => null);
+    if (t && typeof t === "object") return { ...t, from: other };
+  }
+  return own;
 }

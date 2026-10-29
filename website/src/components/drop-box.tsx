@@ -20,7 +20,7 @@
  * (project_ledger_read_honesty).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { verifyAttested, createVerificationContext } from "@mikeargento/bitgraph-verify";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
@@ -266,8 +266,9 @@ const proofHref = (o: Original) => `/proof/${toUrlSafe(o.photoDigestB64)}?counte
 /** copy: the row's own bytes, carried to the proof page it opens so that page shows the copy and its reference. */
 function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: Uint8Array } | null }) {
   const router = useRouter();
+  const all = useMemo(() => (v.verdict === "match" ? [{ original: v.original, score: v.score }, ...v.others] : []), [v]);
+  const originals = useMemo(() => all.map((m) => m.original), [all]);
   if (v.verdict !== "match") return null;
-  const all = [{ original: v.original, score: v.score }, ...v.others];
   const open = (o: Original) => {
     if (copy) setHeldCopy(toUrlSafe(o.photoDigestB64), { name: copy.name, data: copy.data.slice().buffer as ArrayBuffer, kind: "copy", score: all.find((m) => m.original === o)?.score ?? v.score, found: o, others: all.map((m) => m.original).filter((x) => x !== o) });
     router.push(proofHref(o));
@@ -278,7 +279,7 @@ function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: U
     return (
       <>
         <span className="db-ok">Looks like {link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}<SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
-        <span className="db-size db-wrap">Match {v.score.toFixed(2)} against the record bound beside the original. Its proof page proves the original file.</span>
+        <span className="db-size db-wrap">Matched against the record bound beside the original. Its proof page proves the original file.</span>
         <FoundThumb o={o} href={href} onOpen={() => open(o)} />
       </>
     );
@@ -290,12 +291,12 @@ function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: U
       <span className="db-ok">Looks like {all.length} bound originals</span>
       <span className="db-size db-wrap">The same picture, bound as different files; hosted originals first, then the earliest bound. Each proof page proves its own file.</span>
       <ul className="db-looks-list">
-        {all.map(({ original: o, score }) => {
+        {all.map(({ original: o }) => {
           const href = proofHref(o);
           return (
             <li key={`${o.photoDigestB64}/${o.epochId}/${o.counter}`}>
-              <span className="db-ok">{link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}<SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /> <span className="db-size">match {score.toFixed(2)}</span></span>
-              <FoundThumb o={o} href={href} onOpen={() => open(o)} />
+              <span className="db-ok">{link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}<SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
+              <FoundThumb o={o} href={href} onOpen={() => open(o)} among={originals} />
             </li>
           );
         })}
