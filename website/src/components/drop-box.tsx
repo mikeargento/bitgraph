@@ -268,6 +268,21 @@ function LooksLine({ v }: { v: LooksVerdict }) {
   );
 }
 
+/** A found photo's fingerprint record, published when its tree binds one: photos bound before Make published records
+ *  (2026-10-29) become findable by their looks the first time their original is checked. The record is computed from
+ *  the file in hand, looked up by its own hash (a member of a tree, or not), and the server checks it against the
+ *  tree before keeping it; a record already kept still gets its place in the find index. */
+async function publishFoundRecord(f: File, photoDigestB64: string) {
+  const img = await decodeForRecord(f);
+  if (!img) return;
+  const bytes = recordBytesOf(photoDigestB64, fingerprintOf(img));
+  const d = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource)));
+  const res = await fetch(`/api/proofs/${toUrlSafe(d)}`).catch(() => null);
+  const body = res?.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ kind?: string }> } | null) : null;
+  if (!body?.proofs?.some((p) => p.kind === "recorded")) return;
+  await publishRecord(bytes);
+}
+
 /** The earliest of a file's BitGraphs, by the enclave's signed time, then by count. */
 function earliestOf(entries: Array<{ proof: Proof; writeTime?: number | null }>): Proof | undefined {
   const when = (e: { proof: Proof; writeTime?: number | null }) => recordedMsOf(e.proof) ?? e.writeTime ?? Number.POSITIVE_INFINITY;
@@ -556,7 +571,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     let n = 0;
     await pool(originals, 8, async (f) => {
       const bytes = new Uint8Array(await f.arrayBuffer());
-      const d = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+      const d = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource)));
       const p = proofs.get(d);
       if (!p) st.noProof++;
       else { used.add(d); if (await check(p, bytes)) st.valid++; else st.invalid++; }
@@ -846,6 +861,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           }
           return end({ bytes, digestB64, state: "new" });
         }
+        // an original in hand: its record goes to the find index, so a copy of it can lead here (background; never waited for)
+        if (looksLikePhoto(f)) void publishFoundRecord(f, digestB64).catch(() => {});
         return end({ bytes, digestB64, state: "found", proof: first, valid: await check(first, bytes) });
       } catch {
         return end({ state: "error", note: "This browser could not read or check that file." });
