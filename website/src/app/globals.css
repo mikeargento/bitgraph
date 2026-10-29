@@ -5727,3 +5727,6 @@ html:root:root:root:root:root body main .pv-moment-title { font-size: 19px; marg
 html:root:root:root:root:root body main .pv-moment.is-accent .pv-moment-title { font-size: 22px; }
 html:root:root:root:root:root body main .pv-moment-title .pv-time-box { padding: 4px 10px !important; margin-left: -10px; }
 html:root:root:root:root:root body main .pv-moment-actions { margin-top: 12px; }
+/* The recorded instant: loud and big, no highlight (2026-10-29). */
+html:root:root:root:root:root body main .pv-moment.is-accent .pv-moment-title { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+html:root:root:root:root:root:root body main .pv-moment-title .pv-time-box { background: none !important; padding: 0 !important; margin: 0 !important; border-radius: 0 !important; }
