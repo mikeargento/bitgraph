@@ -39,7 +39,7 @@ const RELIEF = [
 
 const FITS = [
   { href: "/applications#c2pa", title: "Content Credentials", body: "Bind the asset and its manifest together: the credential gains an independent recording." },
-  { href: "/applications#watermark", title: "Watermark discovery", body: "The watermark finds the record; the original's bytes prove it." },
+  { href: "/applications#watermark", title: "Finding the original", body: "A copy finds the record, by watermark or by looks; the original's bytes prove it." },
   { href: "/applications#capture", title: "Trusted capture", body: "How it was captured, plus when its bytes were recorded." },
   { href: "/applications#ai", title: "AI agents and audit", body: "Two records bracket a run, every record between them in counted order." },
 ];

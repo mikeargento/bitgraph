@@ -7,7 +7,7 @@ import type { Metadata } from "next";
  */
 export const metadata: Metadata = {
   title: "Applications",
-  description: "Where BitGraph's recording step fits: Content Credentials, watermark discovery, trusted capture, asset registries, AI agents, software supply chains and research records.",
+  description: "Where BitGraph's recording step fits: Content Credentials, finding the original from a copy, trusted capture, asset registries, AI agents, software supply chains and research records.",
 };
 
 type Pattern = { id: string; label: string; title: string; today: string; adds: string; binds: string; evidence: string; live?: { href: string; text: string } };
@@ -22,11 +22,11 @@ const PATTERNS: Pattern[] = [
     live: { href: "/evaluate#e-ai", text: "a ChatGPT image and its OpenAI-signed credential, bound together and verifiable offline" },
   },
   {
-    id: "watermark", label: "Watermark discovery", title: "A watermark finds the record. The record proves the bytes.",
-    today: "An invisible watermark survives copies, crops and re-saves, and leads from a copy back to an identity or a database entry.",
-    adds: "The entry it leads to becomes a verifiable recording: the original's exact bytes and a perceptual fingerprint, bound together when the original was recorded. A watermark match says a copy looks like the original; the original's bytes are what prove it.",
-    binds: "The original's SHA-256 and a fingerprint record, in one tree. The watermark carries a pointer to that BitGraph.",
-    evidence: "The original's proof, reached from any copy the watermark survives in.",
+    id: "watermark", label: "Finding the original", title: "A copy finds the record. The record proves the bytes.",
+    today: "A watermark, or a perceptual search, leads from a copy back to an identity or a database entry: whatever the database says today.",
+    adds: "The entry becomes a verifiable recording: the original's exact bytes and a perceptual fingerprint, bound together when the original was recorded. A match, by watermark or by looks, says a copy resembles the original; the original's bytes are what prove it.",
+    binds: "The original's SHA-256 and a fingerprint record, in one tree. A watermark can carry a pointer to that BitGraph; the fingerprint lets a copy find it with no watermark at all.",
+    evidence: "The original's proof, reached from any copy that still looks like it.",
     live: { href: "/find", text: "Find matches a stripped copy to the original's bound record by its looks, with no watermark at all" },
   },
   {
