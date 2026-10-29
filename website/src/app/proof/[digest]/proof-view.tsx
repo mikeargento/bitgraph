@@ -387,7 +387,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   );
   const timeCard = (
     <>
-      {/* ── Where it sits in time: the Base floor, the recorded time, the Base write ── */}
+      {/* ── Where it sits in time: three moments, each a time; the Base block numbers live behind the Basescan links ── */}
       {showTime && (
         <section className="pv-card">
           <div className="pv-section-title">Where it sits in time</div>
@@ -395,8 +395,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {es && es.genesis && (
               <Moment
                 label="Epoch start"
-                title={<>This epoch opened on Base in block #{fmtNum(es.blockNumber)}<span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(es.blockTimestamp * 1000, attested)}</span></>}
-                note={<>The epoch&rsquo;s first BitGraph binds a Base transaction carrying the epoch&rsquo;s id. Every BitGraph in this epoch came after that block.</>}
+                title={whenBeside(es.blockTimestamp * 1000, attested)}
+                note={<>This epoch opened on Base with a transaction carrying its id. Every BitGraph in it came after that.</>}
               >
                 <Pill href={es.fileUrl} download="epoch-genesis.json">epoch-genesis.json</Pill>
                 <Pill href={`https://basescan.org/tx/${es.genesis.txHash}`} external>Basescan</Pill>
@@ -405,7 +405,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {es && !es.genesis && (
               <Moment
                 label="Epoch start"
-                title={<>This epoch began after Base block #{fmtNum(es.blockNumber)}<span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(es.blockTimestamp * 1000, attested)}</span></>}
+                title={whenBeside(es.blockTimestamp * 1000, attested)}
                 note={<>The epoch&rsquo;s first BitGraph: a read of the latest Base block, epoch-floor.json.</>}
               >
                 <Pill href={es.fileUrl} download="epoch-floor.json">epoch-floor.json</Pill>
@@ -415,8 +415,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {tf && (
               <Moment
                 label="Floor in time"
-                title={<>Bound after Base block #{fmtNum(tf.blockNumber)}<span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(tf.blockTimestamp * 1000, attested)}</span></>}
-                note={<>The latest Base block, read just before the bind and held in this file&rsquo;s tree.</>}
+                title={whenBeside(tf.blockTimestamp * 1000, attested)}
+                note={<>The latest Base block, read just before this BitGraph was recorded and held in this file&rsquo;s tree.</>}
               >
                 {/* The floor file rides in the proof itself (its tree entry), so it needs no download of its own. */}
                 <Pill href={`https://basescan.org/block/${tf.blockNumber}`} external>Basescan</Pill>
@@ -425,8 +425,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {fo && (
               <Moment
                 label="Floor BitGraph"
-                title={<>Binds Base block #{fmtNum(fo.floor.blockNumber)}<span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(fo.floor.blockTimestamp * 1000, attested)}</span></>}
-                note={<>A floor: its content is that block, read just before BitGraph #{fmtNum(fo.record.counter)} was bound at the next count.</>}
+                title={whenBeside(fo.floor.blockTimestamp * 1000, attested)}
+                note={<>A floor: the Base block read just before BitGraph #{fmtNum(fo.record.counter)} was recorded at the next count.</>}
               >
                 <Pill href={`/proof/${encodeURIComponent(safe(fo.record.digestB64))}?counter=${fo.record.counter}`}>BitGraph #{fmtNum(fo.record.counter)}</Pill>
                 <Pill href={`https://basescan.org/block/${fo.floor.blockNumber}`} external>Basescan</Pill>
@@ -435,8 +435,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {fl && (
               <Moment
                 label="Floor in time"
-                title={<>Bound after Base block #{fmtNum(fl.blockNumber)}<span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(fl.blockTimestamp * 1000, attested)}</span></>}
-                note={<>Set by BitGraph #{fmtNum(fl.bitgraph.counter)}, which bound that block earlier in the same epoch, before this record.</>}
+                title={whenBeside(fl.blockTimestamp * 1000, attested)}
+                note={<>The latest Base block read by BitGraph #{fmtNum(fl.bitgraph.counter)}, earlier in the same epoch, before this record.</>}
               >
                 <Pill href={`/proof/${encodeURIComponent(safe(fl.bitgraph.digestB64))}?counter=${fl.bitgraph.counter}`}>BitGraph #{fmtNum(fl.bitgraph.counter)}</Pill>
                 <Pill href={`https://basescan.org/block/${fl.blockNumber}`} external>Basescan</Pill>
@@ -445,8 +445,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {!fl && bf && (
               <Moment
                 label="Floor in time"
-                title={<>Bound after Base block #{fmtNum(bf.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(floorMs, attested)}</span> : null}</>}
-                note="The latest Base block when the enclave made this BitGraph, signed into the proof."
+                title={floorMs !== null ? whenBeside(floorMs, attested) : <span className="pv-moment-dim">After a Base block</span>}
+                note="The latest Base block when the enclave recorded this BitGraph, signed into the proof."
               >
                 <Pill href={`https://basescan.org/block/${bf.blockNumber}`} external>Basescan</Pill>
               </Moment>
@@ -454,7 +454,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {!fl && ef && (
               <Moment
                 label="Floor in time"
-                title={<>Bound after Ethereum block #{fmtNum(ef.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(floorMs, attested)}</span> : null}</>}
+                title={floorMs !== null ? whenBeside(floorMs, attested) : <span className="pv-moment-dim">After an Ethereum block</span>}
                 note="The Ethereum block the enclave fixed when this position opened, signed into the proof."
               >
                 {ef.etherscanUrl && <Pill href={ef.etherscanUrl} external>Etherscan</Pill>}
@@ -462,17 +462,17 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             )}
             {attested !== null && (
               <Moment
-                label="Bound"
-                title={<><span className="pv-time-box">{whenBeside(attested, floorMs)}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor block</span> : null}</>}
-                note="The instant of the bind, by the enclave's signed clock."
+                label="Recorded"
+                title={<><span className="pv-time-box">{whenBeside(attested, floorMs)}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor</span> : null}</>}
+                note="The instant this BitGraph was recorded, by the enclave's signed clock."
                 accent
               />
             )}
             {ct && ct.anchor && ctMs !== null && (
               <Moment
                 label="Ceiling in time"
-                title={<>Written to Base in block #{fmtNum(ct.anchor.blockNumber)}{ctStampOk ? <span className="pv-moment-dim"><span className="pv-sep"> · </span>{whenBeside(ctMs, attested)}</span> : null}</>}
-                note="This proof's hash is in that block on Base."
+                title={ctStampOk ? whenBeside(ctMs, attested) : <span className="pv-moment-dim">Written to Base</span>}
+                note="This proof's hash was written to Base by then."
               >
                 <Pill href={`https://basescan.org/tx/${ct.anchor.txHash}`} external>Basescan</Pill>
               </Moment>
