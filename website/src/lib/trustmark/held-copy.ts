@@ -1,13 +1,16 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
+import type { Original } from "./check.ts";
+
 /**
  * A copy of a photo (its BitGraphed file, a screenshot, a feed's copy) whose hidden pointer led to the photo's page,
  * handed to that page so it can show the copy in its file pane, labelled for what it is. Held in a module slot, which
  * survives the client-side navigation (as lib/fresh-proof does); read once.
  */
 
-/** tag: the pointer's tag the copy carries, which opens the original's published thumbnail and credentials on its page. */
-export type HeldCopy = { name: string; data: ArrayBuffer; kind: "bitgraphed" | "copy"; score: number; tag?: number };
+/** tag: the pointer's tag the copy carries, which opens the original's published thumbnail and credentials on its page.
+ *  found: the original a copy was matched to by its looks (check.ts), which opens the same. */
+export type HeldCopy = { name: string; data: ArrayBuffer; kind: "bitgraphed" | "copy"; score: number; tag?: number; found?: Original };
 
 let slot: { digest: string; copy: HeldCopy } | null = null;
 

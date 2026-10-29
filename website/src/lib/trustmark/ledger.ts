@@ -62,8 +62,10 @@ export type Published = { recordB64: string; proof: Proof; c2paB64?: string; c2p
 /** Every published record the pointer (eref, counter, tag) could mean. The tag is required: a record, with its thumbnail
  *  and credentials, opens only to someone holding the picture (its pointer, or the original's fingerprint), never to a
  *  position read off the ledger. Unchecked: the caller verifies each. */
-export async function candidates(eref: number, counter: number, tag: number): Promise<Published[]> {
-  const res = await fetch(`/api/trustmark/records?eref=${eref}&counter=${counter}&tag=${tag}`).catch(() => null);
+export async function candidates(eref: number, counter: number, tag: number, one?: { epochId: string; recordDigestB64: string }): Promise<Published[]> {
+  const safe = (b: string) => b.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const at = one ? `&epoch=${safe(one.epochId)}&record=${safe(one.recordDigestB64)}` : "";
+  const res = await fetch(`/api/trustmark/records?eref=${eref}&counter=${counter}&tag=${tag}${at}`).catch(() => null);
   if (!res?.ok) return [];
   const body = (await res.json().catch(() => null)) as { entries?: Published[] } | null;
   return (body?.entries ?? []).filter((e) => typeof e?.recordB64 === "string" && e.proof && typeof e.proof === "object");
@@ -73,14 +75,33 @@ export async function candidates(eref: number, counter: number, tag: number): Pr
  *  (2026-10-29) become findable by their looks the first time their original is checked, on Check or on its own proof
  *  page. The record is computed from the file in hand, looked up by its own hash, and the server checks it against the
  *  tree before keeping it; a record already kept still gets its place in the find index. */
-export async function publishFoundRecord(f: Blob, photoDigestB64: string): Promise<void> {
+export async function publishFoundRecord(f: Blob, photoDigestB64: string, name = "photo"): Promise<void> {
   const { decodeForRecord, fingerprintOf, recordBytesOf } = await import("./record");
   const img = await decodeForRecord(f);
   if (!img) return;
-  const bytes = recordBytesOf(photoDigestB64, fingerprintOf(img));
-  const d = (await digestB64(bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const fp = fingerprintOf(img), bytes = recordBytesOf(photoDigestB64, fp);
+  const recordDigest = await digestB64(bytes);
+  const d = recordDigest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const res = await fetch(`/api/proofs/${d}`).catch(() => null);
-  const body = res?.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ kind?: string }> } | null) : null;
-  if (!body?.proofs?.some((p) => p.kind === "recorded")) return;
-  await publishRecord(bytes);
+  const body = res?.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ kind?: string; proof: Proof }> } | null) : null;
+  const mine = body?.proofs?.find((p) => p.kind === "recorded")?.proof;
+  if (!mine) return;
+  // The reference thumbnail (thumb.ts): a photo bound before thumbnails were (2026-10-29) gets one now, bound as its
+  // own BitGraph, since only a bound thumbnail can be checked. Published once: a record that already carries one is left.
+  const epochId = String(mine.commit?.epochId ?? ""), counter = Number(mine.commit?.counter), nonce = String((mine.commit as { nonceB64?: unknown } | undefined)?.nonceB64 ?? "");
+  let thumb: Uint8Array | null = null;
+  if (epochId && Number.isSafeInteger(counter) && nonce) {
+    const { epochRef, tag } = await import("./payload");
+    const eref = await epochRef(epochId);
+    const had = await candidates(eref, counter, await tag(nonce, fp.phash, eref, counter), { epochId, recordDigestB64: recordDigest });
+    if (!had.some((c) => typeof c.thumbB64 === "string")) {
+      const { makeThumb, THUMB_SUFFIX } = await import("./thumb");
+      thumb = await makeThumb(f).catch(() => null);
+      if (thumb) {
+        const { bindFile } = await import("@/lib/bind-file");
+        try { await bindFile(`${name}${THUMB_SUFFIX}`, thumb, "image/jpeg"); } catch { thumb = null; }
+      }
+    }
+  }
+  await publishRecord(bytes, null, thumb);
 }

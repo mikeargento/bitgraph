@@ -1,7 +1,8 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 import { NextResponse } from "next/server";
-import { findKey, getObjectText, getProofsByDigest, ledgerWritesOn, listKeysUnderPrefix, putFindKeyOnce, putTrustmarkRecordOnce, trustmarkRecordKey, trustmarkRecordPrefix, LedgerUnavailableError } from "@/lib/s3";
+import { findKey, getObjectText, getProofsByDigest, ledgerWritesOn, listKeysUnderPrefix, putFindKeyOnce, putTrustmarkRecord, putTrustmarkRecordOnce, trustmarkRecordKey, trustmarkRecordPrefix, LedgerUnavailableError } from "@/lib/s3";
+import { fromUrlSafeB64 } from "@/lib/explorer";
 import { checkMember, memberOf } from "@/lib/tree-member";
 import { epochRef, MAX_COUNTER, tag as tagOf, TAG_BITS } from "@/lib/trustmark/payload";
 import { parseRecord } from "@/lib/trustmark/record";
@@ -73,7 +74,14 @@ export async function POST(req: Request) {
       thumb = { thumbB64: body.thumbB64, thumbProof: at.proof };
     }
     const eref = await epochRef(epochId);
-    const written = await putTrustmarkRecordOnce(trustmarkRecordKey(eref, counter, epochId, recordDigest), JSON.stringify({ format: "bitgraph-trustmark-published/1", recordB64: body.recordB64, proof: mine.proof, ...(c2pa ?? {}), ...(thumb ?? {}) }, null, 1));
+    const key = trustmarkRecordKey(eref, counter, epochId, recordDigest);
+    let written = await putTrustmarkRecordOnce(key, JSON.stringify({ format: "bitgraph-trustmark-published/1", recordB64: body.recordB64, proof: mine.proof, ...(c2pa ?? {}), ...(thumb ?? {}) }, null, 1));
+    // A record published before thumbnails were bound (2026-10-29) takes one later, once: the thumbnail checked above.
+    if (!written && thumb) {
+      let prev: Record<string, unknown> | null = null;
+      try { const t = await getObjectText(key); prev = t ? (JSON.parse(t) as Record<string, unknown>) : null; } catch { prev = null; }
+      if (prev && typeof prev.thumbB64 !== "string") { await putTrustmarkRecord(key, JSON.stringify({ ...prev, ...thumb }, null, 1)); written = true; }
+    }
     // and its pHash in the find index (app/api/find), so a stripped copy can reach this record by what it looks like
     await putFindKeyOnce(findKey(record.phash, eref, counter, epochId, recordDigest));
     forgetFindIndex();
@@ -85,8 +93,9 @@ export async function POST(req: Request) {
 }
 
 /**
- * GET /api/trustmark/records?eref=&counter=&tag=: the published records a TrustMark's pointer means, each with the
- * proof that binds it. The tag is required and must fit each record (from its BitGraph's nonce and the photo's bound
+ * GET /api/trustmark/records?eref=&counter=&tag=[&epoch=&record=]: the published records a TrustMark's pointer means, each with the
+ * proof that binds it. With epoch and record (url-safe, from a find), the one record is read by its key and no
+ * listing is made: a tree's photos all sit at one position, more than a listing page holds. The tag is required and must fit each record (from its BitGraph's nonce and the photo's bound
  * pHash): a record carries a thumbnail and Content Credentials, so it opens only to someone holding the picture (its
  * pointer, or the original itself), never to a position read off the ledger. The reader still checks each itself
  * (the record's place in the tree, the proof); different epochs can share an epochRef.
@@ -99,7 +108,9 @@ export async function GET(req: Request) {
   }
   if (!q.get("tag") || !Number.isSafeInteger(want) || want < 0 || want >= 2 ** TAG_BITS) return NextResponse.json({ error: "tag is required" }, { status: 400 });
   try {
-    const keys = (await listKeysUnderPrefix(trustmarkRecordPrefix(eref, counter), MAX_CANDIDATES)).slice(0, MAX_CANDIDATES);
+    const epochId = fromUrlSafeB64(q.get("epoch") ?? ""), recordDigest = fromUrlSafeB64(q.get("record") ?? "");
+    const keys = epochId && recordDigest ? [trustmarkRecordKey(eref, counter, epochId, recordDigest)]
+      : (await listKeysUnderPrefix(trustmarkRecordPrefix(eref, counter), MAX_CANDIDATES)).slice(0, MAX_CANDIDATES);
     const all = (await Promise.all(keys.map(async (k) => { const t = await getObjectText(k); try { return t ? JSON.parse(t) : null; } catch { return null; } }))).filter(Boolean) as Array<{ recordB64?: string; proof?: { commit?: { nonceB64?: string } } }>;
     const fits = await Promise.all(all.map(async (e) => {
       const rec = typeof e.recordB64 === "string" ? parseRecord(new Uint8Array(Buffer.from(e.recordB64, "base64"))) : null;

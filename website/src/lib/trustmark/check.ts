@@ -21,12 +21,13 @@ import { align, MATCH } from "./align.ts";
 import { candidates as rectangles, cropRGBA } from "./locate.ts";
 import { fingerprintOf, type Decoded } from "./record.ts";
 
-export type Original = { counter: number; epochId: string; photoDigestB64: string };
+/** phash and recordDigestB64: the record that matched, which opens the bound reference thumbnail (bound-thumbnail.ts). */
+export type Original = { counter: number; epochId: string; photoDigestB64: string; phash: string; recordDigestB64: string };
 export type LooksVerdict =
   | { verdict: "none" }
   | { verdict: "match"; original: Original; score: number };
 
-type Candidate = { distance: number; phash: string; photo: string; counter: string; epoch: string; values: string };
+type Candidate = { distance: number; phash: string; photo: string; counter: string; epoch: string; record: string; values: string };
 const fromUrlSafe = (s: string) => { const t = s.replace(/-/g, "+").replace(/_/g, "/"); return t + "=".repeat((4 - (t.length % 4)) % 4); };
 
 /** Rectangles of a framed screenshot tried after the whole picture, each one lookup on the server. */
@@ -43,7 +44,7 @@ async function judgeOne(img: Decoded, seen: Map<string, Promise<Candidate[]>>): 
   for (const c of await fetched) {
     const { score } = align(img.rgba, img.w, img.h, c.values);
     if (score >= MATCH && (best.verdict === "none" || score > best.score)) {
-      best = { verdict: "match", score, original: { counter: Number(c.counter), epochId: fromUrlSafe(c.epoch), photoDigestB64: c.photo } };
+      best = { verdict: "match", score, original: { counter: Number(c.counter), epochId: fromUrlSafe(c.epoch), photoDigestB64: c.photo, phash: c.phash, recordDigestB64: fromUrlSafe(c.record) } };
     }
   }
   return best;

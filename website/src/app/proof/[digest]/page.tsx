@@ -27,7 +27,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { GalleryBar } from "@/components/gallery";
-import { boundThumbnail, type BoundThumbnail } from "@/lib/trustmark/bound-thumbnail";
+import { boundThumbnail, foundThumbnail, type BoundThumbnail } from "@/lib/trustmark/bound-thumbnail";
 import { redrawRecordedArt } from "@/lib/art-position";
 import { ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, ART_ALGORITHM_V19, toBase64Url, type ArtRecipe } from "@/lib/commitment-art";
 import { planV16, svgFromPngV16, svgTextV16 } from "@/lib/commitment-art-v16";
@@ -661,14 +661,18 @@ export default function ProofPage() {
   // A visitor with nothing in hand sees no picture: a visual only for those who already hold one.
   // undefined while the check runs: the file pane waits for it, so the full find-the-file box never flashes first
   const [boundThumb, setBoundThumb] = useState<BoundThumbnail | null | undefined>(undefined);
+  // A copy found by its looks (check.ts) opens the reference the same way, by the record it matched, at whichever of
+  // the photo's positions published it.
+  const foundAt = heldCopy?.found;
   useEffect(() => {
     const tag = heldCopy?.tag;
-    if (!proof || !atomicCarrier || cachedFile || tag === undefined) { setBoundThumb(null); return; }
+    if (!proof || cachedFile || (tag === undefined && !foundAt) || (tag !== undefined && !atomicCarrier && !foundAt)) { setBoundThumb(null); return; }
     let gone = false, url: string | null = null;
     setBoundThumb(undefined);
-    void boundThumbnail(proof as never, tag).then((t) => { if (gone) { if (t) URL.revokeObjectURL(t.url); return; } url = t?.url ?? null; setBoundThumb(t); }).catch(() => { if (!gone) setBoundThumb(null); });
+    const look = foundAt ? foundThumbnail(foundAt) : boundThumbnail(proof as never, tag!);
+    void look.then((t) => { if (gone) { if (t) URL.revokeObjectURL(t.url); return; } url = t?.url ?? null; setBoundThumb(t); }).catch(() => { if (!gone) setBoundThumb(null); });
     return () => { gone = true; if (url) URL.revokeObjectURL(url); };
-  }, [proof, atomicCarrier, cachedFile, heldCopy?.tag]);
+  }, [proof, atomicCarrier, cachedFile, heldCopy?.tag, foundAt]);
   const [copyOf, setCopyOf] = useState<ReturnType<typeof copyOfNote>>(null);
   useEffect(() => { setCopyOf(copyOfNote(digestParam)); }, [digestParam]);
   // Every BitGraph of this file's exact bytes, oldest first: the same file bound again is listed, never merged, and the
@@ -2276,7 +2280,7 @@ export default function ProofPage() {
             // thumbnail, when its BitGraphed file published one), and the visitor already holds their own file.
             boundThumb === undefined ? null : (
               <div className="pv-pane-in">
-                {boundThumb && <BoundThumbView t={boundThumb} caption="Reference thumbnail" />}
+                {boundThumb && <BoundThumbView t={boundThumb} caption="The reference this BitGraph bound. You hold a copy; only the original’s exact bytes prove it." />}
                 {/* The same find-the-file box as every proof page: the original is what proves the photo. */}
                 <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} compact />
               </div>
@@ -2900,7 +2904,7 @@ function BringYourFile({
     if (own && treeMemberOf(proof as never) && checkTreeMember(proof as never, cacheKey)) {
       await accept(own);
       // the original in hand: its fingerprint record joins the find index, so copies of it lead here (catch-up for photos bound before 2026-10-29)
-      if (looksLikePhoto(own)) void publishFoundRecord(own, cacheKey).catch(() => {});
+      if (looksLikePhoto(own)) void publishFoundRecord(own, cacheKey, own.name).catch(() => {});
       return true;
     }
     for (const d of [...seen.keys()].slice(0, 50)) {
@@ -2921,7 +2925,7 @@ function BringYourFile({
     // the copy is shown in the photo's own file pane, labelled for what it is: on the tree's page, that page opens with it
     const wrapped = carriers.has(files[0]!);
     // a BitGraphed file keeps its own name (the file inside it was named without the .bitgraph)
-    const held: HeldCopy = { name: wrapped ? files[0]!.name.replace(/(\.[^.]+)?$/, ".bitgraph$1") : files[0]!.name, data: await files[0]!.arrayBuffer(), kind: wrapped ? "bitgraphed" : "copy", score: v.score };
+    const held: HeldCopy = { name: wrapped ? files[0]!.name.replace(/(\.[^.]+)?$/, ".bitgraph$1") : files[0]!.name, data: await files[0]!.arrayBuffer(), kind: wrapped ? "bitgraphed" : "copy", score: v.score, found: v.original };
     if (v.original.photoDigestB64 !== cacheKey) {
       setHeldCopy(toUrlSafeB64(v.original.photoDigestB64), held);
       router.push(pageOf(v.original.photoDigestB64));

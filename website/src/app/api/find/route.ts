@@ -51,7 +51,7 @@ export async function GET(req: Request) {
       let published: { recordB64?: unknown } | null = null;
       try { published = text ? JSON.parse(text) : null; } catch { return null; }
       const rec = typeof published?.recordB64 === "string" ? parseRecord(new Uint8Array(Buffer.from(published.recordB64, "base64"))) : null;
-      return rec ? { distance: e.distance, phash: rec.phash, photo: rec.photo, counter: String(e.counter), epoch: e.epochSafe, values: rec.blocks.values } : null;
+      return rec ? { distance: e.distance, phash: rec.phash, photo: rec.photo, counter: String(e.counter), epoch: e.epochSafe, record: e.recordSafe, values: rec.blocks.values } : null;
     }))).filter(Boolean);
     return NextResponse.json({ candidates }, { headers: { "cache-control": "no-store" } });
   } catch (e) {

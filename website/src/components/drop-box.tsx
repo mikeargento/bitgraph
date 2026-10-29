@@ -33,6 +33,8 @@ import { parseCarrier } from "@/lib/carrier";
 import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
 import { publishFoundRecord, publishRecord } from "@/lib/trustmark/ledger";
+import { makeThumb, THUMB_SUFFIX } from "@/lib/trustmark/thumb";
+import { FoundThumb } from "@/components/found-thumb";
 import { SourceHint } from "@/components/source-link";
 import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
 import { judge as judgeLooks, type LooksVerdict } from "@/lib/trustmark/check";
@@ -219,11 +221,11 @@ async function unwrapBitGraphed(files: File[]): Promise<File[]> {
  *  once that is known (fingerprintRecords). */
 // The browser decodes photos off the page's thread, so several run side by side; eight at once was no faster than four.
 const PRINTS_AT_ONCE = 4;
-type PhotoPrint = { name: string; index: number; fp: Fingerprint; store: Uint8Array | null };
+type PhotoPrint = { name: string; index: number; fp: Fingerprint; store: Uint8Array | null; thumb: Uint8Array | null };
 async function photoPrints(files: File[], onProgress?: (n: number, of: number) => void): Promise<PhotoPrint[]> {
   const names = new Set(files.map((f) => f.webkitRelativePath || f.name));
   const photos = files.map((f, index) => ({ f, index, name: f.webkitRelativePath || f.name }))
-    .filter((p) => looksLikePhoto(p.f) && !p.name.endsWith(RECORD_SUFFIX) && !names.has(`${p.name}${RECORD_SUFFIX}`));
+    .filter((p) => looksLikePhoto(p.f) && !p.name.endsWith(RECORD_SUFFIX) && !p.name.endsWith(THUMB_SUFFIX) && !names.has(`${p.name}${RECORD_SUFFIX}`));
   if (photos.length === 0 || photos.length > MAX_FINGERPRINTED) return [];
   // several photos at a time, each decoded straight to the fingerprint's size; the prints keep the drop's order
   const each: Array<PhotoPrint | null> = new Array(photos.length).fill(null);
@@ -234,7 +236,9 @@ async function photoPrints(files: File[], onProgress?: (n: number, of: number) =
     if (img && isPhotographic(img)) {
       // its Content Credentials, when it carries them, go beside it (lib/trustmark/c2pa-leaf.ts)
       const store = manifestStoreOf(new Uint8Array(await p.f.arrayBuffer()));
-      each[i] = { name: p.name, index: p.index, fp: fingerprintOf(img), store: store && store.length <= MAX_MANIFEST_BYTES ? store : null };
+      // and its reference thumbnail (lib/trustmark/thumb.ts), bound beside it and published with the record
+      const thumb = await makeThumb(p.f).catch(() => null);
+      each[i] = { name: p.name, index: p.index, fp: fingerprintOf(img), store: store && store.length <= MAX_MANIFEST_BYTES ? store : null, thumb };
     }
     n++;
     if (onProgress && (n % 10 === 0 || n === photos.length)) onProgress(n, photos.length);
@@ -242,17 +246,18 @@ async function photoPrints(files: File[], onProgress?: (n: number, of: number) =
   return each.filter((x): x is PhotoPrint => x !== null);
 }
 /** The record files of a drop's photos, each with its photo's SHA-256 from the drop's leaves, as tree leaves. */
-async function fingerprintRecords(prints: PhotoPrint[], leaves: Array<[string, string, string]>): Promise<{ leaves: Array<[string, string, string]>; records: Uint8Array[] }> {
+async function fingerprintRecords(prints: PhotoPrint[], leaves: Array<[string, string, string]>): Promise<{ leaves: Array<[string, string, string]>; records: Uint8Array[]; thumbs: Array<Uint8Array | null> }> {
   const made: Array<{ file: File; name: string }> = [];
-  const records: Uint8Array[] = [];
+  const records: Uint8Array[] = [], thumbs: Array<Uint8Array | null> = [];
   for (const p of prints) {
     const bytes = recordBytesOf(leaves[p.index]![2], p.fp);
-    records.push(bytes);
+    records.push(bytes); thumbs.push(p.thumb);
     made.push({ file: recordFile(p.name, bytes), name: `${p.name}${RECORD_SUFFIX}` });
+    if (p.thumb) made.push({ file: new File([p.thumb as BlobPart], `${p.name}${THUMB_SUFFIX}`, { type: "image/jpeg" }), name: `${p.name}${THUMB_SUFFIX}` });
     if (p.store) made.push({ file: new File([p.store as BlobPart], `${p.name}${C2PA_SUFFIX}`, { type: "application/c2pa" }), name: `${p.name}${C2PA_SUFFIX}` });
   }
   // the leaf's name is the photo's path in the drop plus the suffix (a File's own name cannot hold the path)
-  return { leaves: (await hashLeaves(made.map((m) => m.file))).map((l, i) => [made[i]!.name, l[1], l[2]]), records };
+  return { leaves: (await hashLeaves(made.map((m) => m.file))).map((l, i) => [made[i]!.name, l[1], l[2]]), records, thumbs };
 }
 
 /** A photo whose pixels carry a hidden pointer (a TrustMark): the BitGraph it points to, and, quietly, how closely
@@ -265,6 +270,7 @@ function LooksLine({ v }: { v: LooksVerdict }) {
     <>
       <span className="db-ok">Looks like <a href={href}>BitGraph #{n}</a><SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
       <span className="db-size">Match {v.score.toFixed(2)} against the record bound beside the original. Its proof page proves the original file.</span>
+      <FoundThumb o={o} href={href} />
     </>
   );
 }
@@ -595,7 +601,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           : hashLeaves(files, (n) => { hashed = n; say(); }),
         list ? Promise.resolve([] as PhotoPrint[]) : photoPrints(files, (n, of) => { printed = n; printing = of; say(); }),
       ]);
-      const fp = prints.length ? await fingerprintRecords(prints, dropped) : { leaves: [], records: [] };
+      const fp = prints.length ? await fingerprintRecords(prints, dropped) : { leaves: [], records: [], thumbs: [] };
       const leaves = fp.leaves.length ? [...dropped, ...fp.leaves] : dropped;
       // Files sorted by path, so the same folder always makes the same tree around its floor (2026-10-20).
       const fileLeaves = sortedLeaves(leaves);
@@ -668,7 +674,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       if (fp.records.length) void indexed.then(async (ok) => {
         if (!ok) return;
         let next = 0;
-        await Promise.all(Array.from({ length: 3 }, async () => { while (next < fp.records.length) await publishRecord(fp.records[next++]!).catch(() => false); }));
+        await Promise.all(Array.from({ length: 3 }, async () => { while (next < fp.records.length) { const i = next++; await publishRecord(fp.records[i]!, null, fp.thumbs[i]).catch(() => false); } }));
       });
       /* One file opens its own proof page, as a plain drop always has: its tree is two leaves (the floor and the file), so
          its index is written in a moment; the page opens with the proof in hand either way. */
@@ -849,7 +855,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           return end({ bytes, digestB64, state: "new" });
         }
         // an original in hand: its record goes to the find index, so a copy of it can lead here (background; never waited for)
-        if (looksLikePhoto(f)) void publishFoundRecord(f, digestB64).catch(() => {});
+        if (looksLikePhoto(f)) void publishFoundRecord(f, digestB64, f.name).catch(() => {});
         return end({ bytes, digestB64, state: "found", proof: first, valid: await check(first, bytes) });
       } catch {
         return end({ state: "error", note: "This browser could not read or check that file." });

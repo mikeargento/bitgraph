@@ -1307,6 +1307,11 @@ export async function putFindKeyOnce(key: string): Promise<boolean> {
 }
 
 /** Write a published record once; false when it is already there. */
+/** Rewrite a published record: only app/api/trustmark/records does this, to add a thumbnail to a record published without one. */
+export async function putTrustmarkRecord(key: string, body: string): Promise<void> {
+  if (!ledgerWritesOn()) return;
+  await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: key, Body: body, ContentType: "application/json" }));
+}
 export async function putTrustmarkRecordOnce(key: string, body: string): Promise<boolean> {
   if (!ledgerWritesOn()) return false;
   try {
