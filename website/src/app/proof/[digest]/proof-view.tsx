@@ -122,7 +122,6 @@ export interface ProofViewModel {
   /** The file pane: the preview, the drop box, or for an anchor the block row. */
   filePane: ReactNode;
   /** The hosted original (components/source-link): the line in the strip for everyone, and the holder's field under the pane. */
-  sourceLine?: ReactNode;
   sourceField?: ReactNode;
   /** The shown photo at full size, opened in a new tab beside the downloads. */
   openUrl?: string | null;
@@ -533,15 +532,15 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {/* The time card first (2026-10-29): the BitGraph's name and the instant it was made, then the content it covers. */}
         {timeCard}
         <section className="pv-card pv-photo">
-          <div className="pv-photo-strip">
-            {/* The name leads only when no time card names it above; a proof that fails says so in its place, never folded away. */}
-            {!showTime && <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>}
-            {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
-            {/* No time or creator here (2026-10-29): this is the content card; the time card above says when, and the
-                Content Credentials card below says who. */}
-            {/* A failure or a wait gets its own card below; a pass says nothing here, the checks card tallies it. */}
-            {m.sourceLine}
-          </div>
+          {/* The content card (2026-10-29): the picture or file and its buttons. The time card above says when, the
+              Content Credentials card below says who; the name leads here only when no time card names it, and a
+              proof that fails says so in its place, never folded away. */}
+          {(!showTime || (c.state === "done" && c.verdict === "FALSE")) && (
+            <div className="pv-photo-strip">
+              {!showTime && <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>}
+              {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
+            </div>
+          )}
           {m.filePane}
           {m.sourceField}
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}

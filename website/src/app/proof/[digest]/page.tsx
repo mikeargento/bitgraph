@@ -77,7 +77,7 @@ import { publishFoundRecord } from "@/lib/trustmark/ledger";
 import type { Original } from "@/lib/trustmark/check";
 import { forgetHeldCopy, recallHeldCopy, setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
-import { SourceField, SourceLine, noteDropUrl } from "@/components/source-link";
+import { SourceField, noteDropUrl } from "@/components/source-link";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
 import { parseRecord } from "@/lib/trustmark/record";
 import { epochRef } from "@/lib/trustmark/payload";
@@ -2534,7 +2534,7 @@ export default function ProofPage() {
             // server admits only bytes that hash to the digest), and a holder of the original may change it
             ...(kind === "file" && commit?.epochId && commit?.counter ? (() => {
               const pos = { digest: stdDigest(digestParam), epoch: String(commit.epochId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), counter: String(commit.counter) };
-              return { sourceLine: <SourceLine {...pos} />, sourceField: heldCopy ? null : <SourceField pos={pos} file={cachedFile && !hostedOriginal ? cachedFile : undefined} /> };
+              return { sourceField: heldCopy ? null : <SourceField pos={pos} file={cachedFile && !hostedOriginal ? cachedFile : undefined} original={!!cachedFile} /> };
             })() : {}),
             bindings: bindings?.map((b) => ({ ...b, current: b.counter === Number(proof?.commit?.counter) && b.epochId === String(proof?.commit?.epochId ?? "") })) ?? [],
             droppedCopy,

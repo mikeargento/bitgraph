@@ -5730,3 +5730,6 @@ html:root:root:root:root:root:root:root:root:root body main .pv-moment-title .pv
 html:root:root:root:root:root body main .pv-moment-actions { margin-top: 12px; }
 /* The recorded instant first (2026-10-29): the claim, then the floor and ceiling that bound it. */
 .pv-moment.is-accent { order: -1; }
+
+/* The source bar under the picture (2026-10-29): buttons in the shared row; the host credited quietly. */
+html:root:root:root:root:root body main .pv-source-credit { margin: 8px 0 0; font-size: 14px; color: var(--dim); }

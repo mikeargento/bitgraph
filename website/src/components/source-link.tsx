@@ -8,11 +8,11 @@ import { relativeTime } from "@/lib/explorer";
 /**
  * A hosted original on a proof page (2026-10-29): where the holder keeps the exact file, so anyone who finds the record
  * can fetch the bytes and run the proof. Three pieces, all over app/api/sources:
- *   SourceLine    in the strip, for everyone: the host to credit, when the bytes were last seen to match, and a
- *                 download that comes through our hash and is hashed again here before it is saved.
- *   SourceField   under the file pane, for anyone while no hosted copy is known, since the server admits a link only
- *                 after it fetches the file and finds it hashes to the bound digest; a holder of the original (the page
- *                 has matched their file) can also change a link that is already there. Paste or drop the link.
+ *   SourceField   under the picture, one row of buttons: Download original (only when the page shows the original;
+ *                 the bytes come through our hash and are hashed again here before they are saved), Link original
+ *                 while no link exists (anyone may offer one, since the server admits a link only after it fetches the
+ *                 file and finds it hashes to the bound digest), Change the link for a holder of the exact bytes. The
+ *                 host is credited in a quiet line under the row.
  *   SourceHint    on a Check row for a copy: "original available".
  * A link dragged in with the file (an image from a page, a public bucket address) fills the field by itself.
  */
@@ -45,11 +45,11 @@ function useSource(pos: Pos) {
   return { source, note };
 }
 
-export function SourceLine(pos: Pos) {
-  const { source } = useSource(pos);
+/** Under the picture, in the Original state only: the download button, and the host credited in a quiet line. */
+function useDownload(pos: Pos, source: Source | null | undefined) {
   const [dl, setDl] = useState<{ state: "idle" } | { state: "fetching"; got: number } | { state: "hashing" } | { state: "ok" } | { state: "bad"; why: string }>({ state: "idle" });
-  if (!source) return null;
   const download = async () => {
+    if (!source) return;
     setDl({ state: "fetching", got: 0 });
     try {
       const r = await fetch(`/api/sources/download?${q(pos)}`);
@@ -67,23 +67,17 @@ export function SourceLine(pos: Pos) {
       setDl({ state: "ok" });
     } catch (e) { setDl({ state: "bad", why: (e as Error).message }); }
   };
-  return (
-    <div className="pv-source">
-      <span><strong>Original</strong> online at {source.host} · checked {relativeTime(source.verifiedAt)}</span>
-      <button type="button" className="pv-source-dl" onClick={() => void download()} disabled={dl.state === "fetching" || dl.state === "hashing"}>
-        {dl.state === "fetching" ? `Fetching… ${mb(dl.got)} of ${mb(source.bytes)}` : dl.state === "hashing" ? "Checking…" : `Download original (${mb(source.bytes)})`}
-      </button>
-      {dl.state === "bad" && <span className="pv-source-bad">Download stopped: {dl.why}.</span>}
-    </div>
-  );
+  const label = !source ? "" : dl.state === "fetching" ? `Fetching… ${mb(dl.got)} of ${mb(source.bytes)}` : dl.state === "hashing" ? "Checking…" : `Download original (${mb(source.bytes)})`;
+  return { dl, download, label, busy: dl.state === "fetching" || dl.state === "hashing" };
 }
 
 export type Among = Pos[];
 /** `file` is the holder's file when the page has matched one to the bound digest; without it, the field only offers to
  *  add a first link. `among`: the other BitGraphs of the same picture (a copy matched several); a link whose bytes are
  *  one of theirs lands there, and `onLanded` is told where. `bare`: the form alone, opened by its parent. */
-export function SourceField({ pos, file, among, onLanded, bare }: { pos: Pos; file?: { name: string; data: ArrayBuffer }; among?: Among; onLanded?: (at: Pos) => void; bare?: boolean }) {
+export function SourceField({ pos, file, among, onLanded, bare, original }: { pos: Pos; file?: { name: string; data: ArrayBuffer }; among?: Among; onLanded?: (at: Pos) => void; bare?: boolean; original?: boolean }) {
   const { source } = useSource(pos);
+  const { dl, download, label: dlLabel, busy } = useDownload(pos, source);
   const [hashedFile, setHashedFile] = useState<{ file: object; holds: boolean } | null>(null);
   const holds = !!file && hashedFile?.file === file && hashedFile.holds;
   const [url, setUrl] = useState("");
@@ -115,23 +109,33 @@ export function SourceField({ pos, file, among, onLanded, bare }: { pos: Pos; fi
     }).catch(() => {});
     return () => { gone = true; };
   }, [file, pos.digest, submit]);
-  if (!bare && (source === undefined || (source && !holds))) return null;
+  if (!bare && source === undefined) return null;
+  // the row: Download original only when the original is what the page shows; Link original until a link exists;
+  // Change the link for the holder of the exact bytes
+  const canDownload = !!original && !!source;
+  const canLink = !source || holds;
+  if (!bare && !canDownload && !canLink) return null;
   return (
     <div className={bare ? "pv-source-field is-bare" : "pv-source-field"}>
-      {!open ? (
+      {!open && (canDownload || canLink) && (
         <div className="pv-photo-actions" style={{ marginTop: 0 }}>
-          <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => setOpen(true)}>{source ? "Change the link to the original" : "Link original"}</button>
+          {canDownload && <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => void download()} disabled={busy}>{dlLabel}</button>}
+          {canLink && <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => setOpen(true)}>{source ? "Change the link" : "Link original"}</button>}
         </div>
-      ) : (
+      )}
+      {open && (
         <form onSubmit={(e) => { e.preventDefault(); void submit(url); }}>
           <label className="pv-source-label" htmlFor="src-url">Where is the original file?</label>
           <div className="pv-source-row">
             <input id="src-url" type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…  (Drive, Dropbox, OneDrive, GitHub, S3 or any web address)" autoComplete="off" spellCheck={false} />
             <button type="submit" className="bg-action-link" style={{ margin: 0, flex: "none" }} disabled={state.kind === "checking" || !url.trim()}>{state.kind === "checking" ? "Checking…" : "Check and add"}</button>
+            {!bare && <button type="button" className="bg-action-link" style={{ margin: 0, flex: "none" }} onClick={() => setOpen(false)}>Cancel</button>}
           </div>
           <p className="pv-source-fine">Paste a link to the exact file, shared as &ldquo;anyone with the link&rdquo;. We download it and check that it is the very same file before the link is shown; any other file is refused.</p>
         </form>
       )}
+      {canDownload && source && <p className="pv-source-credit">Hosted at {source.host} · checked {relativeTime(source.verifiedAt)}</p>}
+      {dl.state === "bad" && <p className="pv-source-bad">Download stopped: {dl.why}.</p>}
       {state.kind === "ok" && <p className="pv-source-ok">{"✓"} Checked: the original is at {state.host}.</p>}
       {state.kind === "bad" && <p className="pv-source-bad">{state.why}</p>}
     </div>
