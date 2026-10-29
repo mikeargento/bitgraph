@@ -37,7 +37,7 @@ import { makeThumb, THUMB_SUFFIX } from "@/lib/trustmark/thumb";
 import { FoundThumb } from "@/components/found-thumb";
 import { SourceHint } from "@/components/source-link";
 import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
-import { judge as judgeLooks, type LooksVerdict } from "@/lib/trustmark/check";
+import { judge as judgeLooks, type LooksVerdict, type Original } from "@/lib/trustmark/check";
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
 import { noteCopyOf, noteDroppedCopy } from "@/lib/trustmark/copy-note";
 import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
@@ -262,15 +262,37 @@ async function fingerprintRecords(prints: PhotoPrint[], leaves: Array<[string, s
 
 /** A photo whose pixels carry a hidden pointer (a TrustMark): the BitGraph it points to, and, quietly, how closely
  *  this copy matches the picture that BitGraph bound (a visual match; the original's own bytes are what prove it). */
+const proofHref = (o: Original) => `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
 function LooksLine({ v }: { v: LooksVerdict }) {
   if (v.verdict === "none") return null;
-  const o = v.original, n = o.counter.toLocaleString("en-US");
-  const href = `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
+  const all = [{ original: v.original, score: v.score }, ...v.others];
+  if (all.length === 1) {
+    const o = v.original, href = proofHref(o);
+    return (
+      <>
+        <span className="db-ok">Looks like <a href={href}>BitGraph #{o.counter.toLocaleString("en-US")}</a><SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
+        <span className="db-size db-wrap">Match {v.score.toFixed(2)} against the record bound beside the original. Its proof page proves the original file.</span>
+        <FoundThumb o={o} href={href} />
+      </>
+    );
+  }
+  // The same picture bound as more than one file (an export made twice): each is an original with its own proof, and
+  // only the holder knows which they mean, so every one is listed, with its reference and whether its file is hosted.
   return (
     <>
-      <span className="db-ok">Looks like <a href={href}>BitGraph #{n}</a><SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
-      <span className="db-size db-wrap">Match {v.score.toFixed(2)} against the record bound beside the original. Its proof page proves the original file.</span>
-      <FoundThumb o={o} href={href} />
+      <span className="db-ok">Looks like {all.length} bound originals</span>
+      <span className="db-size db-wrap">The same picture, bound as different files. Each proof page proves its own file.</span>
+      <ul className="db-looks-list">
+        {all.map(({ original: o, score }) => {
+          const href = proofHref(o);
+          return (
+            <li key={`${o.photoDigestB64}/${o.epochId}/${o.counter}`}>
+              <span className="db-ok"><a href={href}>BitGraph #{o.counter.toLocaleString("en-US")}</a><SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /> <span className="db-size">match {score.toFixed(2)}</span></span>
+              <FoundThumb o={o} href={href} />
+            </li>
+          );
+        })}
+      </ul>
     </>
   );
 }
@@ -842,10 +864,11 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               const o = v.original, href = `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
               // One copy dropped on Make leads to its original, the earliest known recording, instead of being recorded.
               // (Not finding one says nothing, so those are recorded.)
-              if (single) {
+              // Several bound originals look like it (a picture exported twice): the row lists them all and opens none.
+              if (single && v.others.length === 0) {
                 noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
                 // the copy itself opens in the original's file pane, labelled as a copy (lib/trustmark/held-copy)
-                setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score });
+                setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o });
                 setStatus("Opening the original…");
                 router.push(href);
                 return end({ bytes, digestB64, state: "copy", looks: v });
@@ -884,7 +907,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         if (r.state === "copy" && r.looks?.verdict === "match" && r.bytes) {
           const v = r.looks, o = v.original, bytes = r.bytes;
           const item = { digest: o.photoDigestB64, name: f.name, counter: String(o.counter), epochId: String(o.epochId) };
-          return [{ file: f, item, prepare: async () => setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o }) }];
+          return [{ file: f, item, prepare: async () => setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o, others: v.others.map((x) => x.original) }) }];
         }
         if (r.state === "in-tree" && r.tree) return [{ file: f, item: { digest: r.tree.proof.digestB64, name: f.name, counter: r.tree.proof.counter, epochId: r.tree.proof.epochId }, prepare: async () => {} }];
         return [];

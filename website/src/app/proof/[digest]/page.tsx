@@ -2281,6 +2281,13 @@ export default function ProofPage() {
             boundThumb === undefined ? null : (
               <div className="pv-pane-in">
                 {boundThumb && <BoundThumbView t={boundThumb} caption="The reference this BitGraph bound. You hold a copy; only the original’s exact bytes prove it." />}
+                {heldCopy.others && heldCopy.others.length > 0 && (
+                  <p className="pv-note">
+                    Your copy also looks like {heldCopy.others.map((o, i) => (
+                      <span key={`${o.photoDigestB64}/${o.counter}`}>{i > 0 ? ", " : ""}<a href={`/proof/${toUrlSafeB64(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafeB64(o.epochId))}`}>BitGraph #{o.counter.toLocaleString("en-US")}</a></span>
+                    ))}: the same picture, bound as a different file.
+                  </p>
+                )}
                 {/* The same find-the-file box as every proof page: the original is what proves the photo. */}
                 <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} compact />
               </div>
@@ -2925,7 +2932,7 @@ function BringYourFile({
     // the copy is shown in the photo's own file pane, labelled for what it is: on the tree's page, that page opens with it
     const wrapped = carriers.has(files[0]!);
     // a BitGraphed file keeps its own name (the file inside it was named without the .bitgraph)
-    const held: HeldCopy = { name: wrapped ? files[0]!.name.replace(/(\.[^.]+)?$/, ".bitgraph$1") : files[0]!.name, data: await files[0]!.arrayBuffer(), kind: wrapped ? "bitgraphed" : "copy", score: v.score, found: v.original };
+    const held: HeldCopy = { name: wrapped ? files[0]!.name.replace(/(\.[^.]+)?$/, ".bitgraph$1") : files[0]!.name, data: await files[0]!.arrayBuffer(), kind: wrapped ? "bitgraphed" : "copy", score: v.score, found: v.original, others: v.others.map((x) => x.original) };
     if (v.original.photoDigestB64 !== cacheKey) {
       setHeldCopy(toUrlSafeB64(v.original.photoDigestB64), held);
       router.push(pageOf(v.original.photoDigestB64));

@@ -3816,6 +3816,9 @@ main > div[style*="background:var(--bg)"] { background: transparent !important; 
 .db-name { display: flex; gap: 10px; align-items: baseline; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
 .db-size { font-size: 13px; color: var(--c-text-secondary, #5f5e5a); white-space: nowrap; }
 .db-size.db-wrap { white-space: normal; }
+/* a copy that several bound originals look like: one line each, with its reference (components/drop-box LooksLine) */
+html:root:root:root:root:root body .db-looks-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+html:root:root:root:root:root body .db-looks-list li { display: flex; flex-direction: column; gap: 2px; }
 .db-state { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; font-size: 15px; }
 .db-ok { color: #0f6e56; font-weight: 600; }
 .db-bad { color: var(--err, #b42318); font-weight: 600; }

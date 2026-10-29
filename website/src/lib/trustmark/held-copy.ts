@@ -9,8 +9,9 @@ import type { Original } from "./check.ts";
  */
 
 /** tag: the pointer's tag the copy carries, which opens the original's published thumbnail and credentials on its page.
- *  found: the original a copy was matched to by its looks (check.ts), which opens the same. */
-export type HeldCopy = { name: string; data: ArrayBuffer; kind: "bitgraphed" | "copy"; score: number; tag?: number; found?: Original };
+ *  found: the original a copy was matched to by its looks (check.ts), which opens the same; others: the other bound
+ *  originals it matched as well, for the page to list. */
+export type HeldCopy = { name: string; data: ArrayBuffer; kind: "bitgraphed" | "copy"; score: number; tag?: number; found?: Original; others?: Original[] };
 
 let slot: { digest: string; copy: HeldCopy } | null = null;
 
