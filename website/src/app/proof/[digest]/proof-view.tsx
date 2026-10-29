@@ -531,10 +531,12 @@ export function ProofView({ m }: { m: ProofViewModel }) {
     return (
       <div className="pv">
         <h1 className="sr-only">BitGraph proof</h1>
+        {/* The time card first (2026-10-29): the BitGraph's name and the instant it was made, then the content it covers. */}
+        {timeCard}
         <section className="pv-card pv-photo">
           <div className="pv-photo-strip">
-            {/* The name, time and signer lead, above the picture (2026-10-28), so a big photo never hides what it is; a proof that fails says so in its place, never folded away. */}
-            <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>
+            {/* The name leads only when no time card names it above; a proof that fails says so in its place, never folded away. */}
+            {!showTime && <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>}
             {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
             {/* No time here (2026-10-29): this is the content card; the time section below says when it was BitGraphed. */}
             {who && <div className="pv-photo-who">{who}</div>}
@@ -549,7 +551,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {(
           <>
             {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
-            {timeCard}
             {m.c2pa?.present && <section className="pv-card"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></section>}
             {counterCard}
             {sigCard}
