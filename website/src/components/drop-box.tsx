@@ -663,7 +663,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       })();
       // Each photo's fingerprint record is published once the tree is indexed (the server checks each against the
       // tree before keeping it), so a copy with everything stripped can still find the original's proof by what it
-      // looks like (app/find). The record is what the tree already binds, a pHash and a brightness grid, never the photo.
+      // looks like (lib/trustmark/check, on Check). The record is what the tree already binds, a pHash and a brightness grid, never the photo.
       if (fp.records.length) void indexed.then(async (ok) => {
         if (!ok) return;
         let next = 0;

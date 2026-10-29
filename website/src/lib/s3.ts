@@ -1257,7 +1257,7 @@ export const trustmarkRecordPrefix = (eref: number, counter: number) => `trustma
 export const trustmarkRecordKey = (eref: number, counter: number, epochId: string, recordDigestB64: string) =>
   `${trustmarkRecordPrefix(eref, counter)}${toSafe(epochId)}/${toSafe(recordDigestB64)}.json`;
 
-/* Find (app/find): every published record's pHash, as a key, so a copy with everything stripped is matched by what
+/* Finding a copy's original (app/api/find): every published record's pHash, as a key, so a copy with everything stripped is matched by what
  * it looks like. A listing of the prefix is the whole index; nothing is read until a pHash is close.
  *   find/phash/<pHash, 16 hex>/<epochRef>/<counter>/<epochId, url-safe>/<record digest, url-safe>
  */

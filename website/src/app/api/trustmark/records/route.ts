@@ -18,7 +18,7 @@ const digest = async (u: Uint8Array) => b64(new Uint8Array(await crypto.subtle.d
 /**
  * POST /api/trustmark/records { recordB64, c2paB64?, thumbB64? }: publish a photo's fingerprint record, so a TrustMark pointing to the
  * photo's BitGraph can be checked by anyone holding only a copy, and so a copy with no pointer at all can find the
- * record by what it looks like (app/find). Sent when a photo is exported with a TrustMark, and by Make for each photo
+ * record by what it looks like (lib/trustmark/check, over app/api/find). Sent when a photo is exported with a TrustMark, and by Make for each photo
  * of a drop once its tree is indexed.
  *
  * Nothing is taken on trust. The record must be a file of a tree on the ledger (found by its own hash, where the

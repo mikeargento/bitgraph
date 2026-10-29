@@ -25,8 +25,9 @@ const nextConfig: NextConfig = {
     // the old docs addresses land on Tools (2026-10-18: Docs became Tools; the home page is the explanation)
     const docs = "/tools";
     return [
-      // Watermarks became Check, which looks up any file as well as a copy's watermark
+      // Watermarks, then Find, became Check, which looks up any file and finds a copy's original by its looks
       { source: "/watermarks", destination: "/check", permanent: false },
+      { source: "/find", destination: "/check", permanent: false },
       { source: "/docs", destination: docs, permanent: false },
       { source: "/how-it-works", destination: home, permanent: false },
       { source: "/docs/:path+", destination: docs, permanent: false },
