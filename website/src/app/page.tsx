@@ -28,28 +28,50 @@ const PROPERTIES = [
   { title: "Portable evidence", body: "Each proof carries an AWS Nitro attestation naming the published, reproducible enclave build that made it. It checks offline with an open-source verifier, without asking us." },
 ];
 
+const RELIEF = [
+  { title: "One call.", body: "Send a SHA-256 over HTTP, the SDK or MCP. No new infrastructure, nothing to host." },
+  { title: "Your files stay yours.", body: "Only the 32-byte digest leaves your systems. We never see the content." },
+  { title: "Proofs outlive us.", body: "Each one checks offline with an open-source verifier, even if BitGraph disappeared tomorrow." },
+  { title: "Any size.", body: "A million records bind as one in 6 seconds, measured, and each still checks on its own." },
+  { title: "Your brand, your customers.", body: "BitGraph sits underneath. Nobody has to learn a new product." },
+  { title: "Pay for records, not servers.", body: "Usage-based through the service, or a license to run it yourself." },
+];
+
 const FITS = [
   { href: "/applications#c2pa", title: "Content Credentials", body: "Bind the asset and its manifest together: the credential gains an independent recording." },
   { href: "/applications#watermark", title: "Watermark discovery", body: "The watermark finds the record; the original's bytes prove it." },
   { href: "/applications#capture", title: "Trusted capture", body: "How it was captured, plus when its bytes were recorded." },
-  { href: "/applications#ai", title: "AI agents and audit", body: "Two records bracket a run, every step between them in counted order." },
+  { href: "/applications#ai", title: "AI agents and audit", body: "Two records bracket a run, every record between them in counted order." },
 ];
 
 export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page">
       <section className="sx-hero" aria-labelledby="home-h">
-        <h1 id="home-h">A new primitive for digital&nbsp;proof.</h1>
+        {/* The first screen says what the buyer gains (2026-10-28): they already issue proofs; now each one rests on hardware,
+            in one call, with nothing to run. Competent already, stronger now. */}
+        <h1 id="home-h">Every proof you issue<br />just got&nbsp;stronger.</h1>
         <p className="sx-sub">
-          BitGraph gives digital information a verifiable position. Inside measured hardware, one atomic action binds its SHA-256
-          right after a fresh random value, signed and attested. The proof travels, and checks offline, by anyone. Build it into the products
-          you already sell.
+          Send a hash. Get a proof that stands on its own. Your customers can verify it independently, offline, without relying on
+          your servers or ours. One call. No new infrastructure. Your product, backed by evidence anyone can check.
         </p>
         <div className="sx-cta">
-          <a className="bg-action-link is-make" href="/evaluate">Evaluate the technology</a>
+          <a className="bg-action-link is-make" href="/evaluate">See it work in two minutes</a>
           <a className="bg-action-link" href="/technology">How it works</a>
-          {/* The sample on Evaluate: a ChatGPT image and its OpenAI-signed Content Credentials, bound in one tree. */}
           <a className="bg-action-link" href="/proof/MXkV_2WRyBSlQV_BdOio2gc1NSrd2Wxl8zW0OrACCDk?counter=26&epoch=NihRUA1VRsV4cqmwWDO_4viNR7YhJRdCb75lGASeV3E">View a proof</a>
+        </div>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-easy">
+        <p className="home-kicker">Nothing changes but the proof</p>
+        <h2 id="home-easy">Keep your product. Upgrade your&nbsp;proof.</h2>
+        <div className="sx-cards is-3">
+          {RELIEF.map((r) => (
+            <article key={r.title} className="tl-card">
+              <h3>{r.title}</h3>
+              <p>{r.body}</p>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -73,8 +95,8 @@ export default function HomePage() {
       </section>
 
       <section className="home-section" aria-labelledby="home-fit">
-        <p className="home-kicker">Built to sit underneath</p>
-        <h2 id="home-fit">Keep your product. Upgrade your&nbsp;proof.</h2>
+        <p className="home-kicker">Applications</p>
+        <h2 id="home-fit">Where it fits in what you already&nbsp;sell.</h2>
         <p>
           BitGraph does not compete with your product; it strengthens the evidence it produces. Your system sends a digest and keeps
           the proof beside its own record. Your customers, brand and interface stay yours.
@@ -129,6 +151,17 @@ TRUE
         <div className="sx-cta"><a className="bg-action-link" href="/technology#t-trees">How collections work</a></div>
       </section>
 
+      <section className="home-section" aria-labelledby="home-limits">
+        <p className="home-kicker">Plainly</p>
+        <h2 id="home-limits">What a BitGraph does not prove.</h2>
+        <ul className="docs-list">
+          <li><strong>When content was created.</strong> An old file can be bound today; the proof fixes when it was bound.</li>
+          <li><strong>Who made it, or that it is true.</strong> It binds bytes, not authorship or meaning.</li>
+          <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other was.</li>
+        </ul>
+        <p>What it rests on: AWS Nitro hardware, a published enclave build anyone can rebuild, and standard cryptography. <a href="/technology#t-threat">The threat model</a>.</p>
+      </section>
+
       <section className="home-section" aria-labelledby="home-paths">
         <p className="home-kicker">Ways to adopt it</p>
         <h2 id="home-paths">Call it, license it, or build it in with us.</h2>
@@ -151,21 +184,11 @@ TRUE
         </div>
       </section>
 
-      <section className="home-section" aria-labelledby="home-limits">
-        <p className="home-kicker">Plainly</p>
-        <h2 id="home-limits">What a BitGraph does not prove.</h2>
-        <ul className="docs-list">
-          <li><strong>When content was created.</strong> An old file can be bound today; the proof fixes when it was bound.</li>
-          <li><strong>Who made it, or that it is true.</strong> It binds bytes, not authorship or meaning.</li>
-          <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other was.</li>
-        </ul>
-        <p>What it rests on: AWS Nitro hardware, a published enclave build anyone can rebuild, and standard cryptography. <a href="/technology#t-threat">The threat model</a>.</p>
-      </section>
 
       <section className="home-section" aria-labelledby="home-end">
         <p className="home-kicker">Argento Computing Inc.</p>
-        <h2 id="home-end">Give your proof a stronger foundation.</h2>
-        <p>Inspect the mechanism, reproduce its guarantees, and talk with us about building it into your infrastructure.</p>
+        <h2 id="home-end">The next time a customer asks why they should believe you, you&rsquo;ll have a better&nbsp;answer.</h2>
+        <p>Verify a real proof in two minutes, read the mechanism, and talk with us about putting it under what you already sell.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/evaluate">Request a technical evaluation</a>
           <a className="bg-action-link" href="/licensing">Licensing</a>

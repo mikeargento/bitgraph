@@ -5678,3 +5678,5 @@ html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle sv
 @media (hover: hover) { html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle:hover { color: var(--ink) !important; } }
 /* Centred on the letters, not the line box: Newsreader's lowercase sits high in its line, so the icon rises with it. */
 html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle { position: relative; top: -3px; }
+/* Six cards sit three across, never four and two. */
+@media (min-width: 900px) { html:root:root:root:root:root:root body main .sx-cards.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
