@@ -824,7 +824,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         // lookup, and is waited for only if the lookup finds nothing. Early only for one file: started for many at
         // once, every photo would be decoded together.
         // read from the photo decoded at the reading size, never whole: a large photo whole is hundreds of MB
-        const readLooks = () => photoRead(() => decodeForReading(f).then((img) => (img ? judgeLooks(img) : null))).catch(() => null);
+        // one picture also gets the search inside a framed screenshot; many at once would be a lookup per rectangle each
+        const readLooks = () => photoRead(() => decodeForReading(f).then((img) => (img ? judgeLooks(img, { search: single }) : null))).catch(() => null);
         const early = looksLikePhoto(f) && single ? readLooks() : null;
         patch(row.key, { bytes, digestB64, state: "looking" });
         const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
