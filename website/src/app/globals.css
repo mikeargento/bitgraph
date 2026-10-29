@@ -5711,3 +5711,17 @@ html:root:root:root:root:root body main .pv-copy-options .bg-action-link.is-open
 html:root:root:root:root:root body main .pv-choose-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
 html:root:root:root:root:root body main .pv-choose-when { color: var(--dim); }
 html:root:root:root:root:root body main .pv-copy-options .dropbox, html:root:root:root:root:root body main .pv-copy-options .pv-source-field.is-bare { margin-top: 14px; }
+
+/* Where it sits in time, on a wide screen (2026-10-29): the moments run left to right, floor → recorded → ceiling,
+   on one rail; the column is kept for narrow screens. */
+@media (min-width: 720px) {
+  .pv-moments { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 20px; }
+  .pv-moment { grid-template-columns: minmax(0, 1fr); grid-template-rows: 22px auto; gap: 10px; }
+  .pv-moment-rail::before { left: 0; right: 0; top: 10px; bottom: auto; height: 2px; width: auto; }
+  .pv-moment:first-child .pv-moment-rail::before { left: 10px; top: 10px; }
+  .pv-moment:last-child .pv-moment-rail::before { right: auto; width: 10px; height: 2px; }
+  .pv-moment:first-child:last-child .pv-moment-rail::before { display: none; }
+  .pv-moment-dot { left: 5px; top: 5px; }
+  .pv-moment-body { padding: 0; }
+  .pv-moment-actions { max-width: 220px; }
+}
