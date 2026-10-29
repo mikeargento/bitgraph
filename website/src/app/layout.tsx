@@ -73,6 +73,11 @@ const inter = Inter({
    since 2026-09-18 (dark before that). Keep it equal to --bg. */
 export const viewport: Viewport = { themeColor: "#ffffff" };
 
+/* The site's one-line description (2026-10-29): what BitGraph is to the companies it is sold to, on every page without a
+   line of its own and in link previews. */
+const SITE_DESCRIPTION =
+  "BitGraph is proof infrastructure for companies that sell proof. One call binds a SHA-256 at a counted position inside attested hardware; the proof checks offline, by anyone, without BitGraph.";
+
 export const metadata: Metadata = {
   title: {
     // Home's tab title is the home h1 (2026-08-19), with no
@@ -82,30 +87,21 @@ export const metadata: Metadata = {
     default: "BitGraph",
     template: "%s | BitGraph",
   },
-  // The overview's own sentence (2026-08-19, updated with the title): the
-  // line under the title in a link preview, and what a search
-  // result shows. It was "Live cryptographic proof chain. Create, verify, and
-  // explore BitGraph proofs." from July, which is the old vocabulary.
-  // 2026-09-10: one sentence on every surface, from the overview opener. The
-  // previous line ("BitGraph gives your file a position in a public sequence.
-  // Nothing else can hold that position, and it cannot be moved later.")
-  // predated the opener and local-first.
-  description:
-    "Verifiable sequence for bits. BitGraph binds a file's fingerprint, never the file, at a position in a signed sequence that nothing can reorder. One BitGraph fixes a position; any two bracket everything made between them. Checks offline, by anyone.",
+  description: SITE_DESCRIPTION,
   keywords: [
-    "BitGraph", "verifiable sequence", "proof of sequence", "position commitment",
-    "causal order", "tamper-evident", "hardware enclave",
+    "BitGraph", "proof infrastructure", "attested timestamp", "Content Credentials", "C2PA", "provenance",
+    "hardware enclave", "offline verification", "position commitment",
   ],
   openGraph: {
     title: "BitGraph",
-    description: "Verifiable sequence for bits. BitGraph binds a file's fingerprint, never the file, at a position in a signed sequence that nothing can reorder. One BitGraph fixes a position; any two bracket everything made between them. Checks offline, by anyone.",
+    description: SITE_DESCRIPTION,
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary",
     title: "BitGraph",
-    description: "Verifiable sequence for bits. BitGraph binds a file's fingerprint, never the file, at a position in a signed sequence that nothing can reorder. One BitGraph fixes a position; any two bracket everything made between them. Checks offline, by anyone.",
+    description: SITE_DESCRIPTION,
   },
   robots: { index: true, follow: true },
 };

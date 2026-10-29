@@ -12,13 +12,13 @@ import { CopyCode } from "@/components/copy-code";
  */
 
 const DESCRIPTION =
-  "BitGraph is a recording mechanism for digital proof: one atomic action inside measured AWS Nitro hardware binds a SHA-256 at a counted position, right after a fresh random value, signed and attested. The proof checks offline. Integrate it under the products you already sell.";
+  "Send a hash. Get a proof that stands on its own. Your customers can verify it independently, offline, without relying on your servers or ours. One call. No new infrastructure. Your product, backed by evidence anyone can check.";
 
 export const metadata: Metadata = {
-  title: { absolute: "BitGraph: a new primitive for digital proof" },
+  title: { absolute: "BitGraph: a stronger proof for the products you already sell" },
   description: DESCRIPTION,
-  openGraph: { title: "A new primitive for digital proof.", description: DESCRIPTION },
-  twitter: { title: "A new primitive for digital proof.", description: DESCRIPTION },
+  openGraph: { title: "Every proof you issue just got stronger.", description: DESCRIPTION },
+  twitter: { title: "Every proof you issue just got stronger.", description: DESCRIPTION },
 };
 
 const PROPERTIES = [
