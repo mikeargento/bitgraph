@@ -5680,3 +5680,13 @@ html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle sv
 html:root:root:root:root:root:root body footer .bg-footer-theme .theme-toggle { position: relative; top: -3px; }
 /* Six cards sit three across, never four and two. */
 @media (min-width: 900px) { html:root:root:root:root:root:root body main .sx-cards.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+
+/* Find (2026-10-29): the result under the drop zone, laid out as Make's result rows are. */
+.fd-result { margin-top: 16px; padding: 20px 24px; border: 1px solid var(--line); border-radius: 24px; background: var(--panel, #fff); }
+.fd-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.fd-text { flex: 1 1 280px; min-width: 0; }
+.fd-grid { width: 96px; height: 96px; flex: none; border-radius: 12px; border: 1px solid var(--line); filter: blur(1.2px); image-rendering: auto; }
+html:root:root body main .fd-result :is(.fd-none, .fd-fine) { margin: 0; }
+html:root:root body main .fd-result .fd-none { font-size: 20px; font-weight: 600; color: var(--ink); }
+html:root:root body main .fd-result .fd-fine { margin-top: 12px; font-size: 15px; color: var(--dim); }
+html:root:root body main .fd-result .fd-none + .fd-fine { margin-top: 8px; }

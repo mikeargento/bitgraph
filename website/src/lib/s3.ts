@@ -1257,6 +1257,31 @@ export const trustmarkRecordPrefix = (eref: number, counter: number) => `trustma
 export const trustmarkRecordKey = (eref: number, counter: number, epochId: string, recordDigestB64: string) =>
   `${trustmarkRecordPrefix(eref, counter)}${toSafe(epochId)}/${toSafe(recordDigestB64)}.json`;
 
+/* Find (app/find): every published record's pHash, as a key, so a copy with everything stripped is matched by what
+ * it looks like. A listing of the prefix is the whole index; nothing is read until a pHash is close.
+ *   find/phash/<pHash, 16 hex>/<epochRef>/<counter>/<epochId, url-safe>/<record digest, url-safe>
+ */
+export const FIND_PREFIX = "find/phash/";
+export const findKey = (phash: string, eref: number, counter: number, epochId: string, recordDigestB64: string) =>
+  `${FIND_PREFIX}${phash}/${eref}/${counter}/${toSafe(epochId)}/${toSafe(recordDigestB64)}`;
+export type FindEntry = { phash: string; eref: number; counter: number; epochSafe: string; recordSafe: string };
+export function parseFindKey(key: string): FindEntry | null {
+  const m = /^find\/phash\/([0-9a-f]{16})\/(\d+)\/(\d+)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)$/.exec(key);
+  return m ? { phash: m[1]!, eref: Number(m[2]), counter: Number(m[3]), epochSafe: m[4]!, recordSafe: m[5]! } : null;
+}
+/** Write a find key once (an empty object; the key is the entry). */
+export async function putFindKeyOnce(key: string): Promise<boolean> {
+  if (!ledgerWritesOn()) return false;
+  try {
+    await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: key, Body: "", IfNoneMatch: "*" }));
+    return true;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
+    throw err;
+  }
+}
+
 /** Write a published record once; false when it is already there. */
 export async function putTrustmarkRecordOnce(key: string, body: string): Promise<boolean> {
   if (!ledgerWritesOn()) return false;

@@ -32,6 +32,7 @@ import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
 import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
+import { publishRecord } from "@/lib/trustmark/ledger";
 import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
 import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
@@ -240,14 +241,17 @@ async function photoPrints(files: File[], onProgress?: (n: number, of: number) =
   return each.filter((x): x is PhotoPrint => x !== null);
 }
 /** The record files of a drop's photos, each with its photo's SHA-256 from the drop's leaves, as tree leaves. */
-async function fingerprintRecords(prints: PhotoPrint[], leaves: Array<[string, string, string]>): Promise<Array<[string, string, string]>> {
+async function fingerprintRecords(prints: PhotoPrint[], leaves: Array<[string, string, string]>): Promise<{ leaves: Array<[string, string, string]>; records: Uint8Array[] }> {
   const made: Array<{ file: File; name: string }> = [];
+  const records: Uint8Array[] = [];
   for (const p of prints) {
-    made.push({ file: recordFile(p.name, recordBytesOf(leaves[p.index]![2], p.fp)), name: `${p.name}${RECORD_SUFFIX}` });
+    const bytes = recordBytesOf(leaves[p.index]![2], p.fp);
+    records.push(bytes);
+    made.push({ file: recordFile(p.name, bytes), name: `${p.name}${RECORD_SUFFIX}` });
     if (p.store) made.push({ file: new File([p.store as BlobPart], `${p.name}${C2PA_SUFFIX}`, { type: "application/c2pa" }), name: `${p.name}${C2PA_SUFFIX}` });
   }
   // the leaf's name is the photo's path in the drop plus the suffix (a File's own name cannot hold the path)
-  return (await hashLeaves(made.map((m) => m.file))).map((l, i) => [made[i]!.name, l[1], l[2]]);
+  return { leaves: (await hashLeaves(made.map((m) => m.file))).map((l, i) => [made[i]!.name, l[1], l[2]]), records };
 }
 
 /** A photo whose pixels carry a hidden pointer (a TrustMark): the BitGraph it points to, and, quietly, how closely
@@ -597,8 +601,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           : hashLeaves(files, (n) => { hashed = n; say(); }),
         list ? Promise.resolve([] as PhotoPrint[]) : photoPrints(files, (n, of) => { printed = n; printing = of; say(); }),
       ]);
-      const records = prints.length ? await fingerprintRecords(prints, dropped) : [];
-      const leaves = records.length ? [...dropped, ...records] : dropped;
+      const fp = prints.length ? await fingerprintRecords(prints, dropped) : { leaves: [], records: [] };
+      const leaves = fp.leaves.length ? [...dropped, ...fp.leaves] : dropped;
       // Files sorted by path, so the same folder always makes the same tree around its floor (2026-10-20).
       const fileLeaves = sortedLeaves(leaves);
       let tree: PluginTree | null = null, rootText = "", floorFile: string | null = null, block: BaseBlock | null = null;
@@ -664,6 +668,14 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           return stored >= total;
         } catch (e) { lookup({ stored: 0, total, state: "failed", note: (e as Error).message }); return false; }
       })();
+      // Each photo's fingerprint record is published once the tree is indexed (the server checks each against the
+      // tree before keeping it), so a copy with everything stripped can still find the original's proof by what it
+      // looks like (app/find). The record is what the tree already binds, a pHash and a brightness grid, never the photo.
+      if (fp.records.length) void indexed.then(async (ok) => {
+        if (!ok) return;
+        let next = 0;
+        await Promise.all(Array.from({ length: 3 }, async () => { while (next < fp.records.length) await publishRecord(fp.records[next++]!).catch(() => false); }));
+      });
       /* One file opens its own proof page, as a plain drop always has: its tree is two leaves (the floor and the file), so
          its index is written in a moment; the page opens with the proof in hand either way. */
       if (opensProof) {
@@ -972,7 +984,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         {/* Something is happening: a thin moving bar under the line that says what (2026-10-18). */}
         {status && <div className="bg-working" role="progressbar" aria-label={status} />}
         <div className="db-zone-sub">Each file is hashed in your browser. <br className="sub-br" />Only its SHA-256 is&nbsp;sent.</div>
-        <div className="db-zone-sub">The file never leaves your machine.</div>
+        <div className="db-zone-sub">{mode === "check" ? "The file never leaves your machine." : "The file never leaves your machine. A photo's fingerprint, a 32 × 32 grid, is kept so a copy can find its proof."}</div>
         <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
         {/* @ts-expect-error webkitdirectory is a non-standard attribute every current browser supports */}
         <input ref={folderRef} type="file" webkitdirectory="" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? []).filter((f) => !f.name.startsWith("."))); e.target.value = ""; }} />

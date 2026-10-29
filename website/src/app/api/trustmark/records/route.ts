@@ -1,7 +1,7 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 import { NextResponse } from "next/server";
-import { getObjectText, getProofsByDigest, ledgerWritesOn, listKeysUnderPrefix, putTrustmarkRecordOnce, trustmarkRecordKey, trustmarkRecordPrefix, LedgerUnavailableError } from "@/lib/s3";
+import { findKey, getObjectText, getProofsByDigest, ledgerWritesOn, listKeysUnderPrefix, putFindKeyOnce, putTrustmarkRecordOnce, trustmarkRecordKey, trustmarkRecordPrefix, LedgerUnavailableError } from "@/lib/s3";
 import { checkMember, memberOf } from "@/lib/tree-member";
 import { epochRef, MAX_COUNTER, tag as tagOf, TAG_BITS } from "@/lib/trustmark/payload";
 import { parseRecord } from "@/lib/trustmark/record";
@@ -17,7 +17,9 @@ const digest = async (u: Uint8Array) => b64(new Uint8Array(await crypto.subtle.d
 
 /**
  * POST /api/trustmark/records { recordB64, c2paB64?, thumbB64? }: publish a photo's fingerprint record, so a TrustMark pointing to the
- * photo's BitGraph can be checked by anyone holding only a copy. Sent when a photo is exported with a TrustMark.
+ * photo's BitGraph can be checked by anyone holding only a copy, and so a copy with no pointer at all can find the
+ * record by what it looks like (app/find). Sent when a photo is exported with a TrustMark, and by Make for each photo
+ * of a drop once its tree is indexed.
  *
  * Nothing is taken on trust. The record must be a file of a tree on the ledger (found by its own hash, where the
  * tree's members are indexed), its hash must walk up to the root that tree's proof signs, and the photo it names must
@@ -71,6 +73,8 @@ export async function POST(req: Request) {
     }
     const eref = await epochRef(epochId);
     const written = await putTrustmarkRecordOnce(trustmarkRecordKey(eref, counter, epochId, recordDigest), JSON.stringify({ format: "bitgraph-trustmark-published/1", recordB64: body.recordB64, proof: mine.proof, ...(c2pa ?? {}), ...(thumb ?? {}) }, null, 1));
+    // and its pHash in the find index (app/api/find), so a stripped copy can reach this record by what it looks like
+    await putFindKeyOnce(findKey(record.phash, eref, counter, epochId, recordDigest));
     return NextResponse.json({ written, eref, counter });
   } catch (e) {
     if (e instanceof LedgerUnavailableError) return NextResponse.json({ error: "ledger unavailable" }, { status: 503 });

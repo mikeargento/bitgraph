@@ -20,7 +20,7 @@ const LINKS: Array<{ href: string; label: string; also?: string[] }> = [
   { href: "/integrate", label: "Integrate" },
   { href: "/licensing", label: "Licensing" },
   { href: "/tools", label: "Docs" },
-  { href: "/demos", label: "Try it", also: ["/make", "/check", "/ledger", "/jev", "/generate", "/exam"] },
+  { href: "/demos", label: "Try it", also: ["/make", "/check", "/find", "/ledger", "/jev", "/generate", "/exam"] },
 ];
 const CTA = { href: "/evaluate", label: "Evaluate" };
 
