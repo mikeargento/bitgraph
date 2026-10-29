@@ -610,6 +610,23 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     const t0 = performance.now();
     const secs = () => ((performance.now() - t0) / 1000).toFixed(1);
     try {
+      /* One file that already has a BitGraph is not recorded again (2026-10-29): existence is one-directional, so a
+         later record of the same bytes says less than the first and costs a count. Its oldest proof opens instead,
+         with the file in hand. A folder is always a new tree, and a hash list is bulk. */
+      if (!list && files.length === 1) {
+        const f = files[0]!;
+        setStatus("Checking the ledger…");
+        const digest = await digestOf(new Uint8Array(await f.arrayBuffer()));
+        const before = await fetch(`/api/proofs/${toUrlSafe(digest)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null) as { proofs?: Array<{ proof: Proof; writeTime?: number | null; kind?: string }> } | null;
+        const first = earliestOf((before?.proofs ?? []).filter((e) => !e.kind || e.kind === "recorded"));
+        const fc = first?.commit as { counter?: string; epochId?: string } | undefined;
+        if (fc?.counter && fc.epochId) {
+          setStatus("Already a BitGraph. Opening its proof…");
+          void cacheArtifactToIDB(f, digest).catch(() => {});
+          router.push(`/proof/${toUrlSafe(digest)}?counter=${encodeURIComponent(fc.counter)}&epoch=${encodeURIComponent(toUrlSafe(fc.epochId))}`);
+          return;
+        }
+      }
       /* Every drop, one file or many, is one tree and one BitGraph (2026-10-20). Its first leaf is the latest Base
          block (base-block.json): the bound root holds that block's hash, so everything in the tree was bound after the
          block existed. Every BitGraph gets a Base ceiling too, so each file's proof carries a window, after block X and
@@ -619,8 +636,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       // Everything that does not wait on the bind runs at once: the files are hashed, each photo's fingerprint is worked
       // out from its picture (lib/trustmark/record.ts, so a photo can later carry a pointer back here; up to
       // MAX_FINGERPRINTED a drop, a photo this browser cannot open is recorded as it is), and the latest Base block is
-      // read for the floor. Nothing is looked up first: every drop is a new BitGraph, and the same bytes bound again are
-      // listed in order on their proof page.
+      // read for the floor. A folder is not looked up first: every folder drop is a new tree and a new BitGraph.
       const blockLater = latestBaseBlock();
       blockLater.catch(() => {});
       let hashed = 0, printed = 0, printing = 0;
@@ -823,9 +839,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       if (list) { await takePlugins([], list); return; }
     }
     // Making, and more than one file (no proofs or tree among them, those are checks above): one tree, one BitGraph.
-    // Making: every drop is bound at once, one file or many, as one tree and one BitGraph. Nothing is looked up first:
-    // the same bytes bound again get a BitGraph of their own, and the proof page lists them all in order. A lone proof
-    // file is the one exception: it opens the proof it belongs to.
+    // Making: every drop is bound at once, one file or many, as one tree and one BitGraph. One file that already has a
+    // BitGraph opens its proof instead (takePlugins). A lone proof file opens the proof it belongs to.
     if (mode === "make" && !(files.length === 1 && proofFileOf(files[0]!, new Uint8Array(await files[0]!.arrayBuffer())))) { await takePlugins(files); return; }
     if (files.length > MAX_FILES) { await takeMany(files); return; }
     setBulk(null);

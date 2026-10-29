@@ -24,8 +24,8 @@ export default function MakePage() {
         <p>
           A BitGraph proves these exact bits existed by the time they were recorded, and could not have been recorded before. Many files
           at once become one tree and one BitGraph, and each file in it can be checked on its own. A photo&rsquo;s fingerprint is recorded
-          beside it, so a copy with everything stripped still leads back here by what it looks like. BitGraphs are permanent, and the same
-          file dropped again gets a BitGraph of its own.
+          beside it, so a copy with everything stripped still leads back here by what it looks like. BitGraphs are permanent, and a file
+          dropped again opens its BitGraph.
         </p>
         <div className="page-box"><DropBox mode="make" /></div>
       </section>
