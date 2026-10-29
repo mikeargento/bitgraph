@@ -358,8 +358,13 @@ export default function ProofPage() {
     void recallHeldCopy(digestParam).then((r) => { if (r && !gone) setHeldCopyState((cur) => cur ?? r); });
     return () => { gone = true; };
   }, [digestParam]);
-  // the original in hand: the remembered copy is no longer what this page shows
-  useEffect(() => { if (cachedFile && !heldCopy) void forgetHeldCopy(digestParam); }, [cachedFile, heldCopy, digestParam]);
+  // the original in hand (dropped, or the hosted file pulled): the remembered copy is no longer what this page shows,
+  // here or on the next visit
+  useEffect(() => {
+    if (!cachedFile) return;
+    if (heldCopy) setHeldCopyState(null);
+    void forgetHeldCopy(digestParam);
+  }, [cachedFile, heldCopy, digestParam]);
   // A BitGraph image (/image) opens with its proof: the page redraws it from the commitment the
   // proof authenticates and holds it as the file in hand only when it hashes to the recorded
   // digest (2026-10-06). Nothing is stored.
