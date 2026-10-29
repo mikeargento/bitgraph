@@ -34,9 +34,9 @@ import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, membe
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
 import { publishRecord } from "@/lib/trustmark/ledger";
 import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
-import { judge as judgeTrustmark, type TrustmarkVerdict } from "@/lib/trustmark/check";
+import { judge as judgeLooks, type LooksVerdict } from "@/lib/trustmark/check";
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
-import { noteCopyOf, noteCredentialsMatch, noteDroppedCopy } from "@/lib/trustmark/copy-note";
+import { noteCopyOf, noteDroppedCopy } from "@/lib/trustmark/copy-note";
 import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
 import { MAX_GALLERY, handOriginal, setGallery, type Gallery, type GalleryItem } from "@/lib/gallery";
 import { DropGallery } from "@/components/gallery";
@@ -51,11 +51,11 @@ type Row = {
   size: number;
   digestB64?: string;
   bytes?: Uint8Array;
-  state: "hashing" | "looking" | "found" | "in-tree" | "trustmark" | "new" | "making" | "made" | "error";
+  state: "hashing" | "looking" | "found" | "in-tree" | "copy" | "new" | "making" | "made" | "error";
   /** The file is a member of a tree made on the Make page, proven here (lib/tree-entries.ts). */
   tree?: FoundInTree;
-  /** A photo not on record whose pixels carry a TrustMark: where it points and whether it matches (lib/trustmark). */
-  trustmark?: TrustmarkVerdict;
+  /** A photo not on record that looks like a recorded original: which one, and how closely (lib/trustmark/check). */
+  looks?: LooksVerdict;
   proof?: Proof;
   valid?: boolean;
   note?: string;
@@ -256,21 +256,14 @@ async function fingerprintRecords(prints: PhotoPrint[], leaves: Array<[string, s
 
 /** A photo whose pixels carry a hidden pointer (a TrustMark): the BitGraph it points to, and, quietly, how closely
  *  this copy matches the picture that BitGraph bound (a visual match; the original's own bytes are what prove it). */
-function TrustmarkLine({ v }: { v: TrustmarkVerdict }) {
+function LooksLine({ v }: { v: LooksVerdict }) {
   if (v.verdict === "none") return null;
-  if (v.verdict === "forged") return <span className="db-bad">Its hidden pointer is forged: {v.why}.</span>;
   const o = v.original, n = o.counter.toLocaleString("en-US");
   const href = `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
-  if (v.verdict === "mismatch") {
-    return <span className="db-bad">Points to <a href={href}>BitGraph #{n}</a>, but this is not the picture it bound (match {v.score.toFixed(2)}).</span>;
-  }
   return (
     <>
-      <span className="db-ok">Points to <a href={href}>BitGraph #{n}</a></span>
-      <span className="db-size">Looks like the original (match {v.score.toFixed(2)}). Its proof page proves the original file.</span>
-      {v.credentials && (
-        <span className="db-size">Content Credentials: signed by {v.credentials.signer ?? "an unnamed signer"}{v.credentials.generator ? ` (${v.credentials.generator})` : ""}{v.credentials.creator ? `; it names ${v.credentials.creator} as creator` : ""}.</span>
-      )}
+      <span className="db-ok">Looks like <a href={href}>BitGraph #{n}</a></span>
+      <span className="db-size">Match {v.score.toFixed(2)} against the record bound beside the original. Its proof page proves the original file.</span>
     </>
   );
 }
@@ -812,17 +805,12 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         const asProof = proofFileOf(f, bytes);
         if (asProof) return end({ state: "found", proof: asProof, digestB64: asProof.artifact!.digestB64!, isProofFile: true });
         const digestB64 = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
-        // A photo may be a copy carrying a pointer to its original (lib/trustmark); that read starts now, beside the
-        // ledger lookup, and is waited for only if the lookup finds nothing. On Make it skips the zoomed reads and the
-        // search inside a screenshot; a check of one file does both.
-        // (Early only for one file: started for many at once, every photo would be decoded together.)
-        // A screenshot (a photo on a phone or a page, with interface around it) gets the search inside it on Make too: that
-        // is how a screenshot of a copy finds its original. It shows as flat interface, or as a phone screen's shape.
-        const screenshotLike = (img: { rgba: Uint8ClampedArray; w: number; h: number }) => !isPhotographic(img) || Math.max(img.w, img.h) / Math.min(img.w, img.h) >= 1.9;
+        // A photo may be a copy of a recorded original (lib/trustmark/check): that read starts now, beside the ledger
+        // lookup, and is waited for only if the lookup finds nothing. Early only for one file: started for many at
+        // once, every photo would be decoded together.
         // read from the photo decoded at the reading size, never whole: a large photo whole is hundreds of MB
-        const readPointer = () => photoRead(() => decodeForReading(f).then((img) => (img ? judgeTrustmark(img, { search: single && (mode === "check" || screenshotLike(img)), zooms: mode === "check" }) : null)))
-          .catch(() => null);
-        const early = looksLikePhoto(f) && single ? readPointer() : null;
+        const readLooks = () => photoRead(() => decodeForReading(f).then((img) => (img ? judgeLooks(img) : null))).catch(() => null);
+        const early = looksLikePhoto(f) && single ? readLooks() : null;
         patch(row.key, { bytes, digestB64, state: "looking" });
         const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
         if (!res.ok) return end({ bytes, digestB64, state: "error", note: "Could not check the ledger just now. Try again in a moment." });
@@ -833,29 +821,25 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           // Not a BitGraph of its own: perhaps a file of a tree, found by its sealed entry and proven here.
           const inTree = await findInTree(bytes).catch(() => null);
           if (inTree) return end({ bytes, digestB64, state: "in-tree", tree: inTree });
-          // Not on record by its bytes: a photo may still be a copy (recompressed, cropped, screenshotted) whose hidden
-          // pointer leads to the earliest known recording. A check says so. Make records it all the same (recording only
-          // says these bytes existed by then) and its proof page says whose copy it is. Not finding a pointer never makes
-          // a photo an original: a pointer can be cropped away.
+          // Not on record by its bytes: a photo may still be a copy (recompressed, cropped, screenshotted) of a recorded
+          // original, found by what it looks like. A check says so. Make records it all the same (recording only says
+          // these bytes existed by then) and its proof page says whose copy it is. Not finding one never makes a photo
+          // an original: a copy can differ too much to be found.
           if (looksLikePhoto(f)) {
             if (single) setStatus("Checking the ledger…");
-            const v = await (early ?? readPointer());
-            if (v && v.verdict !== "none" && mode === "check" && !(single && v.verdict === "match")) {
-              if (v.verdict === "match" && v.credentials) noteCredentialsMatch(toUrlSafe(v.original.photoDigestB64), v.credentials.thumbnailMatch);
-              return end({ bytes, digestB64, state: "trustmark", trustmark: v });
-            }
+            const v = await (early ?? readLooks());
+            if (v?.verdict === "match" && mode === "check" && !single) return end({ bytes, digestB64, state: "copy", looks: v });
             if (v?.verdict === "match") {
               const o = v.original, href = `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
-              // One copy dropped on Make leads to its original, the earliest known recording, instead of being recorded:
-              // a pointer that checks out is never wrong. (Not finding one says nothing, so those are recorded.)
+              // One copy dropped on Make leads to its original, the earliest known recording, instead of being recorded.
+              // (Not finding one says nothing, so those are recorded.)
               if (single) {
                 noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
                 // the copy itself opens in the original's file pane, labelled as a copy (lib/trustmark/held-copy)
-                setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, tag: o.tag });
-                if (v.credentials) noteCredentialsMatch(toUrlSafe(o.photoDigestB64), v.credentials.thumbnailMatch);
+                setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score });
                 setStatus("Opening the original…");
                 router.push(href);
-                return end({ bytes, digestB64, state: "trustmark", trustmark: v });
+                return end({ bytes, digestB64, state: "copy", looks: v });
               }
               noteCopyOf(toUrlSafe(digestB64), { counter: o.counter, href });
             }
@@ -885,17 +869,17 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         const f = picked[k]!;
         if (!looksLikePhoto(f) || !r.digestB64) return [];
         if (r.state === "found" && r.proof && !r.isProofFile) { const x = foundOriginal(f, r.digestB64, r.proof); return x ? [x] : []; }
-        if (r.state === "trustmark" && r.trustmark?.verdict === "match" && r.bytes) {
-          const v = r.trustmark, o = v.original, bytes = r.bytes;
+        if (r.state === "copy" && r.looks?.verdict === "match" && r.bytes) {
+          const v = r.looks, o = v.original, bytes = r.bytes;
           const item = { digest: o.photoDigestB64, name: f.name, counter: String(o.counter), epochId: String(o.epochId) };
-          return [{ file: f, item, prepare: async () => setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, tag: o.tag }) }];
+          return [{ file: f, item, prepare: async () => setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score }) }];
         }
         if (r.state === "in-tree" && r.tree) return [{ file: f, item: { digest: r.tree.proof.digestB64, name: f.name, counter: r.tree.proof.counter, epochId: r.tree.proof.epochId }, prepare: async () => {} }];
         return [];
       })));
     }
-    if (single && ended2[0]?.state === "trustmark" && ended2[0]?.trustmark?.verdict === "match") return; // led to its original
-    if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "trustmark")) { setRows(ended2); setStatus(null); return; }
+    if (single && ended2[0]?.state === "copy" && ended2[0]?.looks?.verdict === "match") return; // led to its original
+    if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "copy")) { setRows(ended2); setStatus(null); return; }
     const fresh_new = ended2.filter((r) => r.state === "new" && r.digestB64);
     // A new file is made the one way every drop is: a tree with the Base block as its floor (2026-10-20).
     if (mode === "make" && single && fresh_new.length === 1) { await takePlugins([picked[0]!]); return; }
@@ -1146,7 +1130,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
                     </span>
                   </>
                 )}
-                {r.state === "trustmark" && r.trustmark && <TrustmarkLine v={r.trustmark} />}
+                {r.state === "copy" && r.looks && <LooksLine v={r.looks} />}
                 {r.state === "making" && "Binding…"}
                 {r.state === "error" && r.note}
                 {(r.state === "found" || r.state === "made") && r.proof && (

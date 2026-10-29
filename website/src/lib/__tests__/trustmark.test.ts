@@ -5,7 +5,6 @@ import assert from "node:assert/strict";
 import { epochRef, pack, tag, unpack, phash, MAX_COUNTER } from "../trustmark/payload.ts";
 import { align, signature, MATCH, GRID } from "../trustmark/align.ts";
 import { parseRecord, looksLikePhoto, RECORD_FORMAT } from "../trustmark/record.ts";
-import { resizeRGB } from "../trustmark/tm.ts";
 
 // A real BitGraph's commit (position #18), and the pointer the reference implementation computes for its photo.
 const EPOCH = "Dh0UvjQzP/ty1XU/Q/guOwdyORz+DbQLoRKjrla5gl8=";
@@ -56,21 +55,6 @@ test("a cropped copy aligns to its original's signature, another picture does no
   assert.ok(align(b, W, H, sig).score < MATCH, "another picture must not match");
 });
 
-test("a BitGraphed file's thumbnail matches its original's signature, another picture's does not", () => {
-  // a large photo, its 512-pixel thumbnail, and another picture's thumbnail
-  const W = 2400, H = 1600, a = picture(W, H, 1), b = picture(W, H, 4);
-  const sig = signature(a, W, H);
-  const thumb = (px: Uint8ClampedArray) => {
-    const rgb = new Uint8ClampedArray(W * H * 3);
-    for (let i = 0; i < W * H; i++) { rgb[i * 3] = px[i * 4]!; rgb[i * 3 + 1] = px[i * 4 + 1]!; rgb[i * 3 + 2] = px[i * 4 + 2]!; }
-    const small = resizeRGB(rgb, W, H, 512, 341), out = new Uint8ClampedArray(512 * 341 * 4);
-    for (let i = 0; i < 512 * 341; i++) { out[i * 4] = small[i * 3]!; out[i * 4 + 1] = small[i * 3 + 1]!; out[i * 4 + 2] = small[i * 3 + 2]!; out[i * 4 + 3] = 255; }
-    return out;
-  };
-  const mine = align(thumb(a), 512, 341, sig).score;
-  assert.ok(mine >= MATCH, `thumbnail ${mine}`);
-  assert.ok(align(thumb(b), 512, 341, sig).score < MATCH, "another picture's thumbnail must not match");
-});
 
 test("fingerprint records are read strictly", () => {
   const enc = (o: unknown) => new TextEncoder().encode(JSON.stringify(o));
@@ -111,34 +95,4 @@ test("a photo's C2PA manifest store is read out of JPEG APP11 packets and a PNG 
   assert.equal(manifestStoreOf(Uint8Array.of(0xff, 0xd8, 0xff, 0xda, 0, 2, 0xff, 0xd9)), null);
 });
 
-test("a Pixel Seal message carries the pointer and survives up to 22 wrong bits", async () => {
-  const { readFileSync } = await import("node:fs");
-  const vm = await import("node:vm");
-  const { message, decodeMessage } = await import("../trustmark/ps.ts");
-  const ctx: Record<string, unknown> = {};
-  vm.createContext(ctx);
-  vm.runInContext(readFileSync(new URL("../../../public/trustmark/bch_ecc.min.js", import.meta.url), "utf8") + ";this.BCH=BCH;this.BCH_Encode=BCH_Encode;this.BCH_Decode=BCH_Decode;", ctx);
-  const bch = ctx as never;
-  const payload = pack(await epochRef(EPOCH), 18, await tag(NONCE, PHASH, await epochRef(EPOCH), 18));
-  const msg = message(payload, bch);
-  assert.equal(msg.length, 256);
-  assert.ok(/1/.test(msg) && /0/.test(msg));
-  assert.deepEqual(decodeMessage(msg, bch), { payload, bitflips: 0 });
-  // 22 wrong bits spread over the protected part are corrected
-  const flip = (s: string, at: number[]) => Array.from(s, (b, i) => (at.includes(i) ? (b === "1" ? "0" : "1") : b)).join("");
-  const wrong = Array.from({ length: 22 }, (_, i) => i * 11);
-  assert.equal(decodeMessage(flip(msg, wrong), bch)?.payload, payload);
-  // a TrustMark-length payload is required, and an unmarked read (all one value) carries nothing
-  assert.throws(() => message("101", bch));
-  assert.equal(decodeMessage("0".repeat(256), bch), null);
-  assert.equal(decodeMessage("1".repeat(256), bch), null);
-});
 
-test("the JND heatmap is small on flat areas and larger at edges", async () => {
-  const { jnd } = await import("../trustmark/ps.ts");
-  const W = 16, H = 16, L = new Float32Array(W * H).map((_, i) => (i % W < 8 ? 60 : 200));
-  const h = jnd(L, W, H);
-  const flat = h[8 * W + 3]!, edge = h[8 * W + 8]!;
-  assert.ok(edge > flat * 2, `edge ${edge} flat ${flat}`);
-  assert.ok(h.every((v) => v >= 0 && v < 1));
-});

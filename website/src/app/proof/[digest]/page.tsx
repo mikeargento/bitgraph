@@ -25,8 +25,7 @@ import { useHostedFiles, HostedFilesView } from "@/components/hosted-files";
 const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
   try { return fusedMarkerOf(p)?.originDigestB64 ?? null; } catch { return null; }
 };
-import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB, getBitGraphedFromIDB, putBitGraphedToIDB } from "@/lib/file-cache";
-import { warmModels } from "@/lib/trustmark/runtime";
+import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { GalleryBar } from "@/components/gallery";
 import { boundThumbnail, type BoundThumbnail } from "@/lib/trustmark/bound-thumbnail";
 import { redrawRecordedArt } from "@/lib/art-position";
@@ -73,9 +72,8 @@ import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf 
 import { Shell } from "./proof-skeleton";
 import { Wait } from "@/components/wait";
 import { decodePhoto, looksLikePhoto } from "@/lib/trustmark/record";
-import { judge as judgeTrustmark } from "@/lib/trustmark/check";
+import { judge as judgeLooks } from "@/lib/trustmark/check";
 import { setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
-import { NoTrustmark, trustmarkedFile, type TrustmarkedFile } from "@/lib/trustmark/export";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
 import { parseRecord } from "@/lib/trustmark/record";
@@ -651,30 +649,6 @@ export default function ProofPage() {
   const atomicCarrier = !!proof && (proof.commit as { atomic?: boolean } | undefined)?.atomic === true
     && !(proof.commit as { slotAnchor?: unknown } | undefined)?.slotAnchor && baseFloorOfProof(proof) === null;
   const [carrierMsg, setCarrierMsg] = useState<string | null>(null);
-  /* A photo's BitGraphed file (lib/trustmark/export) is made in the background as soon as the page holds the photo
-     after Make (?fresh=1): the hidden pointer from this BitGraph's nonce, written into the pixels, and the marked file
-     recorded as the next BitGraph. Download then hands over the finished file, or waits for it. Opening a link alone
-     never makes one: that is left to the Download button, as before. */
-  const carrierJob = useRef<{ key: string; job: Promise<TrustmarkedFile> } | null>(null);
-  function photoCarrier(name: string, data: ArrayBuffer, p: BitGraphProof, copyChecked = false): Promise<TrustmarkedFile> {
-    const key = `${String(p.commit?.epochId)}:${String(p.commit?.counter)}:${name}:${data.byteLength}`;
-    if (carrierJob.current?.key === key) return carrierJob.current.job;
-    const job = (async () => {
-      const bytes = new Uint8Array(data);
-      const d = btoa(Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (x) => String.fromCharCode(x)).join(""));
-      // a whole BitGraphed file made here before is handed over as it was kept
-      const saved = `${String(p.commit?.epochId)}:${String(p.commit?.counter)}:${d}`;
-      const kept = await getBitGraphedFromIDB(saved);
-      if (kept) return { bytes: kept.bytes, fileName: kept.fileName, copyProof: kept.copyProof as TrustmarkedFile["copyProof"], ceiling: true, published: true };
-      const t = await trustmarkedFile(new File([bytes], name), d, p as never, undefined, { copyChecked });
-      if (t.ceiling && t.published) void putBitGraphedToIDB(saved, { fileName: t.fileName, bytes: t.bytes, copyProof: t.copyProof });
-      return t;
-    })();
-    carrierJob.current = { key, job };
-    // a failure is not kept: the next Download tries again
-    job.catch(() => { if (carrierJob.current?.job === job) carrierJob.current = null; });
-    return job;
-  }
   // What this BitGraph bound, as a picture, when its BitGraphed file published a thumbnail (lib/trustmark/bound-thumbnail):
   // shown beside a copy whose pointer led here (its tag opens the record), checked against the fingerprint bound here.
   // A visitor with nothing in hand sees no picture: a visual only for those who already hold one.
@@ -688,20 +662,6 @@ export default function ProofPage() {
     void boundThumbnail(proof as never, tag).then((t) => { if (gone) { if (t) URL.revokeObjectURL(t.url); return; } url = t?.url ?? null; setBoundThumb(t); }).catch(() => { if (!gone) setBoundThumb(null); });
     return () => { gone = true; if (url) URL.revokeObjectURL(url); };
   }, [proof, atomicCarrier, cachedFile, heldCopy?.tag]);
-  // A photo in hand on its page: the pointer's models start loading now, so a Download does not wait on them.
-  useEffect(() => {
-    if (!proof || !cachedFile || !atomicCarrier || !looksLikePhoto({ name: cachedFile.name })) return;
-    const idle = (globalThis as { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback;
-    if (idle) idle(warmModels); else setTimeout(warmModels, 500);
-  }, [proof, cachedFile, atomicCarrier]);
-  useEffect(() => {
-    if (!freshRef.current || !proof || !cachedFile || !atomicCarrier || !looksLikePhoto({ name: cachedFile.name })) return;
-    // Make binds a drop without reading it for a pointer, so the BitGraphed file reads it first: a copy keeps its own
-    void photoCarrier(cachedFile.name, cachedFile.data, proof).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proof, cachedFile, atomicCarrier]);
-  // A photo noticed at Make as a copy of an earlier BitGraph (lib/trustmark/copy-note): read after the first render,
-  // since session storage is only in the browser.
   const [copyOf, setCopyOf] = useState<ReturnType<typeof copyOfNote>>(null);
   useEffect(() => { setCopyOf(copyOfNote(digestParam)); }, [digestParam]);
   // Every BitGraph of this file's exact bytes, oldest first: the same file bound again is listed, never merged, and the
@@ -2041,28 +2001,6 @@ export default function ProofPage() {
     setCarrierBusy(true);
     setCarrierMsg(null);
     try {
-      /* A photo's BitGraphed file carries a hidden pointer back to this BitGraph, a TrustMark (lib/trustmark/export.ts):
-         the file is a marked copy, recorded as its own BitGraph right after this one, with that proof inside. Intact, it
-         proves its own bytes; stripped by a feed or a screenshot, the pointer in its pixels still leads here, where the
-         original proves itself. A photo whose BitGraph binds no fingerprint (made before TrustMarks), or a graphic, gets
-         the plain file. */
-      let withoutMark: string | null = null;
-      if (atomicCarrier && looksLikePhoto({ name: cachedFile.name })) {
-        try {
-          // made in the background after Make (above), or made now and waited for
-          const t = await photoCarrier(cachedFile.name, cachedFile.data, proof);
-          const url = URL.createObjectURL(new Blob([t.bytes as unknown as BlobPart], { type: "application/octet-stream" }));
-          const el = document.createElement("a"); el.href = url; el.download = t.fileName; el.click();
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-          // Success is silent (the download is the feedback); only a missing side speaks.
-          setCarrierMsg([t.ceiling ? null : "The Base write has not landed yet, so this file carries the proof without its ceiling. Download it again in a few seconds for the ceiling too.",
-            t.published ? null : "Its pointer could not be registered just now, so a stripped copy cannot be checked yet. Download it again in a moment."].filter(Boolean).join(" ") || null);
-          return;
-        } catch (e) {
-          // a photo that cannot carry a pointer gets the plain file without a word; a failure on the way says so
-          if (!(e instanceof NoTrustmark)) withoutMark = `The hidden pointer could not be added just now (${e instanceof Error ? e.message : String(e)}), so this is the plain file.`;
-        }
-      }
       // A proof made in one atomic action signs no floor of its own: its BitGraphed file is bitgraph-carrier/5, the file,
       // then the proof as the ledger serves it (its tree path and floor leaf inside) and its Base ceiling (2026-10-20).
       if (atomicCarrier) {
@@ -2075,7 +2013,7 @@ export default function ProofPage() {
         const url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type: "application/octet-stream" }));
         const el = document.createElement("a"); el.href = url; el.download = name; el.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setCarrierMsg([withoutMark, sidecar ? null : "The Base write has not landed yet, so this file carries the proof without its ceiling. Download it again in a few seconds for the ceiling too."].filter(Boolean).join(" ") || null);
+        setCarrierMsg([sidecar ? null : "The Base write has not landed yet, so this file carries the proof without its ceiling. Download it again in a few seconds for the ceiling too."].filter(Boolean).join(" ") || null);
         return;
       }
       // tree/1: one member's file (carrier/4), its bytes walked to the signed root document by the
@@ -2923,12 +2861,12 @@ function BringYourFile({
     const files = Array.isArray(source) ? source : source.entries ? [] : source.files;
     if (files.length !== 1 || !looksLikePhoto(files[0]!)) return false;
     const img = await decodePhoto(files[0]!);
-    const v = img ? await judgeTrustmark(img, { search: true, zooms: true }).catch(() => null) : null;
+    const v = img ? await judgeLooks(img).catch(() => null) : null;
     if (v?.verdict !== "match" || String(v.original.counter) !== counter || v.original.epochId !== epoch) return false;
     // the copy is shown in the photo's own file pane, labelled for what it is: on the tree's page, that page opens with it
     const wrapped = carriers.has(files[0]!);
     // a BitGraphed file keeps its own name (the file inside it was named without the .bitgraph)
-    const held: HeldCopy = { name: wrapped ? files[0]!.name.replace(/(\.[^.]+)?$/, ".bitgraph$1") : files[0]!.name, data: await files[0]!.arrayBuffer(), kind: wrapped ? "bitgraphed" : "copy", score: v.score, tag: v.original.tag };
+    const held: HeldCopy = { name: wrapped ? files[0]!.name.replace(/(\.[^.]+)?$/, ".bitgraph$1") : files[0]!.name, data: await files[0]!.arrayBuffer(), kind: wrapped ? "bitgraphed" : "copy", score: v.score };
     if (v.original.photoDigestB64 !== cacheKey) {
       setHeldCopy(toUrlSafeB64(v.original.photoDigestB64), held);
       router.push(pageOf(v.original.photoDigestB64));
