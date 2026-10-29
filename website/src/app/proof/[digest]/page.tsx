@@ -75,7 +75,7 @@ import { decodePhoto, looksLikePhoto } from "@/lib/trustmark/record";
 import { judge as judgeLooks } from "@/lib/trustmark/check";
 import { publishFoundRecord } from "@/lib/trustmark/ledger";
 import type { Original } from "@/lib/trustmark/check";
-import { setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
+import { forgetHeldCopy, recallHeldCopy, setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { SourceField, SourceLine, noteDropUrl } from "@/components/source-link";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
@@ -344,7 +344,16 @@ export default function ProofPage() {
   const [hostedOriginal, setHostedOriginal] = useState(false);
   // the shown photo's full-size Open link, set by its card, shown beside the downloads
   const [photoOpenUrl, setPhotoOpenUrl] = useState<string | null>(null);
-  useEffect(() => { const c = takeHeldCopy(digestParam); if (c) setHeldCopyState(c); }, [digestParam]);
+  // the copy handed over for this page, or the one this browser brought last time (a reload keeps the reference)
+  useEffect(() => {
+    const c = takeHeldCopy(digestParam);
+    if (c) { setHeldCopyState(c); return; }
+    let gone = false;
+    void recallHeldCopy(digestParam).then((r) => { if (r && !gone) setHeldCopyState((cur) => cur ?? r); });
+    return () => { gone = true; };
+  }, [digestParam]);
+  // the original in hand: the remembered copy is no longer what this page shows
+  useEffect(() => { if (cachedFile && !heldCopy) void forgetHeldCopy(digestParam); }, [cachedFile, heldCopy, digestParam]);
   // A BitGraph image (/image) opens with its proof: the page redraws it from the commitment the
   // proof authenticates and holds it as the file in hand only when it hashes to the recorded
   // digest (2026-10-06). Nothing is stored.
@@ -806,7 +815,7 @@ export default function ProofPage() {
   const hostedPulled = useRef(false);
   const hostedEpoch = proof?.commit?.epochId ? String(proof.commit.epochId) : null, hostedCounter = proof?.commit?.counter !== undefined ? String(proof.commit.counter) : null;
   useEffect(() => {
-    if (!hostedEpoch || !hostedCounter || cachedFile || heldCopy || hostedPulled.current) return;
+    if (!hostedEpoch || !hostedCounter || cachedFile || hostedPulled.current) return;
     const d = decodeURIComponent(digestParam);
     if (Object.hasOwn(EXAMPLE_FILES, d)) return;
     hostedPulled.current = true;
@@ -834,7 +843,7 @@ export default function ProofPage() {
       } catch { /* the strip's download and the drop box remain */ }
     })();
     return () => { cancelled = true; if (!settled) hostedPulled.current = false; };
-  }, [digestParam, hostedEpoch, hostedCounter, cachedFile, heldCopy]);
+  }, [digestParam, hostedEpoch, hostedCounter, cachedFile]);
 
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
@@ -2283,6 +2292,9 @@ export default function ProofPage() {
             boundThumb === undefined ? null : (
               <div className="pv-pane-in">
                 {boundThumb && <BoundThumbView t={boundThumb} caption="The reference this BitGraph bound. You hold a copy; only the original’s exact bytes prove it." />}
+                {boundThumb === null && heldCopy.found && (
+                  <p className="pv-note">Your copy matches the fingerprint this BitGraph bound. No reference picture was bound with it; its holder adds one by checking the original once.</p>
+                )}
                 {heldCopy.others && heldCopy.others.length > 0 && (
                   <p className="pv-note">
                     Your copy also looks like {heldCopy.others.map((o, i) => {
@@ -3090,7 +3102,7 @@ function BringYourFile({
               : "No match. Those are not the bytes this BitGraph describes."}
           </div>
           <div className="dropbox-line">
-            Changing a single bit changes the hash completely, so an edited or re-saved copy will never match. Drop the original to try again.
+            Changing a single bit changes the hash completely, so an edited or re-saved copy never matches by its bytes. A photo that is a copy of a bound original is found by its looks, and this one matched none. Drop the original to try again.
           </div>
         </>
       ) : (

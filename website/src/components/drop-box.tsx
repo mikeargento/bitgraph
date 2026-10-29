@@ -913,7 +913,11 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         return [];
       })));
     }
-    if (single && ended2[0]?.state === "copy" && ended2[0]?.looks?.verdict === "match") return; // led to its original
+    if (single && ended2[0]?.state === "copy" && ended2[0]?.looks?.verdict === "match") {
+      // led to its original; or, with several originals, listed them (the row stays, nothing is recorded)
+      if (ended2[0].looks.others.length) { setRows(ended2); setStatus(null); }
+      return;
+    }
     if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "copy")) { setRows(ended2); setStatus(null); return; }
     const fresh_new = ended2.filter((r) => r.state === "new" && r.digestB64);
     // A new file is made the one way every drop is: a tree with the Base block as its floor (2026-10-20).
