@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 const LIVE = [
   { href: "/make", label: "Make", title: "Bind files in a BitGraph", body: "Drop files. They are hashed in your browser and only the SHA-256 is sent; the enclave binds it and the proof comes back. Many files become one tree and one BitGraph." },
-  { href: "/check", label: "Check", title: "Check any file, or find a copy's original", body: "Drop a file to find its proof by its exact bytes. A screenshot or a stripped copy of a photo is matched, in your browser, to the fingerprint record the original's own tree binds, and opens the original's proof. No watermark; only a 64-bit hash is sent." },
+  { href: "/check", label: "Check", title: "Check any file, or find a copy's original", body: "Drop a file to find its proof by its exact bytes. Drop a screenshot or a stripped copy of a photo and it is matched in your browser to the original's proof. No watermark; only a 64-bit hash is sent." },
   { href: "/ledger", label: "Ledger", title: "Every BitGraph, as it is made", body: "The public sequence, newest first: each BitGraph's number, its two counts, the SHA-256 it bound and the enclave's signed time." },
 ];
 
