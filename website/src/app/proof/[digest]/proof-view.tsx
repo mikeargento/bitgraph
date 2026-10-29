@@ -527,7 +527,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
      saying what the BitGraph says, the downloads, and the proof itself in full. */
   {
     const verdictWord = c.state === "done" ? (c.verdict === "TRUE" ? "\u2713 Valid proof" : c.verdict === "FALSE" ? "\u2717 Not a valid proof" : "Undetermined") : c.state === "failed" ? "Not checked" : "Checking\u2026";
-    const who = m.c2pa?.present ? [m.c2pa.creator, m.c2pa.signatureIssuer ? `signed by ${m.c2pa.signatureIssuer}` : null].filter(Boolean).join(", ") : "";
     return (
       <div className="pv">
         <h1 className="sr-only">BitGraph proof</h1>
@@ -538,8 +537,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {/* The name leads only when no time card names it above; a proof that fails says so in its place, never folded away. */}
             {!showTime && <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>}
             {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
-            {/* No time here (2026-10-29): this is the content card; the time section below says when it was BitGraphed. */}
-            {who && <div className="pv-photo-who">{who}</div>}
+            {/* No time or creator here (2026-10-29): this is the content card; the time card above says when, and the
+                Content Credentials card below says who. */}
             {/* A failure or a wait gets its own card below; a pass says nothing here, the checks card tallies it. */}
             {m.sourceLine}
           </div>
