@@ -22,7 +22,7 @@ import { candidates as rectangles, cropRGBA } from "./locate.ts";
 import { fingerprintOf, type Decoded } from "./record.ts";
 
 /** phash and recordDigestB64: the record that matched, which opens the bound reference thumbnail (bound-thumbnail.ts). */
-export type Original = { counter: number; epochId: string; photoDigestB64: string; phash: string; recordDigestB64: string };
+export type Original = { counter: number; epochId: string; photoDigestB64: string; phash: string; recordDigestB64: string; hosted: boolean; recordedMs: number | null };
 /** others: every other bound original the copy also matches (the same picture exported twice is two originals, each
  *  with its own proof); the find lists them all and chooses none. Best score first. */
 export type LooksVerdict =
@@ -30,7 +30,7 @@ export type LooksVerdict =
   | { verdict: "unavailable" }
   | { verdict: "match"; original: Original; score: number; others: Array<{ original: Original; score: number }> };
 
-type Candidate = { distance: number; phash: string; photo: string; counter: string; epoch: string; record: string; values: string };
+type Candidate = { distance: number; phash: string; photo: string; counter: string; epoch: string; record: string; values: string; hosted?: boolean; recordedMs?: number | null };
 const fromUrlSafe = (s: string) => { const t = s.replace(/-/g, "+").replace(/_/g, "/"); return t + "=".repeat((4 - (t.length % 4)) % 4); };
 
 /** Rectangles of a framed screenshot tried after the whole picture, each one lookup on the server. */
@@ -50,13 +50,16 @@ async function judgeOne(img: Decoded, seen: Map<string, Promise<Candidate[]>>): 
   for (const c of list) {
     const { score } = align(img.rgba, img.w, img.h, c.values);
     if (score < MATCH) continue;
-    const original: Original = { counter: Number(c.counter), epochId: fromUrlSafe(c.epoch), photoDigestB64: c.photo, phash: c.phash, recordDigestB64: fromUrlSafe(c.record) };
+    const original: Original = { counter: Number(c.counter), epochId: fromUrlSafe(c.epoch), photoDigestB64: c.photo, phash: c.phash, recordDigestB64: fromUrlSafe(c.record), hosted: c.hosted === true, recordedMs: typeof c.recordedMs === "number" ? c.recordedMs : null };
     // one entry per original file: the same bytes bound more than once are one original, at its best-scoring position
     const dup = matches.findIndex((m) => m.original.photoDigestB64 === original.photoDigestB64);
     if (dup < 0) matches.push({ original, score });
     else if (score > matches[dup]!.score) matches[dup] = { original, score };
   }
-  matches.sort((a, b) => b.score - a.score);
+  // The order is usefulness, not score: an original whose file is hosted first (it can give the visitor the file),
+  // then the earliest bound (it proves when the picture first existed), then the closer match.
+  const when = (m: { original: Original }) => m.original.recordedMs ?? Number.POSITIVE_INFINITY;
+  matches.sort((a, b) => Number(b.original.hosted) - Number(a.original.hosted) || when(a) - when(b) || b.score - a.score);
   if (matches.length === 0) return { verdict: "none" };
   return { verdict: "match", score: matches[0]!.score, original: matches[0]!.original, others: matches.slice(1) };
 }
@@ -77,3 +80,6 @@ export async function judge(full: Decoded, { search = true } = {}): Promise<Look
   }
   return whole;
 }
+
+/** Whether a match should open its first original without asking: it is the only one, or the only one hosted. */
+export const opensAlone = (v: LooksVerdict): boolean => v.verdict === "match" && (v.others.length === 0 || (v.original.hosted && !v.others.some((m) => m.original.hosted)));

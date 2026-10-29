@@ -37,7 +37,7 @@ import { makeThumb, THUMB_SUFFIX } from "@/lib/trustmark/thumb";
 import { FoundThumb } from "@/components/found-thumb";
 import { SourceHint } from "@/components/source-link";
 import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
-import { judge as judgeLooks, type LooksVerdict, type Original } from "@/lib/trustmark/check";
+import { judge as judgeLooks, opensAlone, type LooksVerdict, type Original } from "@/lib/trustmark/check";
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
 import { noteCopyOf, noteDroppedCopy } from "@/lib/trustmark/copy-note";
 import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
@@ -288,7 +288,7 @@ function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: U
   return (
     <>
       <span className="db-ok">Looks like {all.length} bound originals</span>
-      <span className="db-size db-wrap">The same picture, bound as different files. Each proof page proves its own file.</span>
+      <span className="db-size db-wrap">The same picture, bound as different files; hosted originals first, then the earliest bound. Each proof page proves its own file.</span>
       <ul className="db-looks-list">
         {all.map(({ original: o, score }) => {
           const href = proofHref(o);
@@ -873,7 +873,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               // (Not finding one says nothing, so those are recorded.)
               // Several bound originals look like it (a picture exported twice): the row lists them all and opens none.
               if (single) {
-                if (v.others.length === 0) {
+                if (opensAlone(v)) {
                   noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
                   // the copy itself opens in the original's file pane, labelled as a copy (lib/trustmark/held-copy)
                   setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o });
@@ -928,7 +928,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     }
     if (single && ended2[0]?.state === "copy" && ended2[0]?.looks?.verdict === "match") {
       // led to its original; or, with several originals, listed them (the row stays, nothing is recorded)
-      if (ended2[0].looks.others.length) { setRows(ended2); setStatus(null); }
+      if (!opensAlone(ended2[0].looks)) { setRows(ended2); setStatus(null); }
       return;
     }
     if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "copy")) { setRows(ended2); setStatus(null); return; }

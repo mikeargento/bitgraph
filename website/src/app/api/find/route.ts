@@ -1,7 +1,8 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 import { NextResponse } from "next/server";
-import { FIND_PREFIX, LedgerUnavailableError, getObjectText, listKeysUnderPrefix, parseFindKey, trustmarkRecordKey } from "@/lib/s3";
+import { FIND_PREFIX, LedgerUnavailableError, getObjectText, getSourceNote, listKeysUnderPrefix, parseFindKey, trustmarkRecordKey } from "@/lib/s3";
+import { recordedMsOf } from "@/lib/recorded-time";
 import { fromUrlSafeB64 } from "@/lib/explorer";
 import { parseRecord } from "@/lib/trustmark/record";
 
@@ -48,10 +49,15 @@ export async function GET(req: Request) {
       const epochId = fromUrlSafeB64(e.epochSafe), recordDigest = fromUrlSafeB64(e.recordSafe);
       if (!epochId || !recordDigest) return null;
       const text = await getObjectText(trustmarkRecordKey(e.eref, e.counter, epochId, recordDigest));
-      let published: { recordB64?: unknown } | null = null;
+      let published: { recordB64?: unknown; proof?: unknown } | null = null;
       try { published = text ? JSON.parse(text) : null; } catch { return null; }
       const rec = typeof published?.recordB64 === "string" ? parseRecord(new Uint8Array(Buffer.from(published.recordB64, "base64"))) : null;
-      return rec ? { distance: e.distance, phash: rec.phash, photo: rec.photo, counter: String(e.counter), epoch: e.epochSafe, record: e.recordSafe, values: rec.blocks.values } : null;
+      if (!rec) return null;
+      // hosted: a verified link to the original exists at this position (app/api/sources), the one that can give a
+      // visitor the file; recordedMs: when the tree was bound, so the caller can put the earliest first
+      const note = await getSourceNote(rec.photo, epochId, String(e.counter)).catch(() => null);
+      const hosted = !!note && !note.failedAt;
+      return { distance: e.distance, phash: rec.phash, photo: rec.photo, counter: String(e.counter), epoch: e.epochSafe, record: e.recordSafe, values: rec.blocks.values, hosted, recordedMs: recordedMsOf(published?.proof) };
     }))).filter(Boolean);
     return NextResponse.json({ candidates }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
