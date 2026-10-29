@@ -390,7 +390,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       {/* ── Where it sits in time: three moments, each a time; the Base block numbers live behind the Basescan links ── */}
       {showTime && (
         <section className="pv-card">
-          <div className="pv-section-title">Where it sits in time</div>
+          {/* No heading (2026-10-29): three times in three boxes say it themselves. */}
           <div className="pv-moments">
             {es && es.genesis && (
               <Moment
