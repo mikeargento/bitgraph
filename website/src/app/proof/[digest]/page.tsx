@@ -2550,10 +2550,11 @@ export default function ProofPage() {
             downloadNotes,
             carrierNote: carrierMsg,
             copyOf,
-            // the hosted original: shown to everyone once a holder has added a verified link; the field only to a holder
+            // the hosted original: shown to everyone once a verified link exists; anyone may offer the first link (the
+            // server admits only bytes that hash to the digest), and a holder of the original may change it
             ...(kind === "file" && commit?.epochId && commit?.counter ? (() => {
               const pos = { digest: stdDigest(digestParam), epoch: String(commit.epochId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), counter: String(commit.counter) };
-              return { sourceLine: <SourceLine {...pos} />, sourceField: cachedFile && !heldCopy && !hostedOriginal ? <SourceField pos={pos} file={cachedFile} /> : null };
+              return { sourceLine: <SourceLine {...pos} />, sourceField: <SourceField pos={pos} file={cachedFile && !heldCopy && !hostedOriginal ? cachedFile : undefined} /> };
             })() : {}),
             bindings: bindings?.map((b) => ({ ...b, current: b.counter === Number(proof?.commit?.counter) && b.epochId === String(proof?.commit?.epochId ?? "") })) ?? [],
             droppedCopy,

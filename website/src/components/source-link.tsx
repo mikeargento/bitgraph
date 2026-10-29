@@ -10,8 +10,9 @@ import { relativeTime } from "@/lib/explorer";
  * can fetch the bytes and run the proof. Three pieces, all over app/api/sources:
  *   SourceLine    in the strip, for everyone: the host to credit, when the bytes were last seen to match, and a
  *                 download that comes through our hash and is hashed again here before it is saved.
- *   SourceField   under the file pane, only for someone holding the original (the page has matched their file): paste
- *                 or drop a link, and the server fetches it and admits it only if it hashes to the bound digest.
+ *   SourceField   under the file pane, for anyone while no hosted copy is known, since the server admits a link only
+ *                 after it fetches the file and finds it hashes to the bound digest; a holder of the original (the page
+ *                 has matched their file) can also change a link that is already there. Paste or drop the link.
  *   SourceHint    on a Check row for a copy: "original available".
  * A link dragged in with the file (an image from a page, a public bucket address) fills the field by itself.
  */
@@ -77,38 +78,40 @@ export function SourceLine(pos: Pos) {
   );
 }
 
-/** For the holder: the page has matched their file to the bound digest, and `file` is that file. */
-export function SourceField({ pos, file }: { pos: Pos; file: { name: string; data: ArrayBuffer } }) {
+/** `file` is the holder's file when the page has matched one to the bound digest; without it, the field only offers to add a first link. */
+export function SourceField({ pos, file }: { pos: Pos; file?: { name: string; data: ArrayBuffer } }) {
   const { source } = useSource(pos);
-  const [holds, setHolds] = useState(false);
+  const [hashedFile, setHashedFile] = useState<{ file: object; holds: boolean } | null>(null);
+  const holds = !!file && hashedFile?.file === file && hashedFile.holds;
   const [url, setUrl] = useState("");
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<{ kind: "idle" } | { kind: "checking" } | { kind: "ok"; host: string } | { kind: "bad"; why: string }>({ kind: "idle" });
   const submit = useCallback(async (u: string) => {
     if (!u.trim()) return;
     setState({ kind: "checking" });
-    const r = await fetch("/api/sources", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...pos, url: u.trim(), name: file.name }) }).catch(() => null);
+    const r = await fetch("/api/sources", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...pos, url: u.trim(), ...(file ? { name: file.name } : {}) }) }).catch(() => null);
     const body = (await r?.json().catch(() => null)) as { ok?: boolean; source?: Source; error?: string } | null;
     if (r?.ok && body?.source) { setState({ kind: "ok", host: body.source.host }); setOpen(false); window.dispatchEvent(new Event(EV)); }
     else setState({ kind: "bad", why: body?.error ?? "the link could not be checked just now" });
-  }, [pos, file.name]);
-  // only the holder of the exact bytes is asked where they are hosted; a link that came with the drop is tried at once
+  }, [pos, file]);
+  // a holder of the exact bytes may change an existing link; a link that came with their drop is tried at once
   useEffect(() => {
+    if (!file) return;
     let gone = false;
     crypto.subtle.digest("SHA-256", file.data).then((h) => {
       if (gone) return;
       const ok = toSafe(b64(new Uint8Array(h))) === toSafe(pos.digest);
-      setHolds(ok);
+      setHashedFile({ file, holds: ok });
       const u = dropUrl; dropUrl = null;
       if (ok && u) { setUrl(u); setOpen(true); void submit(u); }
     }).catch(() => {});
     return () => { gone = true; };
   }, [file, pos.digest, submit]);
-  if (!holds) return null;
+  if (source === undefined || (source && !holds)) return null;
   return (
     <div className="pv-source-field">
       {!open ? (
-        <button type="button" className="pv-source-add" onClick={() => setOpen(true)}>{source ? "Change where this original is hosted" : "Is this original hosted somewhere? Add the link"}</button>
+        <button type="button" className="pv-source-add" onClick={() => setOpen(true)}>{source ? "Change where this original is hosted" : holds ? "Is this original hosted somewhere? Add the link" : "Know where this original is hosted? Add the link"}</button>
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); void submit(url); }}>
           <label className="pv-source-label" htmlFor="src-url">Where is this original hosted?</label>
@@ -116,7 +119,7 @@ export function SourceField({ pos, file }: { pos: Pos; file: { name: string; dat
             <input id="src-url" type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…  (Drive, Dropbox, OneDrive, GitHub, S3 or any web address)" autoComplete="off" spellCheck={false} />
             <button type="submit" className="bg-action-link" style={{ margin: 0, flex: "none" }} disabled={state.kind === "checking" || !url.trim()}>{state.kind === "checking" ? "Checking…" : "Check and add"}</button>
           </div>
-          <p className="pv-source-fine">Paste a link to the exact file, shared as &ldquo;anyone with the link&rdquo;. We fetch it and check that its bytes are this original&rsquo;s before anything is shown; a link to anything else is refused. Downloads come from your host.</p>
+          <p className="pv-source-fine">Paste a link to the exact file, shared as &ldquo;anyone with the link&rdquo;. We fetch it and check that its bytes are this original&rsquo;s before anything is shown; a link to anything else is refused. Downloads come from that host.</p>
         </form>
       )}
       {state.kind === "ok" && <p className="pv-source-ok">{"✓"} Verified: this original is hosted at {state.host}.</p>}
