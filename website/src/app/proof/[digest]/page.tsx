@@ -74,6 +74,7 @@ import { Wait } from "@/components/wait";
 import { decodePhoto, looksLikePhoto } from "@/lib/trustmark/record";
 import { judge as judgeLooks } from "@/lib/trustmark/check";
 import { publishFoundRecord } from "@/lib/trustmark/ledger";
+import type { Original } from "@/lib/trustmark/check";
 import { setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { SourceField, SourceLine, noteDropUrl } from "@/components/source-link";
@@ -338,6 +339,7 @@ export default function ProofPage() {
   /* A copy of this page's photo (its BitGraphed file, a screenshot, a feed's copy) whose hidden pointer led here: shown in
      the file pane with a label for what it is, never taken for the original (nothing is checked or made from it). */
   const [heldCopy, setHeldCopyState] = useState<HeldCopy | null>(null);
+  const router = useRouter();
   // true when the file in the pane came from the holder's hosted link, not from this visitor: no "add a link" field then
   const [hostedOriginal, setHostedOriginal] = useState(false);
   // the shown photo's full-size Open link, set by its card, shown beside the downloads
@@ -2283,9 +2285,17 @@ export default function ProofPage() {
                 {boundThumb && <BoundThumbView t={boundThumb} caption="The reference this BitGraph bound. You hold a copy; only the original’s exact bytes prove it." />}
                 {heldCopy.others && heldCopy.others.length > 0 && (
                   <p className="pv-note">
-                    Your copy also looks like {heldCopy.others.map((o, i) => (
-                      <span key={`${o.photoDigestB64}/${o.counter}`}>{i > 0 ? ", " : ""}<a href={`/proof/${toUrlSafeB64(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafeB64(o.epochId))}`}>BitGraph #{o.counter.toLocaleString("en-US")}</a></span>
-                    ))}: the same picture, bound as a different file.
+                    Your copy also looks like {heldCopy.others.map((o, i) => {
+                      const href = `/proof/${toUrlSafeB64(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafeB64(o.epochId))}`;
+                      // the copy goes along, so that page shows its reference and says the same (lib/trustmark/held-copy)
+                      const carry = (e: React.MouseEvent) => {
+                        e.preventDefault();
+                        const rest = [heldCopy.found, ...(heldCopy.others ?? [])].filter((x): x is Original => !!x && x.photoDigestB64 !== o.photoDigestB64);
+                        setHeldCopy(toUrlSafeB64(o.photoDigestB64), { ...heldCopy, found: o, others: rest });
+                        router.push(href);
+                      };
+                      return <span key={`${o.photoDigestB64}/${o.counter}`}>{i > 0 ? ", " : ""}<a href={href} onClick={carry}>BitGraph #{o.counter.toLocaleString("en-US")}</a></span>;
+                    })}: the same picture, bound as a different file.
                   </p>
                 )}
                 {/* The same find-the-file box as every proof page: the original is what proves the photo. */}
