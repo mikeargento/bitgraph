@@ -2294,33 +2294,12 @@ export default function ProofPage() {
           ) : cachedFile ? (
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
           ) : heldCopy ? (
-            // A copy in hand is never shown as if it were the photo: the box shows what this BitGraph bound (its
-            // thumbnail, when its BitGraphed file published one), and the visitor already holds their own file.
+            // A copy in hand is never shown as if it were the photo: the box shows the picture this BitGraph recorded
+            // (its thumbnail, when one was published), says it is not the original, and offers three things to do.
             boundThumb === undefined ? null : (
               <div className="pv-pane-in">
-                {boundThumb && typeof boundThumb === "object" && <BoundThumbView t={boundThumb} caption={<><strong>Not the original.</strong> You have a copy of the picture this BitGraph recorded.</>} />}
-                {boundThumb === null && heldCopy.found && (
-                  <p className="pv-note"><strong>Not the original.</strong> You have a copy of the picture this BitGraph recorded. No preview was saved with it yet.</p>
-                )}
-                {boundThumb === "failed" && <p className="pv-note"><strong>Not the original.</strong> You have a copy of the picture this BitGraph recorded. Its preview could not be shown.</p>}
-                {boundThumb === "unavailable" && <p className="pv-note"><strong>Not the original.</strong> You have a copy of the picture this BitGraph recorded. Its preview could not be loaded just now.</p>}
-                {heldCopy.others && heldCopy.others.length > 0 && (
-                  <p className="pv-note">
-                    The same picture was also recorded as {heldCopy.others.map((o, i) => {
-                      const href = `/proof/${toUrlSafeB64(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafeB64(o.epochId))}`;
-                      // the copy goes along, so that page shows its reference and says the same (lib/trustmark/held-copy)
-                      const carry = (e: React.MouseEvent) => {
-                        e.preventDefault();
-                        const rest = [heldCopy.found, ...(heldCopy.others ?? [])].filter((x): x is Original => !!x && x.photoDigestB64 !== o.photoDigestB64);
-                        setHeldCopy(toUrlSafeB64(o.photoDigestB64), { name: heldCopy.name, data: heldCopy.data, kind: "copy", score: heldCopy.score, found: o, others: rest });
-                        router.push(href);
-                      };
-                      return <span key={`${o.photoDigestB64}/${o.counter}`}>{i > 0 ? (i === heldCopy.others!.length - 1 ? " and " : ", ") : ""}<a href={href} onClick={carry}>BitGraph #{o.counter.toLocaleString("en-US")}</a></span>;
-                    })}, as a different file.
-                  </p>
-                )}
-                {/* The same find-the-file box as every proof page: the original is what proves the photo. */}
-                <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} compact />
+                {boundThumb && typeof boundThumb === "object" ? <BoundThumbView t={boundThumb} caption={<strong>Not the original</strong>} /> : <p className="pv-note"><strong>Not the original.</strong> {boundThumb === "failed" ? "The preview saved with this BitGraph could not be shown." : boundThumb === "unavailable" ? "Its preview could not be loaded just now." : "No preview was saved with this BitGraph yet."}</p>}
+                <CopyOptions proof={proof} heldCopy={heldCopy} digestParam={digestParam} setBound={setBound} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} />
               </div>
             )
           ) : painting ? (
@@ -2555,7 +2534,7 @@ export default function ProofPage() {
             // server admits only bytes that hash to the digest), and a holder of the original may change it
             ...(kind === "file" && commit?.epochId && commit?.counter ? (() => {
               const pos = { digest: stdDigest(digestParam), epoch: String(commit.epochId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), counter: String(commit.counter) };
-              return { sourceLine: <SourceLine {...pos} />, sourceField: <SourceField pos={pos} file={cachedFile && !heldCopy && !hostedOriginal ? cachedFile : undefined} /> };
+              return { sourceLine: <SourceLine {...pos} />, sourceField: heldCopy ? null : <SourceField pos={pos} file={cachedFile && !hostedOriginal ? cachedFile : undefined} /> };
             })() : {}),
             bindings: bindings?.map((b) => ({ ...b, current: b.counter === Number(proof?.commit?.counter) && b.epochId === String(proof?.commit?.epochId ?? "") })) ?? [],
             droppedCopy,
@@ -2640,10 +2619,13 @@ function BringYourFile({
   onResolvedMember,
   onTreeEvidence,
   onCopy,
+  among,
   compact = false,
 }: {
   /** One line in a short, plainly framed box, for checking the original: the drop target on every proof page. */
   compact?: boolean;
+  /** The other BitGraphs of the same picture a copy matched: a dropped file whose bytes are one of theirs opens there, in hand. */
+  among?: Original[];
   /** A copy of this page's photo, carrying its pointer: shown in the file pane, labelled for what it is. */
   onCopy?: (copy: HeldCopy) => void;
   proof: BitGraphProof;
@@ -2946,6 +2928,15 @@ function BringYourFile({
       if (looksLikePhoto(own)) void publishFoundRecord(own, cacheKey, own.name).catch(() => {});
       return true;
     }
+    // the original of another BitGraph of the same picture: it lands there, in hand, the way it would have on that page
+    for (const d of [...seen.keys()].slice(0, 50)) {
+      const o = among?.find((x) => x.photoDigestB64 === d);
+      if (!o || d === cacheKey) continue;
+      await cacheArtifactToIDB(seen.get(d)!, d).catch(() => {});
+      forgetHeldCopy(toUrlSafeB64(d)).catch(() => {});
+      window.location.assign(`/proof/${toUrlSafeB64(d)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafeB64(o.epochId))}`);
+      return true;
+    }
     for (const d of [...seen.keys()].slice(0, 50)) {
       if (d === cacheKey) continue;
       const res = await fetch(`/api/proofs/${toUrlSafeB64(d)}`).catch(() => null);
@@ -3115,11 +3106,9 @@ function BringYourFile({
           <div className="dropbox-title" style={{ color: "var(--err)" }}>
             {checkedCount > 1
               ? `No match. None of the ${checkedCount.toLocaleString()} files you dropped are this file.`
-              : "No match. Those are not the bytes this BitGraph describes."}
+              : "No match. That is not the original file."}
           </div>
-          <div className="dropbox-line">
-            Changing a single bit changes the hash completely, so an edited or re-saved copy never matches by its bytes. A photo that is a copy of a bound original is found by its looks, and this one matched none. Drop the original to try again.
-          </div>
+          <div className="dropbox-line">An edited or re-saved copy never matches. Drop the exact original.</div>
         </>
       ) : (
         <>
@@ -3179,6 +3168,59 @@ function stdDigest(digestParam: string): string {
 
 /* ── The thumbnail this BitGraph's BitGraphed file bound, shown when a copy, not the photo, is in hand: the picture this
    BitGraph bound, captioned for what it is: a reference, not the photo. ── */
+
+/* The three things a copy holder can do (2026-10-29): choose which BitGraph (only when the picture was recorded more
+   than once), find the original (drop or choose the file), link the original (an address, admitted only when its
+   bytes are one of these originals'). A found or linked file lands on the BitGraph that recorded those exact bytes. */
+function CopyOptions({ proof, heldCopy, digestParam, setBound, onMatch, onResolvedMember, onTreeEvidence, onCopy }: {
+  proof: BitGraphProof; heldCopy: HeldCopy; digestParam: string; setBound: BoundSet | null;
+  onMatch: (rec: { name: string; data: ArrayBuffer; c2pa: C2PAReadResult | null; c2paChecked: boolean }) => void;
+  onResolvedMember?: (row: SetMemberRow | null) => void; onTreeEvidence?: (evidence: TreeMemberEvidence | null) => void; onCopy?: (copy: HeldCopy) => void;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState<"choose" | "find" | "link" | null>(null);
+  const others = heldCopy.others ?? [];
+  const all = [heldCopy.found, ...others].filter((x): x is Original => !!x);
+  const pos = { digest: toUrlSafeB64(stdDigest(digestParam)), epoch: toUrlSafeB64(String(proof.commit?.epochId ?? "")), counter: String(proof.commit?.counter ?? "") };
+  const posOf = (o: Original) => ({ digest: toUrlSafeB64(o.photoDigestB64), epoch: toUrlSafeB64(o.epochId), counter: String(o.counter) });
+  const hrefOf = (o: Original) => `/proof/${toUrlSafeB64(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafeB64(o.epochId))}`;
+  // the copy goes along to the chosen BitGraph, so that page shows its picture and the same three options
+  const go = (o: Original) => {
+    const rest = all.filter((x) => x.photoDigestB64 !== o.photoDigestB64);
+    setHeldCopy(toUrlSafeB64(o.photoDigestB64), { name: heldCopy.name, data: heldCopy.data, kind: "copy", score: heldCopy.score, found: o, others: rest });
+    router.push(hrefOf(o));
+  };
+  const toggle = (k: "choose" | "find" | "link") => setOpen((cur) => (cur === k ? null : k));
+  return (
+    <div className="pv-copy-options">
+      <div className="pv-photo-actions" style={{ marginTop: 12 }}>
+        {others.length > 0 && <button type="button" className={`bg-action-link${open === "choose" ? " is-open" : ""}`} style={{ margin: 0 }} onClick={() => toggle("choose")}>Choose which BitGraph</button>}
+        <button type="button" className={`bg-action-link${open === "find" ? " is-open" : ""}`} style={{ margin: 0 }} onClick={() => toggle("find")}>Find original</button>
+        <button type="button" className={`bg-action-link${open === "link" ? " is-open" : ""}`} style={{ margin: 0 }} onClick={() => toggle("link")}>Link original</button>
+      </div>
+      {open === "choose" && (
+        <ul className="pv-choose-list">
+          {all.map((o) => {
+            const here = o.photoDigestB64 === stdDigest(digestParam);
+            return (
+              <li key={`${o.photoDigestB64}/${o.counter}`}>
+                {here ? <span><strong>BitGraph #{o.counter.toLocaleString("en-US")}</strong> · this page</span> : <a href={hrefOf(o)} onClick={(e) => { e.preventDefault(); go(o); }}>BitGraph #{o.counter.toLocaleString("en-US")}</a>}
+                {o.recordedMs !== null && <span className="pv-choose-when"> · {longDateTz(new Date(o.recordedMs))}</span>}
+                {o.hosted && <span className="pv-choose-when"> · original online</span>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {open === "find" && (
+        <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={onMatch} onResolvedMember={onResolvedMember} onTreeEvidence={onTreeEvidence} onCopy={onCopy} among={others} compact />
+      )}
+      {open === "link" && (
+        <SourceField pos={pos} among={others.map(posOf)} bare onLanded={(at) => { const o = others.find((x) => toUrlSafeB64(x.photoDigestB64) === at.digest); if (o) go(o); }} />
+      )}
+    </div>
+  );
+}
 
 function BoundThumbView({ t, caption }: { t: BoundThumbnail; caption?: React.ReactNode }) {
   // No lightbox: at 512 pixels it is already shown about as large as it holds.

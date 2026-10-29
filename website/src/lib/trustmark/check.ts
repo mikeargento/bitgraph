@@ -56,10 +56,10 @@ async function judgeOne(img: Decoded, seen: Map<string, Promise<Candidate[]>>): 
     if (dup < 0) matches.push({ original, score });
     else if (score > matches[dup]!.score) matches[dup] = { original, score };
   }
-  // The order is usefulness, not score: an original whose file is hosted first (it can give the visitor the file),
-  // then the earliest bound (it proves when the picture first existed), then the closer match.
+  // The order is time, not score: the earliest recorded first (the first one is the one that counts, as with the same
+  // file recorded twice), then the closer match. Whether a file is online is a label on each, never a ranking.
   const when = (m: { original: Original }) => m.original.recordedMs ?? Number.POSITIVE_INFINITY;
-  matches.sort((a, b) => Number(b.original.hosted) - Number(a.original.hosted) || when(a) - when(b) || b.score - a.score);
+  matches.sort((a, b) => when(a) - when(b) || b.score - a.score);
   if (matches.length === 0) return { verdict: "none" };
   return { verdict: "match", score: matches[0]!.score, original: matches[0]!.original, others: matches.slice(1) };
 }
@@ -81,5 +81,5 @@ export async function judge(full: Decoded, { search = true } = {}): Promise<Look
   return whole;
 }
 
-/** Whether a match should open its first original without asking: it is the only one, or the only one hosted. */
-export const opensAlone = (v: LooksVerdict): boolean => v.verdict === "match" && (v.others.length === 0 || (v.original.hosted && !v.others.some((m) => m.original.hosted)));
+/** A match always opens its first original; the others are offered there as a choice. */
+export const opensAlone = (v: LooksVerdict): boolean => v.verdict === "match";

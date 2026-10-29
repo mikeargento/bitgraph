@@ -78,22 +78,30 @@ export function SourceLine(pos: Pos) {
   );
 }
 
-/** `file` is the holder's file when the page has matched one to the bound digest; without it, the field only offers to add a first link. */
-export function SourceField({ pos, file }: { pos: Pos; file?: { name: string; data: ArrayBuffer } }) {
+export type Among = Pos[];
+/** `file` is the holder's file when the page has matched one to the bound digest; without it, the field only offers to
+ *  add a first link. `among`: the other BitGraphs of the same picture (a copy matched several); a link whose bytes are
+ *  one of theirs lands there, and `onLanded` is told where. `bare`: the form alone, opened by its parent. */
+export function SourceField({ pos, file, among, onLanded, bare }: { pos: Pos; file?: { name: string; data: ArrayBuffer }; among?: Among; onLanded?: (at: Pos) => void; bare?: boolean }) {
   const { source } = useSource(pos);
   const [hashedFile, setHashedFile] = useState<{ file: object; holds: boolean } | null>(null);
   const holds = !!file && hashedFile?.file === file && hashedFile.holds;
   const [url, setUrl] = useState("");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!bare);
   const [state, setState] = useState<{ kind: "idle" } | { kind: "checking" } | { kind: "ok"; host: string } | { kind: "bad"; why: string }>({ kind: "idle" });
   const submit = useCallback(async (u: string) => {
     if (!u.trim()) return;
     setState({ kind: "checking" });
-    const r = await fetch("/api/sources", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...pos, url: u.trim(), ...(file ? { name: file.name } : {}) }) }).catch(() => null);
-    const body = (await r?.json().catch(() => null)) as { ok?: boolean; source?: Source; error?: string } | null;
-    if (r?.ok && body?.source) { setState({ kind: "ok", host: body.source.host }); setOpen(false); window.dispatchEvent(new Event(EV)); }
+    const r = await fetch("/api/sources", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...pos, url: u.trim(), ...(file ? { name: file.name } : {}), ...(among?.length ? { among } : {}) }) }).catch(() => null);
+    const body = (await r?.json().catch(() => null)) as { ok?: boolean; source?: Source; at?: Pos; error?: string } | null;
+    if (r?.ok && body?.source) {
+      setState({ kind: "ok", host: body.source.host });
+      if (body.at && body.at.digest !== pos.digest) { onLanded?.(body.at); return; }
+      if (!bare) setOpen(false);
+      window.dispatchEvent(new Event(EV));
+    }
     else setState({ kind: "bad", why: body?.error ?? "the link could not be checked just now" });
-  }, [pos, file]);
+  }, [pos, file, among, onLanded, bare]);
   // a holder of the exact bytes may change an existing link; a link that came with their drop is tried at once
   useEffect(() => {
     if (!file) return;
@@ -107,14 +115,14 @@ export function SourceField({ pos, file }: { pos: Pos; file?: { name: string; da
     }).catch(() => {});
     return () => { gone = true; };
   }, [file, pos.digest, submit]);
-  if (source === undefined || (source && !holds)) return null;
+  if (!bare && (source === undefined || (source && !holds))) return null;
   return (
-    <div className="pv-source-field">
+    <div className={bare ? "pv-source-field is-bare" : "pv-source-field"}>
       {!open ? (
         <button type="button" className="pv-source-add" onClick={() => setOpen(true)}>{source ? "Change the link to the original" : "Link the original"}</button>
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); void submit(url); }}>
-          <label className="pv-source-label" htmlFor="src-url">Link the original: where is the file?</label>
+          <label className="pv-source-label" htmlFor="src-url">Where is the original file?</label>
           <div className="pv-source-row">
             <input id="src-url" type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…  (Drive, Dropbox, OneDrive, GitHub, S3 or any web address)" autoComplete="off" spellCheck={false} />
             <button type="submit" className="bg-action-link" style={{ margin: 0, flex: "none" }} disabled={state.kind === "checking" || !url.trim()}>{state.kind === "checking" ? "Checking…" : "Check and add"}</button>

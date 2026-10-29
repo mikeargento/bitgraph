@@ -289,7 +289,7 @@ function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: U
   return (
     <>
       <span className="db-ok">Looks like a picture recorded {all.length} times</span>
-      <span className="db-size db-wrap">The same picture was recorded as {all.length} different files. The ones whose original is online come first, then the earliest.</span>
+      <span className="db-size db-wrap">The same picture was recorded as {all.length} different files, earliest first.</span>
       <ul className="db-looks-list">
         {all.map(({ original: o }) => {
           const href = proofHref(o);
@@ -872,7 +872,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               const o = v.original, href = `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
               // One copy dropped on Make leads to its original, the earliest known recording, instead of being recorded.
               // (Not finding one says nothing, so those are recorded.)
-              // Several bound originals look like it (a picture exported twice): the row lists them all and opens none.
+              // Several recorded originals look like it (a picture exported twice): the earliest opens, and its page offers the rest.
               if (single) {
                 if (opensAlone(v)) {
                   noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);

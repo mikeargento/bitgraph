@@ -48,10 +48,11 @@ export async function GET(req: Request) {
 }
 
 /**
- * POST /api/sources { digest, epoch, counter, url, name? }: say where the original is hosted. The position must be a
- * BitGraph of this digest; the address is fetched and hashed here, and kept only when what it serves is the bound
- * bytes. Anyone may call it, because nothing is taken on trust: a wrong file, a web page, a login wall or a spam link
- * fails the hash and nothing is stored.
+ * POST /api/sources { digest, epoch, counter, url, name?, among? }: say where the original is. The address is fetched
+ * and hashed here, and kept only when what it serves is bound bytes: this position's, or one of `among` (up to 8 other
+ * positions, the other BitGraphs of the same picture a copy matched), so a link offered on one of them lands on the
+ * BitGraph that recorded those exact bytes; the response says which. Anyone may call it, because nothing is taken on
+ * trust: a wrong file, a web page, a login wall or a spam link fails the hash and nothing is stored.
  */
 export async function POST(req: Request) {
   if (!ledgerWritesOn()) return NextResponse.json({ error: "Ledger writes are off." }, { status: 503 });
@@ -62,19 +63,22 @@ export async function POST(req: Request) {
   if (typeof body.url !== "string" || body.url.length > 2048) return NextResponse.json({ error: "url is required" }, { status: 400 });
   const rewritten = rewriteShareLink(body.url);
   if ("error" in rewritten) return NextResponse.json({ error: rewritten.error }, { status: 400 });
+  const among = (Array.isArray(body.among) ? body.among.slice(0, 8) : []).map((x) => position(x as Record<string, unknown>)).filter((x): x is NonNullable<typeof x> => !!x);
   try {
-    const bound = (await getProofsByDigest(at.digest)).some((e) => {
-      const c = e.proof.commit as { epochId?: unknown; counter?: unknown } | undefined;
-      return e.kind === "recorded" && String(c?.epochId) === at.epochId && String(c?.counter) === at.counter;
-    });
-    if (!bound) return NextResponse.json({ error: "This file is not a BitGraph at that position." }, { status: 404 });
     const r = await fetchAndHash(rewritten.url);
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: 422 });
-    if (r.digestB64 !== at.digest) return NextResponse.json({ error: "The file at that address is not this original. It was probably re-saved, resized or converted; host the exact file you dropped here." }, { status: 422 });
+    const target = [at, ...among].find((x) => x.digest === r.digestB64);
+    if (!target) return NextResponse.json({ error: among.length ? "The file at that address is not any of these originals. It was probably re-saved, resized or converted; link the exact file." : "The file at that address is not this original. It was probably re-saved, resized or converted; link the exact file." }, { status: 422 });
+    const bound = (await getProofsByDigest(target.digest)).some((e) => {
+      const c = e.proof.commit as { epochId?: unknown; counter?: unknown } | undefined;
+      return e.kind === "recorded" && String(c?.epochId) === target.epochId && String(c?.counter) === target.counter;
+    });
+    if (!bound) return NextResponse.json({ error: "This file is not a BitGraph at that position." }, { status: 404 });
     const name = typeof body.name === "string" && body.name.length <= 255 ? body.name : undefined;
     const note: SourceNote = { format: "bitgraph-source/1", url: rewritten.url, host: r.host, name, bytes: r.bytes, contentType: r.contentType, addedAt: Date.now(), verifiedAt: Date.now() };
-    await putSourceNote(at.digest, at.epochId, at.counter, note);
-    return NextResponse.json({ ok: true, source: shown(note) });
+    await putSourceNote(target.digest, target.epochId, target.counter, note);
+    const safe = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return NextResponse.json({ ok: true, source: shown(note), at: { digest: safe(target.digest), epoch: safe(target.epochId), counter: target.counter } });
   } catch (e) {
     if (e instanceof LedgerUnavailableError) return NextResponse.json({ error: "ledger unavailable" }, { status: 503 });
     throw e;

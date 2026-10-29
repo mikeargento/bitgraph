@@ -5705,3 +5705,9 @@ html:root:root:root:root:root body main .pv-source-row input { flex: 1 1 320px; 
 html:root:root:root:root:root body main .pv-source-row input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 html:root:root:root:root:root body main .pv-source-fine { margin-top: 8px; color: var(--dim); }
 html:root:root:root:root:root body main .pv-source-field .pv-source-ok, html:root:root:root:root:root body main .pv-source-field .pv-source-bad { margin-top: 8px; }
+
+/* A copy holder's three options on a proof page (2026-10-29): the same button row as the downloads; one opens at a time. */
+html:root:root:root:root:root body main .pv-copy-options .bg-action-link.is-open { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+html:root:root:root:root:root body main .pv-choose-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+html:root:root:root:root:root body main .pv-choose-when { color: var(--dim); }
+html:root:root:root:root:root body main .pv-copy-options .dropbox, html:root:root:root:root:root body main .pv-copy-options .pv-source-field.is-bare { margin-top: 14px; }
