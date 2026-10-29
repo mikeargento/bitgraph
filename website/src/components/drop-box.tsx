@@ -269,7 +269,7 @@ function LooksLine({ v }: { v: LooksVerdict }) {
   return (
     <>
       <span className="db-ok">Looks like <a href={href}>BitGraph #{n}</a><SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
-      <span className="db-size">Match {v.score.toFixed(2)} against the record bound beside the original. Its proof page proves the original file.</span>
+      <span className="db-size db-wrap">Match {v.score.toFixed(2)} against the record bound beside the original. Its proof page proves the original file.</span>
       <FoundThumb o={o} href={href} />
     </>
   );
