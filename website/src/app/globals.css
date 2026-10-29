@@ -5476,7 +5476,8 @@ html:root:root:root:root body main .sx-cards.is-2 { grid-template-columns: repea
 html:root:root:root:root:root:root:root:root:root body main .sx-cards .tl-card h3 { font-size: 20px !important; margin: 0 0 10px !important; }
 html:root:root:root:root:root:root:root:root:root body main .sx-cards .tl-card p, html:root:root:root:root:root:root:root:root:root body main .sx-cards .tl-card li { font-size: 17px !important; }
 html:root:root:root:root body main a.tl-card.sx-link { text-decoration: none !important; color: inherit; transition: border-color .12s; }
-@media (hover: hover) { html:root:root:root:root body main a.tl-card.sx-link:hover { border-color: var(--dim); } }
+/* A clickable card lights its stroke on hover (2026-10-29: the stroke, not an underline on the title). */
+@media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover { border-color: var(--ink) !important; } }
 html:root:root:root:root:root:root:root:root:root body main .sx-more { margin-top: auto !important; padding-top: 12px; color: var(--accent) !important; font-size: 16px !important; }
 html:root:root:root:root body main .sx-table-wrap { overflow-x: auto; margin-top: 28px; border: 1px solid var(--line-2, var(--line)); border-radius: 12px; }
 html:root:root:root:root body main table.sx-table { width: 100%; border-collapse: collapse; min-width: 720px; }
@@ -5586,7 +5587,6 @@ html:root:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-su
 html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link { position: relative; padding-bottom: 52px !important; }
 html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link::after { content: "\2192"; position: absolute; right: 24px; bottom: 18px; font-size: 20px; line-height: 1; color: var(--dim); transition: transform .12s, color .12s; }
 @media (hover: hover) {
-  html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover h3 { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
   html:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover::after { transform: translateX(4px); color: var(--ink); }
 }
 html:root:root:root:root:root:root:root:root:root:root body main article.tl-card { cursor: default; }
