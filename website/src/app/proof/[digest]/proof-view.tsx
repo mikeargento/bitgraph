@@ -455,7 +455,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             )}
             {attested !== null && (
               <Moment
-                label="BitGraphed"
+                label={m.recordName}
                 title={<><span className="pv-time-box">{whenBeside(attested, floorMs)}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor</span> : null}</>}
                 accent
               />
