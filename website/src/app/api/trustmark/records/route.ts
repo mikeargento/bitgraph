@@ -6,6 +6,7 @@ import { checkMember, memberOf } from "@/lib/tree-member";
 import { epochRef, MAX_COUNTER, tag as tagOf, TAG_BITS } from "@/lib/trustmark/payload";
 import { parseRecord } from "@/lib/trustmark/record";
 import { MAX_MANIFEST_BYTES } from "@/lib/trustmark/c2pa-leaf";
+import { forgetFindIndex } from "@/app/api/find/route";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,7 @@ export async function POST(req: Request) {
     const written = await putTrustmarkRecordOnce(trustmarkRecordKey(eref, counter, epochId, recordDigest), JSON.stringify({ format: "bitgraph-trustmark-published/1", recordB64: body.recordB64, proof: mine.proof, ...(c2pa ?? {}), ...(thumb ?? {}) }, null, 1));
     // and its pHash in the find index (app/api/find), so a stripped copy can reach this record by what it looks like
     await putFindKeyOnce(findKey(record.phash, eref, counter, epochId, recordDigest));
+    forgetFindIndex();
     return NextResponse.json({ written, eref, counter });
   } catch (e) {
     if (e instanceof LedgerUnavailableError) return NextResponse.json({ error: "ledger unavailable" }, { status: 503 });

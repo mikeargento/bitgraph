@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  *  (JPEG, resize, brightness, a screenshot) differs from its original by a few bits; unrelated pictures by about 32. */
 const MAX_DISTANCE = 20;
 const MAX_CANDIDATES = 8;
-const INDEX_TTL_MS = 60_000;
+const INDEX_TTL_MS = 10_000;
 
 const hamming = (a: string, b: string) => {
   let n = 0;
@@ -19,8 +19,9 @@ const hamming = (a: string, b: string) => {
   return n;
 };
 
-// The index is the key listing, held for a minute: at this size one LIST page, and the search itself touches nothing
-// until a pHash is close. A larger index moves to an index object or a store; the keys stay the source.
+// The index is the key listing, held a few seconds: at this size one LIST page, and the search itself touches nothing
+// until a pHash is close. A record published on this instance drops it at once (forgetFindIndex), so an original
+// checked a moment ago is found by the next copy. A larger index moves to an index object or a store; the keys stay the source.
 let index: { at: number; keys: string[] } | null = null;
 async function keys(): Promise<string[]> {
   if (index && Date.now() - index.at < INDEX_TTL_MS) return index.keys;
@@ -28,6 +29,7 @@ async function keys(): Promise<string[]> {
   index = { at: Date.now(), keys: k };
   return k;
 }
+export function forgetFindIndex() { index = null; }
 
 /**
  * GET /api/find?phash=<16 hex>: the published fingerprint records nearest this pHash, each with the position of the
@@ -51,7 +53,7 @@ export async function GET(req: Request) {
       const rec = typeof published?.recordB64 === "string" ? parseRecord(new Uint8Array(Buffer.from(published.recordB64, "base64"))) : null;
       return rec ? { distance: e.distance, phash: rec.phash, photo: rec.photo, counter: String(e.counter), epoch: e.epochSafe, values: rec.blocks.values } : null;
     }))).filter(Boolean);
-    return NextResponse.json({ candidates }, { headers: { "cache-control": "private, max-age=30" } });
+    return NextResponse.json({ candidates }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     if (e instanceof LedgerUnavailableError) return NextResponse.json({ error: "ledger unavailable" }, { status: 503 });
     throw e;
