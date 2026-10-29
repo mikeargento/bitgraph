@@ -455,7 +455,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             )}
             {attested !== null && (
               <Moment
-                label="Recorded"
+                label="BitGraphed"
                 title={<><span className="pv-time-box">{whenBeside(attested, floorMs)}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor</span> : null}</>}
                 accent
               />
@@ -536,7 +536,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {/* The name, time and signer lead, above the picture (2026-10-28), so a big photo never hides what it is; a proof that fails says so in its place, never folded away. */}
             <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>
             {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
-            {m.attestedMs !== null && <div className="pv-photo-meta">{longDateTz(new Date(m.attestedMs))}, {timeTz(new Date(m.attestedMs))}</div>}
+            {/* No time here (2026-10-29): this is the content card; the time section below says when it was BitGraphed. */}
             {who && <div className="pv-photo-who">{who}</div>}
             {/* A failure or a wait gets its own card below; a pass says nothing here, the checks card tallies it. */}
             {m.sourceLine}
