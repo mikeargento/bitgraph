@@ -5690,3 +5690,4 @@ html:root:root body main .fd-result :is(.fd-none, .fd-fine) { margin: 0; }
 html:root:root body main .fd-result .fd-none { font-size: 20px; font-weight: 600; color: var(--ink); }
 html:root:root body main .fd-result .fd-fine { margin-top: 12px; font-size: 15px; color: var(--dim); }
 html:root:root body main .fd-result .fd-none + .fd-fine { margin-top: 8px; }
+html:root:root:root body main .fd-text .plug-sub { white-space: normal; overflow: visible; text-overflow: clip; }
