@@ -32,7 +32,7 @@ export default function DemosPage() {
           Everything here is the production service, not a mock-up. Each result is a real BitGraph, signed inside the enclave and
           attested by the hardware, and every one checks offline with the published verifier.
         </p>
-        <div className="sx-cards">
+        <div className="sx-cards is-2x2">
           {LIVE.map((d) => (
             <a key={d.href} className="tl-card sx-link" href={d.href}>
               <p className="tl-label">{d.label}</p>
