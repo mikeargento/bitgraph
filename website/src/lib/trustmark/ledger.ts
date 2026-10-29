@@ -71,37 +71,55 @@ export async function candidates(eref: number, counter: number, tag: number, one
   return (body?.entries ?? []).filter((e) => typeof e?.recordB64 === "string" && e.proof && typeof e.proof === "object");
 }
 
-/** A found photo's fingerprint record, published when its tree binds one: photos bound before Make published records
- *  (2026-10-29) become findable by their looks the first time their original is checked, on Check or on its own proof
- *  page. The record is computed from the file in hand, looked up by its own hash, and the server checks it against the
- *  tree before keeping it; a record already kept still gets its place in the find index. */
-export async function publishFoundRecord(f: Blob, photoDigestB64: string, name = "photo"): Promise<void> {
+/** Found photos' fingerprint records, published when their trees bind them: photos bound before Make published records
+ *  (2026-10-29) become findable by their looks the first time their originals are checked, on Check or on a proof page.
+ *  Each record is computed from the file in hand, looked up by its own hash, and the server checks it against the tree
+ *  before keeping it; a record already kept still gets its place in the find index. A photo whose record was published
+ *  without a reference thumbnail (thumb.ts) gets one now: the thumbnails of a whole drop are bound as one BitGraph, since
+ *  only a bound thumbnail can be checked, then published with their records. */
+export async function publishFoundRecords(items: Array<{ f: Blob; photoDigestB64: string; name?: string }>): Promise<void> {
+  if (items.length === 0) return;
   const { decodeForRecord, fingerprintOf, recordBytesOf } = await import("./record");
-  const img = await decodeForRecord(f);
-  if (!img) return;
-  const fp = fingerprintOf(img), bytes = recordBytesOf(photoDigestB64, fp);
-  const recordDigest = await digestB64(bytes);
-  const d = recordDigest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  const res = await fetch(`/api/proofs/${d}`).catch(() => null);
-  const body = res?.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ kind?: string; proof: Proof }> } | null) : null;
-  const mine = body?.proofs?.find((p) => p.kind === "recorded")?.proof;
-  if (!mine) return;
-  // The reference thumbnail (thumb.ts): a photo bound before thumbnails were (2026-10-29) gets one now, bound as its
-  // own BitGraph, since only a bound thumbnail can be checked. Published once: a record that already carries one is left.
-  const epochId = String(mine.commit?.epochId ?? ""), counter = Number(mine.commit?.counter), nonce = String((mine.commit as { nonceB64?: unknown } | undefined)?.nonceB64 ?? "");
-  let thumb: Uint8Array | null = null;
-  if (epochId && Number.isSafeInteger(counter) && nonce) {
-    const { epochRef, tag } = await import("./payload");
-    const eref = await epochRef(epochId);
-    const had = await candidates(eref, counter, await tag(nonce, fp.phash, eref, counter), { epochId, recordDigestB64: recordDigest });
-    if (!had.some((c) => typeof c.thumbB64 === "string")) {
-      const { makeThumb, THUMB_SUFFIX } = await import("./thumb");
-      thumb = await makeThumb(f).catch(() => null);
-      if (thumb) {
-        const { bindFile } = await import("@/lib/bind-file");
-        try { await bindFile(`${name}${THUMB_SUFFIX}`, thumb, "image/jpeg"); } catch { thumb = null; }
-      }
+  const { epochRef, tag } = await import("./payload");
+  const { makeThumb, THUMB_SUFFIX } = await import("./thumb");
+  type Prepared = { bytes: Uint8Array; thumb: Uint8Array | null };
+  const prepared: Array<Prepared | null> = new Array(items.length).fill(null);
+  let next = 0;
+  await Promise.all(Array.from({ length: 3 }, async () => {
+    while (next < items.length) {
+      const i = next++, it = items[i]!;
+      try {
+        const img = await decodeForRecord(it.f);
+        if (!img) continue;
+        const fp = fingerprintOf(img), bytes = recordBytesOf(it.photoDigestB64, fp);
+        const recordDigest = await digestB64(bytes);
+        const d = recordDigest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        const res = await fetch(`/api/proofs/${d}`).catch(() => null);
+        const body = res?.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ kind?: string; proof: Proof }> } | null) : null;
+        const mine = body?.proofs?.find((p) => p.kind === "recorded")?.proof;
+        if (!mine) continue;
+        const epochId = String(mine.commit?.epochId ?? ""), counter = Number(mine.commit?.counter), nonce = String((mine.commit as { nonceB64?: unknown } | undefined)?.nonceB64 ?? "");
+        let thumb: Uint8Array | null = null;
+        if (epochId && Number.isSafeInteger(counter) && nonce) {
+          const eref = await epochRef(epochId);
+          const had = await candidates(eref, counter, await tag(nonce, fp.phash, eref, counter), { epochId, recordDigestB64: recordDigest });
+          if (!had.some((c) => typeof c.thumbB64 === "string")) thumb = await makeThumb(it.f).catch(() => null);
+        }
+        prepared[i] = { bytes, thumb };
+      } catch { /* this one is skipped; the rest go on */ }
     }
+  }));
+  const ready = prepared.filter((p): p is Prepared => p !== null);
+  const withThumb = ready.filter((p) => p.thumb);
+  if (withThumb.length) {
+    const { bindFiles } = await import("@/lib/bind-file");
+    try {
+      await bindFiles(withThumb.map((p, k) => ({ name: `${items[prepared.indexOf(p)]?.name ?? `photo-${k + 1}`}${THUMB_SUFFIX}`, bytes: p.thumb!, type: "image/jpeg" })));
+    } catch { for (const p of withThumb) p.thumb = null; }
   }
-  await publishRecord(bytes, null, thumb);
+  let n = 0;
+  await Promise.all(Array.from({ length: 3 }, async () => { while (n < ready.length) { const p = ready[n++]!; await publishRecord(p.bytes, null, p.thumb).catch(() => false); } }));
 }
+
+/** One found photo (see publishFoundRecords). */
+export const publishFoundRecord = (f: Blob, photoDigestB64: string, name = "photo") => publishFoundRecords([{ f, photoDigestB64, name }]);

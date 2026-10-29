@@ -32,7 +32,7 @@ import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
 import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
-import { publishFoundRecord, publishRecord } from "@/lib/trustmark/ledger";
+import { publishFoundRecords, publishRecord } from "@/lib/trustmark/ledger";
 import { makeThumb, THUMB_SUFFIX } from "@/lib/trustmark/thumb";
 import { FoundThumb } from "@/components/found-thumb";
 import { SourceHint } from "@/components/source-link";
@@ -804,6 +804,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     const fresh: Row[] = picked.map((f, i) => ({ key: `${Date.now()}-${i}-${f.name}`, name: f.name, size: f.size, state: "hashing" }));
     setRows(single ? [] : fresh);
     if (single) setStatus("Checking…");
+    const originals: Array<{ f: File; photoDigestB64: string; name: string }> = [];
     const ended: Row[] = await Promise.all(picked.map(async (f, i): Promise<Row> => {
       const row = fresh[i]!;
       const end = (p: Partial<Row>) => { patch(row.key, p); return { ...row, ...p } as Row; };
@@ -854,13 +855,14 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           }
           return end({ bytes, digestB64, state: "new" });
         }
-        // an original in hand: its record goes to the find index, so a copy of it can lead here (background; never waited for)
-        if (looksLikePhoto(f)) void publishFoundRecord(f, digestB64, f.name).catch(() => {});
+        // an original in hand: its record goes to the find index, so a copy of it can lead here (after the drop, never waited for)
+        if (looksLikePhoto(f)) originals.push({ f, photoDigestB64: digestB64, name: f.name });
         return end({ bytes, digestB64, state: "found", proof: first, valid: await check(first, bytes) });
       } catch {
         return end({ state: "error", note: "This browser could not read or check that file." });
       }
     }));
+    if (originals.length) void publishFoundRecords(originals).catch(() => {});
     // A file of the tree this page just made is that tree's, even before its index is written: it is shown in the tree,
     // never made again (2026-10-20: a file of a 50,000-file tree was re-recorded instead of checked).
     const pt = plugRef.current;
@@ -882,7 +884,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         if (r.state === "copy" && r.looks?.verdict === "match" && r.bytes) {
           const v = r.looks, o = v.original, bytes = r.bytes;
           const item = { digest: o.photoDigestB64, name: f.name, counter: String(o.counter), epochId: String(o.epochId) };
-          return [{ file: f, item, prepare: async () => setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score }) }];
+          return [{ file: f, item, prepare: async () => setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o }) }];
         }
         if (r.state === "in-tree" && r.tree) return [{ file: f, item: { digest: r.tree.proof.digestB64, name: f.name, counter: r.tree.proof.counter, epochId: r.tree.proof.epochId }, prepare: async () => {} }];
         return [];
