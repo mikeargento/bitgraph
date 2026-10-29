@@ -2298,15 +2298,15 @@ export default function ProofPage() {
             // thumbnail, when its BitGraphed file published one), and the visitor already holds their own file.
             boundThumb === undefined ? null : (
               <div className="pv-pane-in">
-                {boundThumb && typeof boundThumb === "object" && <BoundThumbView t={boundThumb} caption={boundThumb.from ? `The reference BitGraph #${boundThumb.from.counter.toLocaleString("en-US")} bound: the same picture as a different file; this BitGraph bound none of its own. You hold a copy; only the original’s exact bytes prove it.` : "The reference this BitGraph bound. You hold a copy; only the original’s exact bytes prove it."} />}
+                {boundThumb && typeof boundThumb === "object" && <BoundThumbView t={boundThumb} caption="The picture this BitGraph recorded. You have a copy of it; only the original file proves it." />}
                 {boundThumb === null && heldCopy.found && (
-                  <p className="pv-note">Your copy matches the fingerprint this BitGraph bound. No reference picture was bound with it; its holder adds one by checking the original once.</p>
+                  <p className="pv-note">Your copy matches this BitGraph. No preview of the picture was saved with it yet.</p>
                 )}
-                {boundThumb === "failed" && <p className="pv-note">Your copy matches the fingerprint this BitGraph bound. The reference picture published with it did not check, so it is not shown.</p>}
-                {boundThumb === "unavailable" && <p className="pv-note">Your copy matches the fingerprint this BitGraph bound. Its reference could not be read just now.</p>}
+                {boundThumb === "failed" && <p className="pv-note">Your copy matches this BitGraph. The preview saved with it could not be shown.</p>}
+                {boundThumb === "unavailable" && <p className="pv-note">Your copy matches this BitGraph. Its preview could not be loaded just now.</p>}
                 {heldCopy.others && heldCopy.others.length > 0 && (
                   <p className="pv-note">
-                    Your copy also looks like {heldCopy.others.map((o, i) => {
+                    The same picture was also recorded as {heldCopy.others.map((o, i) => {
                       const href = `/proof/${toUrlSafeB64(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafeB64(o.epochId))}`;
                       // the copy goes along, so that page shows its reference and says the same (lib/trustmark/held-copy)
                       const carry = (e: React.MouseEvent) => {
@@ -2315,8 +2315,8 @@ export default function ProofPage() {
                         setHeldCopy(toUrlSafeB64(o.photoDigestB64), { name: heldCopy.name, data: heldCopy.data, kind: "copy", score: heldCopy.score, found: o, others: rest });
                         router.push(href);
                       };
-                      return <span key={`${o.photoDigestB64}/${o.counter}`}>{i > 0 ? ", " : ""}<a href={href} onClick={carry}>BitGraph #{o.counter.toLocaleString("en-US")}</a></span>;
-                    })}: the same picture, bound as a different file.
+                      return <span key={`${o.photoDigestB64}/${o.counter}`}>{i > 0 ? (i === heldCopy.others!.length - 1 ? " and " : ", ") : ""}<a href={href} onClick={carry}>BitGraph #{o.counter.toLocaleString("en-US")}</a></span>;
+                    })}, as a different file.
                   </p>
                 )}
                 {/* The same find-the-file box as every proof page: the original is what proves the photo. */}

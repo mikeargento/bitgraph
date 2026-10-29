@@ -279,7 +279,7 @@ function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: U
     return (
       <>
         <span className="db-ok">Looks like {link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}<SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
-        <span className="db-size db-wrap">Matched against the record bound beside the original. Its proof page proves the original file.</span>
+        <span className="db-size db-wrap">Your copy matches the picture this BitGraph recorded. Its proof page proves the original file.</span>
         <FoundThumb o={o} href={href} onOpen={() => open(o)} />
       </>
     );
@@ -288,8 +288,8 @@ function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: U
   // only the holder knows which they mean, so every one is listed, with its reference and whether its file is hosted.
   return (
     <>
-      <span className="db-ok">Looks like {all.length} bound originals</span>
-      <span className="db-size db-wrap">The same picture, bound as different files; hosted originals first, then the earliest bound. Each proof page proves its own file.</span>
+      <span className="db-ok">Looks like a picture recorded {all.length} times</span>
+      <span className="db-size db-wrap">The same picture was recorded as {all.length} different files. The ones whose original is online come first, then the earliest.</span>
       <ul className="db-looks-list">
         {all.map(({ original: o }) => {
           const href = proofHref(o);

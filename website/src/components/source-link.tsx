@@ -69,7 +69,7 @@ export function SourceLine(pos: Pos) {
   };
   return (
     <div className="pv-source">
-      <span>Original available · hosted at {source.host} · verified {relativeTime(source.verifiedAt)}</span>
+      <span>The original file is online at {source.host} · checked {relativeTime(source.verifiedAt)}</span>
       <button type="button" className="pv-source-dl" onClick={() => void download()} disabled={dl.state === "fetching" || dl.state === "hashing"}>
         {dl.state === "fetching" ? `Fetching… ${mb(dl.got)} of ${mb(source.bytes)}` : dl.state === "hashing" ? "Checking…" : `Download original (${mb(source.bytes)})`}
       </button>
@@ -111,15 +111,15 @@ export function SourceField({ pos, file }: { pos: Pos; file?: { name: string; da
   return (
     <div className="pv-source-field">
       {!open ? (
-        <button type="button" className="pv-source-add" onClick={() => setOpen(true)}>{source ? "Change where this original is hosted" : holds ? "Is this original hosted somewhere? Add the link" : "Know where this original is hosted? Add the link"}</button>
+        <button type="button" className="pv-source-add" onClick={() => setOpen(true)}>{source ? "Change where this original is hosted" : holds ? "Is this file online somewhere? Add the link" : "Is the original file online somewhere? Add the link"}</button>
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); void submit(url); }}>
-          <label className="pv-source-label" htmlFor="src-url">Where is this original hosted?</label>
+          <label className="pv-source-label" htmlFor="src-url">Where is the original file?</label>
           <div className="pv-source-row">
             <input id="src-url" type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…  (Drive, Dropbox, OneDrive, GitHub, S3 or any web address)" autoComplete="off" spellCheck={false} />
             <button type="submit" className="bg-action-link" style={{ margin: 0, flex: "none" }} disabled={state.kind === "checking" || !url.trim()}>{state.kind === "checking" ? "Checking…" : "Check and add"}</button>
           </div>
-          <p className="pv-source-fine">Paste a link to the exact file, shared as &ldquo;anyone with the link&rdquo;. We fetch it and check that its bytes are this original&rsquo;s before anything is shown; a link to anything else is refused. Downloads come from that host.</p>
+          <p className="pv-source-fine">Paste a link to the exact file, shared as &ldquo;anyone with the link&rdquo;. We download it and check that it is the very same file before the link is shown; any other file is refused.</p>
         </form>
       )}
       {state.kind === "ok" && <p className="pv-source-ok">{"✓"} Verified: this original is hosted at {state.host}.</p>}
@@ -131,5 +131,5 @@ export function SourceField({ pos, file }: { pos: Pos; file?: { name: string; da
 /** On a Check row for a copy: whether the original it looks like can be fetched. */
 export function SourceHint(pos: Pos) {
   const { source } = useSource(pos);
-  return source ? <span className="db-size"> · original available</span> : null;
+  return source ? <span className="db-size"> · original online</span> : null;
 }
