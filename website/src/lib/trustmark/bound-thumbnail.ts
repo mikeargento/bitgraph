@@ -19,13 +19,20 @@ import { decodePhoto, parseRecord } from "./record.ts";
 import type { Proof } from "@/lib/plugins";
 
 export type BoundThumbnail = { url: string; counter: number; score: number };
+/** null: no thumbnail is published for this record. "failed": one is, and it did not check (a thumbnail of another
+ *  picture, a broken file), so nothing is shown; "unavailable": the ledger could not be read just now. */
+export type ThumbnailLook = BoundThumbnail | null | "failed" | "unavailable";
 
-export async function boundThumbnail(photoProof: Proof, tag: number, recordDigestB64?: string): Promise<BoundThumbnail | null> {
+export async function boundThumbnail(photoProof: Proof, tag: number, recordDigestB64?: string): Promise<ThumbnailLook> {
   const epochId = String(photoProof.commit?.epochId ?? ""), counter = Number(photoProof.commit?.counter);
   if (!epochId || !Number.isSafeInteger(counter)) return null;
   const root = String(photoProof.artifact?.digestB64 ?? "");
-  for (const c of await candidates(await epochRef(epochId), counter, tag, recordDigestB64 ? { epochId, recordDigestB64 } : undefined)) {
+  let published;
+  try { published = await candidates(await epochRef(epochId), counter, tag, recordDigestB64 ? { epochId, recordDigestB64 } : undefined); } catch { return "unavailable"; }
+  let failed = false;
+  for (const c of published) {
     if (!c.thumbB64 || !c.thumbProof) continue;
+    failed = true;
     if (String(c.proof.artifact?.digestB64) !== root || String(c.proof.commit?.epochId) !== epochId || Number(c.proof.commit?.counter) !== counter) continue;
     const recordBytes = unb64(c.recordB64), rec = parseRecord(recordBytes);
     if (!rec || !(await verifyMember(c.proof, recordBytes))) continue;
@@ -37,17 +44,18 @@ export async function boundThumbnail(photoProof: Proof, tag: number, recordDiges
     if (score < MATCH) continue;
     return { url: URL.createObjectURL(new Blob([thumbBytes as BlobPart], { type: "image/jpeg" })), counter: Number(c.thumbProof.commit?.counter), score };
   }
-  return null;
+  return failed ? "failed" : null;
 }
 
 /** The bound reference for an original found by a copy's looks (check.ts): the proof at the found position gives the
  *  nonce, the matched record its pHash, and together the tag that opens the published record; the thumbnail is then
  *  checked as above. Null when the record was published without one (photos bound before 2026-10-29, until their
  *  original is checked once). */
-export async function foundThumbnail(o: Original): Promise<BoundThumbnail | null> {
+export async function foundThumbnail(o: Original): Promise<ThumbnailLook> {
   const safe = o.photoDigestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const res = await fetch(`/api/proofs/${safe}`).catch(() => null);
-  const body = res?.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ kind?: string; proof: Proof }> } | null) : null;
+  if (!res) return "unavailable";
+  const body = res.ok ? ((await res.json().catch(() => null)) as { proofs?: Array<{ kind?: string; proof: Proof }> } | null) : null;
   const at = body?.proofs?.find((p) => p.kind === "recorded" && String(p.proof.commit?.epochId) === o.epochId && Number(p.proof.commit?.counter) === o.counter)?.proof;
   const nonce = String((at?.commit as { nonceB64?: unknown } | undefined)?.nonceB64 ?? "");
   if (!at || !nonce) return null;

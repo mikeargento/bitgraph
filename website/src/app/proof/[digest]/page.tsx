@@ -27,7 +27,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { GalleryBar } from "@/components/gallery";
-import { boundThumbnail, foundThumbnail, type BoundThumbnail } from "@/lib/trustmark/bound-thumbnail";
+import { boundThumbnail, foundThumbnail, type BoundThumbnail, type ThumbnailLook } from "@/lib/trustmark/bound-thumbnail";
 import { redrawRecordedArt } from "@/lib/art-position";
 import { ART_ALGORITHM_V15, ART_ALGORITHM_V16, ART_ALGORITHM_V17, ART_ALGORITHM_V18, ART_ALGORITHM_V19, toBase64Url, type ArtRecipe } from "@/lib/commitment-art";
 import { planV16, svgFromPngV16, svgTextV16 } from "@/lib/commitment-art-v16";
@@ -71,7 +71,7 @@ import { toUrlSafeB64, fromUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf as treeMemberOf, rootTextBytes as treeRootTextBytes } from "@/lib/tree-member";
 import { Shell } from "./proof-skeleton";
 import { Wait } from "@/components/wait";
-import { decodePhoto, looksLikePhoto } from "@/lib/trustmark/record";
+import { decodeForReading, looksLikePhoto } from "@/lib/trustmark/record";
 import { judge as judgeLooks } from "@/lib/trustmark/check";
 import { publishFoundRecord } from "@/lib/trustmark/ledger";
 import type { Original } from "@/lib/trustmark/check";
@@ -344,6 +344,12 @@ export default function ProofPage() {
   const [hostedOriginal, setHostedOriginal] = useState(false);
   // the shown photo's full-size Open link, set by its card, shown beside the downloads
   const [photoOpenUrl, setPhotoOpenUrl] = useState<string | null>(null);
+  // Another proof opened in place (a copy's "also looks like", a gallery tile, a tree's file): nothing of the last
+  // page's file, copy or hosted pull carries over. Runs first; the effects below then fill the new page.
+  useEffect(() => {
+    setCachedFile(null); setHeldCopyState(null); setHostedOriginal(false); setBoundThumb(undefined);
+    hostedPulled.current = false; examplePulled.current = false;
+  }, [digestParam]);
   // the copy handed over for this page, or the one this browser brought last time (a reload keeps the reference)
   useEffect(() => {
     const c = takeHeldCopy(digestParam);
@@ -671,7 +677,7 @@ export default function ProofPage() {
   // shown beside a copy whose pointer led here (its tag opens the record), checked against the fingerprint bound here.
   // A visitor with nothing in hand sees no picture: a visual only for those who already hold one.
   // undefined while the check runs: the file pane waits for it, so the full find-the-file box never flashes first
-  const [boundThumb, setBoundThumb] = useState<BoundThumbnail | null | undefined>(undefined);
+  const [boundThumb, setBoundThumb] = useState<ThumbnailLook | undefined>(undefined);
   // A copy found by its looks (check.ts) opens the reference the same way, by the record it matched, at whichever of
   // the photo's positions published it.
   const foundAt = heldCopy?.found;
@@ -681,7 +687,7 @@ export default function ProofPage() {
     let gone = false, url: string | null = null;
     setBoundThumb(undefined);
     const look = foundAt ? foundThumbnail(foundAt) : boundThumbnail(proof as never, tag!);
-    void look.then((t) => { if (gone) { if (t) URL.revokeObjectURL(t.url); return; } url = t?.url ?? null; setBoundThumb(t); }).catch(() => { if (!gone) setBoundThumb(null); });
+    void look.then((t) => { const got = t && typeof t === "object" ? t : null; if (gone) { if (got) URL.revokeObjectURL(got.url); return; } url = got?.url ?? null; setBoundThumb(t); }).catch(() => { if (!gone) setBoundThumb("unavailable"); });
     return () => { gone = true; if (url) URL.revokeObjectURL(url); };
   }, [proof, atomicCarrier, cachedFile, heldCopy?.tag, foundAt]);
   const [copyOf, setCopyOf] = useState<ReturnType<typeof copyOfNote>>(null);
@@ -2291,10 +2297,12 @@ export default function ProofPage() {
             // thumbnail, when its BitGraphed file published one), and the visitor already holds their own file.
             boundThumb === undefined ? null : (
               <div className="pv-pane-in">
-                {boundThumb && <BoundThumbView t={boundThumb} caption="The reference this BitGraph bound. You hold a copy; only the original’s exact bytes prove it." />}
+                {boundThumb && typeof boundThumb === "object" && <BoundThumbView t={boundThumb} caption="The reference this BitGraph bound. You hold a copy; only the original’s exact bytes prove it." />}
                 {boundThumb === null && heldCopy.found && (
                   <p className="pv-note">Your copy matches the fingerprint this BitGraph bound. No reference picture was bound with it; its holder adds one by checking the original once.</p>
                 )}
+                {boundThumb === "failed" && <p className="pv-note">Your copy matches the fingerprint this BitGraph bound. The reference picture published with it did not check, so it is not shown.</p>}
+                {boundThumb === "unavailable" && <p className="pv-note">Your copy matches the fingerprint this BitGraph bound. Its reference could not be read just now.</p>}
                 {heldCopy.others && heldCopy.others.length > 0 && (
                   <p className="pv-note">
                     Your copy also looks like {heldCopy.others.map((o, i) => {
@@ -2303,7 +2311,7 @@ export default function ProofPage() {
                       const carry = (e: React.MouseEvent) => {
                         e.preventDefault();
                         const rest = [heldCopy.found, ...(heldCopy.others ?? [])].filter((x): x is Original => !!x && x.photoDigestB64 !== o.photoDigestB64);
-                        setHeldCopy(toUrlSafeB64(o.photoDigestB64), { ...heldCopy, found: o, others: rest });
+                        setHeldCopy(toUrlSafeB64(o.photoDigestB64), { name: heldCopy.name, data: heldCopy.data, kind: "copy", score: heldCopy.score, found: o, others: rest });
                         router.push(href);
                       };
                       return <span key={`${o.photoDigestB64}/${o.counter}`}>{i > 0 ? ", " : ""}<a href={href} onClick={carry}>BitGraph #{o.counter.toLocaleString("en-US")}</a></span>;
@@ -2321,7 +2329,7 @@ export default function ProofPage() {
             </div>
           ) : boundThumb === undefined ? null : (
             <div style={{ padding: 16 }} className="pv-pane-in">
-              {boundThumb && <BoundThumbView t={boundThumb} />}
+              {boundThumb && typeof boundThumb === "object" && <BoundThumbView t={boundThumb} />}
               <HostedFilesView state={hosted} />
               {/* Once a host's files have matched, the record's files are already on the page: no "Locate the file" row
                   (2026-10-10). Generic, not Jev's: any matched ?files= bundle hides it; a failed or absent one keeps it. */}
@@ -2651,7 +2659,7 @@ function BringYourFile({
   onTreeEvidence?: (evidence: TreeMemberEvidence | null) => void;
 }) {
   const router = useRouter();
-  const [state, setState] = useState<"idle" | "reading" | "checking" | "looking" | "mismatch" | "tree" | "treeAll" | "treeNo" | "copy">("idle");
+  const [state, setState] = useState<"idle" | "reading" | "checking" | "looking" | "mismatch" | "tree" | "treeAll" | "treeNo" | "copy" | "ledgerDown" | "undecodable">("idle");
   // A copy that carries this BitGraph's hidden pointer (lib/trustmark): how closely it matches, and the photo's own page.
   const [copyOf, setCopyOf] = useState<{ score: number; href: string | null } | null>(null);
   // The one file dropped was this BitGraph's own proof, not the file it describes (2026-10-20: dropping
@@ -2947,10 +2955,12 @@ function BringYourFile({
     }
     const files = Array.isArray(source) ? source : source.entries ? [] : source.files;
     if (files.length !== 1 || !looksLikePhoto(files[0]!)) return false;
-    const img = await decodePhoto(files[0]!);
-    const v = img ? await judgeLooks(img).catch(() => null) : null;
+    const img = await decodeForReading(files[0]!);
+    if (!img) { setState("undecodable"); return true; }
+    const v = await judgeLooks(img).catch(() => null);
+    if (!v || v.verdict === "unavailable") { setState("ledgerDown"); return true; }
     // the same photo at another of its positions is still this page's photo: its record may be indexed under any one
-    if (v?.verdict !== "match") return false;
+    if (v.verdict !== "match") return false;
     // the copy is shown in the photo's own file pane, labelled for what it is: on the tree's page, that page opens with it
     const wrapped = carriers.has(files[0]!);
     // a BitGraphed file keeps its own name (the file inside it was named without the .bitgraph)
@@ -3094,6 +3104,10 @@ function BringYourFile({
           <div className="dropbox-title">That&rsquo;s this BitGraph&rsquo;s proof.</div>
           <div className="dropbox-line">The proof describes a file; drop that file here to check it against the&nbsp;proof.</div>
         </>
+      ) : state === "ledgerDown" ? (
+        <div className="dropbox-title">Could not check the ledger just now. Try again in a moment.</div>
+      ) : state === "undecodable" ? (
+        <div className="dropbox-title">This browser cannot decode that image, so it could not be matched by its looks. Try Safari for HEIC, or a JPEG of it.</div>
       ) : mismatch ? (
         <>
           <div className="dropbox-title" style={{ color: "var(--err)" }}>

@@ -263,16 +263,23 @@ async function fingerprintRecords(prints: PhotoPrint[], leaves: Array<[string, s
 /** A photo whose pixels carry a hidden pointer (a TrustMark): the BitGraph it points to, and, quietly, how closely
  *  this copy matches the picture that BitGraph bound (a visual match; the original's own bytes are what prove it). */
 const proofHref = (o: Original) => `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
-function LooksLine({ v }: { v: LooksVerdict }) {
-  if (v.verdict === "none") return null;
+/** copy: the row's own bytes, carried to the proof page it opens so that page shows the copy and its reference. */
+function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: Uint8Array } | null }) {
+  const router = useRouter();
+  if (v.verdict !== "match") return null;
   const all = [{ original: v.original, score: v.score }, ...v.others];
+  const open = (o: Original) => {
+    if (copy) setHeldCopy(toUrlSafe(o.photoDigestB64), { name: copy.name, data: copy.data.slice().buffer as ArrayBuffer, kind: "copy", score: all.find((m) => m.original === o)?.score ?? v.score, found: o, others: all.map((m) => m.original).filter((x) => x !== o) });
+    router.push(proofHref(o));
+  };
+  const link = (o: Original, label: React.ReactNode) => <a href={proofHref(o)} onClick={(e) => { e.preventDefault(); open(o); }}>{label}</a>;
   if (all.length === 1) {
     const o = v.original, href = proofHref(o);
     return (
       <>
-        <span className="db-ok">Looks like <a href={href}>BitGraph #{o.counter.toLocaleString("en-US")}</a><SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
+        <span className="db-ok">Looks like {link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}<SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
         <span className="db-size db-wrap">Match {v.score.toFixed(2)} against the record bound beside the original. Its proof page proves the original file.</span>
-        <FoundThumb o={o} href={href} />
+        <FoundThumb o={o} href={href} onOpen={() => open(o)} />
       </>
     );
   }
@@ -287,8 +294,8 @@ function LooksLine({ v }: { v: LooksVerdict }) {
           const href = proofHref(o);
           return (
             <li key={`${o.photoDigestB64}/${o.epochId}/${o.counter}`}>
-              <span className="db-ok"><a href={href}>BitGraph #{o.counter.toLocaleString("en-US")}</a><SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /> <span className="db-size">match {score.toFixed(2)}</span></span>
-              <FoundThumb o={o} href={href} />
+              <span className="db-ok">{link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}<SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /> <span className="db-size">match {score.toFixed(2)}</span></span>
+              <FoundThumb o={o} href={href} onOpen={() => open(o)} />
             </li>
           );
         })}
@@ -865,16 +872,22 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               // One copy dropped on Make leads to its original, the earliest known recording, instead of being recorded.
               // (Not finding one says nothing, so those are recorded.)
               // Several bound originals look like it (a picture exported twice): the row lists them all and opens none.
-              if (single && v.others.length === 0) {
-                noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
-                // the copy itself opens in the original's file pane, labelled as a copy (lib/trustmark/held-copy)
-                setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o });
-                setStatus("Opening the original…");
-                router.push(href);
+              if (single) {
+                if (v.others.length === 0) {
+                  noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
+                  // the copy itself opens in the original's file pane, labelled as a copy (lib/trustmark/held-copy)
+                  setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o });
+                  setStatus("Opening the original…");
+                  router.push(href);
+                }
                 return end({ bytes, digestB64, state: "copy", looks: v });
               }
               noteCopyOf(toUrlSafe(digestB64), { counter: o.counter, href });
             }
+            // the ledger could not be asked: said so, never read as "not a copy" (on Make, one file is not recorded blind)
+            if (v?.verdict === "unavailable" && (mode === "check" || single)) return end({ bytes, digestB64, state: "error", note: "Could not check the ledger just now. Try again in a moment." });
+            // 8. a picture this browser cannot decode (HEIC outside Safari, say) is said, not passed off as not a copy
+            if (v === null && mode === "check" && !(await decodeForReading(f).catch(() => null))) return end({ bytes, digestB64, state: "error", note: "This browser cannot decode this image, so it could not be matched by its looks. Try Safari for HEIC, or drop a JPEG of it." });
           }
           return end({ bytes, digestB64, state: "new" });
         }
@@ -1169,7 +1182,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
                     </span>
                   </>
                 )}
-                {r.state === "copy" && r.looks && <LooksLine v={r.looks} />}
+                {r.state === "copy" && r.looks && <LooksLine v={r.looks} copy={r.bytes ? { name: r.name, data: r.bytes } : null} />}
                 {r.state === "making" && "Binding…"}
                 {r.state === "error" && r.note}
                 {(r.state === "found" || r.state === "made") && r.proof && (

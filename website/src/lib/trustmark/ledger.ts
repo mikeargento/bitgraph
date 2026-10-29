@@ -65,8 +65,8 @@ export type Published = { recordB64: string; proof: Proof; c2paB64?: string; c2p
 export async function candidates(eref: number, counter: number, tag: number, one?: { epochId: string; recordDigestB64: string }): Promise<Published[]> {
   const safe = (b: string) => b.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const at = one ? `&epoch=${safe(one.epochId)}&record=${safe(one.recordDigestB64)}` : "";
-  const res = await fetch(`/api/trustmark/records?eref=${eref}&counter=${counter}&tag=${tag}${at}`).catch(() => null);
-  if (!res?.ok) return [];
+  const res = await fetch(`/api/trustmark/records?eref=${eref}&counter=${counter}&tag=${tag}${at}`);
+  if (!res.ok) throw new Error(`records ${res.status}`);
   const body = (await res.json().catch(() => null)) as { entries?: Published[] } | null;
   return (body?.entries ?? []).filter((e) => typeof e?.recordB64 === "string" && e.proof && typeof e.proof === "object");
 }
@@ -102,8 +102,10 @@ export async function publishFoundRecords(items: Array<{ f: Blob; photoDigestB64
         let thumb: Uint8Array | null = null;
         if (epochId && Number.isSafeInteger(counter) && nonce) {
           const eref = await epochRef(epochId);
-          const had = await candidates(eref, counter, await tag(nonce, fp.phash, eref, counter), { epochId, recordDigestB64: recordDigest });
-          if (!had.some((c) => typeof c.thumbB64 === "string")) thumb = await makeThumb(it.f).catch(() => null);
+          // unknown whether one is published (the read failed): no thumbnail is bound on a guess; the record still goes
+          let had: Published[] | null = null;
+          try { had = await candidates(eref, counter, await tag(nonce, fp.phash, eref, counter), { epochId, recordDigestB64: recordDigest }); } catch { had = null; }
+          if (had && !had.some((c) => typeof c.thumbB64 === "string")) thumb = await makeThumb(it.f).catch(() => null);
         }
         prepared[i] = { bytes, thumb };
       } catch { /* this one is skipped; the rest go on */ }

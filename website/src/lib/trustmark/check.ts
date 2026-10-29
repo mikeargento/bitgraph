@@ -27,6 +27,7 @@ export type Original = { counter: number; epochId: string; photoDigestB64: strin
  *  with its own proof); the find lists them all and chooses none. Best score first. */
 export type LooksVerdict =
   | { verdict: "none" }
+  | { verdict: "unavailable" }
   | { verdict: "match"; original: Original; score: number; others: Array<{ original: Original; score: number }> };
 
 type Candidate = { distance: number; phash: string; photo: string; counter: string; epoch: string; record: string; values: string };
@@ -39,11 +40,14 @@ async function judgeOne(img: Decoded, seen: Map<string, Promise<Candidate[]>>): 
   const { phash } = fingerprintOf(img);
   let fetched = seen.get(phash);
   if (!fetched) {
-    fetched = fetch(`/api/find?phash=${phash}`).then(async (r) => (r.ok ? ((await r.json()) as { candidates?: Candidate[] }).candidates ?? [] : [])).catch(() => []);
+    // a failed lookup is not an empty one: the caller must say the ledger could not be asked, not that nothing matched
+    fetched = fetch(`/api/find?phash=${phash}`).then(async (r) => { if (!r.ok) throw new Error(`find ${r.status}`); return ((await r.json()) as { candidates?: Candidate[] }).candidates ?? []; });
     seen.set(phash, fetched);
   }
+  let list: Candidate[];
+  try { list = await fetched; } catch { return { verdict: "unavailable" }; }
   const matches: Array<{ original: Original; score: number }> = [];
-  for (const c of await fetched) {
+  for (const c of list) {
     const { score } = align(img.rgba, img.w, img.h, c.values);
     if (score < MATCH) continue;
     const original: Original = { counter: Number(c.counter), epochId: fromUrlSafe(c.epoch), photoDigestB64: c.photo, phash: c.phash, recordDigestB64: fromUrlSafe(c.record) };
@@ -66,10 +70,10 @@ async function judgeOne(img: Decoded, seen: Map<string, Promise<Candidate[]>>): 
 export async function judge(full: Decoded, { search = true } = {}): Promise<LooksVerdict> {
   const seen = new Map<string, Promise<Candidate[]>>();
   const whole = await judgeOne(full, seen);
-  if (whole.verdict === "match" || !search) return whole;
+  if (whole.verdict !== "none" || !search) return whole;
   for (const c of rectangles(full.rgba, full.w, full.h).slice(1, 1 + RECTANGLES)) {
     const r = await judgeOne({ rgba: cropRGBA(full.rgba, full.w, c.x, c.y, c.w, c.h), w: c.w, h: c.h }, seen);
-    if (r.verdict === "match") return r;
+    if (r.verdict !== "none") return r;
   }
   return whole;
 }
