@@ -5964,3 +5964,5 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.db-zone[data-over], .dropbox.is-drag) { border-color: var(--link) !important; box-shadow: none !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body .db-zone:focus-visible { outline: 2px solid var(--link) !important; outline-offset: 2px; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.db-zone-pick, .dropbox .bg-pick, .dropbox-pick) { color: var(--link) !important; text-decoration-color: var(--link) !important; }
+/* The enclave region is a boundary (2026-10-30): a hairline in the line colour, quieter than the step boxes' stroke. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf-enclave { border: 1px solid var(--line) !important; }
