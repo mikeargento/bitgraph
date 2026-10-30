@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CopyCode } from "@/components/copy-code";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 
@@ -11,15 +12,14 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
  * base64(SHA-256(publicKeyB64 + ":" + bootNonceB64)); each epoch's counter starts at 0. Enclave v13 (2026-10-19): epochs
  * are not chained; each one's first BitGraph binds epoch-floor.json, a fresh read of the latest Base block.
  *
- * Layout (2026-10-19 redesign): the four ways in as cards at the
- * top, each with its command; the offline check as a wide card under them; then the reference beside a contents list
- * that stays in view on desktop. Questions fold open; the proof's fields are a table.
+ * Layout (2026-10-30 split): the four ways in live on /integrate; this page is the reference. The offline check as one
+ * wide card at the top, then the reference beside a contents list that stays in view on desktop. Questions fold open; the proof's fields are a table.
  */
 
 export const metadata: Metadata = {
-  title: "Tools",
+  title: "Docs",
   description:
-    "Use BitGraph from your code: the MCP server for AI agents, the SDK and CLI, the HTTP API, and the offline verifier.",
+    "What a BitGraph is and how it checks: the atomic action, trees and trust layers, epochs, limits, and the full check step by step.",
 };
 
 const NITRO_ROOT_SHA256 = "641a0321a3e244efe456463195d606317ed7cdcc3c1756e09893f3c68f79bb5b";
@@ -37,73 +37,19 @@ export default function ToolsPage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page">
       <div className="home-hero">
-        <h1 className="sr-only">Tools.</h1>
+        <h1 className="sr-only">Docs.</h1>
       </div>
 
       <section className="home-section" aria-labelledby="t-intro">
-        <p className="home-kicker">Tools</p>
-        <h2 id="t-intro">Use BitGraph from your code.</h2>
+        <p className="home-kicker">Docs</p>
+        <h2 id="t-intro">What a BitGraph is, and how it checks.</h2>
         <p>
-          Every tool here does the same one thing the Proofs page does: it hashes your file where it is and sends only the SHA-256. The
-          enclave binds it in one atomic action and the proof comes back to you. Checking a proof needs none of them, and nothing of
+          The mechanism, its trees and trust layers, its epochs, its limits, and the full check, step by step. The ways to call it,
+          MCP, SDK, CLI and HTTP, are on <Link href="/integrate">Integrate</Link>. Checking a proof needs none of them, and nothing of
           BitGraph&rsquo;s running.
         </p>
 
         <div className="tl-grid">
-          <article className="tl-card" aria-labelledby="t-mcp">
-            <p className="tl-label">For AI agents</p>
-            <h3 id="t-mcp">MCP server</h3>
-            <p>Works with any MCP client. Add it to the client&rsquo;s server list:</p>
-            <Code>{`{
-  "mcpServers": {
-    "bitgraph": { "command": "npx", "args": ["-y", "@mikeargento/bitgraph-mcp"] }
-  }
-}`}</Code>
-            <dl className="tl-verbs">
-              <dt><code>bitgraph_record</code></dt>
-              <dd>Makes a BitGraph of each file or folder; the proof is saved beside it as <span className="nb"><code>&lt;file&gt;.bitgraph.json</code>.</span></dd>
-              <dt><code>bitgraph_check</code></dt>
-              <dd>Whether files or digests are on record, and where. Read-only.</dd>
-              <dt><code>bitgraph_get_proof</code></dt>
-              <dd>A proof by digest, BitGraph number or file path. Read-only.</dd>
-            </dl>
-            <p className="tl-note">Clients that connect by URL: <code>https://bitgraph.ing/mcp</code></p>
-          </article>
-
-          <article className="tl-card" aria-labelledby="t-sdk">
-            <p className="tl-label">JavaScript and TypeScript</p>
-            <h3 id="t-sdk">SDK</h3>
-            <p>One class, the same verbs as every other tool here.</p>
-            <Code>{"npm install @mikeargento/bitgraph-sdk"}</Code>
-            <Code>{`import { BitGraph } from "@mikeargento/bitgraph-sdk";
-
-const [b] = await new BitGraph().bind("run-042.log");
-console.log(b.number, b.proofUrl);`}</Code>
-            <p className="tl-note"><code>run-042.log.bitgraph.json</code> is saved beside the file.</p>
-          </article>
-
-          <article className="tl-card" aria-labelledby="t-cli">
-            <p className="tl-label">Any language</p>
-            <h3 id="t-cli">CLI</h3>
-            <p>Anything that can run a command. Add <code>--json</code> for machines.</p>
-            <Code>{`npx -p @mikeargento/bitgraph-sdk bitgraph make run-042.log
-npx -p @mikeargento/bitgraph-sdk bitgraph check run-042.log
-npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
-            <p className="tl-note"><code>bitgraph serve</code> offers the same on 127.0.0.1.</p>
-          </article>
-
-          <article className="tl-card" aria-labelledby="t-api">
-            <p className="tl-label">Nothing to install</p>
-            <h3 id="t-api">HTTP API</h3>
-            <p>Send a SHA-256, get the proof.</p>
-            <Code>{`curl -X POST https://bitgraph.ing/api/commit \\
-  -H 'content-type: application/json' \\
-  -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</Code>
-            <p>Every BitGraph is kept. Fetch one by its hash:</p>
-            <Code>{"curl https://bitgraph.ing/api/proofs/<sha-256, base64url>"}</Code>
-            <p className="tl-note">Every commit through bitgraph.ing gets the reference layer, a Base floor and ceiling; a deployment you operate binds the witness of its choice, or none.</p>
-          </article>
-
           <article className="tl-card tl-wide" aria-labelledby="d-check">
             <p className="tl-label">Check it offline</p>
             <h3 id="d-check">No account, nothing of BitGraph&rsquo;s running.</h3>
