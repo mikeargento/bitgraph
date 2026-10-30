@@ -29,7 +29,7 @@ export default function DemosPage() {
         <p>
           Everything here is the production service. Every result is a real BitGraph, and every one checks offline.
         </p>
-        <div className="sx-cards is-3">
+        <div className="sx-cards is-1">
           {LIVE.map((d) => (
             <a key={d.href} className="tl-card sx-link" href={d.href}>
               <p className="tl-label">{d.label}</p>
