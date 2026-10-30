@@ -2487,6 +2487,8 @@ export default function ProofPage() {
             exportAction,
             openUrl: fileOpenUrl ?? photoOpenUrl,
             fileName: cachedFile?.name ?? null,
+            // the content box's pickers are on the page: the receipt's second button can open them
+            canConnect: !isEth && !isInterval && !epochStart && !cachedFile && hosted.phase !== "matched",
             exportName,
             exportInside,
             pieces,
@@ -3002,7 +3004,10 @@ function BringYourFile({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
+      {/* Ids (2026-10-30): the receipt's "Connect the file" button opens these pickers from outside the box. */}
+      <input id="pv-connect-files" ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
+      {/* @ts-expect-error webkitdirectory is a non-standard attribute every current browser supports */}
+      <input id="pv-connect-folder" type="file" webkitdirectory="" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []).filter((f) => !f.name.startsWith(".")); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
       {state === "reading" ? (
         <div className="dropbox-title" style={{ color: "var(--dim)" }}>
           {readCount > 0
