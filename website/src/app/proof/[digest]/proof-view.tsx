@@ -475,7 +475,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           ) : m.canConnect ? (
             /* Always two buttons (2026-10-30): with no file in hand the second one opens the Finder, and a file that
                hashes to the digest lands on the page, which turns this into the BitGraphed file button. */
-            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => { setSearching(true); document.getElementById("pv-connect-folder")?.click(); }}>Search this computer for the file</button>
+            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => { setSearching(true); setTimeout(() => document.querySelector(".pv-photo")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50); }}>Connect the file</button>
           ) : null}
         </div>
         {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
