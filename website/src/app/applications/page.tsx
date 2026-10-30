@@ -7,7 +7,7 @@ import type { Metadata } from "next";
  */
 export const metadata: Metadata = {
   title: "Applications",
-  description: "Where BitGraph's recording step fits: Content Credentials, finding the original from a copy, trusted capture, asset registries, AI agents, software supply chains and research records.",
+  description: "Where BitGraph's order sits under existing products: Content Credentials, finding the original from a copy, trusted capture, asset registries, AI agents, software supply chains and research records.",
 };
 
 type Pattern = { id: string; label: string; title: string; today: string; adds: string; binds: string; evidence: string; live?: { href: string; text: string } };
@@ -74,7 +74,7 @@ export default function ApplicationsPage() {
 
       <section className="home-section" aria-labelledby="app-h">
         <p className="home-kicker">Applications</p>
-        <h2 id="app-h">Different products. One recording&nbsp;step.</h2>
+        <h2 id="app-h">Different products. One order&nbsp;underneath.</h2>
         <p>
           BitGraph does not replace a provenance product; it sits under one. Whatever your system already produces, an asset, a
           credential, a log entry, a release, its SHA-256 is bound by the enclave and the proof travels with it. These are integration
