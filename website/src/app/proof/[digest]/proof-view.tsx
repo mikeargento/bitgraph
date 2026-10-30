@@ -334,6 +334,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const es = m.epochStart ?? null;
   const tf = m.treeFloor ?? null;
   const bitgraphed = m.pieces?.find((p) => p.label === "BitGraphed file") ?? null;
+  // The content box comes into view once a search starts (2026-10-30), so its reading count shows the work.
+  const [searching, setSearching] = useState(false);
   const fo = m.floorOf ?? null;
   const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null;
   const c = m.checks;
@@ -473,7 +475,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           ) : m.canConnect ? (
             /* Always two buttons (2026-10-30): with no file in hand the second one opens the Finder, and a file that
                hashes to the digest lands on the page, which turns this into the BitGraphed file button. */
-            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => document.getElementById("pv-connect-folder")?.click()}>Search this computer for the file</button>
+            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => { setSearching(true); document.getElementById("pv-connect-folder")?.click(); }}>Search this computer for the file</button>
           ) : null}
         </div>
         {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
@@ -497,7 +499,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {/* No content card when there is nothing to put in it (2026-10-29: the epoch's first record). */}
         {/* With no file in hand the content box is only the pickers the "Search this computer" button opens (2026-10-30):
             it stays mounted, out of sight, and no empty card shows. */}
-        {m.canConnect && showTime && !(c.state === "done" && c.verdict === "FALSE") && !m.sourceField && !m.copyOf ? (
+        {m.canConnect && !searching && showTime && !(c.state === "done" && c.verdict === "FALSE") && !m.sourceField && !m.copyOf ? (
           <div hidden>{m.filePane}</div>
         ) : ((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField || m.copyOf) && (
         <section className="pv-card pv-photo">
