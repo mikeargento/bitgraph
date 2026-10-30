@@ -629,7 +629,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         const fc = first?.commit as { counter?: string; epochId?: string } | undefined;
         if (fc?.counter && fc.epochId) {
           setStatus("Already a BitGraph. Opening its proof…");
-          void cacheArtifactToIDB(f, digest).catch(() => {});
+          // the file goes with the page: saved before the proof opens, so it opens with the file in hand
+          try { await Promise.race([cacheArtifactToIDB(f, digest), new Promise((r) => setTimeout(r, 3000))]); } catch { /* the page still opens */ }
           router.push(`/proof/${toUrlSafe(digest)}?counter=${encodeURIComponent(fc.counter)}&epoch=${encodeURIComponent(toUrlSafe(fc.epochId))}`);
           return;
         }
