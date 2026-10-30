@@ -5873,3 +5873,15 @@ html:root:root:root:root:root:root body main .pv-open-link { font-family: "acumi
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav .nav-btn { padding: 0 9px !important; margin-left: 2px !important; }
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-cta-sx { margin-left: 8px !important; padding: 0 14px !important; }
 }
+/* One utility colour (2026-10-30): every link in the page body, so "act" reads apart from "read". Eyebrows, headings,
+   the bar and the pills stay monochrome; a pill's edge takes the colour only on hover and focus. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root { --link: #7ab4e8; }
+@media (prefers-color-scheme: light) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:not([data-theme="dark"]) { --link: #1657a8; } }
+html[data-theme="light"]:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root { --link: #1657a8; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(main, footer) a:not(.bg-action-link):not(.btn):not(.tl-card):not(.sx-link):not(.tl-toc a):not(.nav-btn):not(.nav-wordmark) { color: var(--link) !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(main, footer) a:not(.bg-action-link):not(.btn):not(.tl-card):not(.sx-link):not(.tl-toc a) .arrow { color: var(--link) !important; }
+@media (hover: hover) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(main, footer) a:not(.bg-action-link):not(.btn):not(.tl-card):not(.sx-link):not(.tl-toc a):hover { text-decoration: underline !important; text-underline-offset: 3px; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .bg-action-link:not(:disabled):hover { border-color: var(--link) !important; }
+}
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .bg-action-link:focus-visible { outline-color: var(--link) !important; }
