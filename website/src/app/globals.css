@@ -5866,7 +5866,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-sub { margin-top: 0; padding-top: 0; border-top: 0; }
 @media (max-width: 480px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-row { grid-template-columns: 1fr; row-gap: 2px; } }
 /* The Open link beside the content hash (2026-10-30). */
-html:root:root:root:root:root:root body main .pv-open-link { font-family: "acumin-pro", sans-serif; font-weight: 600; margin-left: 10px; white-space: nowrap; }
+html:root:root:root:root:root:root body main .pv-open-link { font-family: "acumin-pro", sans-serif; font-weight: 400 !important; margin-left: 12px; white-space: nowrap; }
 /* Nine links in the bar on a desk (2026-10-30): 14px, tight. */
 @media (min-width: 1000px) {
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav :is(.nav-btn, .nav-cta-sx) { font-size: 14px !important; }

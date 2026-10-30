@@ -405,7 +405,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {contentCount !== null && (
             <div className="pv-row">
               <div className="pv-row-label">#{fmtNum(contentCount)}: Content hash</div>
-              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}{m.openUrl && <> <a className="pv-link pv-open-link" href={m.openUrl} target="_blank" rel="noopener">Open</a></>}</div>
+              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}{m.openUrl && <> <a className="pv-link pv-open-link" href={m.openUrl} target="_blank" rel="noopener">Open file</a></>}</div>
             </div>
           )}
           {(commit as { prevB64?: string }).prevB64 && (
