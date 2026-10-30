@@ -5847,3 +5847,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-sheet { justify-content: center; align-items: center; text-align: center; gap: 6px; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-sheet .nav-sheet-link { width: auto; text-align: center; font-size: 22px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-sheet-theme { position: absolute; left: 0; right: 0; bottom: calc(24px + env(safe-area-inset-bottom)); justify-content: center; margin: 0; padding: 0; }
+/* Menu links brighten on hover (2026-10-30). */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-sheet .nav-sheet-link { transition: color .12s ease, opacity .12s ease; }
+@media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-sheet .nav-sheet-link:hover { color: var(--ink) !important; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1.5px; } }
