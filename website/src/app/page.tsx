@@ -175,8 +175,8 @@ TRUE
           </a>
           <a className="tl-card sx-link" href="/licensing">
             <p className="tl-label">Mechanism license</p>
-            <h3>Run it under your control.</h3>
-            <p>License the recording mechanism for your own infrastructure and product.</p>
+            <h3>License the mechanism.</h3>
+            <p>Run the recording step in your own infrastructure, under your own measured build.</p>
           </a>
           <a className="tl-card sx-link" href="/licensing">
             <p className="tl-label">Custom integration</p>
