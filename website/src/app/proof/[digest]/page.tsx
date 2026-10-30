@@ -350,6 +350,17 @@ export default function ProofPage() {
   }, [digestParam, proof?.commit?.epochId, proof?.commit?.counter]);
   // the shown photo's full-size Open link, set by its card, shown beside the downloads
   const [photoOpenUrl, setPhotoOpenUrl] = useState<string | null>(null);
+  // Any file in hand opens in a tab of its own (2026-10-30): a blob of its bytes with the type its name says, so a PDF,
+  // a text file or a picture shows in the browser; the rest download. Beside the content hash on the receipt.
+  const [fileOpenUrl, setFileOpenUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!cachedFile) { setFileOpenUrl(null); return; }
+    const ext = (cachedFile.name.split(".").pop() ?? "").toLowerCase();
+    const type = ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", avif: "image/avif", svg: "image/svg+xml", bmp: "image/bmp", pdf: "application/pdf", txt: "text/plain", md: "text/plain", csv: "text/plain", json: "application/json", html: "text/html", htm: "text/html", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4" } as Record<string, string>)[ext] ?? "application/octet-stream";
+    const url = URL.createObjectURL(new Blob([cachedFile.data], { type }));
+    setFileOpenUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [cachedFile]);
   // Another proof opened in place (a copy's "also looks like", a gallery tile, a tree's file): nothing of the last
   // page's file, copy or hosted pull carries over. Runs first; the effects below then fill the new page.
   useEffect(() => {
@@ -2493,7 +2504,7 @@ export default function ProofPage() {
             checks: isTree ? treeChecks(checks) : checks,
             onConfirm: confirmAgainstNodes,
             exportAction,
-            openUrl: photoOpenUrl,
+            openUrl: fileOpenUrl ?? photoOpenUrl,
             exportName,
             exportInside,
             pieces,

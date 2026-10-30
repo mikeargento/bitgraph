@@ -5864,3 +5864,5 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-section-title { margin-bottom: 4px; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-sub { margin-top: 0; padding-top: 0; border-top: 0; }
 @media (max-width: 480px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-row { grid-template-columns: 1fr; row-gap: 2px; } }
+/* The Open link beside the content hash (2026-10-30). */
+html:root:root:root:root:root:root body main .pv-open-link { font-family: "acumin-pro", sans-serif; font-weight: 600; margin-left: 10px; white-space: nowrap; }
