@@ -5941,3 +5941,13 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 }
 /* Card grids: every row the height of the tallest (2026-10-30), so a two-line card and a one-line card match. */
 @media (min-width: 641px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-cards { grid-auto-rows: 1fr !important; } }
+/* Primary hover (2026-10-30): stays solid and full contrast, one step toward the ground in light, brighter in dark;
+   never the dimmed grey that read as disabled. The bar's Try it matches. */
+@media (hover: hover) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:not([data-theme="dark"]) body :is(main .bg-action-link.is-make:not(:disabled), #site-nav#site-nav a.nav-cta-sx):hover {
+    background: #3a3832 !important; border-color: #3a3832 !important; color: #faf9f5 !important; opacity: 1 !important;
+  }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body :is(main .bg-action-link.is-make:not(:disabled), #site-nav#site-nav a.nav-cta-sx):hover {
+    background: #ffffff !important; border-color: #ffffff !important; color: #171614 !important; opacity: 1 !important;
+  }
+}
