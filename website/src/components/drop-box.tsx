@@ -612,6 +612,15 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     // ?timer times the run from the drop to the proof (2026-10-18: for timing the 100,000-file tree).
     const t0 = performance.now();
     const secs = () => ((performance.now() - t0) / 1000).toFixed(1);
+    let looksLater: Promise<Awaited<ReturnType<typeof judgeLooks>> | null> | null = null;
+    let cachedLater: Promise<unknown> | null = null;
+    const firstOfLooks = (v: Awaited<ReturnType<typeof judgeLooks>> | null): FirstPosition | undefined => {
+      if (v?.verdict !== "match") return undefined;
+      const all = [v.original, ...v.others.map((m) => m.original)];
+      const when = (o: Original) => o.recordedMs ?? Number.POSITIVE_INFINITY;
+      const o = all.slice().sort((a, b) => when(a) - when(b) || Number(a.counter) - Number(b.counter))[0]!;
+      return { digestB64: o.photoDigestB64, epochId: o.epochId, counter: String(o.counter) };
+    };
     try {
       /* One file that already has a BitGraph is not recorded again (2026-10-29): existence is one-directional, so a
          later record of the same bytes says less than the first and costs a count. Its oldest proof opens instead,
@@ -621,6 +630,11 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         setStatus("Checking the ledger…");
         const bytes = new Uint8Array(await f.arrayBuffer());
         const digest = await digestOf(bytes);
+        // The looks check (below) starts now, beside the lookup and the hashing (2026-10-30): its answer is needed only
+        // after the bind, to name the first BitGraph of the picture, so nothing waits on it.
+        if (looksLikePhoto(f) && !first) looksLater = decodeForReading(f).catch(() => null).then((img) => (img ? judgeLooks(img, { search: true }).catch(() => null) : null));
+        // The file is saved for its proof page now too, during the bind rather than after it.
+        cachedLater = cacheArtifactToIDB(f, digest).catch(() => {});
         const res = await fetch(`/api/proofs/${toUrlSafe(digest)}`).catch(() => null);
         // never recorded blind: there is one BitGraph per file, and that cannot be known while the ledger is unreachable
         if (!res?.ok) { setStatus(null); setPlugError("Could not check the ledger just now. Try again in a moment."); return; }
@@ -630,7 +644,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         if (fc?.counter && fc.epochId) {
           setStatus("Already a BitGraph. Opening its proof…");
           // the file goes with the page: saved before the proof opens, so it opens with the file in hand
-          try { await Promise.race([cacheArtifactToIDB(f, digest), new Promise((r) => setTimeout(r, 3000))]); } catch { /* the page still opens */ }
+          try { await Promise.race([cachedLater, new Promise((r) => setTimeout(r, 3000))]); } catch { /* the page still opens */ }
           router.push(`/proof/${toUrlSafe(digest)}?counter=${encodeURIComponent(fc.counter)}&epoch=${encodeURIComponent(toUrlSafe(fc.epochId))}`);
           return;
         }
@@ -638,17 +652,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         // re-export, a re-save, a copy) is recorded too, and the new BitGraph names the earliest one of that picture
         // (app/api/lineage), so its page says so; nothing is chosen for the holder and nothing opens in its place.
         // The find failing to answer costs only the note.
-        if (looksLikePhoto(f) && !first) {
-          setStatus("Looking at the picture…");
-          const img = await decodeForReading(f).catch(() => null);
-          const v = img ? await judgeLooks(img, { search: true }).catch(() => null) : null;
-          if (v?.verdict === "match") {
-            const all = [v.original, ...v.others.map((m) => m.original)];
-            const when = (o: Original) => o.recordedMs ?? Number.POSITIVE_INFINITY;
-            const o = all.slice().sort((a, b) => when(a) - when(b) || Number(a.counter) - Number(b.counter))[0]!;
-            first = { digestB64: o.photoDigestB64, epochId: o.epochId, counter: String(o.counter) };
-          }
-        }
       }
       /* Every drop, one file or many, is one tree and one BitGraph (2026-10-20). Its first leaf is the latest Base
          block (base-block.json): the bound root holds that block's hash, so everything in the tree was bound after the
@@ -749,31 +752,27 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
          its index is written in a moment; the page opens with the proof in hand either way. */
       if (opensProof) {
         setStatus("Opening the proof…");
-        await Promise.race([indexed, new Promise((r) => setTimeout(r, 4000))]);
         const fileDigest = dropped[0]![2], i = t.leaves.findIndex((l) => l[2] === fileDigest);
-        // A later record of a picture names its first, once its own record is published (the server checks both).
-        if (first && fp.records.length) {
-          setStatus("Naming the first BitGraph…");
-          const nc = b.commit as { counter?: string; epochId?: string } | undefined;
-          if (await indexed && await publishRecord(fp.records[0]!, null, fp.thumbs[0]).catch(() => false) && nc?.counter && nc.epochId) {
-            const body = JSON.stringify({ digest: toUrlSafe(fileDigest), epoch: toUrlSafe(nc.epochId), counter: String(nc.counter), firstDigest: toUrlSafe(first.digestB64), firstEpoch: toUrlSafe(first.epochId), firstCounter: first.counter });
-            for (let attempt = 0; attempt < 6; attempt++) {
-              const r = await fetch("/api/lineage", { method: "POST", headers: { "content-type": "application/json" }, body }).catch(() => null);
-              if (r && r.status !== 404 && r.status < 500) break;
-              await new Promise((res) => setTimeout(res, 2000));
-            }
+        /* The proof opens the moment the bind is back (2026-10-30): the page is handed the proof below, so it never
+           waited on the index. The index, the picture's record and the naming of the picture's first BitGraph finish
+           behind it; the page re-reads the lineage for a while, so the name lands when it is written. The second ledger
+           lookup is gone: the same bytes were looked up before anything was recorded. */
+        const nc = b.commit as { counter?: string; epochId?: string } | undefined;
+        void (async () => {
+          if (!(await indexed) || !fp.records.length) return;
+          const v = looksLater ? await looksLater : null;
+          const named = first ?? firstOfLooks(v);
+          if (!named) return;
+          if (!(await publishRecord(fp.records[0]!, null, fp.thumbs[0]).catch(() => false)) || !nc?.counter || !nc.epochId) return;
+          const body = JSON.stringify({ digest: toUrlSafe(fileDigest), epoch: toUrlSafe(nc.epochId), counter: String(nc.counter), firstDigest: toUrlSafe(named.digestB64), firstEpoch: toUrlSafe(named.epochId), firstCounter: named.counter });
+          for (let attempt = 0; attempt < 6; attempt++) {
+            const r = await fetch("/api/lineage", { method: "POST", headers: { "content-type": "application/json" }, body }).catch(() => null);
+            if (r && r.status !== 404 && r.status < 500) break;
+            await new Promise((res) => setTimeout(res, 2000));
           }
-        }
-        // The file goes with the page (the proof opens with it in hand), so the save is waited for, briefly.
-        try { await Promise.race([cacheArtifactToIDB(files[0]!, fileDigest), new Promise((r) => setTimeout(r, 3000))]); } catch { /* the page still opens; the reader can drop the file there */ }
-        // The same file bound before: its first BitGraph opens, the one that counts, and lists this new one under it.
-        const before = await fetch(`/api/proofs/${toUrlSafe(fileDigest)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null) as { proofs?: Array<{ proof: Proof; writeTime?: number | null }> } | null;
-        const firstProof = earliestOf(before?.proofs ?? []);
-        const fc = firstProof?.commit as { counter?: string; epochId?: string } | undefined;
-        if (fc?.counter && fc.epochId && (String(fc.counter) !== String(b.commit?.counter) || String(fc.epochId) !== String(b.commit?.epochId))) {
-          router.push(`/proof/${toUrlSafe(fileDigest)}?counter=${encodeURIComponent(fc.counter)}&epoch=${encodeURIComponent(toUrlSafe(fc.epochId))}`);
-          return;
-        }
+        })();
+        // The file goes with the page (the proof opens with it in hand): its save started during the bind, so this is brief.
+        try { await Promise.race([cachedLater ?? cacheArtifactToIDB(files[0]!, fileDigest), new Promise((r) => setTimeout(r, 1500))]); } catch { /* the page still opens; the reader can drop the file there */ }
         const commit = b.commit as { counter?: string; epochId?: string } | undefined;
         const epoch = commit?.epochId ? toUrlSafe(commit.epochId) : "";
         const sel = commit?.counter ? `?counter=${encodeURIComponent(commit.counter)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";

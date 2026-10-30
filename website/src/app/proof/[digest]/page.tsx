@@ -345,7 +345,12 @@ export default function ProofPage() {
     if (!epoch || !counter) return;
     let cancelled = false;
     const q = `digest=${encodeURIComponent(stdDigest(digestParam))}&epoch=${encodeURIComponent(epoch.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}&counter=${encodeURIComponent(counter)}`;
-    void fetch(`/api/lineage?${q}`).then((r) => (r.ok ? r.json() : null)).then((b: { first?: ProofViewModel["firstRecorded"] } | null) => { if (!cancelled && b?.first) setFirstRecorded(b.first); }).catch(() => {});
+    // A just-recorded BitGraph's name for its picture's first is written behind the page (drop-box.tsx, 2026-10-30), so
+    // a fresh page asks again for a while: every 2 s, up to 30 s, until an answer comes.
+    const ask = () => fetch(`/api/lineage?${q}`).then((r) => (r.ok ? r.json() : null)).then((b: { first?: ProofViewModel["firstRecorded"] } | null) => { if (!cancelled && b?.first) { setFirstRecorded(b.first); return true; } return false; }).catch(() => false);
+    let tries = 0;
+    const loop = async () => { while (!cancelled && !(await ask()) && freshRef.current && tries++ < 15) await new Promise((r) => setTimeout(r, 2000)); };
+    void loop();
     return () => { cancelled = true; };
   }, [digestParam, proof?.commit?.epochId, proof?.commit?.counter]);
   // the shown photo's full-size Open link, set by its card, shown beside the downloads
