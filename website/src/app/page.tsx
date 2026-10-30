@@ -166,7 +166,7 @@ TRUE
 
       <section className="home-section" aria-labelledby="home-paths">
         <p className="home-kicker">Ways to adopt it</p>
-        <h2 id="home-paths">Use it, license it, or build it in with us.</h2>
+        <h2 id="home-paths">Use it, license it, or build on it with us.</h2>
         <div className="sx-cards">
           <a className="tl-card sx-link" href="/integrate">
             <p className="tl-label">Managed recording</p>
@@ -180,7 +180,7 @@ TRUE
           </a>
           <a className="tl-card sx-link" href="/licensing">
             <p className="tl-label">Custom integration</p>
-            <h3>Build it in together.</h3>
+            <h3>Build on it together.</h3>
             <p>Engineering work for your workflow: collections, credentials, agents, verification.</p>
           </a>
         </div>
