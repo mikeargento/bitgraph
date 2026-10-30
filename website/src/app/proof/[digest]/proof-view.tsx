@@ -202,7 +202,8 @@ export interface ProofViewModel {
 
 /** A label and a value. The value's copy button copies it; a link opens in a new tab. */
 function Row({ f }: { f: FieldView }) {
-  const [copied, copy] = useCopied();
+  // No copy icon (2026-10-30): nothing in a row is typed into another tool, the proof download carries it all, and
+  // the text selects like any text.
   if (f.link) {
     return (
       <div className="pv-row">
@@ -212,12 +213,11 @@ function Row({ f }: { f: FieldView }) {
     );
   }
   return (
-    <div className="pv-row pv-row-copyable">
+    <div className="pv-row">
       <div className="pv-row-label">{f.label}</div>
       <div className={`pv-row-value${f.mono ? " pv-mono" : ""}${f.highlight ? " pv-strong" : ""}`}>
         {f.value}
       </div>
-      <CopyIcon copied={copied} onCopy={() => copy(f.value)} label={f.label} />
     </div>
   );
 }
