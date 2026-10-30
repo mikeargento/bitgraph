@@ -5906,3 +5906,5 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 @media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-link-btn:not(:disabled):hover { text-decoration: underline; text-underline-offset: 3px; } }
 /* Space Grotesk on headings and the wordmark (2026-10-30); body and eyebrows stay Acumin. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(h1, h2, h3, #site-nav .nav-wordmark) { font-family: "Space Grotesk", "acumin-pro", sans-serif !important; letter-spacing: -0.02em !important; }
+/* Pills again (2026-10-30): every button and the bar's Try it, over the site-wide square rule. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.bg-action-link, .btn, .pv-pill, #site-nav .nav-cta-sx, #site-nav .nav-btn, #site-nav .nav-cta) { border-radius: 999px !important; }
