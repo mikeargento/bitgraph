@@ -518,7 +518,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {/* The verifier's command, behind a fold (2026-10-29): the buttons above are the page's actions, and the command
             is for the reader who wants the site out of the loop. The same copy tab as /make. */}
         <Fold title="Verify it yourself">
-          <div className="pv-fold-body-text">Take the proof and the file above, run the published verifier on your own machine, and read TRUE or FALSE with nothing of BitGraph&rsquo;s in the way.</div>
+          <div className="pv-fold-body-text">Download the proof and the file, then run the open verifier on your own machine. It answers TRUE or FALSE without contacting BitGraph.</div>
           <div className="code-block mk-code">
             <pre className="hiw-code">{command}</pre>
             <CopyCode />
