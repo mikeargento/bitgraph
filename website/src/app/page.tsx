@@ -166,11 +166,11 @@ TRUE
 
       <section className="home-section" aria-labelledby="home-paths">
         <p className="home-kicker">Ways to adopt it</p>
-        <h2 id="home-paths">Call it, license it, or build it in with us.</h2>
+        <h2 id="home-paths">Use it, license it, or build it in with us.</h2>
         <div className="sx-cards">
           <a className="tl-card sx-link" href="/integrate">
             <p className="tl-label">Managed recording</p>
-            <h3>Call the service.</h3>
+            <h3>Use the service.</h3>
             <p>Send digests over HTTP, the SDK or MCP; store the proofs. Nothing to operate.</p>
           </a>
           <a className="tl-card sx-link" href="/licensing">
