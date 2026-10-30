@@ -70,7 +70,7 @@ export default function TechnologyPage() {
               <li><strong>Origin of the record.</strong> The binding was performed by a specific enclave build whose measurement (PCR0) is published, as AWS Nitro hardware attests in a document signed for that exact proof.</li>
             </ol>
             <p>
-              That is the whole of the mechanism: order, from attested hardware. It needs no clock and no chain. Everything else a
+              That is the whole of the mechanism: order, from attested hardware. It needs no clock and no blockchain. Everything else a
               record can carry, a time, an identity, a public witness, is a trust layer bound on top of that position. The
               hardware&rsquo;s own signed time comes with every attestation; through bitgraph.ing, Base adds a window of public time as
               the reference layer. Either can be checked, neither is what the proof rests on.

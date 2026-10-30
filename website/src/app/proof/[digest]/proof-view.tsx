@@ -382,8 +382,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <div className="pv-row-value pv-window">{shown}{href && <> <a className="pv-link" href={href} target="_blank" rel="noopener">Basescan</a></>}</div>
     </div>
   ) : null;
-  const floorCell = showTime ? timeCell("Floor in time", floorShown, floorHref) : null;
-  const ceilingCell = showTime ? timeCell("Ceiling in time", ceilingShown, ceilingHref) : null;
+  const floorCell = showTime ? timeCell("Base floor", floorShown, floorHref) : null;
+  const ceilingCell = showTime ? timeCell("Base ceiling", ceilingShown, ceilingHref) : null;
   const counterCard = (
     <>
       {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}

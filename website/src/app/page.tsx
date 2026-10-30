@@ -53,7 +53,7 @@ export default function HomePage() {
         <h1 id="home-h">Order before&nbsp;time.</h1>
         <p className="sx-sub">
           A BitGraph fixes where a record stands in a counted sequence, after a value nobody could predict. That order needs no
-          clock and no chain. Time, identity and public witness are layers bound on top of it, by whoever you already trust. Send a
+          clock and no blockchain. Time, identity and public witness are layers bound on top of it, by whoever you already trust. Send a
           hash, get a proof that checks offline, without your servers or ours.
         </p>
         <div className="sx-cta">
