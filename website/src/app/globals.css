@@ -5908,5 +5908,5 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(h1, h2, h3) { font-family: "Space Grotesk", "acumin-pro", sans-serif !important; letter-spacing: -0.02em !important; }
 /* Pills again (2026-10-30): every button and the bar's Try it, over the site-wide square rule. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.bg-action-link, .btn, .pv-pill, #site-nav .nav-cta-sx, #site-nav .nav-btn, #site-nav .nav-cta) { border-radius: 999px !important; }
-/* The bar's buttons too: the square rule names the bar with two ids, so this names it with three. */
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav :is(.nav-cta-sx, .nav-btn, .nav-cta) { border-radius: 999px !important; }
+/* The bar's buttons too: a square rule names the bar with eight ids, so this names it with nine. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav :is(.nav-cta-sx, .nav-btn, .nav-cta) { border-radius: 999px !important; }
