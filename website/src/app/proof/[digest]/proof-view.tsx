@@ -677,17 +677,19 @@ function ContentCredentials({ c2pa, recorded, match }: { c2pa: C2PAReadResult; r
   (c2pa.chain ?? []).forEach((link, i) => rows.push({ label: i === 0 ? "Chain" : "", value: `${link.relationship ?? "ingredient"} \u00b7 ${link.signer ?? "unsigned"}` }));
   const openai = /openai|chatgpt|dall/i.test(`${c2pa.claimGenerator ?? ""} ${c2pa.signatureIssuer ?? ""}`);
   return (
-    <div className="pv-sub">
-      <div className="pv-sub-title">Content Credentials (C2PA)</div>
-      {/* The thumbnail the signer signed: the picture these credentials describe. */}
-      {c2pa.thumbnailDataUrl && (
-        <div className="pv-c2pa-thumb">
-          <span className="pv-sub-note">Signed thumbnail</span>
-          {/* eslint-disable-next-line @next/next/no-img-element -- a data URL from the manifest, not a hosted image */}
-          <img src={c2pa.thumbnailDataUrl} alt="The thumbnail signed into these Content Credentials" />
-        </div>
-      )}
-      {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
+    <div className="pv-sub pv-c2pa">
+      <div className="pv-section-title">Content Credentials (C2PA)</div>
+      {/* Boxes, two by two, as Position is (2026-10-29): the signed thumbnail, then who made it and who signed it. */}
+      <div className="pv-counter-grid pv-c2pa-grid">
+        {c2pa.thumbnailDataUrl && (
+          <div className="pv-row pv-c2pa-thumb">
+            <div className="pv-row-label">Signed thumbnail</div>
+            {/* eslint-disable-next-line @next/next/no-img-element -- a data URL from the manifest, not a hosted image */}
+            <img src={c2pa.thumbnailDataUrl} alt="The thumbnail signed into these Content Credentials" />
+          </div>
+        )}
+        {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
+      </div>
       {openai && <div className="pv-sub-note"><a className="pv-link" href="https://openai.com/research/verify/" target="_blank" rel="noopener">Verify with OpenAI &#8599;</a></div>}
     </div>
   );
