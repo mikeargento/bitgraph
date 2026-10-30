@@ -5840,3 +5840,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 /* The stamp's time stays on one line; phones take it a notch smaller (2026-10-29). */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp-time { white-space: nowrap; }
 @media (max-width: 480px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp-time { font-size: 38px !important; } }
+/* The stamp, a notch down and with no box around the number (2026-10-30). */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp-time { font-size: clamp(38px, 5.2vw, 56px) !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp-plate { border: 0; padding: 0; margin-bottom: 12px; color: var(--dim) !important; }
