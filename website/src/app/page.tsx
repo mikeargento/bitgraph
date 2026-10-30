@@ -189,7 +189,7 @@ TRUE
 
       <section className="home-section" aria-labelledby="home-end">
         <h2 id="home-end">Give your customers a proof they can check&nbsp;themselves.</h2>
-        <p>Verify a real proof yourself, read the mechanism, and talk with us about putting it under what you already sell.</p>
+        <p>Verify a real proof, read how it works, and see where BitGraph fits under what you already sell.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/evaluate">Request a technical evaluation</a>
           <a className="bg-action-link" href="/licensing">Licensing</a>
