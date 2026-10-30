@@ -5939,3 +5939,5 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf-enclave { padding: 28px 20px 24px !important; }
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf { margin-top: 32px !important; margin-bottom: 44px !important; }
 }
+/* Card grids: every row the height of the tallest (2026-10-30), so a two-line card and a one-line card match. */
+@media (min-width: 641px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-cards { grid-auto-rows: 1fr !important; } }
