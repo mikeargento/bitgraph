@@ -144,7 +144,7 @@ TRUE
 
       <section className="home-section" aria-labelledby="home-scale">
         <p className="home-kicker">Scale</p>
-        <h2 id="home-scale">One record, or a million in one.</h2>
+        <h2 id="home-scale">One position holds a million records.</h2>
         <p>
           A collection is bound as one Merkle tree in one action, and each item proves its own inclusion without the others being
           disclosed. Measured on the current flow: one million files hashed and built into a tree in 4.6 seconds on a laptop, and bound
