@@ -120,7 +120,7 @@ export function ArtTwo() {
         <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           {/* The primary action, filled (2026-10-20) so it stands out as the one thing to press. The record dot was tried
               and left off: on a button it reads as "this site will record you". */}
-          <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={state === "running"} onClick={() => void makeNow()}>
+          <button type="button" className="bg-action-link is-make" style={{ margin: 0, minWidth: "12.5em", justifyContent: "center" }} disabled={state === "running"} onClick={() => void makeNow()}>
             {made ? "Generate another" : "Generate image"}
           </button>
           {/* While it runs the button keeps its label and a bar fills, one part per step, instead of the label changing
