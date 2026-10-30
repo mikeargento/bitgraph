@@ -5837,3 +5837,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp-time { font-size: clamp(44px, 7vw, 72px) !important; font-weight: 700 !important; letter-spacing: -0.04em !important; line-height: 0.95 !important; color: var(--ink) !important; font-variant-numeric: tabular-nums; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp-date { margin-top: 10px; font-size: clamp(20px, 2.6vw, 28px) !important; font-weight: 400 !important; letter-spacing: -0.01em !important; color: var(--text) !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp .pv-lead-under { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+/* The stamp's time stays on one line; phones take it a notch smaller (2026-10-29). */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp-time { white-space: nowrap; }
+@media (max-width: 480px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp-time { font-size: 38px !important; } }
