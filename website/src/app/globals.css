@@ -5885,3 +5885,13 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .bg-action-link:not(:disabled):hover { border-color: var(--link) !important; }
 }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .bg-action-link:focus-visible { outline-color: var(--link) !important; }
+/* The home headline a size up (2026-10-30): it owns half the width on a desk and was capped at 60px. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .home .sx-hero h1, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .home-hero h1 { font-size: clamp(38px, 6.6vw, 84px) !important; line-height: 1.02 !important; }
+/* Linked cards (2026-10-30): the title and the arrow take the link colour, the body stays text, the edge tints on hover. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link h3 { color: var(--link) !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link::after { color: var(--link); }
+@media (hover: hover) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover { border-color: var(--link) !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover::after { color: var(--link); }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover h3 { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+}
