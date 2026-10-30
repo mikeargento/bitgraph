@@ -501,9 +501,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {/* No content card when there is nothing to put in it (2026-10-29: the epoch's first record). */}
         {/* With no file in hand the content box is only the pickers the "Search this computer" button opens (2026-10-30):
             it stays mounted, out of sight, and no empty card shows. */}
-        {m.canConnect && showTime && !(c.state === "done" && c.verdict === "FALSE") && !m.sourceField && !m.copyOf ? (
-          searching ? null : <div hidden>{m.filePane}</div>
-        ) : ((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField || m.copyOf) && (
+        {m.canConnect && !searching && <div hidden>{m.filePane}</div>}
+        {!(m.canConnect && !(c.state === "done" && c.verdict === "FALSE") && !m.sourceField && !m.copyOf) && ((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField || m.copyOf) && (
         <section className="pv-card pv-photo">
           {/* The content card (2026-10-29): the picture or file and its buttons. The time card above says when, the
               Content Credentials card below says who; the name leads here only when no time card names it, and a
@@ -514,7 +513,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
             </div>
           )}
-          {m.filePane}
+          {!m.canConnect && m.filePane}
           {m.sourceField}
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
         </section>
