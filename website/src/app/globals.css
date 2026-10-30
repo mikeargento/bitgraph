@@ -5910,3 +5910,21 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.bg-action-link, .btn, .pv-pill, #site-nav .nav-cta-sx, #site-nav .nav-btn, #site-nav .nav-cta) { border-radius: 999px !important; }
 /* The bar's buttons too: a square rule names the bar with eight ids, so this names it with nine. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav :is(.nav-cta-sx, .nav-btn, .nav-cta) { border-radius: 999px !important; }
+/* Colour (2026-10-30): same grounds, more depth. Headings a true ink, body a step softer, cards a
+   step off the ground in both modes, lines quieter, code with a hair edge, and the link blue pulled toward ink in the
+   light and softened in the dark. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:not([data-theme="dark"]) {
+  --bg: #eeece5; --bar: #eeece5; --paper: #faf9f5; --panel: #faf9f5; --panel-2: #e7e4da; --code-bg: #ebe8de;
+  --ink: #15140f; --text: #2b2924; --dim: #6e6a61; --faint: #938f85;
+  --line: #d4d0c4; --line-2: rgba(21, 20, 15, 0.08); --hair: rgba(21, 20, 15, 0.08);
+  --link: #1d4f96; --fig-fill: #faf9f5; --fig-enclave: #e3dfd2; --fig-line: #6a665c;
+  --btn-primary: #15140f; --btn-primary-hover: #2b2924; --btn-primary-text: #faf9f5;
+}
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] {
+  --bg: #171614; --bar: #171614; --paper: #201f1c; --panel: #201f1c; --panel-2: #2a2825; --code-bg: #1c1b18;
+  --ink: #f4f1e9; --text: #dcd8ce; --dim: rgba(244, 241, 233, 0.58); --faint: rgba(244, 241, 233, 0.4);
+  --line: rgba(244, 241, 233, 0.12); --line-2: rgba(244, 241, 233, 0.07); --hair: rgba(244, 241, 233, 0.07);
+  --link: #8db5e4; --fig-fill: #201f1c; --fig-enclave: #2a2825; --fig-line: #8a867c;
+  --btn-primary: #f4f1e9; --btn-primary-hover: #ffffff; --btn-primary-text: #171614;
+}
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .code-block, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main pre.hiw-code { border: 1px solid var(--line-2) !important; }
