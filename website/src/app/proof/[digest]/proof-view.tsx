@@ -544,6 +544,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <h1 className="sr-only">BitGraph proof</h1>
         {/* The time card first (2026-10-29): the BitGraph's name and the instant it was made, then the content it covers. */}
         {timeCard}
+        {/* No content card when there is nothing to put in it (2026-10-29: the epoch's first record). */}
+        {((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField || m.copyOf) && (
         <section className="pv-card pv-photo">
           {/* The content card (2026-10-29): the picture or file and its buttons. The time card above says when, the
               Content Credentials card below says who; the name leads here only when no time card names it, and a
@@ -558,6 +560,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {m.sourceField}
           {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
         </section>
+        )}
         {/* Every proof opens in full: no Proof details fold. The verdict and its tally lead, then when, who, and how. */}
         {(
           <>

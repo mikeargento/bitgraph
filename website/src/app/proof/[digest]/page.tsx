@@ -2240,9 +2240,9 @@ export default function ProofPage() {
           // Every file pane is the same outlined box with a name row and an Open pill, uniform
           // for any file (2026-10-05): text and other files (FileCard),
           // images (PhotoCard), and an anchor's Ethereum block here.
-          const filePane: React.ReactNode = epochStart ? (
-            <EpochStartPane es={epochStart} />
-          ) : isEth ? (
+          // The epoch's first record has no content card (2026-10-29): its time box names the epoch's beginning with
+          // Basescan, and its file is offered in the bottom row.
+          const filePane: React.ReactNode = epochStart ? null : isEth ? (
             <div className="pv-filecard">
               <div className="pv-filecard-head">
                 <span className="pv-filecard-name">
@@ -3150,25 +3150,6 @@ function stdDigest(digestParam: string): string {
 /* The three things a copy holder can do (2026-10-29): choose which BitGraph (only when the picture was recorded more
    than once), find the original (drop or choose the file), link the original (an address, admitted only when its
    bytes are one of these originals'). A found or linked file lands on the BitGraph that recorded those exact bytes. */
-
-/* The epoch's first record (2026-10-29): its file is public and served here, so the card shows what it binds as rows, in
-   place of the drop box. A genesis names the Base transaction that carried the epoch's id; an older floor names the block
-   the host read. No explaining line: the rows say it. */
-function EpochStartPane({ es }: { es: NonNullable<ProofViewModel["epochStart"]> }) {
-  const num = es.blockNumber.toLocaleString("en-US");
-  const short = (h: string) => `${h.slice(0, 10)}…${h.slice(-8)}`;
-  return (
-    <div className="pv-epoch-pane">
-      <div className="pv-counter-grid">
-        <div className="pv-row"><div className="pv-row-label">Base block</div><a className="pv-row-value pv-link" href={`https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">{num}<span aria-hidden> &#8599;</span></a></div>
-        <div className="pv-row"><div className="pv-row-label">Block hash</div><div className="pv-row-value pv-mono">{short(es.blockHash)}</div></div>
-        {es.genesis && <div className="pv-row"><div className="pv-row-label">Transaction</div><a className="pv-row-value pv-link pv-mono" href={`https://basescan.org/tx/${es.genesis.txHash}`} target="_blank" rel="noopener">{short(es.genesis.txHash)}<span aria-hidden> &#8599;</span></a></div>}
-        {es.genesis && <div className="pv-row"><div className="pv-row-label">Writer</div><a className="pv-row-value pv-link pv-mono" href={`https://basescan.org/address/${es.genesis.writer}`} target="_blank" rel="noopener">{short(es.genesis.writer)}<span aria-hidden> &#8599;</span></a></div>}
-      </div>
-      {es.baseChecked === false && <p className="pv-note">Base does not report this block with this hash and time. The file and Basescan are the evidence; read them yourself.</p>}
-    </div>
-  );
-}
 
 function BoundThumbView({ t, caption }: { t: BoundThumbnail; caption?: React.ReactNode }) {
   // No lightbox: at 512 pixels it is already shown about as large as it holds.
