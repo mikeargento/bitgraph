@@ -5764,7 +5764,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body,
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body *:not(:is(pre, code, kbd, samp, .pv-mono, .pv-raw, .rl-hash, .hiw-code, .pv-code, .pv-mono *, pre *, code *)) { font-family: "acumin-pro", -apple-system, "Helvetica Neue", Arial, sans-serif !important; font-variation-settings: normal !important; }
 /* text 16 / 1.6 */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(p, li, dd, dt, blockquote, figcaption, .lede, .note, td, th):not(.kicker, .home-kicker, .tl-label, .tl-toc *, nav *, footer *, .sx-sub, .sx-fine) { font-size: 16px !important; line-height: 1.6 !important; font-weight: 400 !important; letter-spacing: 0 !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.sx-cards > * p, .sx-cards > * span, .sx-fine, .note, figcaption, .mf-sub, .mf-note, .mf-keep, .db-sub, .dropbox-line, .db-zone-desk, .drop-browse, .pv-choose-list, .pv-source-credit, footer div, footer a, .tl-toc a) { font-size: 14.5px !important; line-height: 1.5 !important; letter-spacing: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.sx-cards > * p, .sx-cards > * span, .sx-fine, .note, figcaption, .mf-sub, .mf-note, .mf-keep, .db-sub, .db-zone-sub, .dropbox-line, .drop-browse, .pv-choose-list, .pv-source-credit, footer div, footer a, .tl-toc a) { font-size: 14.5px !important; line-height: 1.5 !important; letter-spacing: 0 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-sub { font-size: 20px !important; line-height: 1.45 !important; letter-spacing: -0.005em !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:not([data-theme="light"]) body :is(p, li, dd, dt, blockquote, .lede, .sx-sub):not(.kicker, .home-kicker, .tl-label, .tl-toc *, nav *, footer *) { color: #e3e0d8 !important; }
 /* headings: bold, tight */
@@ -5781,3 +5781,11 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-moment.is-accent .pv-moment-title, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-time-box { font-size: 26px !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body .pv-fold-head { font-size: 15px !important; font-weight: 700 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body .pv-row-label { font-size: 14px !important; }
+/* Phones (2026-10-29 pass): a no-break path or command wraps rather than running off the screen; headings avoid a
+   one-word last line. */
+@media (max-width: 640px) { html:root:root:root:root:root body main .nb { white-space: normal; overflow-wrap: anywhere; } }
+html:root:root:root:root:root body :is(h1, h2, h3) { text-wrap: pretty; }
+/* The drop zone's "files · a folder" are buttons: they take the line's face, size and weight (2026-10-29). */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.db-zone-desk, .db-zone-touch) .db-zone-pick { font: inherit !important; font-weight: 700 !important; letter-spacing: 0 !important; }
+/* The drop zone's line: 16 bold; its note under it 14.5 (2026-10-29). */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.db-zone-desk, .db-zone-touch) { font-size: 16px !important; font-weight: 700 !important; line-height: 1.4 !important; }

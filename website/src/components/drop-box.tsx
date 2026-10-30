@@ -1079,8 +1079,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         {/* Something is happening: a thin moving bar under the line that says what (2026-10-18). */}
         {status && <div className="bg-working" role="progressbar" aria-label={status} />}
         <div className="db-zone-sub">Each file is hashed in your browser. <br className="sub-br" />Only its SHA-256 is&nbsp;sent.</div>
-        <div className="db-zone-sub">The file never leaves your machine.</div>
-        {mode === "make" && <div className="db-zone-sub">A photo&rsquo;s fingerprint is kept so a copy can find its proof.</div>}
         <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
         {/* @ts-expect-error webkitdirectory is a non-standard attribute every current browser supports */}
         <input ref={folderRef} type="file" webkitdirectory="" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? []).filter((f) => !f.name.startsWith("."))); e.target.value = ""; }} />
