@@ -455,7 +455,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
                 title={<><span className="pv-time-box">{twoLines(whenBeside(attested, floorMs))}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor</span> : null}</>}
                 accent
               >
-                {es && <Pill href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>{es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</Pill>}
+                {/* The file itself is offered in the bottom row, beside Download proof, as every record's file is. */}
                 {es && <Pill href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>}
               </Moment>
             )}
