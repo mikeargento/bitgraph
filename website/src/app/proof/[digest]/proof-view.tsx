@@ -438,6 +438,18 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <div className="pv-counter-grid">{m.enclaveRows.map((f) => <Row key={f.label} f={f} />)}</div>
         <EnclaveDecoded proof={m.proof} />
       </div>
+      {/* The verifier's command and the JSON close the same receipt (2026-10-30): one box, every line of the record. */}
+      <div className="pv-receipt-group">
+        <div className="pv-section-title">Verify it yourself</div>
+        <div className="code-block mk-code">
+          <pre className="hiw-code">{command}</pre>
+          <CopyCode />
+        </div>
+      </div>
+      <div className="pv-receipt-group pv-details">
+        <div className="pv-section-title">Raw JSON</div>
+        <RawJson proof={m.proof} />
+      </div>
     </section>
   );
   /* The recorded instant leads the page on its own (2026-10-29): the BitGraph's name at heading size and the time
@@ -467,22 +479,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
             not landed yet. */}
         {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
-      </section>
-    </>
-  );
-  const rawCard = (
-    <>
-      {/* ── Raw JSON ── */}
-      <section className="pv-card pv-details">
-        {/* The verifier's command sits at the bottom, just above the JSON, labelled like every other row (2026-10-30). */}
-        <div className="pv-section-title">Verify it yourself</div>
-        <div className="code-block mk-code" style={{ marginBottom: 18 }}>
-          <pre className="hiw-code">{command}</pre>
-          <CopyCode />
-        </div>
-        {/* Open, like every other line of the receipt (2026-10-30): the page is the information. */}
-        <div className="pv-section-title">Raw JSON</div>
-        <RawJson proof={m.proof} />
       </section>
     </>
   );
@@ -523,7 +519,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {(
           <>
             {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
-            {rawCard}
             {/* The same bytes bound more than once: a footnote, one folded line, a log of them all oldest first, the first
                 (the original, the one that counts) and this page marked. */}
             {m.bindings && m.bindings.length > 1 && (
