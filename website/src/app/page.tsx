@@ -78,7 +78,7 @@ export default function HomePage() {
 
       <section className="home-section" aria-labelledby="home-mech">
         <p className="home-kicker">The mechanism</p>
-        <h2 id="home-mech">The recording step is what matters.</h2>
+        <h2 id="home-mech">The order is what matters.</h2>
         <p>
           A signature proves a key signed. A timestamp authority vouches for a time. Content Credentials carry a signer&rsquo;s
           assertions. BitGraph constrains the recording itself: a specific, published enclave build binds each digest at a counted,
