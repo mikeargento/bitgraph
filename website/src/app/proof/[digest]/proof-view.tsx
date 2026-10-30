@@ -381,7 +381,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const counterCard = (
     <>
       {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
-      <section className="pv-card">
+      <div className="pv-receipt-group">
         <div className="pv-section-title">Position</div>
         {/* Four boxes, two by two on a wide screen and stacked on a phone (2026-10-29). The previous BitGraph is named
             first, so the card reads as the chain it is (prevB64 is the key; "prevBitGraph" is the readers' name). Shown
@@ -413,24 +413,28 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {m.firstRecorded && <a className="bg-action-link" style={{ margin: 0 }} href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</a>}
           </div>
         )}
-      </section>
+      </div>
     </>
+  );
+  /* The receipt: Position's lines, the credentials, the signature, the enclave, in that order, as one list. */
+  const receipt = (
+    <section className="pv-card pv-receipt">
+      {counterCard}
+      {m.c2pa?.present && <div className="pv-receipt-group"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></div>}
+      <div className="pv-receipt-group">
+        <div className="pv-section-title">Signature</div>
+        <div className="pv-counter-grid">{m.signatureRows.map((f) => <Row key={f.label} f={f} />)}</div>
+      </div>
+      <div className="pv-receipt-group">
+        <div className="pv-section-title">{m.proof.environment?.enforcement === "measured-tee" ? "Hardware enclave" : "Software"}</div>
+        <div className="pv-counter-grid">{m.enclaveRows.map((f) => <Row key={f.label} f={f} />)}</div>
+        <EnclaveDecoded proof={m.proof} />
+      </div>
+    </section>
   );
   /* The recorded instant leads the page on its own (2026-10-29): the BitGraph's name at heading size and the time
      large, with the earliest BitGraph of the same picture beside it when there is one. */
   const recordedCard = null;
-  const sigCard = (
-    <>
-      {/* ── Signature and enclave ── */}
-      <section className="pv-card pv-details pv-details-pair">
-        <Fold title="Signature">{m.signatureRows.map((f) => <Row key={f.label} f={f} />)}</Fold>
-        <Fold title={m.proof.environment?.enforcement === "measured-tee" ? "Hardware enclave" : "Software"}>
-          {m.enclaveRows.map((f) => <Row key={f.label} f={f} />)}
-          <EnclaveDecoded proof={m.proof} />
-        </Fold>
-      </section>
-    </>
-  );
   const anywhereCard = (
     <>
       {/* ── Check it anywhere ── */}
@@ -479,8 +483,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <div className="pv">
         <h1 className="sr-only">BitGraph proof</h1>
         {/* The time card first (2026-10-29): the BitGraph's name and the instant it was made, then the content it covers. */}
-        {/* Position first (2026-10-30): the record, then the content it covers. */}
-        {counterCard}
+        {/* One open receipt (2026-10-30): every line of the record in one list, in priority order, nothing folded. */}
+        {receipt}
         {/* No content card when there is nothing to put in it (2026-10-29: the epoch's first record). */}
         {((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField || m.copyOf) && (
         <section className="pv-card pv-photo">
@@ -502,8 +506,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {(
           <>
             {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
-            {m.c2pa?.present && <section className="pv-card"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></section>}
-            {sigCard}
             {anywhereCard}
             {rawCard}
             {/* The same bytes bound more than once: a footnote, one folded line, a log of them all oldest first, the first

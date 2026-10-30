@@ -5854,3 +5854,13 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root body main .pv-row-window .pv-window { display: flex; flex-wrap: wrap; gap: 6px 22px; font-family: inherit !important; }
 html:root:root:root:root:root:root body main .pv-window-part { white-space: nowrap; }
 html:root:root:root:root:root:root body main .pv-window-part .pv-link { font-weight: 600; margin-right: 6px; }
+/* The receipt (2026-10-30): one card, every line in one list, label left and value right; groups set apart by a title. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-counter-grid { display: block !important; margin: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-row { display: grid !important; grid-template-columns: minmax(150px, 220px) 1fr; column-gap: 20px; align-items: baseline; border: 0 !important; border-bottom: 1px solid var(--line) !important; border-radius: 0 !important; padding: 9px 0 !important; background: transparent !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-row:last-child { border-bottom: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-row-label { margin: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-row-value { word-break: break-all; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-receipt-group + .pv-receipt-group { margin-top: 22px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-section-title { margin-bottom: 4px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-sub { margin-top: 0; padding-top: 0; border-top: 0; }
+@media (max-width: 480px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-row { grid-template-columns: 1fr; row-gap: 2px; } }
