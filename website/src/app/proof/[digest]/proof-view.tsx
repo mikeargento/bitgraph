@@ -680,18 +680,13 @@ function ContentCredentials({ c2pa, recorded, match }: { c2pa: C2PAReadResult; r
   return (
     <div className="pv-sub pv-c2pa">
       <div className="pv-section-title">Content Credentials (C2PA)</div>
-      {/* Boxes, two by two, as Position is (2026-10-29): the signed thumbnail, then who made it and who signed it. */}
-      <div className="pv-counter-grid pv-c2pa-grid">
-        {c2pa.thumbnailDataUrl && (
-          <div className="pv-row pv-c2pa-thumb">
-            <div className="pv-row-label">Signed thumbnail</div>
-            {/* eslint-disable-next-line @next/next/no-img-element -- a data URL from the manifest, not a hosted image */}
-            <img src={c2pa.thumbnailDataUrl} alt="The thumbnail signed into these Content Credentials" />
-          </div>
-        )}
-        {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
+      {/* Rows, no thumbnail (2026-10-29): what the signed manifest says, and where to check it. The signature is
+          verified in the browser before Signed by is shown; the open verifier does the same for anyone. */}
+      {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
+      <div className="pv-sub-note">
+        <a className="pv-link" href="https://contentcredentials.org/verify" target="_blank" rel="noopener">Check it at contentcredentials.org &#8599;</a>
+        {openai && <> &middot; <a className="pv-link" href="https://openai.com/research/verify/" target="_blank" rel="noopener">Verify with OpenAI &#8599;</a></>}
       </div>
-      {openai && <div className="pv-sub-note"><a className="pv-link" href="https://openai.com/research/verify/" target="_blank" rel="noopener">Verify with OpenAI &#8599;</a></div>}
     </div>
   );
 }
