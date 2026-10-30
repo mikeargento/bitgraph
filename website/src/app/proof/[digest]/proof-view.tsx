@@ -383,6 +383,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             by its hash: proofs are not looked up by position, so the page cannot open the BitGraph before this one;
             whoever holds both proofs can check the link offline. */}
         <div className="pv-counter-grid">
+          {/* The epoch's first record has no BitGraph before it; its place is the Base block it was made after (2026-10-29). */}
+          {es && <Row f={{ label: `Base block ${fmtNum(es.blockNumber)}`, value: es.blockHash, mono: true }} />}
           {(commit as { prevB64?: string }).prevB64 && (
             <Row f={{ label: "Previous BitGraph", value: (commit as { prevB64?: string }).prevB64!, mono: true }} />
           )}
