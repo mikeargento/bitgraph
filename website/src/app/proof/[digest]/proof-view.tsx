@@ -377,7 +377,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
     <>
       {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
       <section className="pv-card">
-        <div className="pv-section-title">Monotonic counter</div>
+        <div className="pv-section-title">Position</div>
         {/* Four boxes, two by two on a wide screen and stacked on a phone (2026-10-29). The previous BitGraph is named
             first, so the card reads as the chain it is (prevB64 is the key; "prevBitGraph" is the readers' name). Shown
             by its hash: proofs are not looked up by position, so the page cannot open the BitGraph before this one;
