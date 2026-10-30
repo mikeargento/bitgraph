@@ -5747,3 +5747,22 @@ html:root:root:root:root:root body main .pv-source-credit { margin: 8px 0 0; fon
   .pv-details-pair { grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
   .pv-details-pair .pv-fold .pv-mono, .pv-details-pair .pv-fold .pv-raw, .pv-details-pair .pv-fold code { overflow-wrap: anywhere; word-break: break-all; white-space: normal; }
 }
+
+/* Running text is Source Serif 4 (2026-10-29): Newsreader stays on every heading, label, button and data view, but a
+   display serif with a small x-height and thin hairlines is hard work at paragraph size, above all light-on-dark.
+   Source Serif's optical-size axis thickens strokes and opens spacing at text sizes. 17px / 1.65, 450 on the dark
+   theme (light text reads thinner than the same weight on paper), and the dark body grey lifted toward white.
+   Kickers, the page table of contents, the bar and the footer keep their own faces. */
+html:root:root:root:root:root:root:root:root:root body :is(p, li, dd, dt, blockquote, figcaption, .lede, .note, .sx-sub, .sx-fine, .facts > li > span, .doors span, .callout p, .terms dd, .steps > li, .prose, .prose-doc, .overview, .mf-sub, .mf-note, .db-sub, .pv-note, .pv-source-credit):not(.kicker, .home-kicker, .tl-label, .tl-toc *, nav *, footer *) {
+  font-family: var(--font-source-serif), "Source Serif 4", Georgia, serif !important;
+  font-variation-settings: "opsz" 16 !important;
+  font-size: 17px !important; line-height: 1.65 !important; font-weight: 400 !important;
+}
+html:root:root:root:root:root:root:root:root:root:not([data-theme="light"]) body :is(p, li, dd, dt, blockquote, figcaption, .lede, .note, .sx-sub, .sx-fine, .facts > li > span, .doors span, .callout p, .terms dd, .steps > li, .mf-sub, .mf-note, .db-sub, .pv-note, .pv-source-credit):not(.kicker, .home-kicker, .tl-label, .tl-toc *, nav *, footer *) { font-weight: 450 !important; color: #e6e2d9 !important; }
+html:root:root:root:root:root:root:root:root:root body :is(p, li, dd, blockquote, figcaption, .lede, .sx-sub) :is(strong, b) { font-weight: 650 !important; }
+/* The bar wears the text face too (2026-10-29): wordmark, links and the phone menu in Source Serif 4, so the bar and
+   the page read as one. Headings alone keep Newsreader. */
+html:root:root:root:root:root:root:root:root:root body :is(.nav-wordmark, .nav-btn, .nav-sheet-link) { font-family: var(--font-source-serif), "Source Serif 4", Georgia, serif !important; font-variation-settings: "opsz" 20 !important; }
+html:root:root:root:root:root:root:root:root:root body .nav-wordmark { font-size: 26px !important; font-weight: 600 !important; letter-spacing: -0.015em !important; }
+html:root:root:root:root:root:root:root:root:root body .nav-btn { font-size: 17px !important; font-weight: 500 !important; letter-spacing: 0 !important; }
+html:root:root:root:root:root:root:root:root:root body .nav-sheet-link { font-weight: 500 !important; letter-spacing: 0 !important; }
