@@ -5812,3 +5812,10 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-moments-window .pv-moment-actions { order: 1; margin: 0 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-moments-window .pv-moment-title { order: 2; margin: 0 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-moments-window .pv-moment-note { order: 3; flex-basis: 100%; }
+/* The lead card (2026-10-29): three headings in three spots, name, time, date, each in its own box. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-lead-row { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 720px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-lead-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-lead-cell { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; font-size: 26px !important; font-weight: 700 !important; letter-spacing: -0.025em !important; line-height: 1.15 !important; color: var(--ink) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 480px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-lead-cell { font-size: 22px !important; } }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-lead-under { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-lead-first { color: var(--dim); font-size: 14.5px !important; display: inline-flex; align-items: center; gap: 8px; }

@@ -299,14 +299,6 @@ function Pill({ href, children, external, download }: { href: string; children: 
 
 const fmtNum = (n: number | string | null | undefined) => (n === null || n === undefined ? "?" : Number(n).toLocaleString("en-US"));
 
-/** The recorded instant: the date and the time each stay whole, and the line breaks between them only when the box
- *  is too narrow for both (2026-10-29). A stamp with no date (the time alone) is one piece. */
-function twoLines(stamp: string): ReactNode {
-  const i = stamp.indexOf(", ");
-  if (i < 0) return stamp;
-  return <><span style={{ whiteSpace: "nowrap" }}>{stamp.slice(0, i + 1)}</span>{" "}<span style={{ whiteSpace: "nowrap" }}>{stamp.slice(i + 2)}</span></>;
-}
-
 /** A block's own time beside the recorded instant: the time alone on the same day, else the full stamp. */
 function whenBeside(ms: number, ref: number | null): string {
   const d = new Date(ms);
@@ -404,26 +396,23 @@ export function ProofView({ m }: { m: ProofViewModel }) {
      large, with the earliest BitGraph of the same picture beside it when there is one. */
   const recordedCard = showTime && attested !== null ? (
     <section className="pv-card pv-lead">
-      <div className="pv-moments pv-moments-lead">
-        {attested !== null && (
-          <Moment
-            label={es ? `${m.recordName} · Epoch began` : m.recordName}
-            title={<><span className="pv-time-box">{twoLines(whenBeside(attested, floorMs))}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor</span> : null}</>}
-            accent
-          >
-            {/* The file itself is offered in the bottom row, beside Download proof, as every record's file is. */}
-            {es && <Pill href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>}
-          </Moment>
-        )}
-        {m.firstRecorded && (
-          <Moment
-            label="Same picture, first recorded"
-            title={m.firstRecorded.recordedMs !== null ? whenBeside(m.firstRecorded.recordedMs, attested) : <span className="pv-moment-dim">Earlier</span>}
-          >
-            <Pill href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</Pill>
-          </Moment>
-        )}
+      {/* Three headings in three spots (2026-10-29): the BitGraph's name, the time, the date. */}
+      <div className="pv-lead-row">
+        <div className="pv-lead-cell">{es ? `${m.recordName} · Epoch began` : m.recordName}</div>
+        <div className="pv-lead-cell">{timeTz(new Date(attested))}</div>
+        <div className="pv-lead-cell">{longDateTz(new Date(attested))}</div>
       </div>
+      {(es || m.firstRecorded) && (
+        <div className="pv-lead-under">
+          {es && <Pill href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>}
+          {m.firstRecorded && (
+            <span className="pv-lead-first">
+              Same picture, first recorded {m.firstRecorded.recordedMs !== null ? whenBeside(m.firstRecorded.recordedMs, attested) : "earlier"}
+              {" "}<Pill href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</Pill>
+            </span>
+          )}
+        </div>
+      )}
     </section>
   ) : null;
   const hasWindow = !!(tf || fo || fl || bf || ef || ct);
