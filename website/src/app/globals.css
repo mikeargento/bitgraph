@@ -5904,3 +5904,5 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-link-btn { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: var(--link); cursor: pointer; text-align: left; width: fit-content; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-link-btn:disabled { color: var(--dim); cursor: default; }
 @media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-link-btn:not(:disabled):hover { text-decoration: underline; text-underline-offset: 3px; } }
+/* Space Grotesk on headings and the wordmark (2026-10-30); body and eyebrows stay Acumin. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(h1, h2, h3, #site-nav .nav-wordmark) { font-family: "Space Grotesk", "acumin-pro", sans-serif !important; letter-spacing: -0.02em !important; }

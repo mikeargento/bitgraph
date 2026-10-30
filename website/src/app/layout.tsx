@@ -130,6 +130,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Acumin Pro from the Adobe Fonts kit (2026-10-18), the face the site wore until 2026-09-11. */}
         <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
         {/* Google's Material Symbols, only the icons the Menu uses. */}
+        {/* Space Grotesk for headings and the wordmark (2026-10-30). */}
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" />
         <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=${MENU_ICON_NAMES}&display=block`} />
         {/* Runs during parse, before the browser restores scroll. On a reload
             the browser re-applies your saved offset as the page grows, and our
