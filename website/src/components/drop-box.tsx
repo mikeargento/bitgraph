@@ -43,7 +43,6 @@ type FirstPosition = { digestB64: string; epochId: string; counter: string };
 import { noteCopyOf, noteDroppedCopy } from "@/lib/trustmark/copy-note";
 import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
 import { MAX_GALLERY, handOriginal, setGallery, type Gallery, type GalleryItem } from "@/lib/gallery";
-import { DropGallery } from "@/components/gallery";
 
 const MAX_FILES = 25;
 
@@ -366,13 +365,9 @@ function foundOriginal(file: File, digest: string, proof: Proof): Found | null {
   return { file, item, prepare: () => handOriginal(file, digest, proof, item.counter, item.epochId) };
 }
 /** The checked photos of a drop as a gallery, each once, when there are two or more. */
-function galleryOfFound(found: Found[]): Gallery | null {
-  const seen = new Set<string>();
-  const kept = found.filter((x) => { const k = `${x.item.digest}@${x.item.counter}`; return !seen.has(k) && !!seen.add(k); });
-  if (kept.length < 2 || kept.length > MAX_GALLERY) return null;
-  const g = { id: `check-${Date.now()}`, items: kept.map((x) => x.item) };
-  setGallery(g, kept.map((x) => x.file), (i) => kept[i]!.prepare());
-  return g;
+// No galleries (2026-10-30): a check no longer gathers its photos into a strip of thumbnails.
+function galleryOfFound(_found: Found[]): Gallery | null {
+  return null;
 }
 
 export function DropBox({ mode = "make", variant = "zone", canMake = false }: { mode?: "make" | "check"; variant?: "zone" | "buttons"; canMake?: boolean }) {
@@ -697,35 +692,9 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       // One file goes straight on to its proof page (below), so the tree's panel is never drawn for it: shown for the
       // moment its index is written, it would flash up under "Opening the proof…" before the page changes.
       const opensProof = !list && files.length === 1 && !timer;
-      // The drop's photos, in the tree's order, as a gallery: each opens its own proof, handed over with its place in
-      // the tree so it never waits on the index.
-      let gallery: Gallery | undefined;
-      if (!opensProof && !list) {
-        const byDigest = new Map<string, File>();
-        dropped.forEach((l, k) => { const f = files[k]!; if (looksLikePhoto(f) && !byDigest.has(l[2])) byDigest.set(l[2], f); });
-        if (byDigest.size >= 2 && byDigest.size <= MAX_GALLERY && b.commit?.counter && b.commit?.epochId) {
-          const seen = new Set<string>(), counter = String(b.commit.counter), epochId = String(b.commit.epochId);
-          const at = t.leaves.flatMap((l, i) => (byDigest.has(l[2]) && !seen.has(l[2]) && seen.add(l[2]) ? [i] : []));
-          gallery = { id: contentDigest, items: at.map((i) => ({ digest: t.leaves[i]![2], name: byDigest.get(t.leaves[i]![2])!.name, counter, epochId })) };
-          const held = at.map((i) => byDigest.get(t.leaves[i]![2])!), g0 = gallery;
-          // Each photo opens its first BitGraph, the one that counts: a photo bound before points there, and only a
-          // photo new to the ledger opens this one. Looked up after the bind, so the bind never waits on it.
-          const firsts = firstsOf(g0.items.map((it) => it.digest)).catch(() => new Map<string, Proof>());
-          const isThis = (p: Proof) => String(p.commit?.counter) === counter && String(p.commit?.epochId) === epochId;
-          const prepare = async (k: number) => {
-            const it = g0.items[k]!, first = (await Promise.race([firsts, new Promise<null>((r) => setTimeout(() => r(null), 3000))]))?.get(it.digest);
-            if (first && !isThis(first)) await handOriginal(held[k]!, it.digest, first, String(first.commit!.counter), String(first.commit!.epochId));
-            else await handOriginal(held[k]!, it.digest, withMember(b as Record<string, unknown>, blocks[at[k]!]!), counter, epochId);
-          };
-          setGallery(g0, held, prepare);
-          void firsts.then((m) => {
-            if (![...m.values()].some((p) => !isThis(p))) return;
-            const g1 = { ...g0, items: g0.items.map((it) => { const p = m.get(it.digest); return p && !isThis(p) ? { ...it, counter: String(p.commit!.counter), epochId: String(p.commit!.epochId) } : it; }) };
-            setGallery(g1, held, prepare);
-            setPlug((p) => (p && p.b === b ? { ...p, gallery: g1 } : p));
-          });
-        }
-      }
+      // No gallery of thumbnails after a drop (2026-10-30): the tree's panel lists the BitGraph, and each file's own proof
+      // opens from its proof page.
+      const gallery: Gallery | undefined = undefined;
       if (!opensProof) setPlug({ gallery, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: already ? null : "waiting", ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
       // Each file is indexed under its own hash with the tree's floor (lib/tree-member.ts): written after the proof is
       // shown, so the BitGraph never waits on it; the server checks every path to the root before it writes.
@@ -1123,7 +1092,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               </div>
             </div>
           )}
-          {plug.gallery && <div className="plug-row plug-gallery"><DropGallery g={plug.gallery} /></div>}
           <div className="plug-foot">
             <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={downloadPlug}>Download everything</button>
           </div>
@@ -1209,7 +1177,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         </div>
       )}
 
-      {checked && (rows.length > 0 || bulk) && <div className="plug-result"><div className="plug-row plug-gallery"><DropGallery g={checked} /></div></div>}
       {rows.length > 0 && (
         <div className="db-rows">
           {rows.map((r) => (
