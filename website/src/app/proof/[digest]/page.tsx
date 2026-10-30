@@ -75,7 +75,7 @@ import { decodeForReading, looksLikePhoto } from "@/lib/trustmark/record";
 import { judge as judgeLooks } from "@/lib/trustmark/check";
 import { publishFoundRecord } from "@/lib/trustmark/ledger";
 import type { Original } from "@/lib/trustmark/check";
-import { forgetHeldCopy, recallHeldCopy, setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
+import { forgetHeldCopy, setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
 import { parseRecord } from "@/lib/trustmark/record";
@@ -357,14 +357,9 @@ export default function ProofPage() {
     setCachedFile(null); setHeldCopyState(null); setBoundThumb(undefined);
     examplePulled.current = false;
   }, [digestParam]);
-  // the copy handed over for this page, or the one this browser brought last time (a reload keeps the reference)
-  useEffect(() => {
-    const c = takeHeldCopy(digestParam);
-    if (c) { setHeldCopyState(c); return; }
-    let gone = false;
-    void recallHeldCopy(digestParam).then((r) => { if (r && !gone) setHeldCopyState((cur) => cur ?? r); });
-    return () => { gone = true; };
-  }, [digestParam]);
+  // No copy pane (2026-10-29, one action): nothing sends a copy to a page any more, and a copy this browser remembered
+  // from before is forgotten, so the content card is the picture or the drop box, never a dead end.
+  useEffect(() => { takeHeldCopy(digestParam); void forgetHeldCopy(digestParam); }, [digestParam]);
   // the original in hand (dropped, or the hosted file pulled): the remembered copy is no longer what this page shows,
   // here or on the next visit
   useEffect(() => {
