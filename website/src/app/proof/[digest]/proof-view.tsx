@@ -396,12 +396,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
      large, with the earliest BitGraph of the same picture beside it when there is one. */
   const recordedCard = showTime && attested !== null ? (
     <section className="pv-card pv-lead">
-      {/* Three headings in a row, no boxes around them (2026-10-29): the BitGraph's name, the time, the date. */}
-      <div className="pv-lead-row">
-        <div className="pv-lead-cell">{es ? `${m.recordName} · Epoch began` : m.recordName}</div>
-        <div className="pv-lead-cell">{timeTz(new Date(attested))}</div>
-        <div className="pv-lead-cell">{longDateTz(new Date(attested))}</div>
-      </div>
+      {/* The BitGraph's number is the name of the thing, so it is the page's title; the moment it was recorded is the
+          page's one big fact, so it sits under the title as the largest text after it (2026-10-29). */}
+      <h2 className="pv-lead-name">{es ? `${m.recordName} · Epoch began` : m.recordName}</h2>
+      <div className="pv-lead-when"><span className="pv-lead-date">{longDateTz(new Date(attested))}</span><span className="pv-lead-sep"> · </span><span className="pv-lead-time">{timeTz(new Date(attested))}</span></div>
       {(es || m.firstRecorded) && (
         <div className="pv-lead-under">
           {es && <Pill href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>}
