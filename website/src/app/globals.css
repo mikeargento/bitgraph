@@ -5954,3 +5954,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 /* Links never fade on hover (2026-10-30): the old 0.72 opacity dimmed whole cards and read as "going away". Text links
    underline, cards tint their edge and underline their title, the arrow moves. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(main, footer) a:hover { opacity: 1 !important; }
+/* One link size on the receipt (2026-10-30): every link and link-button at the values' 16px, regular weight. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt :is(a, .pv-link, .pv-link-btn, .pv-open-link) { font-size: 16px !important; font-weight: 400 !important; font-family: "acumin-pro", sans-serif !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-mono a.pv-open-link { font-size: 16px !important; }
