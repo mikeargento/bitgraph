@@ -396,21 +396,24 @@ export function ProofView({ m }: { m: ProofViewModel }) {
      large, with the earliest BitGraph of the same picture beside it when there is one. */
   const recordedCard = showTime && attested !== null ? (
     <section className="pv-card pv-lead">
-      {/* The BitGraph's number is the name of the thing, so it is the page's title; the moment it was recorded is the
-          page's one big fact, so it sits under the title as the largest text after it (2026-10-29). */}
-      <h2 className="pv-lead-name">{es ? `${m.recordName} · Epoch began` : m.recordName}</h2>
-      <div className="pv-lead-when"><span className="pv-lead-date">{longDateTz(new Date(attested))}</span><span className="pv-lead-sep"> · </span><span className="pv-lead-time">{timeTz(new Date(attested))}</span></div>
-      {(es || m.firstRecorded) && (
-        <div className="pv-lead-under">
-          {es && <Pill href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>}
-          {m.firstRecorded && (
-            <span className="pv-lead-first">
-              Same picture, first recorded {m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "earlier"}
-              {" "}<Pill href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</Pill>
-            </span>
-          )}
-        </div>
-      )}
+      {/* The lead is a stamp (2026-10-29): the number as a small plate, the time of day as the largest thing on the
+          page, the date under it in a lighter weight, and a hairline. A proof is a moment; the moment is the hero. */}
+      <div className="pv-stamp">
+        <div className="pv-stamp-plate">{es ? `${m.recordName} · Epoch began` : m.recordName}</div>
+        <div className="pv-stamp-time">{timeTz(new Date(attested))}</div>
+        <div className="pv-stamp-date">{longDateTz(new Date(attested))}</div>
+        {(es || m.firstRecorded) && (
+          <div className="pv-lead-under">
+            {es && <Pill href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>}
+            {m.firstRecorded && (
+              <span className="pv-lead-first">
+                Same picture, first recorded {m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "earlier"}
+                {" "}<Pill href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</Pill>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
     </section>
   ) : null;
   const hasWindow = !!(tf || fo || fl || bf || ef || ct);
