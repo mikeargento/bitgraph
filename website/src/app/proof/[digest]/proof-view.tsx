@@ -475,9 +475,11 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           ) : m.canConnect ? (
             /* Always two buttons (2026-10-30): with no file in hand the second one opens the Finder, and a file that
                hashes to the digest lands on the page, which turns this into the BitGraphed file button. */
-            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => { setSearching(true); setTimeout(() => document.querySelector(".pv-photo")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50); }}>Connect the file</button>
+            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => setSearching(true)}>Connect the file</button>
           ) : null}
         </div>
+        {/* The drop box appears right under the buttons on Connect (2026-10-30): drop the file or a folder, or choose. */}
+        {m.canConnect && searching && <div style={{ marginBottom: 16 }}>{m.filePane}</div>}
         {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
             not landed yet. */}
         {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
@@ -499,8 +501,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {/* No content card when there is nothing to put in it (2026-10-29: the epoch's first record). */}
         {/* With no file in hand the content box is only the pickers the "Search this computer" button opens (2026-10-30):
             it stays mounted, out of sight, and no empty card shows. */}
-        {m.canConnect && !searching && showTime && !(c.state === "done" && c.verdict === "FALSE") && !m.sourceField && !m.copyOf ? (
-          <div hidden>{m.filePane}</div>
+        {m.canConnect && showTime && !(c.state === "done" && c.verdict === "FALSE") && !m.sourceField && !m.copyOf ? (
+          searching ? null : <div hidden>{m.filePane}</div>
         ) : ((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField || m.copyOf) && (
         <section className="pv-card pv-photo">
           {/* The content card (2026-10-29): the picture or file and its buttons. The time card above says when, the
