@@ -2255,26 +2255,7 @@ export default function ProofPage() {
                 {attr?.title && <a href={attr.title} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}><span>Open</span><span className="arrow" aria-hidden>&#8599;</span></a>}
               </div>
             </div>
-          ) : isInterval ? null : cachedFile ? null /* no picture on the page (2026-10-30): the file opens from the receipt's Open link */ : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
-            <>
-              <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "drawn from the proof" : heldLabel} onOpenUrl={setPhotoOpenUrl}
-                /* No "Save for print" (2026-10-09: a print is a different bit version of the picture, so it would not
-                   match its own proof and would confuse; the recorded file is the one to print). */ />
-              {/* The redraw made visible (2026-10-14, an outside reading of /generate: "a verifier has to take your word for it").
-                  redrawRecordedArt hands the picture over only when the redrawing's SHA-256 IS the recorded digest, so the
-                  line states what just happened on this device; a bridge links the generator's published source. */}
-              {redrawn && (
-                <p className="pv-redraw-check">
-                  <span>
-                    Drawn again from the code on this device, not loaded: its SHA-256 is the bound digest, byte for byte.
-                    {/* The generator's source page went with the site strip (716a8407); its link went with it (2026-10-18 audit). */}
-                  </span>
-                </p>
-              )}
-            </>
-          ) : cachedFile ? (
-            <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
-          ) : heldCopy ? (
+          ) : isInterval ? null : cachedFile ? null /* no picture on the page (2026-10-30): the file opens from the receipt's Open link */ : heldCopy ? (
             // A copy in hand is never shown as if it were the photo: the box shows the picture this BitGraph recorded
             // (its thumbnail, when one was published) and says it is not the original. Make is where a file is recorded.
             boundThumb === undefined ? null : (

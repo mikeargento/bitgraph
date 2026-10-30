@@ -22,16 +22,16 @@ export default function DemosPage() {
       <div className="home-hero"><h1 className="sr-only">Try it.</h1></div>
       <section className="home-section" aria-labelledby="try-h">
         <p className="home-kicker">Try it</p>
-        <h2 id="try-h">The mechanism, running.</h2>
+        <h2 id="try-h">Make a BitGraph.</h2>
         <p>
-          Everything here is the production service. Every result is a real BitGraph, and every one checks offline.
+          Any bits. The file is hashed in your browser, and the proof comes back instantly.
         </p>
         {/* The drop box itself, no door to click (2026-10-30). The Ledger is in the menu. */}
         <div className="page-box"><DropBox mode="make" /></div>
       </section>
       <section className="home-section" aria-labelledby="demos-h">
         <p className="home-kicker">Demos</p>
-        <h2 id="demos-h">Work that could not exist before BitGraph&nbsp;A.</h2>
+        <h2 id="demos-h">The power of instant cryptographic order.</h2>
         <p>
           Each demo makes two BitGraphs. A&rsquo;s nonce, unseen until A is bound, is the input to the work; the result is bound as B,
           after A in the same sequence. The work is bracketed: made after A, bound by B.
