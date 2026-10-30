@@ -32,7 +32,7 @@ const RELIEF = [
   { title: "One call.", body: "Send a SHA-256 over HTTP, the SDK or MCP. No new infrastructure, nothing to host." },
   { title: "Your files stay yours.", body: "Only the 32-byte digest leaves your systems. We never see the content." },
   { title: "Proofs stand on their own.", body: "Each one checks offline with an open-source verifier, with nothing of BitGraph's running." },
-  { title: "Any size.", body: "A million records bind as one in 6 seconds, measured, and each still checks on its own." },
+  { title: "Any size.", body: "A million records bind as one in seconds, and each still checks on its own." },
   { title: "Your brand, your customers.", body: "BitGraph sits underneath. Nobody has to learn a new product." },
   { title: "Pay for records, not servers.", body: "Usage-based through the service, or a license to run it yourself." },
 ];
