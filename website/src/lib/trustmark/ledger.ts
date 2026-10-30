@@ -45,6 +45,8 @@ export async function recordProofIn(photoProof: Proof, recordBytes: Uint8Array):
 
 /** Publish a record, with the photo's Content Credentials and the BitGraphed file's thumbnail when they go too; its tree's index can lag the bind by a
  *  moment, so a not-found is waited out a few times. */
+/** No thumbnail is published any more (2026-10-30): nothing on the site shows one, and the find never returns one.
+ *  The thumbnail's hash stays a leaf of the tree, so the proof commits to it as before. */
 export async function publishRecord(recordBytes: Uint8Array, manifest?: Uint8Array | null, thumb?: Uint8Array | null): Promise<boolean> {
   const body = JSON.stringify({ recordB64: b64(recordBytes), ...(manifest ? { c2paB64: b64(manifest) } : {}), ...(thumb ? { thumbB64: b64(thumb) } : {}) });
   for (let attempt = 0; attempt < 12; attempt++) {
@@ -120,7 +122,7 @@ export async function publishFoundRecords(items: Array<{ f: Blob; photoDigestB64
     } catch { for (const p of withThumb) p.thumb = null; }
   }
   let n = 0;
-  await Promise.all(Array.from({ length: 3 }, async () => { while (n < ready.length) { const p = ready[n++]!; await publishRecord(p.bytes, null, p.thumb).catch(() => false); } }));
+  await Promise.all(Array.from({ length: 3 }, async () => { while (n < ready.length) { const p = ready[n++]!; await publishRecord(p.bytes, null, null).catch(() => false); } }));
 }
 
 /** One found photo (see publishFoundRecords). */

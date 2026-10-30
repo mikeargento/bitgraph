@@ -746,7 +746,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       if (fp.records.length) void indexed.then(async (ok) => {
         if (!ok) return;
         let next = 0;
-        await Promise.all(Array.from({ length: 3 }, async () => { while (next < fp.records.length) { const i = next++; await publishRecord(fp.records[i]!, null, fp.thumbs[i]).catch(() => false); } }));
+        await Promise.all(Array.from({ length: 3 }, async () => { while (next < fp.records.length) { const i = next++; await publishRecord(fp.records[i]!, null, null).catch(() => false); } }));
       });
       /* One file opens its own proof page, as a plain drop always has: its tree is two leaves (the floor and the file), so
          its index is written in a moment; the page opens with the proof in hand either way. */
@@ -763,7 +763,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           const v = looksLater ? await looksLater : null;
           const named = first ?? firstOfLooks(v);
           if (!named) return;
-          if (!(await publishRecord(fp.records[0]!, null, fp.thumbs[0]).catch(() => false)) || !nc?.counter || !nc.epochId) return;
+          if (!(await publishRecord(fp.records[0]!, null, null).catch(() => false)) || !nc?.counter || !nc.epochId) return;
           const body = JSON.stringify({ digest: toUrlSafe(fileDigest), epoch: toUrlSafe(nc.epochId), counter: String(nc.counter), firstDigest: toUrlSafe(named.digestB64), firstEpoch: toUrlSafe(named.epochId), firstCounter: named.counter });
           for (let attempt = 0; attempt < 6; attempt++) {
             const r = await fetch("/api/lineage", { method: "POST", headers: { "content-type": "application/json" }, body }).catch(() => null);
