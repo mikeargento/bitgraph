@@ -396,23 +396,25 @@ export function ProofView({ m }: { m: ProofViewModel }) {
      large, with the earliest BitGraph of the same picture beside it when there is one. */
   const recordedCard = showTime && attested !== null ? (
     <section className="pv-card pv-lead">
-      {/* Three headings in three spots (2026-10-29): the BitGraph's name, the time, the date. */}
-      <div className="pv-lead-row">
-        <div className="pv-lead-cell">{es ? `${m.recordName} · Epoch began` : m.recordName}</div>
-        <div className="pv-lead-cell">{timeTz(new Date(attested))}</div>
-        <div className="pv-lead-cell">{longDateTz(new Date(attested))}</div>
-      </div>
-      {(es || m.firstRecorded) && (
-        <div className="pv-lead-under">
+      {/* The BitGraph's name at heading size and the full date and time large (2026-10-29), with the earliest BitGraph
+          of the same picture beside it when there is one. */}
+      <div className="pv-moments pv-moments-lead">
+        <Moment
+          label={es ? `${m.recordName} · Epoch began` : m.recordName}
+          title={<span className="pv-time-box">{stampTz(new Date(attested))}</span>}
+          accent
+        >
           {es && <Pill href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>}
-          {m.firstRecorded && (
-            <span className="pv-lead-first">
-              Same picture, first recorded {m.firstRecorded.recordedMs !== null ? whenBeside(m.firstRecorded.recordedMs, attested) : "earlier"}
-              {" "}<Pill href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</Pill>
-            </span>
-          )}
-        </div>
-      )}
+        </Moment>
+        {m.firstRecorded && (
+          <Moment
+            label="Same picture, first recorded"
+            title={m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : <span className="pv-moment-dim">Earlier</span>}
+          >
+            <Pill href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</Pill>
+          </Moment>
+        )}
+      </div>
     </section>
   ) : null;
   const hasWindow = !!(tf || fo || fl || bf || ef || ct);
