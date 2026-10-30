@@ -5798,5 +5798,3 @@ html:root:root:root:root:root body main .pv-epoch-pane .pv-row-value.pv-link { w
 /* The Verify it yourself fold on the proof page (2026-10-29): one line, then the command. */
 html:root:root:root:root:root body main .pv-fold-body-text { padding: 10px 14px 4px; color: var(--text); }
 html:root:root:root:root:root body main .pv-fold .code-block { margin: 8px 12px 12px; }
-/* One door per row, full width (2026-10-29: the Try it page's two live doors). */
-html:root:root:root:root:root:root body main .sx-cards.is-1 { grid-template-columns: 1fr !important; }
