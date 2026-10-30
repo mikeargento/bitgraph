@@ -5928,3 +5928,14 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[
   --btn-primary: #f4f1e9; --btn-primary-hover: #ffffff; --btn-primary-text: #171614;
 }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .code-block, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main pre.hiw-code { border: 1px solid var(--line-2) !important; }
+/* The mechanism breathes (2026-10-30): the enclave region gets more room around its label and caption, and the figure
+   stands apart from the property cards under it. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf-enclave { padding: 40px 32px 36px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf-label { margin-bottom: 28px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf-note { margin-top: 24px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf { margin-top: 48px !important; margin-bottom: 64px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf + .sx-cards { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf-enclave { padding: 28px 20px 24px !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf { margin-top: 32px !important; margin-bottom: 44px !important; }
+}
