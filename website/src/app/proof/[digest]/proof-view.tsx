@@ -365,6 +365,20 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           )}
         </div>
   );
+  /* Floor and ceiling share one cell in Position (2026-10-30): the window in time, each time with its explorer link. */
+  const floorHref = fl ? `https://basescan.org/block/${fl.blockNumber}` : tf ? `https://basescan.org/block/${tf.blockNumber}` : fo ? `https://basescan.org/block/${fo.floor.blockNumber}` : bf ? `https://basescan.org/block/${bf.blockNumber}` : ef?.etherscanUrl ?? null;
+  const floorShown = floorMs !== null ? whenBeside(floorMs, attested) : tf ? whenBeside(tf.blockTimestamp * 1000, attested) : fo ? whenBeside(fo.floor.blockTimestamp * 1000, attested) : null;
+  const ceilingShown = ct && ct.anchor && ctMs !== null ? (ctStampOk ? whenBeside(ctMs, attested) : "Written to Base") : ct && !ct.anchor ? "Waiting to be written to Base" : null;
+  const ceilingHref = ct?.anchor ? `https://basescan.org/tx/${ct.anchor.txHash}` : null;
+  const windowRow = showTime && (floorShown || ceilingShown) ? (
+    <div className="pv-row pv-row-window">
+      <div className="pv-row-label">Floor and ceiling in time</div>
+      <div className="pv-row-value pv-window">
+        {floorShown && <span className="pv-window-part">{floorHref ? <a className="pv-link" href={floorHref} target="_blank" rel="noopener">Floor</a> : "Floor"} {floorShown}</span>}
+        {ceilingShown && <span className="pv-window-part">{ceilingHref ? <a className="pv-link" href={ceilingHref} target="_blank" rel="noopener">Ceiling</a> : "Ceiling"} {ceilingShown}</span>}
+      </div>
+    </div>
+  ) : null;
   const counterCard = (
     <>
       {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
@@ -377,6 +391,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <div className="pv-counter-grid">
           {/* The recorded moment is a row here, as subtle as every other stat (2026-10-30). */}
           {showTime && attested !== null && <Row f={{ label: es ? "Recorded · the epoch began" : "Recorded", value: stampTz(new Date(attested)) }} />}
+          {windowRow}
           {m.firstRecorded && <Row f={{ label: "Same picture, first recorded", value: m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "earlier" }} />}
           {/* The epoch's first record has no BitGraph before it; its place is the Base block it was made after (2026-10-29). */}
           {es && <Row f={{ label: `Base block ${fmtNum(es.blockNumber)}`, value: es.blockHash, mono: true }} />}
@@ -404,73 +419,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   /* The recorded instant leads the page on its own (2026-10-29): the BitGraph's name at heading size and the time
      large, with the earliest BitGraph of the same picture beside it when there is one. */
   const recordedCard = null;
-  const hasWindow = !!(tf || fo || fl || bf || ef || ct);
-  const windowCard = (
-    <>
-      {/* ── The window in time, below Position: floor and ceiling, each a time; the Base block numbers live behind the Basescan links ── */}
-      {showTime && hasWindow && (
-        <section className="pv-card">
-          <div className="pv-moments pv-moments-window">
-            {/* An epoch's first record is the moment the epoch began: one box says so, with the file and Base (2026-10-29). */}
-            {tf && (
-              <Moment
-                label="Floor in time"
-                title={whenBeside(tf.blockTimestamp * 1000, attested)}
-              >
-                {/* The floor file rides in the proof itself (its tree entry), so it needs no download of its own. */}
-                <Pill href={`https://basescan.org/block/${tf.blockNumber}`} external>Basescan</Pill>
-              </Moment>
-            )}
-            {fo && (
-              <Moment
-                label="Floor BitGraph"
-                title={whenBeside(fo.floor.blockTimestamp * 1000, attested)}
-              >
-                <Pill href={`/proof/${encodeURIComponent(safe(fo.record.digestB64))}?counter=${fo.record.counter}`}>BitGraph #{fmtNum(fo.record.counter)}</Pill>
-                <Pill href={`https://basescan.org/block/${fo.floor.blockNumber}`} external>Basescan</Pill>
-              </Moment>
-            )}
-            {fl && (
-              <Moment
-                label="Floor in time"
-                title={whenBeside(fl.blockTimestamp * 1000, attested)}
-              >
-                <Pill href={`/proof/${encodeURIComponent(safe(fl.bitgraph.digestB64))}?counter=${fl.bitgraph.counter}`}>BitGraph #{fmtNum(fl.bitgraph.counter)}</Pill>
-                <Pill href={`https://basescan.org/block/${fl.blockNumber}`} external>Basescan</Pill>
-              </Moment>
-            )}
-            {!fl && bf && (
-              <Moment
-                label="Floor in time"
-                title={floorMs !== null ? whenBeside(floorMs, attested) : <span className="pv-moment-dim">After a Base block</span>}
-              >
-                <Pill href={`https://basescan.org/block/${bf.blockNumber}`} external>Basescan</Pill>
-              </Moment>
-            )}
-            {!fl && ef && (
-              <Moment
-                label="Floor in time"
-                title={floorMs !== null ? whenBeside(floorMs, attested) : <span className="pv-moment-dim">After an Ethereum block</span>}
-              >
-                {ef.etherscanUrl && <Pill href={ef.etherscanUrl} external>Etherscan</Pill>}
-              </Moment>
-            )}
-            {ct && ct.anchor && ctMs !== null && (
-              <Moment
-                label="Ceiling in time"
-                title={ctStampOk ? whenBeside(ctMs, attested) : <span className="pv-moment-dim">Written to Base</span>}
-              >
-                <Pill href={`https://basescan.org/tx/${ct.anchor.txHash}`} external>Basescan</Pill>
-              </Moment>
-            )}
-            {ct && !ct.anchor && (
-              <Moment label="Ceiling in time" title={<span className="pv-moment-dim">Waiting to be written to Base<span className="pv-dots" aria-hidden /></span>} />
-            )}
-          </div>
-        </section>
-      )}
-    </>
-  );
   const sigCard = (
     <>
       {/* ── Signature and enclave ── */}
@@ -555,7 +503,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
             {m.c2pa?.present && <section className="pv-card"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></section>}
             {counterCard}
-            {windowCard}
             {sigCard}
             {anywhereCard}
             {rawCard}

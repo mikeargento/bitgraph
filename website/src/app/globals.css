@@ -5850,3 +5850,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 /* Menu links brighten on hover (2026-10-30). */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-sheet .nav-sheet-link { transition: color .12s ease, opacity .12s ease; }
 @media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-sheet .nav-sheet-link:hover { color: var(--ink) !important; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1.5px; } }
+/* Floor and ceiling in one Position cell (2026-10-30): two parts side by side, each a linked word and a time. */
+html:root:root:root:root:root:root body main .pv-row-window .pv-window { display: flex; flex-wrap: wrap; gap: 6px 22px; font-family: inherit !important; }
+html:root:root:root:root:root:root body main .pv-window-part { white-space: nowrap; }
+html:root:root:root:root:root:root body main .pv-window-part .pv-link { font-weight: 600; margin-right: 6px; }
