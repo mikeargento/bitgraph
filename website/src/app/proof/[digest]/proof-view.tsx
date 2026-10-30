@@ -370,15 +370,14 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const floorShown = floorMs !== null ? whenBeside(floorMs, attested) : tf ? whenBeside(tf.blockTimestamp * 1000, attested) : fo ? whenBeside(fo.floor.blockTimestamp * 1000, attested) : null;
   const ceilingShown = ct && ct.anchor && ctMs !== null ? (ctStampOk ? whenBeside(ctMs, attested) : "Written to Base") : ct && !ct.anchor ? "Waiting to be written to Base" : null;
   const ceilingHref = ct?.anchor ? `https://basescan.org/tx/${ct.anchor.txHash}` : null;
-  const windowRow = showTime && (floorShown || ceilingShown) ? (
+  const timeCell = (label: string, shown: string | null, href: string | null) => shown ? (
     <div className="pv-row pv-row-window">
-      <div className="pv-row-label">Floor and ceiling in time</div>
-      <div className="pv-row-value pv-window">
-        {floorShown && <span className="pv-window-part">{floorHref ? <a className="pv-link" href={floorHref} target="_blank" rel="noopener">Floor</a> : "Floor"} {floorShown}</span>}
-        {ceilingShown && <span className="pv-window-part">{ceilingHref ? <a className="pv-link" href={ceilingHref} target="_blank" rel="noopener">Ceiling</a> : "Ceiling"} {ceilingShown}</span>}
-      </div>
+      <div className="pv-row-label">{label}</div>
+      <div className="pv-row-value pv-window">{shown}{href && <> <a className="pv-link" href={href} target="_blank" rel="noopener">Basescan &#8599;</a></>}</div>
     </div>
   ) : null;
+  const floorCell = showTime ? timeCell("Floor in time", floorShown, floorHref) : null;
+  const ceilingCell = showTime ? timeCell("Ceiling in time", ceilingShown, ceilingHref) : null;
   const counterCard = (
     <>
       {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
@@ -389,23 +388,24 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             by its hash: proofs are not looked up by position, so the page cannot open the BitGraph before this one;
             whoever holds both proofs can check the link offline. */}
         <div className="pv-counter-grid">
-          {/* The recorded moment is a row here, as subtle as every other stat (2026-10-30). */}
-          {showTime && attested !== null && <Row f={{ label: es ? "Recorded · the epoch began" : "Recorded", value: stampTz(new Date(attested)) }} />}
-          {windowRow}
-          {m.firstRecorded && <Row f={{ label: "Same picture, first recorded", value: m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "earlier" }} />}
-          {/* The epoch's first record has no BitGraph before it; its place is the Base block it was made after (2026-10-29). */}
-          {es && <Row f={{ label: `Base block ${fmtNum(es.blockNumber)}`, value: es.blockHash, mono: true }} />}
-          {(commit as { prevB64?: string }).prevB64 && (
-            <Row f={{ label: "Previous BitGraph", value: (commit as { prevB64?: string }).prevB64!, mono: true }} />
-          )}
-          {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
-          {/* the two counted positions side by side on the second row */}
+          {/* Four pairs (2026-10-30): the number and when; the two counts on one line; the record before and the epoch;
+              the floor and the ceiling last. */}
+          <Row f={{ label: "BitGraph", value: `#${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : ""}` }} />
+          {showTime && attested !== null && <Row f={{ label: "Recorded", value: stampTz(new Date(attested)) }} />}
           {nonceCount !== null && (
             <Row f={{ label: `#${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} />
           )}
           {contentCount !== null && (
             <Row f={{ label: `#${fmtNum(contentCount)}: Content hash`, value: m.proof.artifact.digestB64, mono: true }} />
           )}
+          {(commit as { prevB64?: string }).prevB64 && (
+            <Row f={{ label: "Previous BitGraph", value: (commit as { prevB64?: string }).prevB64!, mono: true }} />
+          )}
+          {es && <Row f={{ label: `Base block ${fmtNum(es.blockNumber)}`, value: es.blockHash, mono: true }} />}
+          {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
+          {m.firstRecorded && <Row f={{ label: "Same picture, first recorded", value: m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "earlier" }} />}
+          {floorCell}
+          {ceilingCell}
         </div>
         {(es || m.firstRecorded) && (
           <div className="pv-photo-actions" style={{ marginTop: 12 }}>
