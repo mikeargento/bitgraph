@@ -10,7 +10,7 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
  */
 export const metadata: Metadata = {
   title: "Evaluate",
-  description: "Evaluate the BitGraph mechanism yourself: verify a real proof offline, watch each kind of tampering fail, make your own BitGraph, rebuild the enclave measurement, and run the test suites.",
+  description: "Check the BitGraph mechanism yourself: verify a real proof offline, watch each kind of tampering fail, make your own BitGraph, rebuild the enclave measurement, and run the test suites.",
 };
 
 function Code({ children }: { children: string }) {
@@ -41,10 +41,9 @@ export default function EvaluatePage() {
 
       <section className="home-section" aria-labelledby="e-intro">
         <p className="home-kicker">Evaluate</p>
-        <h2 id="e-intro">Don&rsquo;t take our word for&nbsp;it.</h2>
+        <h2 id="e-intro">Check it yourself.</h2>
         <p>
-          Reproduce the guarantees yourself, in about fifteen minutes, without an account or a call. You need Node 20 or later. The results
-          shown are what these commands print for the sample proof.
+          A few commands against a sample proof, with Node 20 or later. The output shown is what they print.
         </p>
       </section>
 
