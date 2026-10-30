@@ -479,7 +479,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <div className="pv">
         <h1 className="sr-only">BitGraph proof</h1>
         {/* The time card first (2026-10-29): the BitGraph's name and the instant it was made, then the content it covers. */}
-        {recordedCard}
+        {/* Position first (2026-10-30): the record, then the content it covers. */}
+        {counterCard}
         {/* No content card when there is nothing to put in it (2026-10-29: the epoch's first record). */}
         {((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField || m.copyOf) && (
         <section className="pv-card pv-photo">
@@ -502,7 +503,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           <>
             {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
             {m.c2pa?.present && <section className="pv-card"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></section>}
-            {counterCard}
             {sigCard}
             {anywhereCard}
             {rawCard}
