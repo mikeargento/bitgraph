@@ -432,7 +432,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       {/* ── The window in time, below Position: floor and ceiling, each a time; the Base block numbers live behind the Basescan links ── */}
       {showTime && hasWindow && (
         <section className="pv-card">
-          <div className="pv-moments">
+          <div className="pv-moments pv-moments-window">
             {/* An epoch's first record is the moment the epoch began: one box says so, with the file and Base (2026-10-29). */}
             {tf && (
               <Moment
