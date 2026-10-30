@@ -400,12 +400,38 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       </section>
     </>
   );
-  const timeCard = (
+  /* The recorded instant leads the page on its own (2026-10-29): the BitGraph's name at heading size and the time
+     large, with the earliest BitGraph of the same picture beside it when there is one. */
+  const recordedCard = showTime && attested !== null ? (
+    <section className="pv-card pv-lead">
+      <div className="pv-moments pv-moments-lead">
+        {attested !== null && (
+          <Moment
+            label={es ? `${m.recordName} · Epoch began` : m.recordName}
+            title={<><span className="pv-time-box">{twoLines(whenBeside(attested, floorMs))}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor</span> : null}</>}
+            accent
+          >
+            {/* The file itself is offered in the bottom row, beside Download proof, as every record's file is. */}
+            {es && <Pill href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>}
+          </Moment>
+        )}
+        {m.firstRecorded && (
+          <Moment
+            label="Same picture, first recorded"
+            title={m.firstRecorded.recordedMs !== null ? whenBeside(m.firstRecorded.recordedMs, attested) : <span className="pv-moment-dim">Earlier</span>}
+          >
+            <Pill href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</Pill>
+          </Moment>
+        )}
+      </div>
+    </section>
+  ) : null;
+  const hasWindow = !!(tf || fo || fl || bf || ef || ct);
+  const windowCard = (
     <>
-      {/* ── Where it sits in time: three moments, each a time; the Base block numbers live behind the Basescan links ── */}
-      {showTime && (
+      {/* ── The window in time, below Position: floor and ceiling, each a time; the Base block numbers live behind the Basescan links ── */}
+      {showTime && hasWindow && (
         <section className="pv-card">
-          {/* No heading (2026-10-29): three times in three boxes say it themselves. */}
           <div className="pv-moments">
             {/* An epoch's first record is the moment the epoch began: one box says so, with the file and Base (2026-10-29). */}
             {tf && (
@@ -449,24 +475,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
                 title={floorMs !== null ? whenBeside(floorMs, attested) : <span className="pv-moment-dim">After an Ethereum block</span>}
               >
                 {ef.etherscanUrl && <Pill href={ef.etherscanUrl} external>Etherscan</Pill>}
-              </Moment>
-            )}
-            {attested !== null && (
-              <Moment
-                label={es ? `${m.recordName} · Epoch began` : m.recordName}
-                title={<><span className="pv-time-box">{twoLines(whenBeside(attested, floorMs))}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor</span> : null}</>}
-                accent
-              >
-                {/* The file itself is offered in the bottom row, beside Download proof, as every record's file is. */}
-                {es && <Pill href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>}
-              </Moment>
-            )}
-            {m.firstRecorded && (
-              <Moment
-                label="Same picture, first recorded"
-                title={m.firstRecorded.recordedMs !== null ? whenBeside(m.firstRecorded.recordedMs, attested) : <span className="pv-moment-dim">Earlier</span>}
-              >
-                <Pill href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</Pill>
               </Moment>
             )}
             {ct && ct.anchor && ctMs !== null && (
@@ -545,7 +553,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <div className="pv">
         <h1 className="sr-only">BitGraph proof</h1>
         {/* The time card first (2026-10-29): the BitGraph's name and the instant it was made, then the content it covers. */}
-        {timeCard}
+        {recordedCard}
         {/* No content card when there is nothing to put in it (2026-10-29: the epoch's first record). */}
         {((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField || m.copyOf) && (
         <section className="pv-card pv-photo">
@@ -569,6 +577,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
             {m.c2pa?.present && <section className="pv-card"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></section>}
             {counterCard}
+            {windowCard}
             {sigCard}
             {anywhereCard}
             {rawCard}
