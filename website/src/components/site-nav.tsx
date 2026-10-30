@@ -22,6 +22,7 @@ const LINKS: Array<{ href: string; label: string; also?: string[] }> = [
   { href: "/tools", label: "Docs" },
   { href: "/ledger", label: "Ledger" },
   { href: "/evaluate", label: "Evaluate" },
+  { href: "/contact", label: "Contact" },
 ];
 // The button is the one action a visitor should take: Try it, where a drop proves the product in a minute.
 const CTA = { href: "/demos", label: "Try it", also: ["/make", "/jev", "/generate", "/exam"] };
