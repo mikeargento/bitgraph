@@ -299,12 +299,12 @@ function Pill({ href, children, external, download }: { href: string; children: 
 
 const fmtNum = (n: number | string | null | undefined) => (n === null || n === undefined ? "?" : Number(n).toLocaleString("en-US"));
 
-/** The recorded instant as two lines, the date above the time (2026-10-29): "10/27/2026," then "5:15:20 PM EDT". A
- *  stamp with no date (the time alone) stays one line. */
+/** The recorded instant: the date and the time each stay whole, and the line breaks between them only when the box
+ *  is too narrow for both (2026-10-29). A stamp with no date (the time alone) is one piece. */
 function twoLines(stamp: string): ReactNode {
   const i = stamp.indexOf(", ");
   if (i < 0) return stamp;
-  return <>{stamp.slice(0, i + 1)}<br />{stamp.slice(i + 2)}</>;
+  return <><span style={{ whiteSpace: "nowrap" }}>{stamp.slice(0, i + 1)}</span>{" "}<span style={{ whiteSpace: "nowrap" }}>{stamp.slice(i + 2)}</span></>;
 }
 
 /** A block's own time beside the recorded instant: the time alone on the same day, else the full stamp. */
