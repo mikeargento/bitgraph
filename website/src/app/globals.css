@@ -5433,8 +5433,9 @@ html:root:root:root:root:root body .db-copy-line { margin-top: 14px; text-align:
 html:root:root:root:root:root body .db-copy-line a { color: var(--ink); }
 /* Phones: the bar is the wordmark and a menu button; the menu covers the screen under the bar, the links large, the
    sun/moon at its bottom */
-/* The menu at every width (2026-10-30): the bar is the wordmark and the menu button on a desk as on a phone. */
-@media (min-width: 0px) {
+/* The links sit in the bar on a desk, small enough to fit (2026-10-30); narrower than 1000px they fold into the menu. */
+html:root:root:root:root:root body #site-nav .nav-menu-btn { display: none; }
+@media (max-width: 999px) {
   html:root:root:root:root:root:root body #site-nav .bg-nav-links { display: none !important; }
   html:root:root:root:root:root body #site-nav .nav-menu-btn { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin-right: -12px; padding: 0; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
   html:root:root:root:root:root body #site-nav .nav-menu-btn svg { width: 28px; height: 28px; }
@@ -5866,3 +5867,9 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 @media (max-width: 480px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-row { grid-template-columns: 1fr; row-gap: 2px; } }
 /* The Open link beside the content hash (2026-10-30). */
 html:root:root:root:root:root:root body main .pv-open-link { font-family: "acumin-pro", sans-serif; font-weight: 600; margin-left: 10px; white-space: nowrap; }
+/* Nine links in the bar on a desk (2026-10-30): 14px, tight. */
+@media (min-width: 1000px) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav :is(.nav-btn, .nav-cta-sx) { font-size: 14px !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav .nav-btn { padding: 0 9px !important; margin-left: 2px !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-cta-sx { margin-left: 8px !important; padding: 0 14px !important; }
+}
