@@ -5957,3 +5957,10 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 /* One link size on the receipt (2026-10-30): every link and link-button at the values' 16px, regular weight. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt :is(a, .pv-link, .pv-link-btn, .pv-open-link) { font-size: 16px !important; font-weight: 400 !important; font-family: "acumin-pro", sans-serif !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-mono a.pv-open-link { font-size: 16px !important; }
+/* Drop boxes follow the site's hover rule (2026-10-30): no glow; the edge tints link blue on hover, focus and drag, and
+   the box's "files" and "a folder" are links like every other. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.db-zone, .dropbox) { box-shadow: none !important; transition: border-color .12s ease; }
+@media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.db-zone, .dropbox):hover { border-color: var(--link) !important; box-shadow: none !important; background: var(--panel) !important; } }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.db-zone[data-over], .dropbox.is-drag) { border-color: var(--link) !important; box-shadow: none !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body .db-zone:focus-visible { outline: 2px solid var(--link) !important; outline-offset: 2px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.db-zone-pick, .dropbox .bg-pick, .dropbox-pick) { color: var(--link) !important; text-decoration-color: var(--link) !important; }
