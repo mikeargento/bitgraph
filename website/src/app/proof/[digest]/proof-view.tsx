@@ -488,7 +488,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <div className="pv">
         <h1 className="sr-only">BitGraph proof</h1>
         {/* The time card first (2026-10-29): the BitGraph's name and the instant it was made, then the content it covers. */}
-        {/* One open receipt (2026-10-30): every line of the record in one list, in priority order, nothing folded. */}
+        {/* The downloads first (2026-10-30), then one open receipt: every line of the record in one list. */}
+        {anywhereCard}
         {receipt}
         {/* No content card when there is nothing to put in it (2026-10-29: the epoch's first record). */}
         {((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField || m.copyOf) && (
@@ -511,7 +512,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {(
           <>
             {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
-            {anywhereCard}
             {rawCard}
             {/* The same bytes bound more than once: a footnote, one folded line, a log of them all oldest first, the first
                 (the original, the one that counts) and this page marked. */}
