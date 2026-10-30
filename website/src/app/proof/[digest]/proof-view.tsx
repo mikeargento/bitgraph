@@ -626,9 +626,10 @@ function ContentCredentials({ c2pa, recorded, match }: { c2pa: C2PAReadResult; r
       {/* Rows, no thumbnail (2026-10-29): what the signed manifest says, and where to check it. The signature is
           verified in the browser before Signed by is shown; the open verifier does the same for anyone. */}
       {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
-      <div className="pv-sub-note">
-        <a className="pv-link" href="https://contentcredentials.org/verify" target="_blank" rel="noopener">Check C2PA &#8599;</a>
-        {openai && <> &middot; <a className="pv-link" href="https://openai.com/research/verify/" target="_blank" rel="noopener">Verify with OpenAI &#8599;</a></>}
+      {/* Stacked, one link per line (2026-10-30). */}
+      <div className="pv-sub-note" style={{ display: "grid", gap: 6 }}>
+        <a className="pv-link" href="https://contentcredentials.org/verify" target="_blank" rel="noopener" style={{ width: "fit-content" }}>Check C2PA &#8599;</a>
+        {openai && <a className="pv-link" href="https://openai.com/research/verify/" target="_blank" rel="noopener" style={{ width: "fit-content" }}>Verify with OpenAI &#8599;</a>}
       </div>
     </div>
   );
