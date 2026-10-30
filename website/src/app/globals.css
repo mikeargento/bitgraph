@@ -5843,3 +5843,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 /* The stamp, a notch down and with no box around the number (2026-10-30). */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp-time { font-size: clamp(38px, 5.2vw, 56px) !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-stamp-plate { border: 0; padding: 0; margin-bottom: 12px; color: var(--dim) !important; }
+/* The menu's choices sit dead centre of the page (2026-10-30); the sun/moon keeps the bottom. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-sheet { justify-content: center; align-items: center; text-align: center; gap: 6px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-sheet .nav-sheet-link { width: auto; text-align: center; font-size: 22px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-sheet-theme { position: absolute; left: 0; right: 0; bottom: calc(24px + env(safe-area-inset-bottom)); justify-content: center; margin: 0; padding: 0; }
