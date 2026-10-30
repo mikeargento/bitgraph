@@ -85,7 +85,7 @@ export default function HomePage() {
           chained position, and the hardware attests to every proof.
         </p>
         <MechanismFigure />
-        <div className="sx-cards">
+        <div className="sx-cards is-2x2">
           {PROPERTIES.map((p) => (
             <article key={p.title} className="tl-card">
               <h3>{p.title}</h3>
