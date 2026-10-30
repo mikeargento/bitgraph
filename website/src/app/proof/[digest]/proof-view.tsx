@@ -461,10 +461,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           ) : m.canConnect ? (
             /* Always two buttons (2026-10-30): with no file in hand the second one opens the Finder, and a file that
                hashes to the digest lands on the page, which turns this into the BitGraphed file button. */
-            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => document.getElementById("pv-connect-files")?.click()}>File missing &middot; connect it</button>
+            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => document.getElementById("pv-connect-folder")?.click()}>Search this computer for the file</button>
           ) : null}
         </div>
-        {m.canConnect && <div className="pv-sub-note" style={{ marginTop: -8, marginBottom: 12 }}>Or <a className="pv-link" href="#" onClick={(e) => { e.preventDefault(); document.getElementById("pv-connect-folder")?.click(); }}>choose a folder</a> and it is searched for the file.</div>}
         {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
             not landed yet. */}
         {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
