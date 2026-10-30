@@ -521,7 +521,7 @@ export default function ProofPage() {
         claims.push({ id: "proof.signature", name: "The signature, the nonce's record and the two consecutive counts", result: r.valid ? "TRUE" : attestOk ? "FALSE" : "UNDETERMINED", restsOn: "Ed25519", detail: r.valid ? "the enclave's key signed this body, the nonce at N and the content at N+1" : (r.reason ?? "did not verify"), level: "offline" });
         const ok = r.valid && (inTree === null || inTree);
         const reading = ok
-          ? `Bound by BitGraph's published enclave image ${r.image?.version ?? ""}, as the AWS Nitro hardware attests${r.attestedAtMs !== null ? `, at ${new Date(r.attestedAtMs).toISOString().replace("T", " ").slice(0, 19)} UTC` : ""}.${tm ? ` Recorded as file ${(tm.index + 1).toLocaleString("en-US")} of a tree of ${tm.files.toLocaleString("en-US")}, all bound at this position.${bytes ? " Your file is that file." : ""}` : bytes ? " Your file is the committed bytes." : ""} This proves where and when these bytes were bound, not when or how they were made.`
+          ? `Bound by BitGraph's published enclave image ${r.image?.version ?? ""}, as the AWS Nitro hardware attests${r.attestedAtMs !== null ? `, at ${new Date(r.attestedAtMs).toISOString().replace("T", " ").slice(0, 19)} UTC` : ""}.${tm ? ` Recorded as file ${(tm.index + 1).toLocaleString("en-US")} of a tree of ${tm.files.toLocaleString("en-US")}, all bound at this position.${bytes ? " Your file is that file." : ""}` : bytes ? " Your file is the committed bytes." : ""} This proves where these bytes were bound in the sequence; the attestation's time is a layer on that position. It says nothing about when or how they were made.`
           : tm && inTree === false ? "This hash is not in the tree the proof binds." : `This proof does not check: ${r.reason ?? "it did not verify"}.`;
         setChecks((c) => ({ ...c, state: "done", claims, reading, verdict: ok ? "TRUE" : "FALSE", note: null, bytesInHand: !!bytes, confirming: false, confirmed: true }));
       } catch (e) {
@@ -2373,8 +2373,8 @@ export default function ProofPage() {
             ? (treeMember && cachedFile
                 ? <>{`One zip: this file's own export, which proves its place in the tree of ${treeCount.toLocaleString("en-US")}, and SPEC.md, the rules the proof pins`}{carrierPossible ? staged(", with the BitGraphed file, this file with the proof inside") : null}.</>
                 : treeCount === 1
-                ? "One zip: the tree's export, with the proof and its times, and SPEC.md, the rules the proof pins. Drop the file in the box above first and the export carries its place too."
-                : `One zip: the tree's export, with the proof and its times, and SPEC.md, the rules the proof pins. A file's own place among the ${treeCount.toLocaleString("en-US")} files comes with that file's export: drop it in the box above first.`)
+                ? "One zip: the tree's export, with the proof and its trust layers, and SPEC.md, the rules the proof pins. Drop the file in the box above first and the export carries its place too."
+                : `One zip: the tree's export, with the proof and its trust layers, and SPEC.md, the rules the proof pins. A file's own place among the ${treeCount.toLocaleString("en-US")} files comes with that file's export: drop it in the box above first.`)
             : `One zip: the proof, ${baseFloor !== null ? "the floor block's header" : "the Ethereum anchors with their block headers"}, the ceiling file${cachedFile ? ", the file" : ""}${carrierPossible ? " and the BitGraphed file, the file with the proof inside" : ""}, with a README that says what each is.`;
           const exportName = isEth
             ? "The anchor's proof"

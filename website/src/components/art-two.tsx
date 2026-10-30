@@ -112,7 +112,7 @@ export function ArtTwo() {
     <>
       <section className="home-section" aria-labelledby="gen-h">
         <p className="home-kicker">Generate image</p>
-        <h2 id="gen-h">A file that never existed before you&nbsp;clicked.</h2>
+        <h2 id="gen-h">A file that could not exist before BitGraph&nbsp;A.</h2>
         <p style={{ marginTop: 24 }}>
           One click makes BitGraph A. Its nonce, unseen until A is bound, is the only input to the drawing. The picture is
           bound as BitGraph B, after A in the same sequence. Anyone can draw it again from A&rsquo;s proof and get the same&nbsp;bytes.

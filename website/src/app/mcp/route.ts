@@ -97,8 +97,8 @@ const handler = createMcpHandler(
       {
         title: "Make a BitGraph",
         description:
-          "Make a BitGraph of each SHA-256 digest: one atomic action inside BitGraph's enclave per digest, a fresh nonce nobody can see, then the digest at the very next count, signed together with the enclave's own time. " +
-          "Proves the bits were bound after a moment nobody could predict. Permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. " +
+          "Make a BitGraph of each SHA-256 digest: one atomic action inside BitGraph's enclave per digest, a fresh nonce nobody can see, then the digest at the very next count, signed together and attested by the AWS Nitro hardware, whose attestation carries its own timestamp. " +
+          "Proves the bits were bound at a counted position, right after a value nobody could predict. Permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. " +
           DIGEST_HINT + `. Up to ${MAX_BIND} digests per call; each becomes its own BitGraph.`,
         inputSchema: z.object({
           digests: z
@@ -144,7 +144,7 @@ const handler = createMcpHandler(
         if (response_format === "json") {
           return ok(capJson({ made, requested: normalized.standard.length, note: PROOF_KEEPING }).text);
         }
-        const lines = made.map((m) => `- BitGraph #${m.number ?? "?"} (counts ${m.counts?.join(", ") ?? "?"}), ${m.enclave_time} enclave time: ${m.proof_url}`);
+        const lines = made.map((m) => `- BitGraph #${m.number ?? "?"} (counts ${m.counts?.join(", ") ?? "?"}), ${m.enclave_time} hardware time: ${m.proof_url}`);
         const partial = made.length < normalized.standard.length ? `\n\nOnly ${made.length} of ${normalized.standard.length} were made; the rest were not. Check them with bitgraph_check before trying again.` : "";
         return ok(`Made ${made.length} BitGraph${made.length === 1 ? "" : "s"}:\n${lines.join("\n")}${partial}\n\n${PROOF_KEEPING} The json format returns each proof whole.`);
       }
@@ -218,7 +218,7 @@ const handler = createMcpHandler(
       {
         title: "Get a BitGraph proof",
         description:
-          "Fetch a BitGraph proof: its number, its two counts, the enclave's time, and every BitGraph of the same bytes. " +
+          "Fetch a BitGraph proof: its number, its two counts, the hardware attestation's time, and every BitGraph of the same bytes. " +
           "Look up by digest (base64, either form) or by BitGraph number (e.g. '4523' or '#4,523', current epoch). " +
           "Exactly one of digest or number is required. Read-only. " +
           "markdown returns a summary; json returns the full proof object.",
@@ -300,7 +300,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "bitgraph", version: SERVER_VERSION },
     instructions:
-      "BitGraph is one atomic action inside a hardware enclave: a fresh value nobody can see takes one count, and a SHA-256 digest is bound at the very next count, both signed together with the enclave's own time. It proves the bits were bound after a moment nobody could predict, and could not have been bound before it; it says nothing about how old the content is. " +
+      "BitGraph is one atomic action inside a hardware enclave: a fresh value nobody can see takes one count, and a SHA-256 digest is bound at the very next count, both signed together and attested by the hardware. It proves the bits hold a counted position right after a value nobody could predict, and could not have been bound before it; it says nothing about how old the content is. Time, identity and public witness are trust layers bound on top of that position; Base is the reference layer on bitgraph.ing. " +
       "bitgraph_bind is the only way to make a BitGraph: send the SHA-256 of each file the user asked for. File contents never travel. BitGraphs are permanent: never generate content just to record it. " +
       "bitgraph_check and bitgraph_get_proof are read-only. Two BitGraphs bracket everything bound between them: bind a start, do the work, bind the result.",
   }

@@ -72,8 +72,8 @@ export default function ExamPage() {
         <p className="home-kicker">The results</p>
         <h2 id="exam-sitting">These exact questions could not have existed before BitGraph&nbsp;#{SITTING.a.n} was&nbsp;bound.</h2>
         <p style={{ marginTop: 24 }}>
-          {SITTING.model} scored {SITTING.score} on {SITTING.date}. BitGraph #{SITTING.a.n} was bound at {SITTING.a.at} and
-          BitGraph #{SITTING.b.n} at {SITTING.b.at}, by the AWS Nitro attestation&rsquo;s signed clock; a Base transaction in
+          {SITTING.model} scored {SITTING.score} on {SITTING.date}. BitGraph #{SITTING.a.n} and BitGraph #{SITTING.b.n} are counts in one sequence. The AWS Nitro attestation&rsquo;s clock, a
+          hardware layer, puts them at {SITTING.a.at} and {SITTING.b.at}; a Base transaction in
           block{" "}
           <a href={`https://basescan.org/block/${SITTING.ceiling.block}`} target="_blank" rel="noopener">{SITTING.ceiling.block.toLocaleString("en-US")}</a>{" "}
           ({SITTING.ceiling.at}) carries B, so the answers existed by then. The bank is small and easy on purpose: this is about

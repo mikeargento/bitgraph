@@ -819,7 +819,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     if (!plug) return;
     const files: Record<string, Uint8Array> = {};
     const j = (o: unknown) => strToU8(JSON.stringify(o, null, 2) + "\n");
-    const lines = ["BitGraph, with its tree and its window in public time.", ""];
+    const lines = ["BitGraph: its position, its tree, and the Base reference layer bound to it.", ""];
     if (plug.blockBytes && plug.a) {
       files["base-block.json"] = plug.blockBytes; files["base-block.bitgraph.json"] = j(plug.a);
       lines.push(`base-block.json            BitGraph 1 (#${plug.a.commit?.counter}): the latest Base block when it was made (block ${plug.block?.number}).`, "base-block.bitgraph.json   Its proof.");
@@ -1242,7 +1242,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
                       {r.state === "made" ? "Made" : "A BitGraph"}
                       {r.isProofFile ? ": this is its proof file" : r.valid ? ", checked in this browser" : ", but the proof did not check against this file"}
                     </span>
-                    {teeTime(r.proof) && <span className="db-size">{teeTime(r.proof)}, enclave time</span>}
+                    {teeTime(r.proof) && <span className="db-size">{teeTime(r.proof)}, hardware attestation time</span>}
                     <a href={`/proof/${toUrlSafe(r.digestB64 ?? "")}`}>Proof</a>
                     <button type="button" className="db-link" onClick={() => download(r)}>Download proof</button>
                   </>

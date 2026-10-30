@@ -30,12 +30,12 @@ export default function TermsPage() {
         <p>
           A sealed environment mints a single-use position, then binds your
           file&apos;s SHA-256 fingerprint to it in one indivisible step.
-          Positions form a forward-only chain, and anchors periodically tie
-          that chain to a public timeline by recording the hash of a recent
-          Ethereum block. After a commit, a Merkle root over recent
-          records&apos; proof hashes is written to the Base network as a
-          ceiling in time; no file and no fingerprint is written. The
-          ordering does not depend on any blockchain.
+          Positions form a counted, forward-only chain. Through bitgraph.ing,
+          the reference trust layer binds each position to Base: the latest
+          Base block is bound with it as a floor, and afterwards a Merkle root
+          over recent records&apos; proof hashes is written to Base as a
+          ceiling; no file and no fingerprint is written. The ordering does
+          not depend on any blockchain.
         </p>
         <p>
           Only fingerprints are bound. Files are fingerprinted on your
@@ -49,9 +49,9 @@ export default function TermsPage() {
         <h2>3. What the service does not do</h2>
         <p>
           BitGraph records the position exact bytes took in a BitGraph
-          sequence and relates that position to the public timeline evidence
-          in its anchors. A proof establishes that position, with the timing
-          bounds its anchors support, and nothing more. It does not verify,
+          sequence. A proof establishes that position, and nothing more. Time
+          bounds come only from trust layers bound to it, such as the Base
+          floor and ceiling. It does not verify,
           endorse, or make any claim about the truth, accuracy, legality,
           originality, authorship, or identity behind any file. It does not
           establish when a file was first created or that it did not exist
@@ -102,9 +102,9 @@ export default function TermsPage() {
           We store
           anchors and the positions they cover. A proof is returned to you and
           is yours to keep; BitGraph also keeps a public copy of each proof, indexed by fingerprint, as a convenience for the site. We never
-          receive file contents, so we cannot store them. Anchors are retained
-          indefinitely: they form an append-only history that later positions,
-          including other people&apos;s, depend on. Copies of proofs remain under a ten-year retention lock and cannot be removed.
+          receive file contents, so we cannot store them. Proofs are retained: each
+          names the one before it, so the chain of proofs is an append-only
+          history. Copies of proofs remain under a ten-year retention lock and cannot be removed.
         </p>
 
         <h2>8. Intellectual property</h2>

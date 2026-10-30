@@ -16,7 +16,7 @@ const PATTERNS: Pattern[] = [
   {
     id: "c2pa", label: "Content Credentials", title: "Signed history, plus an attested recording.",
     today: "A C2PA manifest carries signed assertions about an asset: who signed it, what tool made it, the edits.",
-    adds: "An independent record that these exact bytes, asset and manifest together, were bound after an unpredictable moment, at a counted position. The credential's own clock becomes one trust layer on that position, and a public witness another.",
+    adds: "An independent record that these exact bytes, asset and manifest together, were bound at a counted position, right after a value nobody could predict. The credential's own clock becomes one trust layer on that position, and a public witness another.",
     binds: "The asset's SHA-256 and the manifest store's, as two leaves of one tree, bound as one BitGraph. Nothing in the asset changes, so the manifest's own hashes stay valid.",
     evidence: "A BitGraph proof bound to the asset and its manifest, kept with them or referenced from your system; each leaf checks on its own.",
     live: { href: "/evaluate#e-ai", text: "a ChatGPT image and its OpenAI-signed credential, bound together and verifiable offline" },
@@ -24,15 +24,15 @@ const PATTERNS: Pattern[] = [
   {
     id: "watermark", label: "Finding the original", title: "A copy finds the record. The record proves the bytes.",
     today: "A watermark, or a perceptual search, leads from a copy back to an identity or a database entry: whatever the database says today.",
-    adds: "The entry becomes a verifiable recording: the original's exact bytes and a perceptual fingerprint, bound together when the original was recorded. A match, by watermark or by looks, says a copy resembles the original; the original's bytes are what prove it.",
+    adds: "The entry becomes a verifiable recording: the original's exact bytes and a perceptual fingerprint, bound together in the original's BitGraph. A match, by watermark or by looks, says a copy resembles the original; the original's bytes are what prove it.",
     binds: "The original's SHA-256 and a fingerprint record, in one tree. A watermark can carry a pointer to that BitGraph; the fingerprint lets a copy find it with no watermark at all.",
     evidence: "The original's proof, reached from any copy that still looks like it.",
     live: { href: "/make", text: "Make matches a picture to the earliest BitGraph it looks like and names it on the new record, with no watermark at all" },
   },
   {
-    id: "capture", label: "Trusted capture", title: "How it was captured, and when it was recorded.",
+    id: "capture", label: "Trusted capture", title: "How it was captured, and where it was recorded in order.",
     today: "A controlled capture pipeline produces evidence about how an image or recording was made, on what device.",
-    adds: "Order and a time window for the capture artifact that do not rest on the device's clock or the vendor's database. BitGraph does not see or vouch for the physical event; it fixes when the artifact's bytes were bound.",
+    adds: "Order for the capture artifact, with time layers bound to it, none resting on the device's clock or the vendor's database. BitGraph does not see or vouch for the physical event; it fixes where the artifact's bytes stand in a counted sequence.",
     binds: "The capture artifact's SHA-256, or its signed capture record, as soon as it leaves the device.",
     evidence: "A proof bound to the capture evidence; each can be checked without the other's issuer.",
   },

@@ -19,7 +19,7 @@ export default function PrivacyPage() {
           <li>Your email address and what you send us, when you contact us or have a commercial agreement with us.</li>
           <li>Billing details, when a paid agreement exists, handled by our payment processor. We do not store card numbers.</li>
           <li>Service logs: timestamps, request data, and IP addresses, used for security, rate limiting, abuse prevention, and diagnosing failures.</li>
-          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the position and proof metadata the enclave needs to sign a proof. These come back to you in the proof. BitGraph keeps a public copy of each proof, which holds the fingerprint but never the file. A proof names a public Base block as its floor, which BitGraph only reads; what BitGraph writes to the chain is one Base transaction, the ceiling, over the proofs made since the last one (Ethereum anchors did this before October 7, 2026). Neither holds anything about you or your file beyond the fingerprint.</li>
+          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the position and proof metadata the enclave needs to sign a proof. These come back to you in the proof. BitGraph keeps a public copy of each proof, which holds the fingerprint but never the file. A proof made through bitgraph.ing names a public Base block as its floor, the reference trust layer, which BitGraph only reads; what BitGraph writes to the chain is one Base transaction, the ceiling, over the proofs made since the last one (Ethereum anchors did this before October 7, 2026). Neither holds anything about you or your file beyond the fingerprint.</li>
         </ul>
 
         <h2>2. What we do not collect</h2>

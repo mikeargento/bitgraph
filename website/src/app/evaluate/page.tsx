@@ -69,8 +69,8 @@ export default function EvaluatePage() {
         <h2 id="e-ai">A generated image, with its Content Credentials.</h2>
         <p>
           An image made with ChatGPT carries a C2PA manifest signed by OpenAI, naming the tool that made it. Dropped on Make, the image
-          and its manifest became two leaves of one tree, bound in one action: the credential now has an independent recording of when
-          these exact bytes, picture and manifest together, existed.
+          and its manifest became two leaves of one tree, bound in one action: the credential now has an independent recording of where
+          these exact bytes, picture and manifest together, were bound in a counted sequence.
         </p>
         <figure className="sx-sample">
           <img src="/evaluate/chatgpt-image-preview.jpg" alt="The sample image, generated with ChatGPT (a preview; the proof covers the PNG below)" width={1440} height={960} loading="lazy" />
@@ -88,9 +88,9 @@ ${V} chatgpt-image.png.c2pa --proof chatgpt-image.png.c2pa.bitgraph.json`}</Code
 TRUE
   These exact bytes are file 3 of a tree of 4, … at 2026-10-28T03:09:03.881Z.`}</Code>
         <p className="sx-fine">
-          The two proofs share one root and one attested time. Check the credential itself, OpenAI&rsquo;s signature and the tool it
+          The two proofs share one root and one position. Check the credential itself, OpenAI&rsquo;s signature and the tool it
           names, with any C2PA tool such as <span className="nb"><code>c2patool</code>.</span> The two answers are independent: OpenAI&rsquo;s credential says what
-          made the image; BitGraph says when these exact bytes were bound.
+          made the image; BitGraph says where in its sequence these exact bytes were bound; the hardware attestation adds when.
         </p>
       </section>
 

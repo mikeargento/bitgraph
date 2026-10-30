@@ -77,7 +77,7 @@ export default function TechnologyPage() {
             </p>
             <h3 className="tl-h3">What it does not establish</h3>
             <ul className="docs-list">
-              <li><strong>When the content was created.</strong> An old file can be bound today. The proof fixes when it was bound.</li>
+              <li><strong>When the content was created.</strong> An old file can be bound today. The proof fixes where in the sequence it was bound; a time layer bound to that position fixes when.</li>
               <li><strong>Who made it, or whether it is true.</strong> It binds bytes, not authorship or meaning.</li>
               <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other record was.</li>
               <li><strong>Order across epochs</strong> from the enclave alone. Each epoch is its own sequence; a trust layer places epochs relative to each other. In the demo that layer is Base.</li>
@@ -299,7 +299,7 @@ export default function TechnologyPage() {
 
           <section className="home-section" aria-labelledby="t-compare">
             <p className="home-kicker">Comparisons</p>
-            <h2 id="t-compare">Where it differs, and where it fits beside.</h2>
+            <h2 id="t-compare">Where it differs, and where it binds in.</h2>
             <p>
               These systems answer different questions, and most products combine several. The aim here is the difference in what is
               enforced, not a ranking.
@@ -308,8 +308,8 @@ export default function TechnologyPage() {
               <table className="sx-table">
                 <thead><tr><th>System</th><th>What it proves</th><th>What you trust</th><th>Where BitGraph differs or fits</th></tr></thead>
                 <tbody>
-                  <tr><td>Digital signature</td><td>A key holder signed these bytes.</td><td>The key holder, and whoever holds the key.</td><td>Says nothing about when, or where in any sequence. A BitGraph is a signature made by attested hardware at a counted position.</td></tr>
-                  <tr><td>Timestamp authority (RFC 3161)</td><td>A TSA signed this hash with this time.</td><td>The TSA&rsquo;s key, clock and honesty; it could issue a token with any time.</td><td>BitGraph&rsquo;s issuer is measured hardware whose code is published, its time is the hardware&rsquo;s, and its records are counted and chained. A TSA token bound to the position becomes a trust layer on it.</td></tr>
+                  <tr><td>Digital signature</td><td>A key holder signed these bytes.</td><td>The key holder, and whoever holds the key.</td><td>Says nothing about where in any sequence, or when. A BitGraph is a signature made by attested hardware at a counted position.</td></tr>
+                  <tr><td>Timestamp authority (RFC 3161)</td><td>A TSA signed this hash with this time.</td><td>The TSA&rsquo;s key, clock and honesty; it could issue a token with any time.</td><td>BitGraph&rsquo;s issuer is measured hardware whose code is published, and its records are counted and chained. The time it carries is the hardware attestation&rsquo;s, a layer. A TSA token bound to the position becomes another layer on it.</td></tr>
                   <tr><td>Transparency log (CT, Sigstore, SCITT)</td><td>An entry is included in an append-only log; consistency proofs expose rewrites to anyone monitoring.</td><td>The log operator&rsquo;s signing, plus monitors and witnesses.</td><td>The log proves inclusion after the fact; BitGraph constrains the issuing step itself inside an enclave. A BitGraph proof can itself be a log entry.</td></tr>
                   <tr><td>Blockchain anchoring</td><td>A hash existed by a block.</td><td>The chain&rsquo;s consensus.</td><td>Block time is coarse and each anchor costs a transaction. BitGraph proves each record at once and offline; a chain is one trust layer it can bind to, and Base is the reference one.</td></tr>
                   <tr><td>Content Credentials (C2PA)</td><td>A signer made these assertions about an asset.</td><td>The signer&rsquo;s certificate, and its clock or TSA.</td><td>Complementary: binding the asset and its manifest gives the credential an independent recording.</td></tr>

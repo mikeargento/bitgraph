@@ -101,7 +101,7 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
   -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</Code>
             <p>Every BitGraph is kept. Fetch one by its hash:</p>
             <Code>{"curl https://bitgraph.ing/api/proofs/<sha-256, base64url>"}</Code>
-            <p className="tl-note">Every commit through bitgraph.ing gets its Base floor and ceiling; a deployment you operate binds the witness of its choice.</p>
+            <p className="tl-note">Every commit through bitgraph.ing gets the reference layer, a Base floor and ceiling; a deployment you operate binds the witness of its choice, or none.</p>
           </article>
 
           <article className="tl-card tl-wide" aria-labelledby="d-check">
@@ -122,7 +122,7 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
           <p className="tl-label">On this page</p>
           <ul>
             <li><a href="#d-what">How it&rsquo;s made</a></li>
-            <li><a href="#d-plugins">Trees and time</a></li>
+            <li><a href="#d-plugins">Trees and trust layers</a></li>
             <li><a href="#d-epochs">Epochs</a></li>
             <li><a href="#d-proves">Limits</a></li>
             <li><a href="#d-trust">What you trust</a></li>
@@ -156,11 +156,11 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
           </section>
 
           <section className="home-section" aria-labelledby="d-plugins">
-            <p className="home-kicker">Trees and time</p>
+            <p className="home-kicker">Trees and trust layers</p>
             <h2 id="d-plugins">Built from ordinary BitGraphs.</h2>
             <p>
-              Two things build on a BitGraph without changing it: a drop of many files becomes one tree, and Base, an external trust layer,
-              places every BitGraph in public time. Each is made of ordinary BitGraphs, every one the same two counts; nothing about either
+              Two things build on a BitGraph without changing it: a drop of many files becomes one tree, and through bitgraph.ing, Base, the reference trust layer,
+              places each BitGraph in public time. Each is made of ordinary BitGraphs, every one the same two counts; nothing about either
               one enters the enclave or the proof format.
             </p>
 
@@ -180,13 +180,14 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
               <code>merkle-root.txt</code> against its proof like any file.
             </p>
 
-            <h3 className="tl-h3">Base, the external trust layer</h3>
+            <h3 className="tl-h3">Base, the reference trust layer</h3>
             <p>
               The sequence is a closed system. Inside it, order is certain: every BitGraph names the one before it, the counter only goes
               up, and the hardware&rsquo;s time is signed into each proof. What a closed system cannot do is place itself in the world&rsquo;s
               time on its own word; a clock inside the box is still the box&rsquo;s clock. So BitGraph reads a public chain it does not
               operate, before and after each bind, and the window between the two reads is time nobody inside the box could have chosen.
-              Every BitGraph made through this site gets it. Three steps, two BitGraphs:
+              Every BitGraph made through this site gets it. Base is the reference layer for this site, not a dependency; another
+              witness bound the same way would serve. Three steps, two BitGraphs:
             </p>
             <ol className="tl-steps">
               <li><strong>BitGraph 1 is the floor.</strong> The latest Base block (number, hash, time) is written to <code>base-floor.json</code> and bound, in the same request as the content. A block hash cannot be known before its block exists. (A tree carries the block as its first leaf instead, <span className="nb"><code>base-block.json</code>,</span> so the root itself holds the floor.)</li>
@@ -197,7 +198,7 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
               The content was bound after the first block and before the second: a window in real time, read from a public chain, around a
               position. The site checks the pair before it records BitGraph 1 as BitGraph 2&rsquo;s floor: <code>base-floor.json</code>{" "}
               hashes to BitGraph 1&rsquo;s digest, Base has that block with that hash and time, both proofs verify in full, and BitGraph 2
-              comes after BitGraph 1 in the same epoch. The record is kept beside the ledger and shown on both proof pages.
+              comes after BitGraph 1 in the same epoch. The record is kept with the ledger and shown on both proof pages.
             </p>
             <p>To check a window yourself, with the download from the Proofs page:</p>
             <ol className="tl-steps">
@@ -208,7 +209,7 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
             </ol>
             <p>
               Base adds nothing to the bind and takes nothing from it. Strip the window away and a BitGraph is still a position: where your
-              bits were bound in the sequence, with the enclave&rsquo;s own time beside it and no public claim about clock time. The window
+              bits were bound in the sequence, with the hardware attestation&rsquo;s timestamp bound in as its first layer, and no public claim about clock time. The window
               is what lets someone who trusts neither BitGraph nor its clock still place the bind between two public blocks.
             </p>
           </section>

@@ -117,18 +117,18 @@ export function packageReadme(i: ReadmeInput): string {
   L.push("## What this package claims", "");
   const stampNote = baseStampNote(i);
   if (i.floor && i.ceilingInTime && stampNote) {
-    L.push(`The exact bytes of ${committed} were finished after ${floorChain} block ${n(i.floor.block)} (${utc(i.floor.iso)}) and existed by Base block ${n(i.ceilingInTime.block)}. That block's own time is not a bound for this record: ${stampNote}.`, "");
+    L.push(`The exact bytes of ${committed} hold a counted position in BitGraph's sequence. Bound to that position: finished after ${floorChain} block ${n(i.floor.block)} (${utc(i.floor.iso)}) and existed by Base block ${n(i.ceilingInTime.block)}. That block's own time is not a bound for this record: ${stampNote}.`, "");
   } else if (i.floor && i.ceilingInTime) {
-    L.push(`The exact bytes of ${committed} were finished after ${floorChain} block ${n(i.floor.block)} (${utc(i.floor.iso)}) and existed by Base block ${n(i.ceilingInTime.block)} (${utc(i.ceilingInTime.iso)}).`, "");
+    L.push(`The exact bytes of ${committed} hold a counted position in BitGraph's sequence. Bound to that position: finished after ${floorChain} block ${n(i.floor.block)} (${utc(i.floor.iso)}) and existed by Base block ${n(i.ceilingInTime.block)} (${utc(i.ceilingInTime.iso)}).`, "");
   } else if (i.floor) {
-    L.push(`The exact bytes of ${committed} were finished after ${floorChain} block ${n(i.floor.block)} (${utc(i.floor.iso)}). No ceiling in time is in this package (see the base-ceiling folder).`, "");
+    L.push(`The exact bytes of ${committed} hold a counted position in BitGraph's sequence. Bound to that position: finished after ${floorChain} block ${n(i.floor.block)} (${utc(i.floor.iso)}). No ceiling in time is in this package (see the base-ceiling folder).`, "");
   } else {
     L.push(`The exact bytes of ${committed} hold a position in BitGraph's sequence. The floor anchor is not in this package, so the time bound cannot be read from it alone.`, "");
   }
   L.push(`- After: the bytes carry a commitment that could not be computed before that ${floorChain} block's hash existed.`);
   L.push("- By: a Merkle root over this proof is inside a transaction in that Base block.");
-  if (i.recordedIso) L.push(`- Between the two, the enclave's own clock recorded the commit at ${utc(i.recordedIso)} (inside the AWS Nitro attestation in proof.json).`);
-  L.push("", "What it does not claim: when the content was first created, who made it, who owns it, or whether what it shows is true. It dates this exact version of the bytes, nothing earlier.", "");
+  if (i.recordedIso) L.push(`- Between the two, the AWS Nitro hardware's signed clock, the attestation timestamp, recorded the commit at ${utc(i.recordedIso)} (inside the AWS Nitro attestation in proof.json).`);
+  L.push("", "What it does not claim: when the content was first created, who made it, who owns it, or whether what it shows is true. It fixes where this exact version of the bytes stands in the sequence, nothing earlier.", "");
 
   // The same file at up to three stages: say which is which before listing the folder.
   if (i.committedPath && (i.originalPath || i.carrierPath)) {
