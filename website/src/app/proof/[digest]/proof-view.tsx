@@ -511,17 +511,21 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           ) : es ? (
             <a className="bg-action-link" style={{ margin: 0 }} href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>Download {es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</a>
           ) : m.kind === "file" ? (
-            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => { document.querySelector(".pv-card.pv-photo")?.scrollIntoView({ behavior: "smooth", block: "start" }); window.dispatchEvent(new Event("bitgraph-find-original")); }}>Find or link original</button>
+            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => { document.querySelector(".pv-card.pv-photo")?.scrollIntoView({ behavior: "smooth", block: "start" }); window.dispatchEvent(new Event("bitgraph-find-original")); }}>Link original</button>
           ) : null}
         </div>
         {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
             not landed yet. */}
         {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
-        {/* The same copy tab as /make, so the site's code blocks look alike (2026-10-17). */}
-        <div className="code-block mk-code">
-          <pre className="hiw-code">{command}</pre>
-          <CopyCode />
-        </div>
+        {/* The verifier's command, behind a fold (2026-10-29): the buttons above are the page's actions, and the command
+            is for the reader who wants the site out of the loop. The same copy tab as /make. */}
+        <Fold title="Verify it yourself">
+          <div className="pv-fold-body-text">Take the proof and the file above, run the published verifier on your own machine, and read TRUE or FALSE with nothing of BitGraph&rsquo;s in the way.</div>
+          <div className="code-block mk-code">
+            <pre className="hiw-code">{command}</pre>
+            <CopyCode />
+          </div>
+        </Fold>
       </section>
     </>
   );

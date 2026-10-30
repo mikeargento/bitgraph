@@ -39,7 +39,8 @@ import { SourceHint } from "@/components/source-link";
 import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
 import { judge as judgeLooks, opensAlone, type LooksVerdict, type Original } from "@/lib/trustmark/check";
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
-import { takeRecordAgain, type FirstPosition } from "@/lib/trustmark/record-again";
+/** A BitGraph's position: the earliest one of a picture, which a later record of it names (app/api/lineage). */
+type FirstPosition = { digestB64: string; epochId: string; counter: string };
 import { noteCopyOf, noteDroppedCopy } from "@/lib/trustmark/copy-note";
 import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
 import { MAX_GALLERY, handOriginal, setGallery, type Gallery, type GalleryItem } from "@/lib/gallery";
@@ -605,8 +606,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     st.done = true; setStatus(null); show();
   }, []);
 
-  /* first: the file is a later record of a picture already a BitGraph, by the holder's choice (the copy pane's "Record
-     this file"): its original is not looked for again, and the new BitGraph names the first (app/api/lineage). */
+  /* first: the earliest BitGraph of the picture this file shows, when the find knows one; the new BitGraph names it
+     (app/api/lineage). Found below for a single picture; a caller may pass it. */
   const takePlugins = useCallback(async (files: File[], list?: Array<{ hex: string; name: string }>, first?: FirstPosition) => {
     setRows([]); setBulk(null); setBatch(null); setPairing(null); setPlug(null); setPlugError(null); setChecked(null); setBusy(true);
     // ?timer times the run from the drop to the proof (2026-10-18: for timing the 100,000-file tree).
@@ -625,8 +626,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         // never recorded blind: there is one BitGraph per file, and that cannot be known while the ledger is unreachable
         if (!res?.ok) { setStatus(null); setPlugError("Could not check the ledger just now. Try again in a moment."); return; }
         const before = (await res.json().catch(() => null)) as { proofs?: Array<{ proof: Proof; writeTime?: number | null; kind?: string }> } | null;
-        const first = earliestOf((before?.proofs ?? []).filter((e) => !e.kind || e.kind === "recorded"));
-        const fc = first?.commit as { counter?: string; epochId?: string } | undefined;
+        const already = earliestOf((before?.proofs ?? []).filter((e) => !e.kind || e.kind === "recorded"));
+        const fc = already?.commit as { counter?: string; epochId?: string } | undefined;
         if (fc?.counter && fc.epochId) {
           setStatus("Already a BitGraph. Opening its proof…");
           // the file goes with the page: saved before the proof opens, so it opens with the file in hand
@@ -634,21 +635,19 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           router.push(`/proof/${toUrlSafe(digest)}?counter=${encodeURIComponent(fc.counter)}&epoch=${encodeURIComponent(toUrlSafe(fc.epochId))}`);
           return;
         }
-        // A picture that looks like a recorded one (a re-export, a re-save, a copy) is that picture: its original's
-        // proof opens, with this file carried as a copy, and nothing is recorded. Only a picture the find cannot match
-        // is different enough to be an original of its own.
+        // One action (2026-10-29): new bytes are recorded, always. A picture that looks like one already recorded (a
+        // re-export, a re-save, a copy) is recorded too, and the new BitGraph names the earliest one of that picture
+        // (app/api/lineage), so its page says so; nothing is chosen for the holder and nothing opens in its place.
+        // The find failing to answer costs only the note.
         if (looksLikePhoto(f) && !first) {
-          setStatus("Looking for the original…");
+          setStatus("Looking at the picture…");
           const img = await decodeForReading(f).catch(() => null);
           const v = img ? await judgeLooks(img, { search: true }).catch(() => null) : null;
-          if (v?.verdict === "unavailable") { setStatus(null); setPlugError("Could not check the ledger just now. Try again in a moment."); return; }
           if (v?.verdict === "match") {
-            const o = v.original;
-            setStatus("This picture is already a BitGraph. Opening the original…");
-            noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
-            setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o, others: v.others.map((m) => m.original) });
-            router.push(`/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`);
-            return;
+            const all = [v.original, ...v.others.map((m) => m.original)];
+            const when = (o: Original) => o.recordedMs ?? Number.POSITIVE_INFINITY;
+            const o = all.slice().sort((a, b) => when(a) - when(b) || Number(a.counter) - Number(b.counter))[0]!;
+            first = { digestB64: o.photoDigestB64, epochId: o.epochId, counter: String(o.counter) };
           }
         }
       }
@@ -791,12 +790,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
 
   // Leaving the page while a tree's index is being written cuts it off (2026-10-20: a 50,000-file tree stopped at 6,500
   // when its proof was opened in the same tab), so the browser asks first.
-  // A file sent from a proof page's copy pane to be recorded as its own BitGraph (lib/trustmark/record-again).
-  useEffect(() => {
-    if (mode !== "make") return;
-    const r = takeRecordAgain();
-    if (r) void takePlugins([new File([r.data], r.name)], undefined, r.first);
-  }, [mode, takePlugins]);
   useEffect(() => {
     if (plug?.lookup?.state !== "saving" && plug?.lookup?.state !== "sealing") return;
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };

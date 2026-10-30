@@ -5795,3 +5795,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body 
 html:root:root:root:root:root body main .pv-epoch-pane .pv-epoch-lead { margin: 0 0 14px; color: var(--text); }
 html:root:root:root:root:root body main .pv-epoch-pane .pv-counter-grid { margin: 0; }
 html:root:root:root:root:root body main .pv-epoch-pane .pv-row-value.pv-link { word-break: break-all; }
+/* The Verify it yourself fold on the proof page (2026-10-29): one line, then the command. */
+html:root:root:root:root:root body main .pv-fold-body-text { padding: 10px 14px 4px; color: var(--text); }
+html:root:root:root:root:root body main .pv-fold .code-block { margin: 8px 12px 12px; }

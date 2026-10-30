@@ -76,7 +76,6 @@ import { judge as judgeLooks } from "@/lib/trustmark/check";
 import { publishFoundRecord } from "@/lib/trustmark/ledger";
 import type { Original } from "@/lib/trustmark/check";
 import { forgetHeldCopy, recallHeldCopy, setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
-import { setRecordAgain } from "@/lib/trustmark/record-again";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { SourceField, noteDropUrl } from "@/components/source-link";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
@@ -3200,7 +3199,7 @@ function CopyOptions({ proof, heldCopy, digestParam, setBound, onMatch, onResolv
   const router = useRouter();
   const [open, setOpen] = useState<"choose" | "find" | "link" | null>(null);
   // the bottom card's "Find or link original" opens the find box here
-  useEffect(() => { const on = () => setOpen("find"); window.addEventListener("bitgraph-find-original", on); return () => window.removeEventListener("bitgraph-find-original", on); }, []);
+  useEffect(() => { const on = () => setOpen("link"); window.addEventListener("bitgraph-find-original", on); return () => window.removeEventListener("bitgraph-find-original", on); }, []);
   const others = heldCopy.others ?? [];
   const all = [heldCopy.found, ...others].filter((x): x is Original => !!x);
   const pos = { digest: toUrlSafeB64(stdDigest(digestParam)), epoch: toUrlSafeB64(String(proof.commit?.epochId ?? "")), counter: String(proof.commit?.counter ?? "") };
@@ -3213,28 +3212,12 @@ function CopyOptions({ proof, heldCopy, digestParam, setBound, onMatch, onResolv
     router.push(hrefOf(o));
   };
   const toggle = (k: "choose" | "find" | "link") => setOpen((cur) => (cur === k ? null : k));
-  // The file in hand recorded as a BitGraph of its own (the original lost; a re-export is new bytes): it goes to Make
-  // with the earliest BitGraph of this picture, which the new one will name as its first.
-  const recordThis = async () => {
-    const when = (o: Original) => o.recordedMs ?? Number.POSITIVE_INFINITY;
-    const earliest = all.slice().sort((a, b) => when(a) - when(b) || Number(a.counter) - Number(b.counter))[0];
-    const first = earliest ? { digestB64: earliest.photoDigestB64, epochId: earliest.epochId, counter: String(earliest.counter) } : { digestB64: stdDigest(digestParam), epochId: String(proof.commit?.epochId ?? ""), counter: String(proof.commit?.counter ?? "") };
-    // The file's digest is known here, so its bytes are saved under it before Make runs: whichever proof opens for
-    // it, a new record or one these bytes already have, opens with the file in hand.
-    try {
-      const digest = await hashBytes(new Uint8Array(heldCopy.data));
-      await Promise.race([cacheArtifactToIDB(new File([heldCopy.data], heldCopy.name), digest), new Promise((r) => setTimeout(r, 3000))]);
-    } catch { /* Make saves it again on landing */ }
-    setRecordAgain({ name: heldCopy.name, data: heldCopy.data, first });
-    router.push("/make");
-  };
   return (
     <div className="pv-copy-options">
       <div className="pv-photo-actions" style={{ marginTop: 12 }}>
-        {others.length > 0 && <button type="button" className={`bg-action-link${open === "choose" ? " is-open" : ""}`} style={{ margin: 0 }} onClick={() => toggle("choose")}>Choose which BitGraph</button>}
-        <button type="button" className={`bg-action-link${open === "find" ? " is-open" : ""}`} style={{ margin: 0 }} onClick={() => toggle("find")}>Find original</button>
+        {/* One action (2026-10-29): a copy holder is not sent anywhere and chooses nothing; the one thing to do here is
+            link the original, for whoever has it hosted. Finding is Make's job: a drop records, and names the first. */}
         <button type="button" className={`bg-action-link${open === "link" ? " is-open" : ""}`} style={{ margin: 0 }} onClick={() => toggle("link")}>Link original</button>
-        <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => { void recordThis(); }}>Record this file</button>
       </div>
       {open === "choose" && (
         <ul className="pv-choose-list">

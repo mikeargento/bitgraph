@@ -27,7 +27,7 @@ const PATTERNS: Pattern[] = [
     adds: "The entry becomes a verifiable recording: the original's exact bytes and a perceptual fingerprint, bound together when the original was recorded. A match, by watermark or by looks, says a copy resembles the original; the original's bytes are what prove it.",
     binds: "The original's SHA-256 and a fingerprint record, in one tree. A watermark can carry a pointer to that BitGraph; the fingerprint lets a copy find it with no watermark at all.",
     evidence: "The original's proof, reached from any copy that still looks like it.",
-    live: { href: "/check", text: "Check matches a stripped copy to the original's bound record by its looks, with no watermark at all" },
+    live: { href: "/make", text: "Make matches a picture to the earliest BitGraph it looks like and names it on the new record, with no watermark at all" },
   },
   {
     id: "capture", label: "Trusted capture", title: "How it was captured, and when it was recorded.",

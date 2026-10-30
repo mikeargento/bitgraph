@@ -9,8 +9,7 @@ export const metadata: Metadata = {
 };
 
 const LIVE = [
-  { href: "/make", label: "Make", title: "Record a BitGraph of your files", body: "Drop files. Only the hash leaves your browser. Many files make one BitGraph." },
-  { href: "/check", label: "Check", title: "Check a file, or find a copy's original", body: "Drop a file to see its proof. Drop a screenshot to find the original's." },
+  { href: "/make", label: "Make", title: "Record a BitGraph of your files", body: "Drop files. Only the hash leaves your browser. A file already recorded opens its BitGraph; a picture recorded before names its first." },
   { href: "/ledger", label: "Ledger", title: "Every BitGraph, as it is made", body: "The public sequence, newest first." },
 ];
 
