@@ -5871,7 +5871,7 @@ html:root:root:root:root:root:root body main .pv-open-link { font-family: "acumi
 @media (min-width: 1000px) {
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav :is(.nav-btn, .nav-cta-sx) { font-size: 14px !important; }
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav .nav-btn { padding: 0 9px !important; margin-left: 2px !important; }
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-cta-sx { margin-left: 8px !important; padding: 0 14px !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav .nav-cta-sx { margin-left: 8px !important; padding: 0 22px !important; }
 }
 /* One utility colour (2026-10-30): every link in the page body, so "act" reads apart from "read". Eyebrows, headings,
    the bar and the pills stay monochrome; a pill's edge takes the colour only on hover and focus. */
