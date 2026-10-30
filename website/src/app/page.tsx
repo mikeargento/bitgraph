@@ -52,8 +52,9 @@ export default function HomePage() {
             in one call, with nothing to run. Competent already, stronger now. */}
         <h1 id="home-h">Order before&nbsp;time.</h1>
         <p className="sx-sub">
-          Send a hash. Get a proof that stands on its own. Your customers can verify it independently, offline, without relying on
-          your servers or ours. One call. No new infrastructure. Your product, backed by evidence anyone can check.
+          A BitGraph fixes where a record stands in a counted sequence, after a value nobody could predict. That order needs no
+          clock and no chain. Time, identity and public witness are layers bound on top of it, by whoever you already trust. Send a
+          hash, get a proof that checks offline, without your servers or ours.
         </p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">See it work</a>
@@ -98,8 +99,9 @@ export default function HomePage() {
         <p className="home-kicker">Applications</p>
         <h2 id="home-fit">Where it fits in what you already&nbsp;sell.</h2>
         <p>
-          BitGraph does not compete with your product; it strengthens the evidence it produces. Your system sends a digest and keeps
-          the proof beside its own record. Your customers, brand and interface stay yours.
+          BitGraph does not compete with your product; it strengthens the evidence it produces. Your system sends a digest and binds
+          the proof into its own record. Your customers, brand and interface stay yours. BitGraph establishes order; your
+          infrastructure establishes trust.
         </p>
         <div className="sx-cards is-2x2">
           {FITS.map((f) => (
@@ -155,11 +157,11 @@ TRUE
         <p className="home-kicker">Plainly</p>
         <h2 id="home-limits">What a BitGraph does not prove.</h2>
         <ul className="docs-list">
-          <li><strong>When content was created.</strong> An old file can be bound today; the proof fixes when it was bound.</li>
+          <li><strong>When content was created.</strong> An old file can be bound today; the proof fixes where in the sequence it was bound, and the layers on top fix when.</li>
           <li><strong>Who made it, or that it is true.</strong> It binds bytes, not authorship or meaning.</li>
           <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other was.</li>
         </ul>
-        <p>What it rests on: AWS Nitro hardware, a published enclave build anyone can rebuild, and standard cryptography. <a href="/technology#t-threat">The threat model</a>.</p>
+        <p>What it rests on: AWS Nitro hardware, a published enclave build anyone can rebuild, and standard cryptography. Base, the public chain in the demo, is a witness, not a dependency. <a href="/technology#t-threat">The threat model</a>.</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-paths">

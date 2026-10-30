@@ -64,18 +64,23 @@ export default function TechnologyPage() {
         <div className="tl-main">
           <section className="home-section" aria-labelledby="t-proves">
             <p className="home-kicker">What it establishes</p>
-            <h2 id="t-proves">Three statements, each checkable.</h2>
+            <h2 id="t-proves">Two statements, each checkable.</h2>
             <ol className="tl-steps">
               <li><strong>Position.</strong> These exact bytes, by SHA-256, were bound at count N+1 of one enclave&rsquo;s sequence, immediately after a fresh hardware nonce at count N, in a single signed action. Nothing was counted between them, and no count is ever given out twice.</li>
               <li><strong>Origin of the record.</strong> The binding was performed by a specific enclave build whose measurement (PCR0) is published, as AWS Nitro hardware attests in a document signed for that exact proof.</li>
-              <li><strong>Time.</strong> The binding happened by the time in the hardware&rsquo;s signed attestation. Through bitgraph.ing it also falls inside a window of public time: after a named Base block, and before the block where the proof&rsquo;s hash was written.</li>
             </ol>
+            <p>
+              That is the whole of the mechanism: order, from attested hardware. It needs no clock and no chain. Everything else a
+              record can carry, a time, an identity, a public witness, is a trust layer bound on top of that position. The
+              hardware&rsquo;s own signed time comes with every attestation; through bitgraph.ing, Base adds a window of public time as
+              the reference layer. Either can be checked, neither is what the proof rests on.
+            </p>
             <h3 className="tl-h3">What it does not establish</h3>
             <ul className="docs-list">
               <li><strong>When the content was created.</strong> An old file can be bound today. The proof fixes when it was bound.</li>
               <li><strong>Who made it, or whether it is true.</strong> It binds bytes, not authorship or meaning.</li>
               <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other record was.</li>
-              <li><strong>Order across epochs</strong> from the enclave alone. Each epoch is its own sequence; epochs are placed in time by Base, not by each other.</li>
+              <li><strong>Order across epochs</strong> from the enclave alone. Each epoch is its own sequence; a trust layer places epochs relative to each other. In the demo that layer is Base.</li>
             </ul>
           </section>
 
@@ -126,7 +131,8 @@ export default function TechnologyPage() {
             <p>
               The enclave&rsquo;s key and counter live only in its memory, so each start is a new epoch: a new key, a counter from zero,
               and an <code>epochId</code> signed into every proof. Epochs are independent sequences. Each one&rsquo;s first BitGraph
-              binds a record of the Base blockchain, which places that epoch&rsquo;s start in public time.
+              binds a record of an outside witness, which places that epoch&rsquo;s start in the witness&rsquo;s time; on bitgraph.ing the
+              witness is Base.
             </p>
           </section>
 
@@ -149,18 +155,26 @@ export default function TechnologyPage() {
           </section>
 
           <section className="home-section" aria-labelledby="t-time">
-            <p className="home-kicker">Time</p>
-            <h2 id="t-time">The hardware&rsquo;s clock, then a public window.</h2>
+            <p className="home-kicker">Trust layers</p>
+            <h2 id="t-time">Order from the enclave. Time, and the rest, bound on top.</h2>
+            <p>
+              A BitGraph is a position. A trust layer is anything that says more about that position: when it happened, who stood
+              behind it, that the public saw it. The rule for every layer is the same. It must be cryptographically bound to the
+              position, in one direction or both: the layer&rsquo;s own record bound inside the BitGraph (so the BitGraph came after
+              it), or the BitGraph&rsquo;s hash carried inside the layer (so the BitGraph existed by it). A layer placed beside a
+              BitGraph, with neither bond, says nothing about it.
+            </p>
             <p>
               The enclave adds no clock of its own. The time in a proof is the attestation&rsquo;s timestamp, set and signed by the AWS
-              Nitro Secure Module.
+              Nitro Secure Module: the first layer, from the hardware itself. A timestamp authority, a certificate, a transparency
+              log or a Content Credential can be bound the same way, by whoever already issues it.
             </p>
-            <p>Through bitgraph.ing, every BitGraph is also placed in the time of a public chain BitGraph does not operate:</p>
+            <p>Through bitgraph.ing, every BitGraph is also placed in the time of a public chain BitGraph does not operate. Base is the reference layer, bound both ways:</p>
             <ul className="docs-list">
               <li><strong>Floor.</strong> The latest Base block is read just before the bind and bound with it (in a collection, as its first leaf). A block hash cannot be known before its block exists.</li>
               <li><strong>Ceiling.</strong> After the bind, the proof&rsquo;s hash is batched into a Merkle root and written to Base in a self-addressed transaction. The proof existed by that block.</li>
             </ul>
-            <p>No blockchain is needed to verify a proof. Base is only needed to check the floor and ceiling claims.</p>
+            <p>No blockchain is needed to verify a proof. Base is only needed to check the floor and ceiling claims, and another witness bound the same way would serve the same purpose. The mechanism does not depend on it.</p>
           </section>
 
           <section className="home-section" aria-labelledby="t-trees">
@@ -295,9 +309,9 @@ export default function TechnologyPage() {
                 <thead><tr><th>System</th><th>What it proves</th><th>What you trust</th><th>Where BitGraph differs or fits</th></tr></thead>
                 <tbody>
                   <tr><td>Digital signature</td><td>A key holder signed these bytes.</td><td>The key holder, and whoever holds the key.</td><td>Says nothing about when, or where in any sequence. A BitGraph is a signature made by attested hardware at a counted position.</td></tr>
-                  <tr><td>Timestamp authority (RFC 3161)</td><td>A TSA signed this hash with this time.</td><td>The TSA&rsquo;s key, clock and honesty; it could issue a token with any time.</td><td>BitGraph&rsquo;s issuer is measured hardware whose code is published, its time is the hardware&rsquo;s, and its records are counted and chained. A product can carry both.</td></tr>
+                  <tr><td>Timestamp authority (RFC 3161)</td><td>A TSA signed this hash with this time.</td><td>The TSA&rsquo;s key, clock and honesty; it could issue a token with any time.</td><td>BitGraph&rsquo;s issuer is measured hardware whose code is published, its time is the hardware&rsquo;s, and its records are counted and chained. A TSA token bound to the position becomes a trust layer on it.</td></tr>
                   <tr><td>Transparency log (CT, Sigstore, SCITT)</td><td>An entry is included in an append-only log; consistency proofs expose rewrites to anyone monitoring.</td><td>The log operator&rsquo;s signing, plus monitors and witnesses.</td><td>The log proves inclusion after the fact; BitGraph constrains the issuing step itself inside an enclave. A BitGraph proof can itself be a log entry.</td></tr>
-                  <tr><td>Blockchain anchoring</td><td>A hash existed by a block.</td><td>The chain&rsquo;s consensus.</td><td>Block time is coarse and each anchor costs a transaction. BitGraph proves each record at once and offline, and uses Base only for a batched public-time window.</td></tr>
+                  <tr><td>Blockchain anchoring</td><td>A hash existed by a block.</td><td>The chain&rsquo;s consensus.</td><td>Block time is coarse and each anchor costs a transaction. BitGraph proves each record at once and offline; a chain is one trust layer it can bind to, and Base is the reference one.</td></tr>
                   <tr><td>Content Credentials (C2PA)</td><td>A signer made these assertions about an asset.</td><td>The signer&rsquo;s certificate, and its clock or TSA.</td><td>Complementary: binding the asset and its manifest gives the credential an independent recording.</td></tr>
                   <tr><td>Remote attestation alone</td><td>Certain code is running in an enclave.</td><td>The hardware vendor.</td><td>Attestation is the root; BitGraph is a specific mechanism on it that produces counted, chained, per-record evidence.</td></tr>
                 </tbody>

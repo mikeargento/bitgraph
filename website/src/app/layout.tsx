@@ -89,7 +89,7 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   keywords: [
-    "BitGraph", "proof infrastructure", "attested timestamp", "Content Credentials", "C2PA", "provenance",
+    "BitGraph", "proof infrastructure", "order before time", "Content Credentials", "C2PA", "provenance",
     "hardware enclave", "offline verification", "position commitment",
   ],
   openGraph: {

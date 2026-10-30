@@ -101,7 +101,7 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
   -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</Code>
             <p>Every BitGraph is kept. Fetch one by its hash:</p>
             <Code>{"curl https://bitgraph.ing/api/proofs/<sha-256, base64url>"}</Code>
-            <p className="tl-note">Add <code>&quot;ceiling&quot;: true</code> to a commit to have its proof hash written to Base afterwards.</p>
+            <p className="tl-note">Every commit through bitgraph.ing gets its Base floor and ceiling; a deployment you operate binds the witness of its choice.</p>
           </article>
 
           <article className="tl-card tl-wide" aria-labelledby="d-check">
@@ -183,7 +183,7 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
             <h3 className="tl-h3">Base, the external trust layer</h3>
             <p>
               The sequence is a closed system. Inside it, order is certain: every BitGraph names the one before it, the counter only goes
-              up, and the enclave&rsquo;s clock is signed into each proof. What a closed system cannot do is place itself in the world&rsquo;s
+              up, and the hardware&rsquo;s time is signed into each proof. What a closed system cannot do is place itself in the world&rsquo;s
               time on its own word; a clock inside the box is still the box&rsquo;s clock. So BitGraph reads a public chain it does not
               operate, before and after each bind, and the window between the two reads is time nobody inside the box could have chosen.
               Every BitGraph made through this site gets it. Three steps, two BitGraphs:
@@ -227,7 +227,8 @@ npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log`}</Code>
               write to Base: the ceiling writer sends a transaction carrying the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph
               binds a record of that mined transaction (<code>epoch-genesis.json</code>). The transaction could not exist before the
               epoch&rsquo;s key, since the id is derived from it, and no BitGraph of the epoch could exist before the transaction&rsquo;s
-              block, so epochs order by their genesis blocks on Base alone. Epochs opened before 2026-10-23 bound a read of the latest
+              block, so epochs order by their genesis blocks. Base is the witness here because this deployment binds it; the rule is
+              the same for any trust layer: bound into the record, or carrying the record&rsquo;s hash, never merely placed beside it. Epochs opened before 2026-10-23 bound a read of the latest
               Base block instead (<code>epoch-floor.json</code>), which proves the same &ldquo;after&rdquo; with the block chosen by the host.
             </p>
             <p>

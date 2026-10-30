@@ -39,8 +39,9 @@ export default function IntegratePage() {
         <p className="home-kicker">Integrate</p>
         <h2 id="i-intro">Send a SHA-256. Get a proof.</h2>
         <p>
-          The recording step is one call. Your system hashes what it already produces, sends the 32-byte digest, and stores the proof
-          that comes back beside its own record. Your content never leaves your systems, and the proofs check without BitGraph.
+          The recording step is one call. Your system hashes what it already produces, sends the 32-byte digest, and binds the proof
+          that comes back into its own record. Your content never leaves your systems, and the proofs check without BitGraph. The
+          proof is a position; your own timestamps, certificates and logs are trust layers you bind on top of it.
         </p>
         <ol className="tl-steps">
           <li><strong>Hash</strong> the asset, credential, log entry or release you already have.</li>
@@ -65,8 +66,8 @@ export default function IntegratePage() {
   -H 'content-type: application/json' \\
   -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</Code>
             <p>
-              The reply holds one proof per digest sent. Each bind through this endpoint also gets its Base floor, and its
-              proof hash is queued for a Base ceiling. Every proof is kept and can be fetched by the digest it bound, earliest first:
+              The reply holds one proof per digest sent. Each bind through this endpoint also gets the reference trust layer, a Base
+              floor and a queued Base ceiling; a deployment you operate can bind a different witness, or none. Every proof is kept and can be fetched by the digest it bound, earliest first:
             </p>
             <Code>{`curl https://bitgraph.ing/api/proofs/<sha-256, base64url>
 # {"proofs":[{"proof":{…},"writeTime":…}, …]}

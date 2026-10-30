@@ -21,7 +21,8 @@ export default function LicensingPage() {
         <p>
           BitGraph is a recording mechanism, offered to companies that already sell proof: provenance, content credentials, trusted
           capture, timestamping, audit trails. You keep your product, your customers and your brand. BitGraph adds one attested
-          recording step underneath, and the evidence it returns travels with your records and checks without you or us.
+          recording step underneath, and the evidence it returns travels with your records and checks without you or us. BitGraph
+          establishes order; your infrastructure establishes trust, bound to that order.
         </p>
         <p>Licensing is through Argento Computing Inc., the company that built and runs BitGraph.</p>
 

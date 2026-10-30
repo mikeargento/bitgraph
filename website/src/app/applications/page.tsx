@@ -16,9 +16,9 @@ const PATTERNS: Pattern[] = [
   {
     id: "c2pa", label: "Content Credentials", title: "Signed history, plus an attested recording.",
     today: "A C2PA manifest carries signed assertions about an asset: who signed it, what tool made it, the edits.",
-    adds: "An independent record that these exact bytes, asset and manifest together, were bound after an unpredictable moment, at a counted position, inside a window of public time. The signer's own clock is not the only clock.",
+    adds: "An independent record that these exact bytes, asset and manifest together, were bound after an unpredictable moment, at a counted position. The credential's own clock becomes one trust layer on that position, and a public witness another.",
     binds: "The asset's SHA-256 and the manifest store's, as two leaves of one tree, bound as one BitGraph. Nothing in the asset changes, so the manifest's own hashes stay valid.",
-    evidence: "A BitGraph proof kept beside the asset or referenced from your system; each leaf checks on its own.",
+    evidence: "A BitGraph proof bound to the asset and its manifest, kept with them or referenced from your system; each leaf checks on its own.",
     live: { href: "/evaluate#e-ai", text: "a ChatGPT image and its OpenAI-signed credential, bound together and verifiable offline" },
   },
   {
@@ -34,7 +34,7 @@ const PATTERNS: Pattern[] = [
     today: "A controlled capture pipeline produces evidence about how an image or recording was made, on what device.",
     adds: "Order and a time window for the capture artifact that do not rest on the device's clock or the vendor's database. BitGraph does not see or vouch for the physical event; it fixes when the artifact's bytes were bound.",
     binds: "The capture artifact's SHA-256, or its signed capture record, as soon as it leaves the device.",
-    evidence: "A proof that pairs with the capture evidence; each can be checked without the other's issuer.",
+    evidence: "A proof bound to the capture evidence; each can be checked without the other's issuer.",
   },
   {
     id: "registry", label: "Asset registries", title: "Registration events anyone can check outside the registry.",
@@ -54,7 +54,7 @@ const PATTERNS: Pattern[] = [
   {
     id: "supply", label: "Software supply chain", title: "Artifacts recorded at build time.",
     today: "Build systems sign artifacts and publish attestations; transparency logs make those entries public.",
-    adds: "An attested recording of the artifact or its bill of materials at a counted position, from hardware whose build is published. It sits beside signatures and transparency-log entries rather than replacing them.",
+    adds: "An attested recording of the artifact or its bill of materials at a counted position, from hardware whose build is published. Signatures and transparency-log entries bind to it as trust layers rather than being replaced by it.",
     binds: "The artifact's SHA-256, or a release's tree of artifacts as one BitGraph.",
     evidence: "A proof per release, each artifact checkable on its own.",
   },
