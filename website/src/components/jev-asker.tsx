@@ -129,7 +129,7 @@ export function JevAsker() {
         <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           {/* The primary action, filled (2026-10-20) so it stands out as the one thing to press. The record dot was tried
               and left off: on a button it reads as "this site will record you". */}
-          <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={state === "running"} onClick={() => void askNow()}>
+          <button type="button" className="bg-action-link is-make" style={{ margin: 0, minWidth: "9.5em", justifyContent: "center" }} disabled={state === "running"} onClick={() => void askNow()}>
             {r ? "Ask again" : "Ask AI"}
           </button>
           {/* While it runs the button keeps its label and a bar fills, one part per step, instead of the label changing
