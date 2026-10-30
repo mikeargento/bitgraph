@@ -5900,3 +5900,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-cta { display: flex !important; flex-wrap: nowrap; gap: 8px !important; width: 100%; }
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-cta > .bg-action-link { flex: 1 1 0 !important; min-width: 0; padding-left: 6px !important; padding-right: 6px !important; font-size: 14px !important; white-space: nowrap; }
 }
+/* A button that reads as a text link (2026-10-30): the receipt's downloads and Connect the file. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-link-btn { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: var(--link); cursor: pointer; text-align: left; width: fit-content; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-link-btn:disabled { color: var(--dim); cursor: default; }
+@media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-link-btn:not(:disabled):hover { text-decoration: underline; text-underline-offset: 3px; } }

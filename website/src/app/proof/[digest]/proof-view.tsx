@@ -452,40 +452,29 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <div className="pv-section-title">Raw JSON</div>
         <RawJson proof={m.proof} />
       </div>
+      {/* Check it anywhere closes the receipt (2026-10-30): text links like the rest of it, under their own eyebrow.
+          The proof; and the BitGraphed file when the original is in hand, the epoch file on an epoch's first record,
+          or Connect the file, which opens the drop box right under these lines. */}
+      <div className="pv-receipt-group">
+        <div className="pv-section-title">Check it anywhere</div>
+        <div className="pv-sub-note" style={{ display: "grid", gap: 6, marginTop: 0 }}>
+          <button type="button" className="pv-link pv-link-btn" onClick={download}>Download proof</button>
+          {bitgraphed ? (
+            <button type="button" className="pv-link pv-link-btn" disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>{bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}</button>
+          ) : es ? (
+            <a className="pv-link" style={{ width: "fit-content" }} href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>Download {es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</a>
+          ) : m.canConnect ? (
+            <button type="button" className="pv-link pv-link-btn" onClick={() => setSearching(true)}>Connect the file</button>
+          ) : null}
+        </div>
+        {m.canConnect && searching && <div style={{ marginTop: 14 }}>{m.filePane}</div>}
+        {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
+      </div>
     </section>
   );
   /* The recorded instant leads the page on its own (2026-10-29): the BitGraph's name at heading size and the time
      large, with the earliest BitGraph of the same picture beside it when there is one. */
   const recordedCard = null;
-  const anywhereCard = (
-    <>
-      {/* ── Check it anywhere ── */}
-      <section className="pv-card">
-        <div className="pv-section-title">Check it anywhere</div>
-        <div className="pv-photo-actions" style={{ margin: "0 0 16px" }}>
-          <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={download}>Download proof</button>
-          {/* Beside it: the BitGraphed file (the file with its proof inside) when the original is in hand; otherwise
-              the way to the original, which opens the content card's find or link (2026-10-29). */}
-          {bitgraphed ? (
-            <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>
-              {bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}
-            </button>
-          ) : es ? (
-            <a className="bg-action-link" style={{ margin: 0 }} href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>Download {es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</a>
-          ) : m.canConnect ? (
-            /* Always two buttons (2026-10-30): with no file in hand the second one opens the Finder, and a file that
-               hashes to the digest lands on the page, which turns this into the BitGraphed file button. */
-            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => setSearching(true)}>Connect the file</button>
-          ) : null}
-        </div>
-        {/* The drop box appears right under the buttons on Connect (2026-10-30): drop the file or a folder, or choose. */}
-        {m.canConnect && searching && <div style={{ marginBottom: 16 }}>{m.filePane}</div>}
-        {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
-            not landed yet. */}
-        {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
-      </section>
-    </>
-  );
 
   /* Every proof leads with its file (the photo, its BitGraphed file or a copy, any other file, or the drop box), one line
      saying what the BitGraph says, the downloads, and the proof itself in full. */
@@ -496,7 +485,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <h1 className="sr-only">BitGraph proof</h1>
         {/* The time card first (2026-10-29): the BitGraph's name and the instant it was made, then the content it covers. */}
         {/* The downloads first (2026-10-30), then one open receipt: every line of the record in one list. */}
-        {anywhereCard}
         {receipt}
         {/* No content card when there is nothing to put in it (2026-10-29: the epoch's first record). */}
         {/* With no file in hand the content box is only the pickers the "Search this computer" button opens (2026-10-30):
