@@ -3151,19 +3151,14 @@ function stdDigest(digestParam: string): string {
    than once), find the original (drop or choose the file), link the original (an address, admitted only when its
    bytes are one of these originals'). A found or linked file lands on the BitGraph that recorded those exact bytes. */
 
-/* The epoch's first record (2026-10-29): its file is public and served here, so the card shows it as in hand, with what it
-   binds, in place of the drop box and the link field. A genesis names the Base transaction that carried the epoch's id;
-   an older floor names the block the host read. */
+/* The epoch's first record (2026-10-29): its file is public and served here, so the card shows what it binds as rows, in
+   place of the drop box. A genesis names the Base transaction that carried the epoch's id; an older floor names the block
+   the host read. No explaining line: the rows say it. */
 function EpochStartPane({ es }: { es: NonNullable<ProofViewModel["epochStart"]> }) {
   const num = es.blockNumber.toLocaleString("en-US");
   const short = (h: string) => `${h.slice(0, 10)}…${h.slice(-8)}`;
   return (
     <div className="pv-epoch-pane">
-      <p className="pv-note pv-epoch-lead">
-        {es.genesis
-          ? <>The first record of this epoch. It binds the Base transaction that carried the epoch&rsquo;s id, mined in block {num}, so every BitGraph of this epoch was made after that block.</>
-          : <>The first record of this epoch. It binds the Base block the enclave&rsquo;s host read when the epoch began, so every BitGraph of this epoch was made after block {num}.</>}
-      </p>
       <div className="pv-counter-grid">
         <div className="pv-row"><div className="pv-row-label">Base block</div><a className="pv-row-value pv-link" href={`https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">{num}<span aria-hidden> &#8599;</span></a></div>
         <div className="pv-row"><div className="pv-row-label">Block hash</div><div className="pv-row-value pv-mono">{short(es.blockHash)}</div></div>
