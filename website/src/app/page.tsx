@@ -17,8 +17,8 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   title: { absolute: "BitGraph: a stronger proof for the products you already sell" },
   description: DESCRIPTION,
-  openGraph: { title: "Every proof you sell just got stronger.", description: DESCRIPTION },
-  twitter: { title: "Every proof you sell just got stronger.", description: DESCRIPTION },
+  openGraph: { title: "Order before time.", description: DESCRIPTION },
+  twitter: { title: "Order before time.", description: DESCRIPTION },
 };
 
 const PROPERTIES = [
@@ -50,7 +50,7 @@ export default function HomePage() {
       <section className="sx-hero" aria-labelledby="home-h">
         {/* The first screen says what the buyer gains (2026-10-28): they already issue proofs; now each one rests on hardware,
             in one call, with nothing to run. Competent already, stronger now. */}
-        <h1 id="home-h">Every proof you sell<br />just got&nbsp;stronger.</h1>
+        <h1 id="home-h">Order before&nbsp;time.</h1>
         <p className="sx-sub">
           Send a hash. Get a proof that stands on its own. Your customers can verify it independently, offline, without relying on
           your servers or ours. One call. No new infrastructure. Your product, backed by evidence anyone can check.
