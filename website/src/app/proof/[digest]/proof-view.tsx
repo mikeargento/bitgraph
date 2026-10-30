@@ -461,13 +461,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
             not landed yet. */}
         {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
-        {/* The verifier's command, behind a fold (2026-10-29): the buttons above are the page's actions, and the command
-            is for the reader who wants the site out of the loop. The same copy tab as /make. */}
-        <div className="pv-section-title" style={{ marginTop: 14 }}>Verify it yourself</div>
-        <div className="code-block mk-code">
-          <pre className="hiw-code">{command}</pre>
-          <CopyCode />
-        </div>
       </section>
     </>
   );
@@ -475,6 +468,12 @@ export function ProofView({ m }: { m: ProofViewModel }) {
     <>
       {/* ── Raw JSON ── */}
       <section className="pv-card pv-details">
+        {/* The verifier's command sits at the bottom, just above the JSON, labelled like every other row (2026-10-30). */}
+        <div className="pv-section-title">Verify it yourself</div>
+        <div className="code-block mk-code" style={{ marginBottom: 18 }}>
+          <pre className="hiw-code">{command}</pre>
+          <CopyCode />
+        </div>
         {/* Open, like every other line of the receipt (2026-10-30): the page is the information. */}
         <div className="pv-section-title">Raw JSON</div>
         <RawJson proof={m.proof} />
