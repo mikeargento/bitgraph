@@ -56,7 +56,7 @@ export default function HomePage() {
           your servers or ours. One call. No new infrastructure. Your product, backed by evidence anyone can check.
         </p>
         <div className="sx-cta">
-          <a className="bg-action-link is-make" href="/evaluate">See it work in two minutes</a>
+          <a className="bg-action-link is-make" href="/demos">See it work</a>
           <a className="bg-action-link" href="/technology">How it works</a>
           <a className="bg-action-link" href="/proof/MXkV_2WRyBSlQV_BdOio2gc1NSrd2Wxl8zW0OrACCDk?counter=26&epoch=NihRUA1VRsV4cqmwWDO_4viNR7YhJRdCb75lGASeV3E">View a proof</a>
         </div>
@@ -187,7 +187,7 @@ TRUE
 
       <section className="home-section" aria-labelledby="home-end">
         <h2 id="home-end">The next time a customer asks why they should believe you, you&rsquo;ll have a better&nbsp;answer.</h2>
-        <p>Verify a real proof in two minutes, read the mechanism, and talk with us about putting it under what you already sell.</p>
+        <p>Verify a real proof yourself, read the mechanism, and talk with us about putting it under what you already sell.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/evaluate">Request a technical evaluation</a>
           <a className="bg-action-link" href="/licensing">Licensing</a>
