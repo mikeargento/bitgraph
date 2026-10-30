@@ -9,9 +9,9 @@ export const metadata: Metadata = {
 };
 
 const LIVE = [
-  { href: "/make", label: "Make", title: "Record a BitGraph of your files", body: "Drop files. They are hashed in your browser and only the SHA-256 is sent; the proof comes back. Many files become one tree and one BitGraph, and a file dropped again opens its BitGraph." },
-  { href: "/check", label: "Check", title: "Check any file, or find a copy's original", body: "Drop a file to find its proof by its exact bytes. Drop a screenshot or a stripped copy of a photo and it is matched in your browser to the original's proof. No watermark; only a 64-bit hash is sent." },
-  { href: "/ledger", label: "Ledger", title: "Every BitGraph, as it is made", body: "The public sequence, newest first: each BitGraph's number, its two counts, the SHA-256 it bound and the enclave's signed time." },
+  { href: "/make", label: "Make", title: "Record a BitGraph of your files", body: "Drop files. Only the hash leaves your browser. Many files make one BitGraph." },
+  { href: "/check", label: "Check", title: "Check a file, or find a copy's original", body: "Drop a file to see its proof. Drop a screenshot to find the original's." },
+  { href: "/ledger", label: "Ledger", title: "Every BitGraph, as it is made", body: "The public sequence, newest first." },
 ];
 
 const DEMOS = [
@@ -28,8 +28,7 @@ export default function DemosPage() {
         <p className="home-kicker">Try it</p>
         <h2 id="try-h">The mechanism, running.</h2>
         <p>
-          Everything here is the production service, not a mock-up. Each result is a real BitGraph, signed inside the enclave and
-          attested by the hardware, and every one checks offline with the published verifier.
+          Everything here is the production service. Every result is a real BitGraph, and every one checks offline.
         </p>
         <div className="sx-cards is-3">
           {LIVE.map((d) => (
