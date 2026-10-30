@@ -5914,7 +5914,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
    step off the ground in both modes, lines quieter, code with a hair edge, and the link blue pulled toward ink in the
    light and softened in the dark. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:not([data-theme="dark"]) {
-  --bg: #eeece5; --bar: #eeece5; --paper: #faf9f5; --panel: #faf9f5; --panel-2: #e7e4da; --code-bg: #ebe8de;
+  --bg: #eeece5; --bar: #eeece5; --paper: #faf9f5; --panel: #faf9f5; --panel-2: #e5e4de; --code-bg: #e5e4de;
   --ink: #15140f; --text: #2b2924; --dim: #6e6a61; --faint: #938f85;
   --line: #d4d0c4; --line-2: rgba(21, 20, 15, 0.08); --hair: rgba(21, 20, 15, 0.08);
   --link: #1d4f96; --fig-fill: #faf9f5; --fig-enclave: #e3e1da; --fig-line: #6a665c;
