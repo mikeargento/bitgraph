@@ -125,6 +125,8 @@ export interface ProofViewModel {
   sourceField?: ReactNode;
   /** The shown photo at full size, opened in a new tab beside the downloads. */
   openUrl?: string | null;
+  /** The file in hand, by name (2026-10-30): a receipt line beside its hash. */
+  fileName?: string | null;
   c2pa: C2PAReadResult | null;
   /** A set, or a tree/1 (whose page can list only the file in hand, once placed: a tree's members are known file by file, from evidence). */
   set: { kind: "set/1" | "set/2" | "tree/1"; count: number; root: string | null; rows: SetRowView[] } | null;
@@ -395,6 +397,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {nonceCount !== null && (
             <Row f={{ label: `#${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} />
           )}
+          {m.fileName && <Row f={{ label: "File", value: m.fileName }} />}
           {contentCount !== null && (
             <div className="pv-row">
               <div className="pv-row-label">#{fmtNum(contentCount)}: Content hash</div>
@@ -460,12 +463,11 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
         {/* The verifier's command, behind a fold (2026-10-29): the buttons above are the page's actions, and the command
             is for the reader who wants the site out of the loop. The same copy tab as /make. */}
-        <Fold title="Verify it yourself">
-          <div className="code-block mk-code">
-            <pre className="hiw-code">{command}</pre>
-            <CopyCode />
-          </div>
-        </Fold>
+        <div className="pv-section-title" style={{ marginTop: 14 }}>Verify it yourself</div>
+        <div className="code-block mk-code">
+          <pre className="hiw-code">{command}</pre>
+          <CopyCode />
+        </div>
       </section>
     </>
   );

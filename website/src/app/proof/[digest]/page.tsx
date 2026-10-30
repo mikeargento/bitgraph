@@ -2255,7 +2255,7 @@ export default function ProofPage() {
                 {attr?.title && <a href={attr.title} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}><span>Open</span><span className="arrow" aria-hidden>&#8599;</span></a>}
               </div>
             </div>
-          ) : isInterval ? null : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
+          ) : isInterval ? null : cachedFile ? null /* no picture on the page (2026-10-30): the file opens from the receipt's Open link */ : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
             <>
               <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={redrawn ? "drawn from the proof" : heldLabel} onOpenUrl={setPhotoOpenUrl}
                 /* No "Save for print" (2026-10-09: a print is a different bit version of the picture, so it would not
@@ -2505,6 +2505,7 @@ export default function ProofPage() {
             onConfirm: confirmAgainstNodes,
             exportAction,
             openUrl: fileOpenUrl ?? photoOpenUrl,
+            fileName: cachedFile?.name ?? null,
             exportName,
             exportInside,
             pieces,
