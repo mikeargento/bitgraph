@@ -77,7 +77,6 @@ import { publishFoundRecord } from "@/lib/trustmark/ledger";
 import type { Original } from "@/lib/trustmark/check";
 import { forgetHeldCopy, recallHeldCopy, setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
-import { SourceField, noteDropUrl } from "@/components/source-link";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
 import { parseRecord } from "@/lib/trustmark/record";
 import { epochRef } from "@/lib/trustmark/payload";
@@ -139,7 +138,6 @@ function formatHashAlg(alg: string): string {
 const staged = (text: string) => <>{text}</>; // approved 2026-10-11; was red while staged
 
 /** A hosted original this large or smaller is fetched and shown unasked (2026-10-29); above it, the strip offers the download. */
-const HOSTED_PREVIEW_MAX_BYTES = 40 * 1024 * 1024;
 
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
   // The Evaluate page's sample (2026-10-27): a ChatGPT image with its OpenAI-signed Content Credentials, bound with them
@@ -340,8 +338,6 @@ export default function ProofPage() {
      the file pane with a label for what it is, never taken for the original (nothing is checked or made from it). */
   const [heldCopy, setHeldCopyState] = useState<HeldCopy | null>(null);
   const router = useRouter();
-  // true when the file in the pane came from the holder's hosted link, not from this visitor: no "add a link" field then
-  const [hostedOriginal, setHostedOriginal] = useState(false);
   // the earliest BitGraph of the same picture, when this one points back to it (app/api/lineage)
   const [firstRecorded, setFirstRecorded] = useState<ProofViewModel["firstRecorded"]>(null);
   useEffect(() => {
@@ -358,8 +354,8 @@ export default function ProofPage() {
   // Another proof opened in place (a copy's "also looks like", a gallery tile, a tree's file): nothing of the last
   // page's file, copy or hosted pull carries over. Runs first; the effects below then fill the new page.
   useEffect(() => {
-    setCachedFile(null); setHeldCopyState(null); setHostedOriginal(false); setBoundThumb(undefined);
-    hostedPulled.current = false; examplePulled.current = false;
+    setCachedFile(null); setHeldCopyState(null); setBoundThumb(undefined);
+    examplePulled.current = false;
   }, [digestParam]);
   // the copy handed over for this page, or the one this browser brought last time (a reload keeps the reference)
   useEffect(() => {
@@ -831,42 +827,6 @@ export default function ProofPage() {
     };
   }, [digestParam]);
 
-  /* A hosted original (components/source-link, 2026-10-29): once a holder has added a link whose bytes hash to the bound
-     digest, every visitor's page fetches the file through our hashing route, hashes it again here, and shows it exactly
-     as a dropped original: the picture in the pane and the checks run on bytes in hand. Only files under a size cap are
-     pulled unasked; the strip's download covers the rest. */
-  const hostedPulled = useRef(false);
-  const hostedEpoch = proof?.commit?.epochId ? String(proof.commit.epochId) : null, hostedCounter = proof?.commit?.counter !== undefined ? String(proof.commit.counter) : null;
-  useEffect(() => {
-    if (!hostedEpoch || !hostedCounter || cachedFile || hostedPulled.current) return;
-    const d = decodeURIComponent(digestParam);
-    if (Object.hasOwn(EXAMPLE_FILES, d)) return;
-    hostedPulled.current = true;
-    let cancelled = false, settled = false;
-    const q = `digest=${encodeURIComponent(stdDigest(digestParam))}&epoch=${encodeURIComponent(hostedEpoch.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}&counter=${encodeURIComponent(hostedCounter)}`;
-    void (async () => {
-      try {
-        const s = await fetch(`/api/sources?${q}`);
-        const body = s.ok ? ((await s.json()) as { source?: { name: string | null; bytes: number } | null }) : null;
-        const source = body?.source;
-        if (!source || source.bytes > HOSTED_PREVIEW_MAX_BYTES || cancelled) return;
-        const r = await fetch(`/api/sources/download?${q}`);
-        if (!r.ok || cancelled) return;
-        const data = await (await r.blob()).arrayBuffer();
-        if ((await hashBytes(new Uint8Array(data))) !== stdDigest(digestParam) || cancelled) return;
-        settled = true;
-        const name = source.name ?? "original";
-        setHostedOriginal(true);
-        setCachedFile({ name, data });
-        try {
-          const { readC2PA } = await import("@/lib/c2pa-reader");
-          const c2pa = await readC2PA(new Blob([new Uint8Array(data)]));
-          if (!cancelled) setCachedFile({ name, data, c2pa, c2paChecked: true });
-        } catch { /* the picture still shows without the card */ }
-      } catch { /* the strip's download and the drop box remain */ }
-    })();
-    return () => { cancelled = true; if (!settled) hostedPulled.current = false; };
-  }, [digestParam, hostedEpoch, hostedCounter, cachedFile]);
 
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
@@ -2313,11 +2273,10 @@ export default function ProofPage() {
             <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
           ) : heldCopy ? (
             // A copy in hand is never shown as if it were the photo: the box shows the picture this BitGraph recorded
-            // (its thumbnail, when one was published), says it is not the original, and offers three things to do.
+            // (its thumbnail, when one was published) and says it is not the original. Make is where a file is recorded.
             boundThumb === undefined ? null : (
               <div className="pv-pane-in">
                 {boundThumb && typeof boundThumb === "object" ? <BoundThumbView t={boundThumb} caption={<strong>Not the original</strong>} /> : <p className="pv-note"><strong>Not the original.</strong> {boundThumb === "failed" ? "The preview saved with this BitGraph could not be shown." : boundThumb === "unavailable" ? "Its preview could not be loaded just now." : "No preview was saved with this BitGraph yet."}</p>}
-                <CopyOptions proof={proof} heldCopy={heldCopy} digestParam={digestParam} setBound={setBound} onMatch={(rec) => { setHeldCopyState(null); setCachedFile(rec); }} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} onCopy={setHeldCopyState} />
               </div>
             )
           ) : painting ? (
@@ -2553,7 +2512,7 @@ export default function ProofPage() {
             // server admits only bytes that hash to the digest), and a holder of the original may change it
             ...(kind === "file" && commit?.epochId && commit?.counter ? (() => {
               const pos = { digest: stdDigest(digestParam), epoch: String(commit.epochId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), counter: String(commit.counter) };
-              return { sourceField: heldCopy || epochStart ? null : <SourceField pos={pos} file={cachedFile && !hostedOriginal ? cachedFile : undefined} original={!!cachedFile} /> };
+              return { sourceField: null };
             })() : {}),
             bindings: bindings?.map((b) => ({ ...b, current: b.counter === Number(proof?.commit?.counter) && b.epochId === String(proof?.commit?.epochId ?? "") })) ?? [],
             droppedCopy,
@@ -3043,7 +3002,7 @@ function BringYourFile({
          await later reports "no directories" and quietly searches only the
          loose files. One big mixed dump — files, folders, folders with
          subfolders — is the case this box is for. */
-      onDrop={(e) => { e.preventDefault(); setDragOver(false); noteDropUrl(e.dataTransfer); void check(captureDrop(e.dataTransfer)); }}
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(captureDrop(e.dataTransfer)); }}
       /* The same instrument as the home page's, not a footnote to the proof:
          this box is how a stranger who was handed a file actually uses the
          page. Same mark, same blue on hover and drag. Dashed edges from the
@@ -3191,57 +3150,6 @@ function stdDigest(digestParam: string): string {
 /* The three things a copy holder can do (2026-10-29): choose which BitGraph (only when the picture was recorded more
    than once), find the original (drop or choose the file), link the original (an address, admitted only when its
    bytes are one of these originals'). A found or linked file lands on the BitGraph that recorded those exact bytes. */
-function CopyOptions({ proof, heldCopy, digestParam, setBound, onMatch, onResolvedMember, onTreeEvidence, onCopy }: {
-  proof: BitGraphProof; heldCopy: HeldCopy; digestParam: string; setBound: BoundSet | null;
-  onMatch: (rec: { name: string; data: ArrayBuffer; c2pa: C2PAReadResult | null; c2paChecked: boolean }) => void;
-  onResolvedMember?: (row: SetMemberRow | null) => void; onTreeEvidence?: (evidence: TreeMemberEvidence | null) => void; onCopy?: (copy: HeldCopy) => void;
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState<"choose" | "find" | "link" | null>(null);
-  // the bottom card's "Find or link original" opens the find box here
-  useEffect(() => { const on = () => setOpen("link"); window.addEventListener("bitgraph-find-original", on); return () => window.removeEventListener("bitgraph-find-original", on); }, []);
-  const others = heldCopy.others ?? [];
-  const all = [heldCopy.found, ...others].filter((x): x is Original => !!x);
-  const pos = { digest: toUrlSafeB64(stdDigest(digestParam)), epoch: toUrlSafeB64(String(proof.commit?.epochId ?? "")), counter: String(proof.commit?.counter ?? "") };
-  const posOf = (o: Original) => ({ digest: toUrlSafeB64(o.photoDigestB64), epoch: toUrlSafeB64(o.epochId), counter: String(o.counter) });
-  const hrefOf = (o: Original) => `/proof/${toUrlSafeB64(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafeB64(o.epochId))}`;
-  // the copy goes along to the chosen BitGraph, so that page shows its picture and the same three options
-  const go = (o: Original) => {
-    const rest = all.filter((x) => x.photoDigestB64 !== o.photoDigestB64);
-    setHeldCopy(toUrlSafeB64(o.photoDigestB64), { name: heldCopy.name, data: heldCopy.data, kind: "copy", score: heldCopy.score, found: o, others: rest });
-    router.push(hrefOf(o));
-  };
-  const toggle = (k: "choose" | "find" | "link") => setOpen((cur) => (cur === k ? null : k));
-  return (
-    <div className="pv-copy-options">
-      <div className="pv-photo-actions" style={{ marginTop: 12 }}>
-        {/* One action (2026-10-29): a copy holder is not sent anywhere and chooses nothing; the one thing to do here is
-            link the original, for whoever has it hosted. Finding is Make's job: a drop records, and names the first. */}
-        <button type="button" className={`bg-action-link${open === "link" ? " is-open" : ""}`} style={{ margin: 0 }} onClick={() => toggle("link")}>Link original</button>
-      </div>
-      {open === "choose" && (
-        <ul className="pv-choose-list">
-          {all.map((o) => {
-            const here = o.photoDigestB64 === stdDigest(digestParam);
-            return (
-              <li key={`${o.photoDigestB64}/${o.counter}`}>
-                {here ? <span><strong>BitGraph #{o.counter.toLocaleString("en-US")}</strong> · this page</span> : <a href={hrefOf(o)} onClick={(e) => { e.preventDefault(); go(o); }}>BitGraph #{o.counter.toLocaleString("en-US")}</a>}
-                {o.recordedMs !== null && <span className="pv-choose-when"> · {longDateTz(new Date(o.recordedMs))}</span>}
-                {o.hosted && <span className="pv-choose-when"> · original online</span>}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {open === "find" && (
-        <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={onMatch} onResolvedMember={onResolvedMember} onTreeEvidence={onTreeEvidence} onCopy={onCopy} among={others} compact />
-      )}
-      {open === "link" && (
-        <SourceField pos={pos} among={others.map(posOf)} bare onLanded={(at) => { const o = others.find((x) => toUrlSafeB64(x.photoDigestB64) === at.digest); if (o) go(o); }} />
-      )}
-    </div>
-  );
-}
 
 /* The epoch's first record (2026-10-29): its file is public and served here, so the card shows it as in hand, with what it
    binds, in place of the drop box and the link field. A genesis names the Base transaction that carried the epoch's id;

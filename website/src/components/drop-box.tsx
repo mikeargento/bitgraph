@@ -35,7 +35,6 @@ import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseD
 import { publishFoundRecords, publishRecord } from "@/lib/trustmark/ledger";
 import { makeThumb, THUMB_SUFFIX } from "@/lib/trustmark/thumb";
 import { FoundThumb } from "@/components/found-thumb";
-import { SourceHint } from "@/components/source-link";
 import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
 import { judge as judgeLooks, opensAlone, type LooksVerdict, type Original } from "@/lib/trustmark/check";
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
@@ -280,7 +279,7 @@ function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: U
     const o = v.original, href = proofHref(o);
     return (
       <>
-        <span className="db-ok">Looks like {link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}<SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
+        <span className="db-ok">Looks like {link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}</span>
         <span className="db-size db-wrap">Your copy matches the picture this BitGraph recorded. Its proof page proves the original file.</span>
         <FoundThumb o={o} href={href} onOpen={() => open(o)} />
       </>
@@ -297,7 +296,7 @@ function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: U
           const href = proofHref(o);
           return (
             <li key={`${o.photoDigestB64}/${o.epochId}/${o.counter}`}>
-              <span className="db-ok">{link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}<SourceHint digest={toUrlSafe(o.photoDigestB64)} epoch={toUrlSafe(o.epochId)} counter={String(o.counter)} /></span>
+              <span className="db-ok">{link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}</span>
               <FoundThumb o={o} href={href} onOpen={() => open(o)} among={originals} />
             </li>
           );

@@ -510,8 +510,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             </button>
           ) : es ? (
             <a className="bg-action-link" style={{ margin: 0 }} href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>Download {es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</a>
-          ) : m.kind === "file" ? (
-            <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => { document.querySelector(".pv-card.pv-photo")?.scrollIntoView({ behavior: "smooth", block: "start" }); window.dispatchEvent(new Event("bitgraph-find-original")); }}>Link original</button>
           ) : null}
         </div>
         {/* What the BitGraphed file's download did, or why it could not: the TrustMark's steps and outcome, a ceiling
