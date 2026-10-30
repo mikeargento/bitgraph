@@ -299,6 +299,14 @@ function Pill({ href, children, external, download }: { href: string; children: 
 
 const fmtNum = (n: number | string | null | undefined) => (n === null || n === undefined ? "?" : Number(n).toLocaleString("en-US"));
 
+/** The recorded instant as two lines, the date above the time (2026-10-29): "10/27/2026," then "5:15:20 PM EDT". A
+ *  stamp with no date (the time alone) stays one line. */
+function twoLines(stamp: string): ReactNode {
+  const i = stamp.indexOf(", ");
+  if (i < 0) return stamp;
+  return <>{stamp.slice(0, i + 1)}<br />{stamp.slice(i + 2)}</>;
+}
+
 /** A block's own time beside the recorded instant: the time alone on the same day, else the full stamp. */
 function whenBeside(ms: number, ref: number | null): string {
   const d = new Date(ms);
@@ -397,24 +405,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <section className="pv-card">
           {/* No heading (2026-10-29): three times in three boxes say it themselves. */}
           <div className="pv-moments">
-            {es && es.genesis && (
-              <Moment
-                label="Epoch start"
-                title={whenBeside(es.blockTimestamp * 1000, attested)}
-              >
-                <Pill href={es.fileUrl} download="epoch-genesis.json">epoch-genesis.json</Pill>
-                <Pill href={`https://basescan.org/tx/${es.genesis.txHash}`} external>Basescan</Pill>
-              </Moment>
-            )}
-            {es && !es.genesis && (
-              <Moment
-                label="Epoch start"
-                title={whenBeside(es.blockTimestamp * 1000, attested)}
-              >
-                <Pill href={es.fileUrl} download="epoch-floor.json">epoch-floor.json</Pill>
-                <Pill href={`https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>
-              </Moment>
-            )}
+            {/* An epoch's first record is the moment the epoch began: one box says so, with the file and Base (2026-10-29). */}
             {tf && (
               <Moment
                 label="Floor in time"
@@ -460,10 +451,13 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             )}
             {attested !== null && (
               <Moment
-                label={m.recordName}
-                title={<><span className="pv-time-box">{whenBeside(attested, floorMs)}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor</span> : null}</>}
+                label={es ? `${m.recordName} · Epoch began` : m.recordName}
+                title={<><span className="pv-time-box">{twoLines(whenBeside(attested, floorMs))}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor</span> : null}</>}
                 accent
-              />
+              >
+                {es && <Pill href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>{es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</Pill>}
+                {es && <Pill href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} external>Basescan</Pill>}
+              </Moment>
             )}
             {m.firstRecorded && (
               <Moment
@@ -514,6 +508,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>
               {bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}
             </button>
+          ) : es ? (
+            <a className="bg-action-link" style={{ margin: 0 }} href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>Download {es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</a>
           ) : m.kind === "file" ? (
             <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={() => { document.querySelector(".pv-card.pv-photo")?.scrollIntoView({ behavior: "smooth", block: "start" }); window.dispatchEvent(new Event("bitgraph-find-original")); }}>Find or link original</button>
           ) : null}

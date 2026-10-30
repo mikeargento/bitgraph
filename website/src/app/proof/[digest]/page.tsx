@@ -2281,7 +2281,9 @@ export default function ProofPage() {
           // Every file pane is the same outlined box with a name row and an Open pill, uniform
           // for any file (2026-10-05): text and other files (FileCard),
           // images (PhotoCard), and an anchor's Ethereum block here.
-          const filePane: React.ReactNode = isEth ? (
+          const filePane: React.ReactNode = epochStart ? (
+            <EpochStartPane es={epochStart} />
+          ) : isEth ? (
             <div className="pv-filecard">
               <div className="pv-filecard-head">
                 <span className="pv-filecard-name">
@@ -2552,7 +2554,7 @@ export default function ProofPage() {
             // server admits only bytes that hash to the digest), and a holder of the original may change it
             ...(kind === "file" && commit?.epochId && commit?.counter ? (() => {
               const pos = { digest: stdDigest(digestParam), epoch: String(commit.epochId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), counter: String(commit.counter) };
-              return { sourceField: heldCopy ? null : <SourceField pos={pos} file={cachedFile && !hostedOriginal ? cachedFile : undefined} original={!!cachedFile} /> };
+              return { sourceField: heldCopy || epochStart ? null : <SourceField pos={pos} file={cachedFile && !hostedOriginal ? cachedFile : undefined} original={!!cachedFile} /> };
             })() : {}),
             bindings: bindings?.map((b) => ({ ...b, current: b.counter === Number(proof?.commit?.counter) && b.epochId === String(proof?.commit?.epochId ?? "") })) ?? [],
             droppedCopy,
@@ -3248,6 +3250,30 @@ function CopyOptions({ proof, heldCopy, digestParam, setBound, onMatch, onResolv
       {open === "link" && (
         <SourceField pos={pos} among={others.map(posOf)} bare onLanded={(at) => { const o = others.find((x) => toUrlSafeB64(x.photoDigestB64) === at.digest); if (o) go(o); }} />
       )}
+    </div>
+  );
+}
+
+/* The epoch's first record (2026-10-29): its file is public and served here, so the card shows it as in hand, with what it
+   binds, in place of the drop box and the link field. A genesis names the Base transaction that carried the epoch's id;
+   an older floor names the block the host read. */
+function EpochStartPane({ es }: { es: NonNullable<ProofViewModel["epochStart"]> }) {
+  const num = es.blockNumber.toLocaleString("en-US");
+  const short = (h: string) => `${h.slice(0, 10)}…${h.slice(-8)}`;
+  return (
+    <div className="pv-epoch-pane">
+      <p className="pv-note pv-epoch-lead">
+        {es.genesis
+          ? <>The first record of this epoch. It binds the Base transaction that carried the epoch&rsquo;s id, mined in block {num}, so every BitGraph of this epoch was made after that block.</>
+          : <>The first record of this epoch. It binds the Base block the enclave&rsquo;s host read when the epoch began, so every BitGraph of this epoch was made after block {num}.</>}
+      </p>
+      <div className="pv-counter-grid">
+        <div className="pv-row"><div className="pv-row-label">Base block</div><a className="pv-row-value pv-link" href={`https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">{num}<span aria-hidden> &#8599;</span></a></div>
+        <div className="pv-row"><div className="pv-row-label">Block hash</div><div className="pv-row-value pv-mono">{short(es.blockHash)}</div></div>
+        {es.genesis && <div className="pv-row"><div className="pv-row-label">Transaction</div><a className="pv-row-value pv-link pv-mono" href={`https://basescan.org/tx/${es.genesis.txHash}`} target="_blank" rel="noopener">{short(es.genesis.txHash)}<span aria-hidden> &#8599;</span></a></div>}
+        {es.genesis && <div className="pv-row"><div className="pv-row-label">Writer</div><a className="pv-row-value pv-link pv-mono" href={`https://basescan.org/address/${es.genesis.writer}`} target="_blank" rel="noopener">{short(es.genesis.writer)}<span aria-hidden> &#8599;</span></a></div>}
+      </div>
+      {es.baseChecked === false && <p className="pv-note">Base does not report this block with this hash and time. The file and Basescan are the evidence; read them yourself.</p>}
     </div>
   );
 }

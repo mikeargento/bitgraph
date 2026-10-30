@@ -5791,3 +5791,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.db-zone-desk, .db-zone-touch) { font-size: 16px !important; font-weight: 700 !important; line-height: 1.4 !important; }
 /* Phones: the recorded time fits its box on one line at 22 (2026-10-29). */
 @media (max-width: 480px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-moment.is-accent .pv-moment-title, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-time-box { font-size: 22px !important; } }
+/* The epoch's first record: its lead line and the rows that say what it binds (2026-10-29). */
+html:root:root:root:root:root body main .pv-epoch-pane .pv-epoch-lead { margin: 0 0 14px; color: var(--text); }
+html:root:root:root:root:root body main .pv-epoch-pane .pv-counter-grid { margin: 0; }
+html:root:root:root:root:root body main .pv-epoch-pane .pv-row-value.pv-link { word-break: break-all; }

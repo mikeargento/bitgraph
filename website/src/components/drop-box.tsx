@@ -765,7 +765,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
             }
           }
         }
-        void cacheArtifactToIDB(files[0]!, fileDigest).catch(() => {});
+        // The file goes with the page (the proof opens with it in hand), so the save is waited for, briefly.
+        try { await Promise.race([cacheArtifactToIDB(files[0]!, fileDigest), new Promise((r) => setTimeout(r, 3000))]); } catch { /* the page still opens; the reader can drop the file there */ }
         // The same file bound before: its first BitGraph opens, the one that counts, and lists this new one under it.
         const before = await fetch(`/api/proofs/${toUrlSafe(fileDigest)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null) as { proofs?: Array<{ proof: Proof; writeTime?: number | null }> } | null;
         const firstProof = earliestOf(before?.proofs ?? []);
