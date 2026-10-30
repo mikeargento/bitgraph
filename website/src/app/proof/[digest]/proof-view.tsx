@@ -375,6 +375,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             by its hash: proofs are not looked up by position, so the page cannot open the BitGraph before this one;
             whoever holds both proofs can check the link offline. */}
         <div className="pv-counter-grid">
+          {/* The recorded moment is a row here, as subtle as every other stat (2026-10-30). */}
+          {showTime && attested !== null && <Row f={{ label: es ? "Recorded · the epoch began" : "Recorded", value: stampTz(new Date(attested)) }} />}
+          {m.firstRecorded && <Row f={{ label: "Same picture, first recorded", value: m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "earlier" }} />}
           {/* The epoch's first record has no BitGraph before it; its place is the Base block it was made after (2026-10-29). */}
           {es && <Row f={{ label: `Base block ${fmtNum(es.blockNumber)}`, value: es.blockHash, mono: true }} />}
           {(commit as { prevB64?: string }).prevB64 && (
@@ -389,28 +392,18 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <Row f={{ label: `#${fmtNum(contentCount)}: Content hash`, value: m.proof.artifact.digestB64, mono: true }} />
           )}
         </div>
+        {(es || m.firstRecorded) && (
+          <div className="pv-photo-actions" style={{ marginTop: 12 }}>
+            {es && <a className="bg-action-link" style={{ margin: 0 }} href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan &#8599;</a>}
+            {m.firstRecorded && <a className="bg-action-link" style={{ margin: 0 }} href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</a>}
+          </div>
+        )}
       </section>
     </>
   );
   /* The recorded instant leads the page on its own (2026-10-29): the BitGraph's name at heading size and the time
      large, with the earliest BitGraph of the same picture beside it when there is one. */
-  const recordedCard = showTime && attested !== null ? (
-    <section className="pv-card">
-      {/* The number and the recorded moment as rows, as subtle as every other stat (2026-10-30): nothing on the page
-          is given precedence over the rest. */}
-      <div className="pv-counter-grid">
-        <Row f={{ label: "BitGraph", value: `#${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : ""}` }} />
-        <Row f={{ label: "Recorded", value: stampTz(new Date(attested)) }} />
-        {m.firstRecorded && <Row f={{ label: "Same picture, first recorded", value: m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "earlier" }} />}
-      </div>
-      {(es || m.firstRecorded) && (
-        <div className="pv-photo-actions" style={{ marginTop: 12 }}>
-          {es && <a className="bg-action-link" style={{ margin: 0 }} href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan &#8599;</a>}
-          {m.firstRecorded && <a className="bg-action-link" style={{ margin: 0 }} href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</a>}
-        </div>
-      )}
-    </section>
-  ) : null;
+  const recordedCard = null;
   const hasWindow = !!(tf || fo || fl || bf || ef || ct);
   const windowCard = (
     <>
