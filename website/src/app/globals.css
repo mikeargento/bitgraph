@@ -5433,8 +5433,8 @@ html:root:root:root:root:root body .db-copy-line { margin-top: 14px; text-align:
 html:root:root:root:root:root body .db-copy-line a { color: var(--ink); }
 /* Phones: the bar is the wordmark and a menu button; the menu covers the screen under the bar, the links large, the
    sun/moon at its bottom */
-html:root:root:root:root:root body #site-nav .nav-menu-btn { display: none; }
-@media (max-width: 999px) {
+/* The menu at every width (2026-10-30): the bar is the wordmark and the menu button on a desk as on a phone. */
+@media (min-width: 0px) {
   html:root:root:root:root:root:root body #site-nav .bg-nav-links { display: none !important; }
   html:root:root:root:root:root body #site-nav .nav-menu-btn { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin-right: -12px; padding: 0; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
   html:root:root:root:root:root body #site-nav .nav-menu-btn svg { width: 28px; height: 28px; }

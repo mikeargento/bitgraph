@@ -20,10 +20,11 @@ const LINKS: Array<{ href: string; label: string; also?: string[] }> = [
   { href: "/integrate", label: "Integrate" },
   { href: "/licensing", label: "Licensing" },
   { href: "/tools", label: "Docs" },
+  { href: "/ledger", label: "Ledger" },
   { href: "/evaluate", label: "Evaluate" },
 ];
 // The button is the one action a visitor should take: Try it, where a drop proves the product in a minute.
-const CTA = { href: "/demos", label: "Try it", also: ["/make", "/ledger", "/jev", "/generate", "/exam"] };
+const CTA = { href: "/demos", label: "Try it", also: ["/make", "/jev", "/generate", "/exam"] };
 
 export function SiteNav() {
   const pathname = usePathname();

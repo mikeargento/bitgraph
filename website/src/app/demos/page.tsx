@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DropBox } from "@/components/drop-box";
 
 /** Try it (2026-10-27): the live mechanism, as evidence. Make, Check and the ledger are the working service; the three
  *  demos are two BitGraphs as bookends: A opens, the work is made from A's nonce, B closes. Every result is a real
@@ -8,10 +9,6 @@ export const metadata: Metadata = {
   description: "The BitGraph mechanism running live: make a BitGraph, check a file, browse the public ledger, and three demos of work bracketed by two BitGraphs.",
 };
 
-const LIVE = [
-  { href: "/make", label: "Make", title: "Record a BitGraph of your files", body: "Drop files. Only the hash leaves your browser. A file already recorded opens its BitGraph; a picture recorded before names its first." },
-  { href: "/ledger", label: "Ledger", title: "Every BitGraph, as it is made", body: "The public sequence, newest first." },
-];
 
 const DEMOS = [
   { href: "/jev", title: "Ask AI", body: "Two questions made from A’s nonce, answered by an AI, and bound as B." },
@@ -29,15 +26,8 @@ export default function DemosPage() {
         <p>
           Everything here is the production service. Every result is a real BitGraph, and every one checks offline.
         </p>
-        <div className="sx-cards is-2x2">
-          {LIVE.map((d) => (
-            <a key={d.href} className="tl-card sx-link" href={d.href}>
-              <p className="tl-label">{d.label}</p>
-              <h3>{d.title}</h3>
-              <p>{d.body}</p>
-            </a>
-          ))}
-        </div>
+        {/* The drop box itself, no door to click (2026-10-30). The Ledger is in the menu. */}
+        <div className="page-box"><DropBox mode="make" /></div>
       </section>
       <section className="home-section" aria-labelledby="demos-h">
         <p className="home-kicker">Demos</p>
