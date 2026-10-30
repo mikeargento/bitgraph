@@ -672,7 +672,7 @@ function ContentCredentials({ c2pa, recorded, match }: { c2pa: C2PAReadResult; r
           verified in the browser before Signed by is shown; the open verifier does the same for anyone. */}
       {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
       <div className="pv-sub-note">
-        <a className="pv-link" href="https://contentcredentials.org/verify" target="_blank" rel="noopener">Check it at contentcredentials.org &#8599;</a>
+        <a className="pv-link" href="https://contentcredentials.org/verify" target="_blank" rel="noopener">Check C2PA &#8599;</a>
         {openai && <> &middot; <a className="pv-link" href="https://openai.com/research/verify/" target="_blank" rel="noopener">Verify with OpenAI &#8599;</a></>}
       </div>
     </div>
