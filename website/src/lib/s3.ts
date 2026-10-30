@@ -1281,6 +1281,37 @@ export async function putSourceNote(digestB64: string, epochId: string, counter:
   return true;
 }
 
+/* Lineage (app/api/lineage): a later BitGraph of the same picture (a re-export, a re-save, after the first file was
+ * lost) points back to the earliest one. Written once, by the holder who chose to record the later file, and only
+ * after the server has found both positions' published records within the find's distance of each other and the
+ * first recorded earlier. Not in the proof, not in the tree: a note beside the later position.
+ *   lineage/<digest, url-safe>/<epochId, url-safe>-<counter, padded>.json
+ */
+export type LineageNote = { format: "bitgraph-lineage/1"; first: { digestB64: string; epochId: string; counter: string; recordedMs: number | null }; distance: number; addedAt: number };
+export async function getLineageNote(digestB64: string, epochId: string, counter: string): Promise<LineageNote | null> {
+  try {
+    const r = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: positionKey("lineage", digestB64, epochId, counter) }));
+    const body = await r.Body?.transformToString();
+    return body ? (JSON.parse(body) as LineageNote) : null;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw new LedgerUnavailableError("lineage note", err);
+  }
+}
+/** Writes a lineage note once; false when one stands already (a BitGraph has one first, never changed). */
+export async function putLineageNoteOnce(digestB64: string, epochId: string, counter: string, note: LineageNote): Promise<boolean> {
+  if (!ledgerWritesOn()) return false;
+  try {
+    await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: positionKey("lineage", digestB64, epochId, counter), Body: JSON.stringify(note, null, 1), ContentType: "application/json", IfNoneMatch: "*" }));
+    return true;
+  } catch (err) {
+    const name = (err as { name?: string; $metadata?: { httpStatusCode?: number } }).name;
+    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
+    throw new LedgerUnavailableError("lineage note", err);
+  }
+}
+
 /* Finding a copy's original (app/api/find): every published record's pHash, as a key, so a copy with everything stripped is matched by what
  * it looks like. A listing of the prefix is the whole index; nothing is read until a pHash is close.
  *   find/phash/<pHash, 16 hex>/<epochRef>/<counter>/<epochId, url-safe>/<record digest, url-safe>

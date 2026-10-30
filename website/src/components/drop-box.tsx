@@ -39,6 +39,7 @@ import { SourceHint } from "@/components/source-link";
 import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
 import { judge as judgeLooks, opensAlone, type LooksVerdict, type Original } from "@/lib/trustmark/check";
 import { setHeldCopy } from "@/lib/trustmark/held-copy";
+import { takeRecordAgain, type FirstPosition } from "@/lib/trustmark/record-again";
 import { noteCopyOf, noteDroppedCopy } from "@/lib/trustmark/copy-note";
 import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
 import { MAX_GALLERY, handOriginal, setGallery, type Gallery, type GalleryItem } from "@/lib/gallery";
@@ -604,7 +605,9 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     st.done = true; setStatus(null); show();
   }, []);
 
-  const takePlugins = useCallback(async (files: File[], list?: Array<{ hex: string; name: string }>) => {
+  /* first: the file is a later record of a picture already a BitGraph, by the holder's choice (the copy pane's "Record
+     this file"): its original is not looked for again, and the new BitGraph names the first (app/api/lineage). */
+  const takePlugins = useCallback(async (files: File[], list?: Array<{ hex: string; name: string }>, first?: FirstPosition) => {
     setRows([]); setBulk(null); setBatch(null); setPairing(null); setPlug(null); setPlugError(null); setChecked(null); setBusy(true);
     // ?timer times the run from the drop to the proof (2026-10-18: for timing the 100,000-file tree).
     const t0 = performance.now();
@@ -633,7 +636,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         // A picture that looks like a recorded one (a re-export, a re-save, a copy) is that picture: its original's
         // proof opens, with this file carried as a copy, and nothing is recorded. Only a picture the find cannot match
         // is different enough to be an original of its own.
-        if (looksLikePhoto(f)) {
+        if (looksLikePhoto(f) && !first) {
           setStatus("Looking for the original…");
           const img = await decodeForReading(f).catch(() => null);
           const v = img ? await judgeLooks(img, { search: true }).catch(() => null) : null;
@@ -749,6 +752,19 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         setStatus("Opening the proof…");
         await Promise.race([indexed, new Promise((r) => setTimeout(r, 4000))]);
         const fileDigest = dropped[0]![2], i = t.leaves.findIndex((l) => l[2] === fileDigest);
+        // A later record of a picture names its first, once its own record is published (the server checks both).
+        if (first && fp.records.length) {
+          setStatus("Naming the first BitGraph…");
+          const nc = b.commit as { counter?: string; epochId?: string } | undefined;
+          if (await indexed && await publishRecord(fp.records[0]!, null, fp.thumbs[0]).catch(() => false) && nc?.counter && nc.epochId) {
+            const body = JSON.stringify({ digest: toUrlSafe(fileDigest), epoch: toUrlSafe(nc.epochId), counter: String(nc.counter), firstDigest: toUrlSafe(first.digestB64), firstEpoch: toUrlSafe(first.epochId), firstCounter: first.counter });
+            for (let attempt = 0; attempt < 6; attempt++) {
+              const r = await fetch("/api/lineage", { method: "POST", headers: { "content-type": "application/json" }, body }).catch(() => null);
+              if (r && r.status !== 404 && r.status < 500) break;
+              await new Promise((res) => setTimeout(res, 2000));
+            }
+          }
+        }
         void cacheArtifactToIDB(files[0]!, fileDigest).catch(() => {});
         // The same file bound before: its first BitGraph opens, the one that counts, and lists this new one under it.
         const before = await fetch(`/api/proofs/${toUrlSafe(fileDigest)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null) as { proofs?: Array<{ proof: Proof; writeTime?: number | null }> } | null;
@@ -773,6 +789,12 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
 
   // Leaving the page while a tree's index is being written cuts it off (2026-10-20: a 50,000-file tree stopped at 6,500
   // when its proof was opened in the same tab), so the browser asks first.
+  // A file sent from a proof page's copy pane to be recorded as its own BitGraph (lib/trustmark/record-again).
+  useEffect(() => {
+    if (mode !== "make") return;
+    const r = takeRecordAgain();
+    if (r) void takePlugins([new File([r.data], r.name)], undefined, r.first);
+  }, [mode, takePlugins]);
   useEffect(() => {
     if (plug?.lookup?.state !== "saving" && plug?.lookup?.state !== "sealing") return;
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };

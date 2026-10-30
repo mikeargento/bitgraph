@@ -148,6 +148,8 @@ export interface ProofViewModel {
   ceilingTime: CeilingTimeView | null;
   /** The Base plugin's floor: BitGraph 1, which bound the latest Base block before this record, in the same epoch (app/api/floors). */
   floorLink?: { floor: { bitgraph: { digestB64: string; epochId: string; counter: string }; blockNumber: number; blockHash: string; blockTimestamp: number } } | null;
+  /** The earliest BitGraph of the same picture, when this one was recorded later by choice (app/api/lineage). */
+  firstRecorded?: { digest: string; epoch: string; counter: string; recordedMs: number | null } | null;
   /** This proof is itself a floor: it binds base-floor.json, the latest Base block, read for the record bound right after it. */
   floorOf?: { floor: { blockNumber: number; blockHash: string; blockTimestamp: number }; record: { digestB64: string; epochId: string; counter: string } } | null;
   /** This proof is its epoch's first BitGraph, a read of the latest Base block; the file hashed to its digest here. */
@@ -462,6 +464,14 @@ export function ProofView({ m }: { m: ProofViewModel }) {
                 title={<><span className="pv-time-box">{whenBeside(attested, floorMs)}</span>{sinceFloor !== null ? <span className="pv-moment-dim pv-moment-since"><span className="pv-sep"> · </span>{sinceFloor} s after the floor</span> : null}</>}
                 accent
               />
+            )}
+            {m.firstRecorded && (
+              <Moment
+                label="Same picture, first recorded"
+                title={m.firstRecorded.recordedMs !== null ? whenBeside(m.firstRecorded.recordedMs, attested) : <span className="pv-moment-dim">Earlier</span>}
+              >
+                <Pill href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</Pill>
+              </Moment>
             )}
             {ct && ct.anchor && ctMs !== null && (
               <Moment

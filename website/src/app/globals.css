@@ -5743,6 +5743,7 @@ html:root:root:root:root:root body main .pv-source-credit { margin: 8px 0 0; fon
 .pv-details-pair .pv-fold { margin-bottom: 0; }
 @media (min-width: 720px) {
   .pv-counter-grid { grid-template-columns: 1fr 1fr; }
-  .pv-details-pair { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .pv-details-pair .pv-fold.is-open { grid-column: 1 / -1; }
+  /* An open fold keeps its half and grows down; the other stays beside it, at the top. Long values wrap. */
+  .pv-details-pair { grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+  .pv-details-pair .pv-fold .pv-mono, .pv-details-pair .pv-fold .pv-raw, .pv-details-pair .pv-fold code { overflow-wrap: anywhere; word-break: break-all; white-space: normal; }
 }

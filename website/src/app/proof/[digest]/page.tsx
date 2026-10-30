@@ -76,6 +76,7 @@ import { judge as judgeLooks } from "@/lib/trustmark/check";
 import { publishFoundRecord } from "@/lib/trustmark/ledger";
 import type { Original } from "@/lib/trustmark/check";
 import { forgetHeldCopy, recallHeldCopy, setHeldCopy, takeHeldCopy, type HeldCopy } from "@/lib/trustmark/held-copy";
+import { setRecordAgain } from "@/lib/trustmark/record-again";
 import { copyOfNote, credentialsMatchNote, droppedCopyNote } from "@/lib/trustmark/copy-note";
 import { SourceField, noteDropUrl } from "@/components/source-link";
 import { candidates as publishedRecords, unb64, verifyMember } from "@/lib/trustmark/ledger";
@@ -342,6 +343,17 @@ export default function ProofPage() {
   const router = useRouter();
   // true when the file in the pane came from the holder's hosted link, not from this visitor: no "add a link" field then
   const [hostedOriginal, setHostedOriginal] = useState(false);
+  // the earliest BitGraph of the same picture, when this one points back to it (app/api/lineage)
+  const [firstRecorded, setFirstRecorded] = useState<ProofViewModel["firstRecorded"]>(null);
+  useEffect(() => {
+    setFirstRecorded(null);
+    const epoch = proof?.commit?.epochId ? String(proof.commit.epochId) : null, counter = proof?.commit?.counter !== undefined ? String(proof.commit.counter) : null;
+    if (!epoch || !counter) return;
+    let cancelled = false;
+    const q = `digest=${encodeURIComponent(stdDigest(digestParam))}&epoch=${encodeURIComponent(epoch.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}&counter=${encodeURIComponent(counter)}`;
+    void fetch(`/api/lineage?${q}`).then((r) => (r.ok ? r.json() : null)).then((b: { first?: ProofViewModel["firstRecorded"] } | null) => { if (!cancelled && b?.first) setFirstRecorded(b.first); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [digestParam, proof?.commit?.epochId, proof?.commit?.counter]);
   // the shown photo's full-size Open link, set by its card, shown beside the downloads
   const [photoOpenUrl, setPhotoOpenUrl] = useState<string | null>(null);
   // Another proof opened in place (a copy's "also looks like", a gallery tile, a tree's file): nothing of the last
@@ -2521,6 +2533,7 @@ export default function ProofPage() {
             ethWait: baseFloor !== null ? false : ethWait,
             ceilingTime: !isEth ? (baseCeiling as ProofViewModel["ceilingTime"]) : null,
             floorLink: !isEth ? floorLink : null,
+            firstRecorded,
             floorOf: !isEth ? floorOf : null,
             epochStart,
             treeFloor,
@@ -3198,12 +3211,22 @@ function CopyOptions({ proof, heldCopy, digestParam, setBound, onMatch, onResolv
     router.push(hrefOf(o));
   };
   const toggle = (k: "choose" | "find" | "link") => setOpen((cur) => (cur === k ? null : k));
+  // The file in hand recorded as a BitGraph of its own (the original lost; a re-export is new bytes): it goes to Make
+  // with the earliest BitGraph of this picture, which the new one will name as its first.
+  const recordThis = () => {
+    const when = (o: Original) => o.recordedMs ?? Number.POSITIVE_INFINITY;
+    const earliest = all.slice().sort((a, b) => when(a) - when(b) || Number(a.counter) - Number(b.counter))[0];
+    const first = earliest ? { digestB64: earliest.photoDigestB64, epochId: earliest.epochId, counter: String(earliest.counter) } : { digestB64: stdDigest(digestParam), epochId: String(proof.commit?.epochId ?? ""), counter: String(proof.commit?.counter ?? "") };
+    setRecordAgain({ name: heldCopy.name, data: heldCopy.data, first });
+    router.push("/make");
+  };
   return (
     <div className="pv-copy-options">
       <div className="pv-photo-actions" style={{ marginTop: 12 }}>
         {others.length > 0 && <button type="button" className={`bg-action-link${open === "choose" ? " is-open" : ""}`} style={{ margin: 0 }} onClick={() => toggle("choose")}>Choose which BitGraph</button>}
         <button type="button" className={`bg-action-link${open === "find" ? " is-open" : ""}`} style={{ margin: 0 }} onClick={() => toggle("find")}>Find original</button>
         <button type="button" className={`bg-action-link${open === "link" ? " is-open" : ""}`} style={{ margin: 0 }} onClick={() => toggle("link")}>Link original</button>
+        <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={recordThis}>Record this file</button>
       </div>
       {open === "choose" && (
         <ul className="pv-choose-list">
