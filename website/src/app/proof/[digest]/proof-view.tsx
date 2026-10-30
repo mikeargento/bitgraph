@@ -473,7 +473,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
     <>
       {/* ── Raw JSON ── */}
       <section className="pv-card pv-details">
-        <Fold title="Raw JSON"><RawJson proof={m.proof} /></Fold>
+        {/* Open, like every other line of the receipt (2026-10-30): the page is the information. */}
+        <div className="pv-section-title">Raw JSON</div>
+        <RawJson proof={m.proof} />
       </section>
     </>
   );
