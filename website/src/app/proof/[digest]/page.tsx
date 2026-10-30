@@ -2257,7 +2257,7 @@ export default function ProofPage() {
                   <strong>Ethereum block {ethBlockNum ? `#${Number(ethBlockNum).toLocaleString("en-US")}` : "#?"}</strong>
                   {anchorBlock?.blockTime ? <> · mined {attestedMs !== null && sameDayTz(new Date(anchorBlock.blockTime), new Date(attestedMs)) ? timeTz(new Date(anchorBlock.blockTime)) : stampTz(new Date(anchorBlock.blockTime))}</> : null}
                 </span>
-                {attr?.title && <a href={attr.title} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}><span>Open</span><span className="arrow" aria-hidden>&#8599;</span></a>}
+                {attr?.title && <a href={attr.title} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}><span>Open</span></a>}
               </div>
             </div>
           ) : isInterval ? null : cachedFile ? null /* no picture on the page (2026-10-30): the file opens from the receipt's Open link */ : heldCopy ? (
@@ -3385,7 +3385,7 @@ function PhotoCard({
             {actions}
             {openUrl && (
               <a href={openUrl} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}>
-                <span>Open</span><span className="arrow" aria-hidden>&#8599;</span>
+                <span>Open</span>
               </a>
             )}
           </span>
@@ -3544,7 +3544,7 @@ function FileCard({ cachedFile, label, preview, pending }: {
         </span>
         {openable && url && (
           <a href={url} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}>
-            <span>Open</span><span className="arrow" aria-hidden>&#8599;</span>
+            <span>Open</span>
           </a>
         )}
       </div>

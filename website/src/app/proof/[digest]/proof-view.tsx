@@ -212,7 +212,7 @@ function Row({ f }: { f: FieldView }) {
     return (
       <div className="pv-row">
         <div className="pv-row-label">{f.label}</div>
-        <a className="pv-row-value pv-link" href={f.value} target="_blank" rel="noopener">{f.value}<span aria-hidden> &#8599;</span></a>
+        <a className="pv-row-value pv-link" href={f.value} target="_blank" rel="noopener">{f.value}</a>
       </div>
     );
   }
@@ -296,7 +296,7 @@ function Pill({ href, children, external, download }: { href: string; children: 
   return (
     <a href={href} className="bg-action-link pv-pill" {...(external ? { target: "_blank", rel: "noopener" } : {})} {...(download ? { download: typeof download === "string" ? download : true } : {})}>
       <span>{children}</span>
-      <span className="arrow" aria-hidden>{download ? "↓" : external ? "↗" : "→"}</span>
+      {!external && <span className="arrow" aria-hidden>{download ? "↓" : "→"}</span>}
     </a>
   );
 }
@@ -379,7 +379,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const timeCell = (label: string, shown: string | null, href: string | null) => shown ? (
     <div className="pv-row pv-row-window">
       <div className="pv-row-label">{label}</div>
-      <div className="pv-row-value pv-window">{shown}{href && <> <a className="pv-link" href={href} target="_blank" rel="noopener">Basescan &#8599;</a></>}</div>
+      <div className="pv-row-value pv-window">{shown}{href && <> <a className="pv-link" href={href} target="_blank" rel="noopener">Basescan</a></>}</div>
     </div>
   ) : null;
   const floorCell = showTime ? timeCell("Floor in time", floorShown, floorHref) : null;
@@ -405,7 +405,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {contentCount !== null && (
             <div className="pv-row">
               <div className="pv-row-label">#{fmtNum(contentCount)}: Content hash</div>
-              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}{m.openUrl && <> <a className="pv-link pv-open-link" href={m.openUrl} target="_blank" rel="noopener">Open &#8599;</a></>}</div>
+              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}{m.openUrl && <> <a className="pv-link pv-open-link" href={m.openUrl} target="_blank" rel="noopener">Open</a></>}</div>
             </div>
           )}
           {(commit as { prevB64?: string }).prevB64 && (
@@ -419,7 +419,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         </div>
         {(es || m.firstRecorded) && (
           <div className="pv-photo-actions" style={{ marginTop: 12 }}>
-            {es && <a className="bg-action-link" style={{ margin: 0 }} href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan &#8599;</a>}
+            {es && <a className="bg-action-link" style={{ margin: 0 }} href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan</a>}
             {m.firstRecorded && <a className="bg-action-link" style={{ margin: 0 }} href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</a>}
           </div>
         )}
@@ -637,8 +637,8 @@ function ContentCredentials({ c2pa, recorded, match }: { c2pa: C2PAReadResult; r
       {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
       {/* Stacked, one link per line (2026-10-30). */}
       <div className="pv-sub-note" style={{ display: "grid", gap: 6 }}>
-        <a className="pv-link" href="https://contentcredentials.org/verify" target="_blank" rel="noopener" style={{ width: "fit-content" }}>Check C2PA &#8599;</a>
-        {openai && <a className="pv-link" href="https://openai.com/research/verify/" target="_blank" rel="noopener" style={{ width: "fit-content" }}>Verify with OpenAI &#8599;</a>}
+        <a className="pv-link" href="https://contentcredentials.org/verify" target="_blank" rel="noopener" style={{ width: "fit-content" }}>Check C2PA</a>
+        {openai && <a className="pv-link" href="https://openai.com/research/verify/" target="_blank" rel="noopener" style={{ width: "fit-content" }}>Verify with OpenAI</a>}
       </div>
     </div>
   );

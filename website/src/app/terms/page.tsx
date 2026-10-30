@@ -115,9 +115,9 @@ export default function TermsPage() {
           distribute, publish, and use the proofs created for your files
           without restriction, subject to applicable law. The open-source
           verification tooling is published under its own license; see{" "}
-          <a href="https://www.npmjs.com/package/@mikeargento/bitgraph-verify">bitgraph-verify</a>{" "}
+          <a href="https://www.npmjs.com/package/@mikeargento/bitgraph-verify" target="_blank" rel="noopener">bitgraph-verify</a>{" "}
           and{" "}
-          <a href="https://www.npmjs.com/package/@mikeargento/bitgraph-player">bitgraph-player</a>{" "}
+          <a href="https://www.npmjs.com/package/@mikeargento/bitgraph-player" target="_blank" rel="noopener">bitgraph-player</a>{" "}
           (MIT).
         </p>
 
