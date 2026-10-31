@@ -471,7 +471,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {contentCount !== null && (
             <div className="pv-row">
               <div className="pv-row-label">#{fmtNum(contentCount)}: Content hash</div>
-              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}{m.openUrl && <> <button type="button" className="pv-link pv-open-link" aria-expanded={fileOpen} onClick={() => setFileOpen((v) => !v)} style={{ background: "none", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}>{fileOpen ? "Close file" : "Open file"}</button></>}</div>
+              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}{m.openUrl && <> <button type="button" className="pv-link-btn pv-open-link" aria-expanded={fileOpen} onClick={() => setFileOpen((v) => !v)}>{fileOpen ? "Close file" : "Open file"}</button></>}</div>
             </div>
           )}
           {fileOpen && m.openUrl && <FileInPlace url={m.openUrl} type={m.openType ?? null} name={m.fileName ?? null} />}
@@ -485,16 +485,16 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             </div>
           )}
           {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
-          {m.firstRecorded && <Row f={{ label: "Same picture, first recorded", value: m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "earlier" }} />}
+          {m.firstRecorded && (
+            <div className="pv-row">
+              <div className="pv-row-label">Same picture, first recorded</div>
+              <div className="pv-row-value">{m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "Earlier"} <a className="pv-link" style={{ marginLeft: 8 }} href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>#{fmtNum(m.firstRecorded.counter)}</a></div>
+            </div>
+          )}
           {blockReadCell}
           {floorCell}
           {ceilingCell}
         </div>
-        {m.firstRecorded && (
-          <div className="pv-photo-actions" style={{ marginTop: 12 }}>
-            {m.firstRecorded && <a className="bg-action-link" style={{ margin: 0 }} href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</a>}
-          </div>
-        )}
       </div>
     </>
   );
