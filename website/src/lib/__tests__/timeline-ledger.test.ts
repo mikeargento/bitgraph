@@ -85,3 +85,9 @@ test("live records: the newest run counts them as they are made; a hole just bel
   assert.equal(liveBatch(E, []), null);
   assert.equal(hole.key, `reads:${E}:32`, "the newest run keeps its key while it grows");
 });
+
+test("a hole in the host's live records is uploading, never missing: a count can be bound a moment before it is written", () => {
+  const live = liveBatch(E, [42, 46, 48])!;
+  assert.equal(spanState(32, 48, [batch(2, 40), live]), "uploading");
+  assert.equal(spanState(32, 48, [batch(2, 40, 19), live]), "missing", "an uploaded batch short of its span is still missing");
+});

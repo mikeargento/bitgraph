@@ -77,12 +77,12 @@ export async function readsBetween(epoch: string, from: number, to: number, limi
   }
   for (const b of batches) {
     for (const raw of (await batchLines(b.key)).reverse()) {
-      let line: { kind?: string; proof?: { commit?: { counter?: string } }; blockFile?: string };
+      let line: { kind?: string; proof?: { commit?: { counter?: string }; artifact?: { digestB64?: string } }; blockFile?: string };
       try { line = JSON.parse(raw); } catch { continue; }
       const counter = Number(line.proof?.commit?.counter ?? NaN);
       if (!(counter >= from && counter <= to)) continue;
       const kind = line.kind === "block" || line.kind === "genesis" ? line.kind : "file";
-      const read: TimelineRead = { counter, kind, recordedMs: recordedMsOf(line.proof as never) };
+      const read: TimelineRead = { counter, kind, recordedMs: recordedMsOf(line.proof as never), ...(line.proof?.artifact?.digestB64 ? { digestB64: line.proof.artifact.digestB64 } : {}) };
       if (kind === "block" && line.blockFile) {
         try {
           const f = JSON.parse(line.blockFile) as { chain?: string; number?: number };

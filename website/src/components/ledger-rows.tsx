@@ -134,8 +134,8 @@ function ReadsRowView({ r }: { r: ReadsRow }) {
         <div className="rl-reads-list">
           {failed && <div className="rl-reads-note">The reads could not be loaded. Try again.</div>}
           {!reads && !failed && r.state !== "unlisted" && <div className="rl-reads-note">Loading…</div>}
-          {reads?.reads.map((x) => (
-            <div key={x.counter} className="xp-row xp-row-base rl-row rl-read">
+          {reads?.reads.map((x) => {
+            const inner = (<>
               <span className="rl-num">#{fmt(x.counter)}</span>
               <span className="rl-counts">counts {fmt(x.counter - 1)}, {fmt(x.counter)}</span>
               <span className="rl-hash">{x.kind === "block" ? `${CHAIN_NAME[x.chain ?? ""] ?? x.chain ?? "Block"} block ${x.number !== undefined ? fmt(x.number) : "?"}` : x.kind === "genesis" ? "Epoch genesis" : "File (not in the index yet)"}</span>
@@ -145,8 +145,12 @@ function ReadsRowView({ r }: { r: ReadsRow }) {
                   <span className="rl-when-short">{clock(x.recordedMs)}</span>
                 </span>
               )}
-            </div>
-          ))}
+            </>);
+            // Each read is a BitGraph of its own: its page names the block and links it on the chain's explorer.
+            return x.digestB64
+              ? <Link key={x.counter} href={`/proof/${x.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${x.counter}&epoch=${r.epoch}`} className="xp-row xp-row-base rl-row rl-read rl-link">{inner}</Link>
+              : <div key={x.counter} className="xp-row xp-row-base rl-row rl-read">{inner}</div>;
+          })}
           {reads && reads.reads.length < r.count && !reads.truncated && r.state !== "uploading" && (
             <div className="rl-reads-note">{fmt(r.count - reads.reads.length)} of these counts are on no record.</div>
           )}
@@ -186,8 +190,9 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: s
             });
           }
           if (j.newestKey) newest.current = j.newestKey;
-          // A row below the newest that was still uploading when it was made: ask for its state again.
-          const stale = rowsRef.current.filter((x, i) => isReads(x) && x.state === "uploading" && i > 0 && rowsRef.current.slice(0, i).some((y) => !isReads(y))) as ReadsRow[];
+          // A row below the newest that was uploading, or looked short, when it was made: ask for its state again. A run
+          // that is truly short stays so; one caught while its records were still landing comes right.
+          const stale = rowsRef.current.filter((x, i) => isReads(x) && (x.state === "uploading" || x.state === "missing") && i > 0 && rowsRef.current.slice(0, i).some((y) => !isReads(y))) as ReadsRow[];
           for (const x of stale.slice(0, 4)) {
             const sr = await fetch(`/api/ledger/span?epoch=${x.epoch}&from=${x.from}&to=${x.to}`, { cache: "no-store" }).catch(() => null);
             if (!sr || !sr.ok) continue;

@@ -27,6 +27,8 @@ export interface ReadsRow {
 
 export interface TimelineRead {
   counter: number;
+  /** The record's digest, standard base64: its proof page's address (with its count and epoch). */
+  digestB64?: string;
   kind: "block" | "file" | "genesis";
   chain?: string;
   number?: number;
@@ -59,7 +61,9 @@ export function spanState(from: number, to: number, batches: readonly TimelineBa
     // Counts no batch holds, below one that does. Right below the live records it is a batch uploaded between the
     // listing and the live fetch, so the counts are on their way, not lost.
     if (b.first > cursor) return b.live ? "uploading" : "missing";
-    if (!complete(b)) return "missing";
+    // The host's records are still landing: two chains' reads and file binds are journaled side by side, so a count can
+    // be bound a moment before it is written. A hole there is in flux; only an uploaded batch can show a count lost.
+    if (!complete(b)) return b.live ? "uploading" : "missing";
     cursor = b.last + 2;
     if (cursor > to) return "recorded";
   }
