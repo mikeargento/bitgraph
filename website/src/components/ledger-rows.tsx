@@ -159,6 +159,8 @@ function ReadsRowView({ r }: { r: ReadsRow }) {
 
 export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: string; live: boolean; initial: LedgerItem[]; newestKey: string | null; hasOlder: boolean }) {
   const [rows, setRows] = useState<LedgerItem[]>(initial);
+  const rowsRef = useRef<LedgerItem[]>(initial);
+  rowsRef.current = rows;
   const [older, setOlder] = useState(hasOlder);
   const [busy, setBusy] = useState(false);
   const newest = useRef<string | null>(newestKey);
@@ -184,6 +186,14 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: s
             });
           }
           if (j.newestKey) newest.current = j.newestKey;
+          // A row below the newest that was still uploading when it was made: ask for its state again.
+          const stale = rowsRef.current.filter((x, i) => isReads(x) && x.state === "uploading" && i > 0 && rowsRef.current.slice(0, i).some((y) => !isReads(y))) as ReadsRow[];
+          for (const x of stale.slice(0, 4)) {
+            const sr = await fetch(`/api/ledger/span?epoch=${x.epoch}&from=${x.from}&to=${x.to}`, { cache: "no-store" }).catch(() => null);
+            if (!sr || !sr.ok) continue;
+            const { state } = (await sr.json()) as { state: ReadsRow["state"] };
+            if (state !== x.state) setRows((cur) => cur.map((y) => (y.key === x.key && isReads(y) ? { ...y, state } : y)));
+          }
           // A new UTC day: today's page is a new page.
           if (new Date().toISOString().slice(0, 10) !== day) window.location.reload();
         }
