@@ -4,8 +4,8 @@
  * The timeline's storage: every record goes into a local JSONL journal first, and once a minute the lines written
  * since the last upload go to S3 as one gzipped object per epoch, not one object per record.
  *
- * A line is { kind, proof, blockFile? }: the proof exactly as the enclave returned it, attestation and all (the next
- * proof's prevB64 covers it), and for a block read the block file it binds. Appends are fsynced before append()
+ * A line is { kind, proof, blockFile?, genesisFile? }: the proof exactly as the enclave returned it, attestation and
+ * all (the next proof's prevB64 covers it), and for a block read or the genesis record the file it binds. Appends are fsynced before append()
  * returns, so a record the caller goes on to use is on disk.
  *
  * Uploading: pending.jsonl is renamed to batch-<ms>.jsonl (new appends start a fresh pending file), split by epoch,
@@ -24,10 +24,12 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import type { BitGraphProof } from "bitgraph";
 
 export interface TimelineLine {
-  kind: "block" | "file";
+  kind: "block" | "file" | "genesis";
   proof: BitGraphProof;
   /** The bitgraph-block-read/1 file a block read binds. */
   blockFile?: string;
+  /** The bitgraph-epoch-genesis/1 file the epoch's genesis record binds. */
+  genesisFile?: string;
 }
 
 /** Puts one object; resolves when it is stored or already was (create-only). */

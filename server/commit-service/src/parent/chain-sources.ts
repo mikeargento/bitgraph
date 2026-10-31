@@ -189,8 +189,8 @@ export const TIMELINE_CHAIN_IDS: Readonly<Record<TimelineChain, readonly string[
 };
 
 /**
- * The cross-checked sources, from the environment. Each list is exactly two comma-separated URLs, the head poller
- * first and the confirmer second:
+ * The cross-checked sources, from the environment. Each list is exactly two comma-separated https URLs (plain http
+ * only on loopback, for local runs), the head poller first and the confirmer second:
  *
  *   TIMELINE_BASE_RPC_URLS          e.g. a Coinbase Developer Platform endpoint, then an Alchemy one
  *   TIMELINE_ETHEREUM_RPC_URLS      e.g. https://ethereum-rpc.publicnode.com, then an Alchemy one
@@ -208,7 +208,7 @@ export function timelineSourcesFromEnv(env: NodeJS.ProcessEnv = process.env, htt
     const chainId = env[`TIMELINE_${chain.toUpperCase()}_CHAIN_ID`]?.trim() || TIMELINE_CHAIN_IDS[chain][0]!;
     if (!TIMELINE_CHAIN_IDS[chain].includes(chainId)) { problems.push(`${chain}: ${chainId} is not one of ${TIMELINE_CHAIN_IDS[chain].join(", ")}`); continue; }
     if (urls.length !== 2) { problems.push(`${chain}: ${key} needs exactly two URLs, has ${urls.length}`); continue; }
-    if (urls.some((u) => !/^https:\/\//.test(u))) { problems.push(`${chain}: every URL in ${key} must be https`); continue; }
+    if (urls.some((u) => !/^https:\/\//.test(u) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(u))) { problems.push(`${chain}: every URL in ${key} must be https (http only on loopback, for local runs)`); continue; }
     try {
       sources[chain] = new CrossChecked(new EvmSource(chain, chainId, urls[0]!, http), new EvmSource(chain, chainId, urls[1]!, http));
     } catch (e) {

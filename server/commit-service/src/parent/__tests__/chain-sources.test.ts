@@ -134,5 +134,7 @@ test("configuration: two https URLs per chain, mainnet by default, problems name
   assert.match(bad.problems.join(), /base: TIMELINE_BASE_RPC_URLS needs exactly two URLs, has 1/);
   assert.match(bad.problems.join(), /ethereum: every URL .* must be https/);
   assert.match(timelineSourcesFromEnv({ TIMELINE_BASE_RPC_URLS: "https://a.example,https://b.example", TIMELINE_BASE_CHAIN_ID: "eip155:1" }).problems.join(), /base: eip155:1 is not one of/);
+  assert.deepEqual(timelineSourcesFromEnv({ TIMELINE_BASE_RPC_URLS: "http://127.0.0.1:9001,http://localhost:9002" }).problems.filter((p) => p.startsWith("base")), [], "plain http on loopback, for local runs");
+  assert.match(timelineSourcesFromEnv({ TIMELINE_BASE_RPC_URLS: "http://127.0.0.1.evil.example,https://b.example" }).problems.join(), /must be https/);
   assert.match(timelineSourcesFromEnv({ TIMELINE_BASE_RPC_URLS: "https://a.example/x,https://a.example/y" }).problems.join(), /two providers/);
 });

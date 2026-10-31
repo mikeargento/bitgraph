@@ -30,7 +30,8 @@ const nsmClient = {
     if ("GetRandom" in req) return { GetRandom: { random: new Uint8Array(__harnessRandom(256)) } };
     if ("Attestation" in req) {
       const ud = (req["Attestation"] as { user_data?: Uint8Array }).user_data ?? new Uint8Array();
-      return { Attestation: { document: new TextEncoder().encode("LOCAL-HARNESS-ATTESTATION:" + Buffer.from(ud).toString("hex")) } };
+      // The stand-in's time, as a Nitro document carries the hardware's: LOCAL-HARNESS-ATTESTATION:<user_data hex>:<ms>.
+      return { Attestation: { document: new TextEncoder().encode("LOCAL-HARNESS-ATTESTATION:" + Buffer.from(ud).toString("hex") + ":" + Date.now()) } };
     }
     throw new Error("harness NSM: unsupported request " + JSON.stringify(Object.keys(req)));
   },

@@ -39,6 +39,9 @@ import { createAuthPolicy, describeAuthPolicy, type AuthPolicy } from "./auth.js
 import { enqueueCeiling, ceilingQueueEnabled } from "./ceiling-queue.js";
 import { epochFloorFile, latestBaseBlock, sha256B64, epochGenesisDir, requestEpochGenesis, awaitEpochGenesis } from "./epoch-floor.js";
 import { BaseHeadFeed, baseFloorEnabled } from "./base-head.js";
+import { Timeline } from "./timeline.js";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 const PORT = Number(
   process.argv.find((a) => a.startsWith("--port="))?.split("=")[1]
@@ -282,6 +285,10 @@ const BIND_HOST = process.env["BIND_HOST"] || "0.0.0.0";
 
 const enclaveClient: EnclaveClient = new VsockClient();
 
+// The block timeline (timeline.ts), when TIMELINE=on: block reads bound beside the files, every record journaled.
+let openEpochId: string | null = null;
+let timeline: Timeline | null = null;
+
 let cachedKeyResponse: { publicKeyB64: string; measurement: string; enforcement: string; bind?: string; only?: string } | null = null;
 
 async function getKeyInfo(): Promise<{ publicKeyB64: string; measurement: string; enforcement: string; bind?: string; only?: string }> {
@@ -368,6 +375,49 @@ async function bindEpochFloor(epochId: string): Promise<void> {
     }
   } finally {
     epochStarting = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The epoch's genesis under the timeline: the Base write is retried until it lands, with no block-read fallback.
+// Block reads and file binds go on meanwhile (pre-genesis: their clock check rests on Nitro alone until the genesis
+// record is bound), so /commit is not held while the write is pending.
+// ---------------------------------------------------------------------------
+
+async function bindTimelineGenesis(epochId: string): Promise<void> {
+  const gdir = epochGenesisDir();
+  const stateDir = process.env["TIMELINE_STATE_DIR"]!;
+  const safeEpoch = epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const marker = join(stateDir, `genesis-bound-${safeEpoch}`);
+  if (existsSync(marker)) return;
+  if (!gdir) {
+    console.error("[parent] timeline: EPOCH_GENESIS_DIR is not set, so this epoch has no genesis write and stays pre-genesis");
+    return;
+  }
+  requestEpochGenesis(gdir, epochId);
+  console.log(`[parent] timeline: genesis write requested for ${epochId.slice(0, 12)}…; reads and binds continue as pre-genesis until it lands`);
+  for (let waited = 0; ; waited++) {
+    const file = await awaitEpochGenesis(gdir, epochId, 60_000);
+    if (file) {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          const r = await bindWithFloor({ digestB64: sha256B64(file) });
+          if (!r.ok || !r.data) throw new Error(r.error ?? "bind failed");
+          const { proof } = r.data as { proof: BitGraphProof };
+          await keepMade([proof], false, file);
+          mkdirSync(stateDir, { recursive: true });
+          writeFileSync(marker, `${proof.commit.counter}\n`);
+          await storeEpochFloorFile(epochId, file);
+          const g = JSON.parse(file) as { txHash: string; blockNumber: number };
+          console.log(`[parent] timeline: genesis Base tx ${g.txHash.slice(0, 12)}… (block ${g.blockNumber}) bound at counter ${proof.commit.counter}`);
+          return;
+        } catch (e) {
+          console.warn(`[parent] timeline: binding the genesis record failed (attempt ${attempt}): ${e instanceof Error ? e.message : String(e)}`);
+          await new Promise((res) => setTimeout(res, Math.min(30_000, 1000 * attempt)));
+        }
+      }
+    }
+    console.warn(`[parent] timeline: genesis write for ${epochId.slice(0, 12)}… not mined after ${waited + 1} min; still waiting`);
   }
 }
 
@@ -676,13 +726,19 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
  * index), and queued for its Base ceiling when the caller asked for one (no-op unless CEILING_QUEUE_PATH; the Base
  * plugin's write, Mike 2026-10-18). Persisting and queueing are fire-and-forget, as before.
  */
-async function keepMade(proofs: BitGraphProof[], ceiling: boolean): Promise<void> {
+async function keepMade(proofs: BitGraphProof[], ceiling: boolean, genesisFile?: string): Promise<void> {
   try {
     const { computeProofHash } = await import("bitgraph");
     for (const p of proofs) {
       (p as BitGraphProof & { proofHash: string }).proofHash = computeProofHash(p);
     }
   } catch (_) { /* non-critical — proofHash is a convenience field */ }
+  // The timeline's journal holds every record of the sequence; the per-proof ledger objects below are kept as well.
+  if (timeline) {
+    for (const p of proofs) {
+      try { timeline.record(p, genesisFile); } catch (e) { console.error(`[parent] timeline journal append failed: ${e instanceof Error ? e.message : String(e)}`); }
+    }
+  }
   void persistToLedger(proofs);
   if (ceiling) enqueueCeiling(proofs);
 }
@@ -822,7 +878,7 @@ async function handleAllocateSlot(req: IncomingMessage, res: ServerResponse): Pr
 }
 
 async function handleHealth(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  sendJson(res, 200, { ok: true });
+  sendJson(res, 200, timeline ? { ok: true, timeline: timeline.status() } : { ok: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -885,7 +941,27 @@ server.listen(PORT, BIND_HOST, async () => {
   // Epochs are not linked (Mike, 2026-10-18); each fresh epoch's first BitGraph is a Base block read instead.
   try {
     const init = await initEnclave();
-    if (init.counter === "0" && process.env["EPOCH_FLOOR"] !== "off") void bindEpochFloor(init.epochId);
+    openEpochId = init.epochId;
+    try {
+      timeline = Timeline.fromEnv({
+        bind: async (digestB64) => {
+          // Straight to the enclave: never through /api/commit, so nothing is put in front of a block read.
+          const r = await enclaveClient.send({ type: "bind", digestB64 });
+          if (!r.ok || !r.data) throw new Error(r.error ?? "bind failed");
+          return (r.data as { proof: BitGraphProof }).proof;
+        },
+        epochId: () => openEpochId,
+        log: (m) => console.log(m),
+      });
+    } catch (e) {
+      console.error(`[parent] timeline not started: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (timeline) {
+      const st = timeline.status();
+      console.log(`[parent] timeline: reading ${st.chains.map((c) => c.chain).join(" and ") || "no chain"}${st.problems.length ? ` (${st.problems.join("; ")})` : ""}`);
+      timeline.start();
+      void bindTimelineGenesis(init.epochId);
+    } else if (init.counter === "0" && process.env["EPOCH_FLOOR"] !== "off") void bindEpochFloor(init.epochId);
     else console.log(`[parent] epoch already under way (counter ${init.counter}): no epoch floor to bind`);
   } catch (err) {
     console.error(`[parent] enclave init failed: ${err instanceof Error ? err.message : String(err)}`);
