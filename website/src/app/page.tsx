@@ -198,7 +198,8 @@ TRUE
           <li><strong>Who made it, or that it is true.</strong> It binds bytes, not authorship or meaning.</li>
           <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other was.</li>
         </ul>
-        <p>What it rests on: AWS Nitro hardware, a published enclave build anyone can rebuild, and standard cryptography. Base and Ethereum are read, never written per record. <a href="/technology#t-threat">The threat model</a>.</p>
+        <p>What it rests on: AWS Nitro hardware, a published enclave build anyone can rebuild, and standard cryptography. Base and Ethereum are read, never written per record.</p>
+        <p><a href="/technology#t-threat">The threat model</a></p>
       </section>
 
       <section className="home-section" aria-labelledby="home-paths">
