@@ -5986,3 +5986,16 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
    less than a section break, so it still belongs to its section. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section > .mf { margin-top: 96px !important; margin-bottom: 96px !important; }
 @media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section > .mf { margin-top: 64px !important; margin-bottom: 64px !important; } }
+/* A drop's files under its tree BitGraph (2026-10-31): one line each, name left, its proof right. */
+html:root:root:root:root body main .plug-members { list-style: none; margin: 0; padding: 4px 0; border-bottom: 1px solid var(--line-2); max-height: 420px; overflow-y: auto; }
+html:root:root:root:root body main .plug-member { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 8px 20px; margin: 0; font-size: 14px; }
+html:root:root:root:root body main .plug-member-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+html:root:root:root:root body main .plug-member > a { flex: none; color: var(--link); }
+html:root:root:root:root body main .plug-member-wait, html:root:root:root:root body main .plug-member-more { flex: none; color: var(--dim); }
+/* The home hero is the first screen (2026-10-31): centred both ways in the space under the bar; How it works scrolls
+   down to the mechanism, smoothly unless reduced motion is asked for, landing clear of the sticky bar. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .sx-hero { min-height: calc(100svh - 64px); box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; max-width: none !important; margin: 0 auto; padding: 48px 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .sx-hero .sx-sub { margin-left: auto !important; margin-right: auto !important; max-width: 780px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .sx-hero .sx-cta { justify-content: center; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing #how { scroll-margin-top: 64px; }
+@media (prefers-reduced-motion: no-preference) { html:has(main .is-landing) { scroll-behavior: smooth; } }

@@ -69,12 +69,12 @@ export default function HomePage() {
         </p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">See it work</a>
-          <a className="bg-action-link" href="/technology">How it works</a>
+          <a className="bg-action-link" href="#how">How it works</a>
           <a className="bg-action-link" href="/proof/MXkV_2WRyBSlQV_BdOio2gc1NSrd2Wxl8zW0OrACCDk?counter=26&epoch=NihRUA1VRsV4cqmwWDO_4viNR7YhJRdCb75lGASeV3E">View a proof</a>
         </div>
       </section>
 
-      <section className="home-section" aria-labelledby="home-mech">
+      <section id="how" className="home-section" aria-labelledby="home-mech">
         <p className="home-kicker">The mechanism</p>
         <h2 id="home-mech">The position comes first.</h2>
         <p>

@@ -66,6 +66,8 @@ type Row = {
   isProofFile?: boolean;
 };
 
+/** A drop's file list shows this many by name; the rest are in Download everything. */
+const MEMBERS_SHOWN = 200;
 const toUrlSafe = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 function b64(bytes: Uint8Array): string {
   let s = "";
@@ -408,6 +410,10 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     already?: boolean;
     /** Two or more photos in the drop: each one's proof, a page at a time or as a grid. */
     gallery?: Gallery;
+    /** The files of a drop of two or more, in the drop's order, each with its own proof page (2026-10-31). */
+    members?: Array<{ name: string; href: string }>;
+    /** How many files were dropped: the tree also holds each photo's thumbnail and fingerprint record, which are not counted. */
+    dropCount?: number;
   } | null>(null);
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
@@ -690,7 +696,15 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       // No gallery of thumbnails after a drop (2026-10-30): the tree's panel lists the BitGraph, and each file's own proof
       // opens from its proof page.
       const gallery: Gallery | undefined = undefined;
-      if (!opensProof) setPlug({ gallery, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
+      // The drop's files as a plain list, no thumbnails (2026-10-31): each opens its own proof page, which finds the file
+      // by its hash once the index below is written. Each file once, as dropped.
+      const members = (() => {
+        if (list || files.length < 2 || !b.commit?.counter || !b.commit?.epochId) return undefined;
+        const seen = new Set<string>(), counter = encodeURIComponent(String(b.commit.counter)), epoch = encodeURIComponent(toUrlSafe(String(b.commit.epochId)));
+        return dropped.flatMap((l) => (seen.has(l[2]) || !seen.add(l[2]) ? [] : [{ name: l[0], href: `/proof/${toUrlSafe(l[2])}?counter=${counter}&epoch=${epoch}` }]));
+      })();
+      const dropCount = list ? t.files : new Set(dropped.map((l) => l[2])).size;
+      if (!opensProof) setPlug({ members, dropCount, gallery, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
       // Each file is indexed under its own hash (lib/tree-member.ts): written after the proof is
       // shown, so the BitGraph never waits on it; the server checks every path to the root before it writes.
       type Lookup = { stored: number; total: number; state: "sealing" | "saving" | "done" | "failed"; note?: string };
@@ -1059,7 +1073,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
             <div>
               <div className="plug-title">{plug.a ? "BitGraph 2" : "BitGraph"} <span className="plug-num">#{Number(plug.b.commit?.counter).toLocaleString("en-US")}</span></div>
               <div className="plug-sub">
-                {plug.tree ? `Tree of ${plug.tree.files.toLocaleString("en-US")}` : plug.contentName}
+                {plug.tree ? `${(plug.dropCount ?? plug.tree.files).toLocaleString("en-US")} files in one tree` : plug.contentName}
                 {plug.ceiling === "waiting" && " · waiting for Base"}
                 {plug.ceiling === "written" && " · written to Base"}
               </div>
@@ -1073,16 +1087,31 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
             <div className="plug-row">
               <div className="plug-sub">
                 {plug.lookup.state === "sealing" && "Indexing each file under its own hash…"}
-                {plug.lookup.state === "saving" && `Indexing each file under its own hash: ${plug.lookup.stored.toLocaleString("en-US")} of ${plug.lookup.total.toLocaleString("en-US")}…`}
-                {plug.lookup.state === "done" && `Each of the ${plug.lookup.total.toLocaleString("en-US")} files now looks up by its own hash, like a file made alone.`}
+                {plug.lookup.state === "saving" && "Indexing each file under its own hash…"}
+                {plug.lookup.state === "done" && `Each of the ${(plug.dropCount ?? plug.lookup.total).toLocaleString("en-US")} files now looks up by its own hash, like a file made alone.`}
                 {plug.lookup.state === "failed" && `Files dropped later may not find this tree: ${plug.lookup.note ?? "the entries could not be saved"}. The tree's own files still check it.`}
               </div>
             </div>
           )}
+          {plug.members && plug.members.length > 0 && (
+            <ul className="plug-members">
+              {plug.members.slice(0, MEMBERS_SHOWN).map((m) => (
+                <li key={m.href} className="plug-member">
+                  <span className="plug-member-name">{m.name}</span>
+                  {plug.lookup?.state === "done"
+                    ? <a href={m.href} target="_blank" rel="noopener">View proof</a>
+                    : <span className="plug-member-wait">{plug.lookup?.state === "failed" ? "In the tree" : "Indexing…"}</span>}
+                </li>
+              ))}
+              {plug.members.length > MEMBERS_SHOWN && (
+                <li className="plug-member plug-member-more">and {(plug.members.length - MEMBERS_SHOWN).toLocaleString("en-US")} more, all in Download everything</li>
+              )}
+            </ul>
+          )}
           {timer && plug.ms && (
             <div className="plug-row">
               <div className="plug-sub">
-                {plug.tree ? `${plug.fromList ? "Read" : "Hashed"} ${plug.tree.files.toLocaleString("en-US")} ${plug.fromList ? "hashes" : "files"} in ${(plug.ms.hash / 1000).toFixed(2)} s · ` : ""}
+                {plug.tree ? `${plug.fromList ? "Read" : "Hashed"} ${(plug.dropCount ?? plug.tree.files).toLocaleString("en-US")} ${plug.fromList ? "hashes" : "files"} in ${(plug.ms.hash / 1000).toFixed(2)} s · ` : ""}
                 {plug.a ? "Two BitGraphs" : "BitGraph"} made in {(plug.ms.bind / 1000).toFixed(2)} s · drop to proof {(plug.ms.total / 1000).toFixed(2)} s
               </div>
             </div>
