@@ -109,6 +109,26 @@ export class Timeline {
     return { ...r, found: true };
   }
 
+  /**
+   * The records still on this machine (not yet in an uploaded batch) after `after`, for the public ledger's live view:
+   * each one's count, kind, block (for a read) and attested time. Nothing here is not already public: the same lines
+   * reach the bucket within the minute.
+   */
+  recent(epochId: string, after: number, limit = 3000): { epochId: string; records: Array<{ counter: number; kind: string; chain?: string; number?: number; recordedMs: number | null }> } {
+    const out = this.records.local()
+      .filter((l) => l.proof.commit?.epochId === epochId && Number(l.proof.commit.counter) > after)
+      .map((l) => {
+        const r: { counter: number; kind: string; chain?: string; number?: number; recordedMs: number | null } = { counter: Number(l.proof.commit.counter), kind: l.kind, recordedMs: this.nitroTimeMs(l.proof) };
+        if (l.kind === "block" && l.blockFile) {
+          try { const f = JSON.parse(l.blockFile) as { chain?: string; number?: number }; if (f.chain) r.chain = f.chain; if (typeof f.number === "number") r.number = f.number; } catch { /* listed without its block */ }
+        }
+        return r;
+      })
+      .sort((a, b) => a.counter - b.counter);
+    const byCount = new Map(out.map((r) => [r.counter, r]));
+    return { epochId, records: [...byCount.values()].slice(-limit) };
+  }
+
   async flush(): Promise<void> {
     await this.journal.flush();
   }

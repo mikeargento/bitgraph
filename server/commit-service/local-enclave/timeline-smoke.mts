@@ -133,6 +133,12 @@ try {
   const fileIdx = lines.findIndex((l) => l.proof.artifact.digestB64 === fileDigest);
   check(!!genesisLine && Number(genesisLine.proof.commit.counter) > Number(lines[fileIdx]!.proof.commit.counter), "the genesis record is bound, after the pre-genesis file");
 
+  // The records not yet uploaded, for the ledger's live view.
+  const epochUrl = epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const recent = (await (await fetch(`${stack.parentUrl}/timeline/recent?epoch=${epochUrl}&after=0`)).json()) as { records: Array<{ counter: number; kind: string; chain?: string; number?: number; recordedMs: number | null }> };
+  check(recent.records.length === lines.length && recent.records.every((r) => typeof r.recordedMs === "number") && recent.records.some((r) => r.kind === "block" && r.chain === "base" && typeof r.number === "number"),
+    `GET /timeline/recent serves the ${recent.records.length} records not yet uploaded, with kind, block and time`);
+
   // The bundle, as GET /timeline/bundle exports it.
   const exp = await fetch(`${stack.parentUrl}/timeline/bundle?digest=${b64url}`);
   const got = (await exp.json()) as { bundle: TimelineBundle; chain: string; notes: string[] };

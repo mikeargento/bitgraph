@@ -897,6 +897,9 @@ async function handleAllocateSlot(req: IncomingMessage, res: ServerResponse): Pr
  * everything needed to check its place between two block reads offline (verifyTimelineBundle; the chains give the
  * time). 409 with retryable: true until the block read that will be its ceiling exists, a few seconds after a bind.
  */
+// GET /timeline/recent?epoch=<base64url>&after=<count>: the timeline's records not yet uploaded (timeline.ts recent()),
+// so the public ledger shows block reads as they are made rather than a minute later.
+
 async function handleTimelineBundle(url: URL, res: ServerResponse): Promise<void> {
   if (!timeline) { sendError(res, 404, "the block timeline is not running on this host"); return; }
   const d = url.searchParams.get("digest");
@@ -951,6 +954,14 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       await handleHealth(req, res);
     } else if (method === "GET" && url.pathname === "/timeline/bundle") {
       await handleTimelineBundle(url, res);
+    } else if (method === "GET" && url.pathname === "/timeline/recent") {
+      if (!timeline) { sendError(res, 404, "the block timeline is not running on this host"); }
+      else {
+        const e = (url.searchParams.get("epoch") ?? "").replace(/-/g, "+").replace(/_/g, "/").padEnd(44, "=");
+        const after = Number(url.searchParams.get("after") ?? "0");
+        if (!/^[A-Za-z0-9+/]{43}=$/.test(e) || !Number.isSafeInteger(after) || after < 0) sendError(res, 400, "give epoch (base64url) and after (a count)");
+        else sendJson(res, 200, timeline.recent(e, after));
+      }
     } else {
       sendError(res, 404, `${method} ${url.pathname} not found`);
     }
