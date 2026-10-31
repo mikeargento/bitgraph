@@ -1,30 +1,28 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * Block sources for the timeline: what the parent reads from Base, Ethereum and Bitcoin before it binds a
- * bitgraph-block-read/1 file (packages/verify/src/block-read.ts). Nothing here writes to any chain.
+ * Block sources for the timeline: what the parent reads from Base and Ethereum before it binds a
+ * bitgraph-block-read/1 file (packages/verify/src/block-read.ts). Nothing here writes to any chain. Base and Ethereum
+ * only: their block timestamps follow real time closely enough for the verifier's time checks, and Ethereum keeps
+ * brackets coming while Base is down.
  *
- * One source is one provider:
- *   EvmSource       JSON-RPC (Base, Ethereum). Every block is rebuilt into its header RLP and kept only when
- *                   keccak-256 of that reproduces the hash the node reported (base-head.ts), so the number, time and
- *                   parent hash are the block's own, not the node's say-so.
- *   EsploraSource   the Esplora HTTP API that mempool.space and blockstream.info both serve. The 80-byte header is
- *                   checked against the hash (double SHA-256, byte-reversed); the time and parent hash are read from
- *                   it. The height is the provider's word, which is why two providers are asked.
+ * One source is one JSON-RPC provider (EvmSource). Every block is rebuilt into its header RLP and kept only when
+ * keccak-256 of that reproduces the hash the node reported (base-head.ts), so the number, time and parent hash are the
+ * block's own, not the node's say-so. ready() checks that the node serves the chain id it is configured for.
  *
  * CrossChecked takes two sources of one chain and keeps a block only when both report the same hash at that
  * height. When either cannot answer, the read fails: a chain with one provider up is a chain that is down, and the
- * poller reads the missed blocks in order once both are back.
+ * poller reads the missed blocks in order once both are back. The first source is the one polled for the head; the
+ * second only confirms blocks, which keeps a metered provider's use to one call per block.
  *
  * URLs may carry API keys, so only an endpoint's origin appears in any message.
  */
 
-import { createHash } from "node:crypto";
 import { checkedBaseHeaderRlp, type RpcBlock } from "./base-head.js";
 
-export type TimelineChain = "base" | "ethereum" | "bitcoin";
+export type TimelineChain = "base" | "ethereum";
 
-/** A block as the timeline uses it. Hashes in the chain's own form: 0x hex on Base and Ethereum, plain hex on Bitcoin. */
+/** A block as the timeline uses it. Hashes are 0x and lowercase hex. */
 export interface ChainHead {
   chain: TimelineChain;
   chainId: string;
@@ -46,6 +44,8 @@ export interface BlockSource {
   at(n: number): Promise<ChainHead>;
   /** The block with this hash and whether it is on the best chain; null when the provider does not know it. */
   byHash(hash: string): Promise<{ head: ChainHead; canonical: boolean } | null>;
+  /** Throws unless the provider serves the configured chain. */
+  ready(): Promise<void>;
 }
 
 /** POST a JSON body and return the parsed answer; GET text. Injected in tests. */
@@ -113,6 +113,14 @@ export class EvmSource implements BlockSource {
     return h;
   }
 
+  async ready(): Promise<void> {
+    const id = (await this.call("eth_chainId", [])) as string | null;
+    const want = this.chainId.replace(/^eip155:/, "");
+    if (typeof id !== "string" || parseInt(id, 16) !== Number(want)) {
+      throw new Error(`${this.origin}: serves chain ${id === null ? "?" : parseInt(id, 16)}, not ${this.chainId}`);
+    }
+  }
+
   async byHash(hash: string): Promise<{ head: ChainHead; canonical: boolean } | null> {
     const b = (await this.call("eth_getBlockByHash", [hash, false])) as RpcBlock | null;
     if (!b) return null;
@@ -120,72 +128,6 @@ export class EvmSource implements BlockSource {
     if (head.hash !== hash.toLowerCase()) throw new Error(`${this.origin}: asked for ${hash}, answered with ${head.hash}`);
     const best = await this.at(head.number);
     return { head, canonical: best.hash === head.hash };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Bitcoin
-// ---------------------------------------------------------------------------
-
-const BITCOIN_MAINNET = "bip122:000000000019d6689c085ae165831e93";
-
-/** An 80-byte header's hash, time and parent, checked against the hash it is claimed for. */
-export function parseBitcoinHeader(hex: string, expectedHash: string): { hash: string; parentHash: string; timestamp: number } {
-  if (!/^[0-9a-f]{160}$/i.test(hex)) throw new Error("a Bitcoin header is 80 bytes of hex");
-  const bytes = Buffer.from(hex, "hex");
-  const once = createHash("sha256").update(bytes).digest();
-  const hash = Buffer.from(createHash("sha256").update(once).digest()).reverse().toString("hex");
-  if (hash !== expectedHash.toLowerCase()) throw new Error(`the header hashes to ${hash}, not ${expectedHash}`);
-  const parentHash = Buffer.from(bytes.subarray(4, 36)).reverse().toString("hex");
-  return { hash, parentHash, timestamp: bytes.readUInt32LE(68) };
-}
-
-export class EsploraSource implements BlockSource {
-  readonly chain = "bitcoin" as const;
-  readonly origin: string;
-  private readonly base: string;
-  constructor(baseUrl: string, private readonly http: Http = defaultHttp(), readonly chainId: string = BITCOIN_MAINNET) {
-    this.base = baseUrl.replace(/\/+$/, "");
-    this.origin = originOf(baseUrl);
-  }
-
-  private async get(path: string): Promise<string> {
-    try {
-      return (await this.http.getText(this.base + path)).trim();
-    } catch (e) {
-      throw new Error(`${this.origin}: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-
-  private async headAt(hash: string, number: number): Promise<ChainHead> {
-    if (!/^[0-9a-f]{64}$/.test(hash)) throw new Error(`${this.origin}: ${JSON.stringify(hash.slice(0, 80))} is not a block hash`);
-    let h: ReturnType<typeof parseBitcoinHeader>;
-    try { h = parseBitcoinHeader(await this.get(`/block/${hash}/header`), hash); } catch (e) {
-      throw new Error(`${this.origin}: block ${number}: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    return { chain: "bitcoin", chainId: this.chainId, number, ...h };
-  }
-
-  async latest(): Promise<ChainHead> {
-    const height = Number(await this.get("/blocks/tip/height"));
-    if (!Number.isSafeInteger(height) || height < 0) throw new Error(`${this.origin}: no tip height`);
-    return this.at(height);
-  }
-
-  async at(n: number): Promise<ChainHead> {
-    return this.headAt((await this.get(`/block-height/${n}`)).toLowerCase(), n);
-  }
-
-  async byHash(hash: string): Promise<{ head: ChainHead; canonical: boolean } | null> {
-    let status: { in_best_chain?: boolean; height?: number };
-    try {
-      status = JSON.parse(await this.get(`/block/${hash}/status`)) as typeof status;
-    } catch (e) {
-      if (e instanceof Error && /HTTP 404|HTTP 400/.test(e.message)) return null;
-      throw e;
-    }
-    if (typeof status.height !== "number") return null;
-    return { head: await this.headAt(hash.toLowerCase(), status.height), canonical: status.in_best_chain === true };
   }
 }
 
@@ -212,6 +154,10 @@ export class CrossChecked implements BlockSource {
     return x;
   }
 
+  async ready(): Promise<void> {
+    await Promise.all([this.a.ready(), this.b.ready()]);
+  }
+
   /** The first provider's newest block, once the second has the same block at that height. */
   async latest(): Promise<ChainHead> {
     const x = await this.a.latest();
@@ -230,4 +176,44 @@ export class CrossChecked implements BlockSource {
     if (x.canonical !== y.canonical) throw new Error(`${this.chain} block ${hash}: the providers disagree on whether it is canonical`);
     return { head: this.agree(x.head, y.head), canonical: x.canonical };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+/** The CAIP-2 ids each chain may be configured with: mainnet, then the test network for local runs. */
+export const TIMELINE_CHAIN_IDS: Readonly<Record<TimelineChain, readonly string[]>> = {
+  base: ["eip155:8453", "eip155:84532"],
+  ethereum: ["eip155:1", "eip155:11155111"],
+};
+
+/**
+ * The cross-checked sources, from the environment. Each list is exactly two comma-separated URLs, the head poller
+ * first and the confirmer second:
+ *
+ *   TIMELINE_BASE_RPC_URLS          e.g. a Coinbase Developer Platform endpoint, then an Alchemy one
+ *   TIMELINE_ETHEREUM_RPC_URLS      e.g. https://ethereum-rpc.publicnode.com, then an Alchemy one
+ *   TIMELINE_BASE_CHAIN_ID          default eip155:8453
+ *   TIMELINE_ETHEREUM_CHAIN_ID      default eip155:1
+ *
+ * A chain whose list is missing or malformed is not read, and the reason is in `problems`.
+ */
+export function timelineSourcesFromEnv(env: NodeJS.ProcessEnv = process.env, http: Http = defaultHttp()): { sources: Partial<Record<TimelineChain, CrossChecked>>; problems: string[] } {
+  const sources: Partial<Record<TimelineChain, CrossChecked>> = {};
+  const problems: string[] = [];
+  for (const chain of ["base", "ethereum"] as const) {
+    const key = `TIMELINE_${chain.toUpperCase()}_RPC_URLS`;
+    const urls = (env[key] ?? "").split(",").map((u) => u.trim()).filter(Boolean);
+    const chainId = env[`TIMELINE_${chain.toUpperCase()}_CHAIN_ID`]?.trim() || TIMELINE_CHAIN_IDS[chain][0]!;
+    if (!TIMELINE_CHAIN_IDS[chain].includes(chainId)) { problems.push(`${chain}: ${chainId} is not one of ${TIMELINE_CHAIN_IDS[chain].join(", ")}`); continue; }
+    if (urls.length !== 2) { problems.push(`${chain}: ${key} needs exactly two URLs, has ${urls.length}`); continue; }
+    if (urls.some((u) => !/^https:\/\//.test(u))) { problems.push(`${chain}: every URL in ${key} must be https`); continue; }
+    try {
+      sources[chain] = new CrossChecked(new EvmSource(chain, chainId, urls[0]!, http), new EvmSource(chain, chainId, urls[1]!, http));
+    } catch (e) {
+      problems.push(`${chain}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { sources, problems };
 }

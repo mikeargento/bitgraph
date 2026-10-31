@@ -1,6 +1,6 @@
 /**
- * The timeline's block sources. The fixtures are real blocks: Base 53309237 (mainnet.base.org), Ethereum 23673552
- * (ethereum-rpc.publicnode.com) and Bitcoin 920000's header (mempool.space), served here by a fake HTTP layer.
+ * The timeline's block sources, Base and Ethereum. The fixtures are real blocks: Base 53309237 (mainnet.base.org) and
+ * Ethereum 23673552 (ethereum-rpc.publicnode.com), served here by a fake HTTP layer.
  *
  *   cd server/commit-service && node --import tsx/esm --test src/parent/__tests__/chain-sources.test.ts
  */
@@ -8,17 +8,15 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
-import { CrossChecked, EsploraSource, EvmSource, parseBitcoinHeader, type BlockSource, type ChainHead, type Http } from "../chain-sources.js";
+import { CrossChecked, EvmSource, timelineSourcesFromEnv, type BlockSource, type ChainHead, type Http } from "../chain-sources.js";
 import type { RpcBlock } from "../base-head.js";
 
 const fixture = (name: string): string => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 const baseBlock = (JSON.parse(fixture("base-block.json")) as { result: RpcBlock }).result;
 const ethBlock = (JSON.parse(fixture("ethereum-block.json")) as { result: RpcBlock }).result;
-const BTC_920000 = "000000000000000000005e9de5d9e008d923ced659896d9ad012e347882bdc87";
-const btcHeader = fixture("bitcoin-920000.header").trim();
 
 /** A JSON-RPC node holding these blocks; `latest` is the highest. */
-function rpcNode(blocks: RpcBlock[], opts: { fail?: boolean } = {}): Http & { calls: string[] } {
+function rpcNode(blocks: RpcBlock[], opts: { fail?: boolean; chainId?: number } = {}): Http & { calls: string[] } {
   const calls: string[] = [];
   return {
     calls,
@@ -29,27 +27,10 @@ function rpcNode(blocks: RpcBlock[], opts: { fail?: boolean } = {}): Http & { ca
       const byNumber = (tag: string) => tag === "latest" ? blocks.reduce((a, b) => (parseInt(b.number, 16) > parseInt(a.number, 16) ? b : a)) : blocks.find((b) => parseInt(b.number, 16) === parseInt(tag, 16)) ?? null;
       if (method === "eth_getBlockByNumber") return { result: byNumber(params[0]) };
       if (method === "eth_getBlockByHash") return { result: blocks.find((b) => b.hash === params[0]) ?? null };
+      if (method === "eth_chainId") return { result: "0x" + (opts.chainId ?? 8453).toString(16) };
       return { error: { message: "method not found" } };
     },
     async getText() { throw new Error("not an Esplora server"); },
-  };
-}
-
-/** An Esplora server holding block 920000. */
-function esplora(opts: { header?: string; inBest?: boolean } = {}): Http {
-  const routes: Record<string, string> = {
-    "/blocks/tip/height": "920000",
-    "/block-height/920000": BTC_920000,
-    [`/block/${BTC_920000}/header`]: opts.header ?? btcHeader,
-    [`/block/${BTC_920000}/status`]: JSON.stringify({ in_best_chain: opts.inBest ?? true, height: 920000 }),
-  };
-  return {
-    async postJson() { throw new Error("not JSON-RPC"); },
-    async getText(url) {
-      const path = new URL(url).pathname.replace(/^\/api/, "");
-      if (!(path in routes)) throw new Error("HTTP 404");
-      return routes[path]!;
-    },
   };
 }
 
@@ -80,24 +61,11 @@ test("an EVM block by hash says whether it is canonical", async () => {
   assert.equal(await src.byHash("0x" + "00".repeat(32)), null);
 });
 
-test("the real Bitcoin header checks against its hash and gives its time and parent", () => {
-  const h = parseBitcoinHeader(btcHeader, BTC_920000);
-  assert.equal(h.hash, BTC_920000);
-  assert.match(h.parentHash, /^0{16}[0-9a-f]{48}$/);
-  assert.ok(h.timestamp > 1_750_000_000 && h.timestamp < 1_800_000_000);
-  assert.throws(() => parseBitcoinHeader(btcHeader, "00".repeat(32)), /hashes to/);
-  assert.throws(() => parseBitcoinHeader(btcHeader.slice(0, 158), BTC_920000), /80 bytes/);
-});
-
-test("Esplora: tip, height and hash lookups, with the header checked every time", async () => {
-  const src = new EsploraSource("https://mempool.space/api", esplora());
-  const tip = await src.latest();
-  assert.deepEqual([tip.chain, tip.chainId, tip.number, tip.hash], ["bitcoin", "bip122:000000000019d6689c085ae165831e93", 920000, BTC_920000]);
-  assert.equal((await src.byHash(BTC_920000))?.canonical, true);
-  assert.equal(await src.byHash("ab".repeat(32)), null);
-  assert.equal((await new EsploraSource("https://mempool.space/api", esplora({ inBest: false })).byHash(BTC_920000))?.canonical, false);
-  const tampered = btcHeader.slice(0, 136) + "00000000" + btcHeader.slice(144);
-  await assert.rejects(new EsploraSource("https://blockstream.info/api", esplora({ header: tampered })).at(920000), /hashes to/);
+test("ready() refuses a node serving another chain", async () => {
+  await new EvmSource("base", "eip155:8453", "https://base.example", rpcNode([baseBlock])).ready();
+  await assert.rejects(new EvmSource("base", "eip155:8453", "https://base.example", rpcNode([baseBlock], { chainId: 84532 })).ready(), /serves chain 84532, not eip155:8453/);
+  const cc = new CrossChecked(new EvmSource("ethereum", "eip155:1", "https://a.example", rpcNode([ethBlock], { chainId: 1 })), new EvmSource("ethereum", "eip155:1", "https://b.example", rpcNode([ethBlock], { chainId: 8453 })));
+  await assert.rejects(cc.ready(), /b\.example: serves chain 8453/);
 });
 
 // ---------------------------------------------------------------------------
@@ -119,6 +87,7 @@ function stub(origin: string, tip: number, opts: { hashAt?: (n: number) => strin
     latest: () => at(tip),
     at,
     byHash: async (hash) => (opts.down ? Promise.reject(new Error(`${origin}: HTTP 503`)) : { head: { ...head(7), hash }, canonical: opts.canonical ?? true }),
+    ready: async () => {},
   };
 }
 
@@ -142,12 +111,28 @@ test("one provider down means the chain is down; one behind means the read waits
 
 test("a cross-check needs two providers of one chain, and both must agree on canonical", async () => {
   assert.throws(() => new CrossChecked(stub("https://a.example", 1), stub("https://a.example", 1)), /two providers/);
-  const btc = new EsploraSource("https://mempool.space/api", esplora());
-  assert.throws(() => new CrossChecked(stub("https://a.example", 1), btc), /same chain/);
+  const eth = new EvmSource("ethereum", "eip155:1", "https://eth.example", rpcNode([ethBlock]));
+  assert.throws(() => new CrossChecked(stub("https://a.example", 1), eth), /same chain/);
   await assert.rejects(new CrossChecked(stub("https://a.example", 1), stub("https://b.example", 1, { canonical: false })).byHash("0x" + "07".repeat(32)), /disagree on whether it is canonical/);
 });
 
-test("real Bitcoin through two Esplora providers", async () => {
-  const cc = new CrossChecked(new EsploraSource("https://mempool.space/api", esplora()), new EsploraSource("https://blockstream.info/api", esplora()));
-  assert.equal((await cc.latest()).hash, BTC_920000);
+test("configuration: two https URLs per chain, mainnet by default, problems named", () => {
+  const ok = timelineSourcesFromEnv({
+    TIMELINE_BASE_RPC_URLS: "https://api.developer.coinbase.com/rpc/v1/base/KEY, https://base-mainnet.g.alchemy.com/v2/KEY",
+    TIMELINE_ETHEREUM_RPC_URLS: "https://ethereum-rpc.publicnode.com,https://eth-mainnet.g.alchemy.com/v2/KEY",
+  });
+  assert.deepEqual(ok.problems, []);
+  assert.equal(ok.sources.base?.chainId, "eip155:8453");
+  assert.equal(ok.sources.ethereum?.origin, "https://ethereum-rpc.publicnode.com + https://eth-mainnet.g.alchemy.com");
+  assert.ok(!ok.sources.base?.origin.includes("KEY"));
+
+  const bad = timelineSourcesFromEnv({
+    TIMELINE_BASE_RPC_URLS: "https://only.example",
+    TIMELINE_ETHEREUM_RPC_URLS: "http://a.example,https://b.example",
+  });
+  assert.deepEqual(Object.keys(bad.sources), []);
+  assert.match(bad.problems.join(), /base: TIMELINE_BASE_RPC_URLS needs exactly two URLs, has 1/);
+  assert.match(bad.problems.join(), /ethereum: every URL .* must be https/);
+  assert.match(timelineSourcesFromEnv({ TIMELINE_BASE_RPC_URLS: "https://a.example,https://b.example", TIMELINE_BASE_CHAIN_ID: "eip155:1" }).problems.join(), /base: eip155:1 is not one of/);
+  assert.match(timelineSourcesFromEnv({ TIMELINE_BASE_RPC_URLS: "https://a.example/x,https://a.example/y" }).problems.join(), /two providers/);
 });
