@@ -129,6 +129,16 @@ export class Timeline {
     return { epochId, records: [...byCount.values()].slice(-limit) };
   }
 
+  /** The same records in full (the proof and its file), for opening a block read made in the last minute. */
+  recentLines(epochId: string, after: number, limit = 200): TimelineLine[] {
+    const byCount = new Map<number, TimelineLine>();
+    for (const l of this.records.local()) {
+      const c = Number(l.proof.commit?.counter);
+      if (l.proof.commit?.epochId === epochId && c > after) byCount.set(c, l);
+    }
+    return [...byCount.entries()].sort((a, b) => a[0] - b[0]).slice(0, limit).map(([, l]) => l);
+  }
+
   async flush(): Promise<void> {
     await this.journal.flush();
   }

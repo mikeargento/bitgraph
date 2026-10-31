@@ -255,6 +255,47 @@ export default function ProofPage() {
   const [epochStart, setEpochStart] = useState<ProofViewModel["epochStart"]>(null);
   // A tree member's floor (2026-10-20): base-block.json, the first leaf of its tree, checked into the bound root here.
   const [treeFloor, setTreeFloor] = useState<ProofViewModel["treeFloor"]>(null);
+  // The block timeline: this record's floor and ceiling, two block reads on the same counter sequence, verified by the
+  // site against Base and Ethereum (app/api/timeline/bracket). Each links to the block read's own BitGraph.
+  const [timeline, setTimeline] = useState<ProofViewModel["timeline"]>(null);
+  useEffect(() => {
+    setTimeline(null);
+    const c = proof?.commit as { counter?: string; epochId?: string; chainId?: string } | undefined;
+    if (!proof || c?.chainId !== "bitgraph:main" || !c.counter || !c.epochId) return;
+    const ep = c.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    let cancelled = false, timer: ReturnType<typeof setTimeout> | null = null;
+    const started = Date.now();
+    const ask = async () => {
+      const r = await fetch(`/api/timeline/bracket?epoch=${ep}&counter=${c.counter}`, { cache: "no-store" }).catch(() => null);
+      const j = r?.ok ? ((await r.json().catch(() => null)) as ProofViewModel["timeline"] & { state?: string } | null) : null;
+      if (cancelled || !j) return;
+      if (j.state === "none") return;
+      setTimeline({ ...j, epochUrl: ep });
+      // The ceiling is the next block read stamped after this record: a few seconds after a bind.
+      if ((j.state === "pending" || j.state === "unconfirmed") && Date.now() - started < 120_000) timer = setTimeout(ask, 3000);
+    };
+    void ask();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [proof]);
+  // A block read's own page: the block file it binds (from the timeline's batches), checked here to hash to its digest.
+  const [timelineRecord, setTimelineRecord] = useState<{ kind: string; blockFile?: string } | null>(null);
+  const [blockRead, setBlockRead] = useState<ProofViewModel["blockRead"]>(null);
+  useEffect(() => {
+    setBlockRead(null);
+    const f = timelineRecord?.blockFile;
+    if (!proof || timelineRecord?.kind !== "block" || !f) return;
+    let cancelled = false;
+    void hashBytes(new TextEncoder().encode(f)).then((h) => {
+      if (cancelled || h !== proof.artifact.digestB64) return;
+      try {
+        const b = JSON.parse(f) as { chain?: string; number?: number; hash?: string; timestamp?: number };
+        if ((b.chain === "base" || b.chain === "ethereum") && typeof b.number === "number" && typeof b.hash === "string" && typeof b.timestamp === "number") {
+          setBlockRead({ chain: b.chain, number: b.number, hash: b.hash, timestamp: b.timestamp });
+        }
+      } catch { /* not a block file */ }
+    });
+    return () => { cancelled = true; };
+  }, [proof, timelineRecord]);
   useEffect(() => {
     let url: string | null = null, cancelled = false;
     const show = (floorFile: string, block: { number: number; hash: string; timestamp: number }) => {
@@ -1109,9 +1150,10 @@ export default function ProofPage() {
 
     // Apply a proof API response to state (and kick the image poll). Returns
     // false for a response with no proof, so callers can fall back to an error.
-    const applyData = (data: { proofs?: Array<{ proof?: BitGraphProof }>; causalWindow?: typeof causalWindow; anchorBlock?: typeof anchorBlock; positions?: typeof positions } | null): boolean => {
+    const applyData = (data: { proofs?: Array<{ proof?: BitGraphProof }>; causalWindow?: typeof causalWindow; anchorBlock?: typeof anchorBlock; positions?: typeof positions; timelineRecord?: { kind: string; blockFile?: string } } | null): boolean => {
       if (cancelled || !data?.proofs?.[0]?.proof) return false;
       setProof(data.proofs[0].proof);
+      setTimelineRecord(data.timelineRecord ?? null);
       if (data.causalWindow) setCausalWindow(data.causalWindow);
       if (data.anchorBlock) setAnchorBlock(data.anchorBlock);
       if (Array.isArray(data.positions)) setPositions(data.positions);
@@ -2486,6 +2528,8 @@ export default function ProofPage() {
             floorOf: !isEth ? floorOf : null,
             epochStart,
             treeFloor,
+            timeline: !isEth ? timeline : null,
+            blockRead,
             ceilingFileHref: !isEth && baseCeiling?.anchor && proofHashField ? `/api/ceilings/${stdB64(proofHashField).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}` : null,
             checks: isTree ? treeChecks(checks) : checks,
             onConfirm: confirmAgainstNodes,

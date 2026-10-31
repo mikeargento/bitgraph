@@ -158,6 +158,16 @@ export interface ProofViewModel {
   epochStart?: { blockNumber: number; blockHash: string; blockTimestamp: number; baseChecked: boolean | null; fileUrl: string; genesis?: { txHash: string; writer: string } | null } | null;
   /** The floor leaf of this file's tree (2026-10-20): base-block.json, checked into the root this proof binds. */
   treeFloor?: { blockNumber: number; blockHash: string; blockTimestamp: number; fileUrl: string } | null;
+  /** The block timeline's bracket (app/api/timeline/bracket): the block reads before and after this record. When it
+   *  has them, the floor and ceiling show their blocks' times and link to the block reads' own BitGraphs. */
+  timeline?: {
+    state: "verified" | "unconfirmed" | "failed" | "pending" | "none";
+    epochUrl: string;
+    floor: { chain: "base" | "ethereum"; number: number; timestamp: number; counter: string; digestB64: string } | null;
+    ceiling: { chain: "base" | "ethereum"; number: number; timestamp: number; counter: string; digestB64: string } | null;
+  } | null;
+  /** This BitGraph is a block read: the block its file names, which hashed here to its digest. */
+  blockRead?: { chain: "base" | "ethereum"; number: number; hash: string; timestamp: number } | null;
   ceilingFileHref: string | null;
   checks: ChecksView;
   onConfirm: () => void;
@@ -337,7 +347,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   // The content box comes into view once a search starts (2026-10-30), so its reading count shows the work.
   const [searching, setSearching] = useState(false);
   const fo = m.floorOf ?? null;
-  const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null;
+  const tl = m.timeline && m.timeline.state !== "failed" ? m.timeline : null;
+  const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null || tl !== null;
   const c = m.checks;
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
   const badCount = c.claims.filter((x) => x.result === "FALSE").length;
@@ -382,8 +393,29 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <div className="pv-row-value pv-window">{shown}{href && <> <a className="pv-link" href={href} target="_blank" rel="noopener">Basescan</a></>}</div>
     </div>
   ) : null;
-  const floorCell = showTime ? timeCell("Base floor", floorShown, floorHref) : null;
-  const ceilingCell = showTime ? timeCell("Base ceiling", ceilingShown, ceilingHref) : null;
+  // The block timeline, when it has this record: each time links to the block read's own BitGraph, whose page links
+  // the block on the chain's explorer.
+  const chainName = (c: "base" | "ethereum") => (c === "base" ? "Base" : "Ethereum");
+  const readHref = (b: { digestB64: string; counter: string }) => `/proof/${b.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${b.counter}&epoch=${tl!.epochUrl}`;
+  const readCell = (label: string, b: { chain: "base" | "ethereum"; timestamp: number; counter: string; digestB64: string }) => (
+    <div className="pv-row pv-row-window">
+      <div className="pv-row-label">{chainName(b.chain)} {label}</div>
+      <div className="pv-row-value pv-window">{whenBeside(b.timestamp * 1000, attested)} <a className="pv-link" href={readHref(b)}>#{fmtNum(b.counter)}</a></div>
+    </div>
+  );
+  const floorCell = tl?.floor ? readCell("floor", tl.floor) : showTime ? timeCell("Base floor", floorShown, floorHref) : null;
+  const ceilingCell = tl?.ceiling
+    ? readCell("ceiling", tl.ceiling)
+    : tl && tl.state === "pending"
+      ? <div className="pv-row pv-row-window"><div className="pv-row-label">Base ceiling</div><div className="pv-row-value pv-window">Reading the next block</div></div>
+      : showTime ? timeCell("Base ceiling", ceilingShown, ceilingHref) : null;
+  const br = m.blockRead ?? null;
+  const blockReadCell = br ? (
+    <div className="pv-row">
+      <div className="pv-row-label">Block read</div>
+      <div className="pv-row-value">{chainName(br.chain)} block {fmtNum(br.number)}, {whenBeside(br.timestamp * 1000, attested)} <a className="pv-link" href={br.chain === "base" ? `https://basescan.org/block/${br.number}` : `https://etherscan.io/block/${br.number}`} target="_blank" rel="noopener">{br.chain === "base" ? "Basescan" : "Etherscan"}</a></div>
+    </div>
+  ) : null;
   const counterCard = (
     <>
       {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
@@ -419,6 +451,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           )}
           {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
           {m.firstRecorded && <Row f={{ label: "Same picture, first recorded", value: m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "earlier" }} />}
+          {blockReadCell}
           {floorCell}
           {ceilingCell}
         </div>

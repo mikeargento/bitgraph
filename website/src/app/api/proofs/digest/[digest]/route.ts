@@ -7,6 +7,7 @@ import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 import { buildAnchorView, computeWindow } from "@/lib/causal-window";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { readSidecarText } from "@/lib/ceilings";
+import { timelineRecordAt } from "@/lib/timeline-ledger";
 
 /** The Base floor a proof signs (commit.slotFloor, enclave v10 on), or null for an Ethereum floor or none. */
 function baseFloorOf(proof: Record<string, unknown>): { chain: "base"; blockNumber: number; blockHash: string | null; blockTime: string } | null {
@@ -41,6 +42,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // earliest, i.e. the originating proof.
     const all = await getProofsByDigest(standardB64);
     if (all.length === 0) {
+      // A block read (and any record of the block timeline) has no per-proof object: it is in the timeline's batches,
+      // found by its epoch and count, and served when it binds these bytes.
+      const c = req.nextUrl.searchParams.get("counter"), e = req.nextUrl.searchParams.get("epoch");
+      if (c && e && /^[1-9][0-9]*$/.test(c) && /^[A-Za-z0-9_-]{43}$/.test(e)) {
+        const rec = await timelineRecordAt(e, Number(c)).catch(() => null);
+        if (rec && rec.proof.artifact.digestB64 === standardB64) {
+          return NextResponse.json({
+            proofs: [{ proof: rec.proof }], lookupKind: "recorded", positions: [], causalWindow: null, anchorBlock: null, floor: null, ceiling: null,
+            timelineRecord: { kind: rec.kind, ...(rec.blockFile ? { blockFile: rec.blockFile } : {}), ...(rec.genesisFile ? { genesisFile: rec.genesisFile } : {}) },
+          }, { headers: { "Cache-Control": "public, s-maxage=3600" } });
+        }
+      }
       // A miss can become a hit once the bytes are recorded, so keep it brief.
       // A miss is no longer a finding: see DISCOVERY_RETIRED. Additive —
       // `proofs: []` keeps the shape every existing reader parses.

@@ -97,3 +97,24 @@ export async function readsBetween(epoch: string, from: number, to: number, limi
   reads.sort((a, b) => b.counter - a.counter);
   return { reads, truncated: false };
 }
+
+/** One record of the timeline by its count: from the uploaded batches, else (the last minute) from the enclave host. */
+export async function timelineRecordAt(epoch: string, counter: number): Promise<{ kind: string; proof: Record<string, unknown> & { artifact: { digestB64: string } }; blockFile?: string; genesisFile?: string } | null> {
+  const batch = (await batchKeysOf(epoch)).find((b) => b.first <= counter && b.last >= counter);
+  const parse = (raw: string) => { try { return JSON.parse(raw) as { kind: string; proof: Record<string, unknown> & { artifact: { digestB64: string }; commit?: { counter?: string } }; blockFile?: string; genesisFile?: string }; } catch { return null; } };
+  if (batch) {
+    for (const raw of await batchLines(batch.key)) {
+      const l = parse(raw);
+      if (l && Number(l.proof?.commit?.counter) === counter) return l;
+    }
+    return null;
+  }
+  try {
+    const r = await fetch(`${LIVE_URL}?epoch=${epoch}&after=${counter - 2}&full=1`, { cache: "no-store", signal: AbortSignal.timeout(3000) });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { lines?: Array<{ kind: string; proof: Record<string, unknown> & { artifact: { digestB64: string }; commit?: { counter?: string } }; blockFile?: string; genesisFile?: string }> };
+    return j.lines?.find((l) => Number(l.proof?.commit?.counter) === counter) ?? null;
+  } catch {
+    return null;
+  }
+}

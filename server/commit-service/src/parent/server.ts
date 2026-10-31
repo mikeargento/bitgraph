@@ -960,6 +960,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         const e = (url.searchParams.get("epoch") ?? "").replace(/-/g, "+").replace(/_/g, "/").padEnd(44, "=");
         const after = Number(url.searchParams.get("after") ?? "0");
         if (!/^[A-Za-z0-9+/]{43}=$/.test(e) || !Number.isSafeInteger(after) || after < 0) sendError(res, 400, "give epoch (base64url) and after (a count)");
+        else if (url.searchParams.get("full") === "1") sendJson(res, 200, { epochId: e, lines: timeline.recentLines(e, after) });
         else sendJson(res, 200, timeline.recent(e, after));
       }
     } else {
