@@ -2,6 +2,13 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.27.0 (2026-10-31)
+
+- **The block timeline.** Block reads of Base and Ethereum are BitGraphs: the host binds a small `bitgraph-block-read/1` file (CAIP-2 chain id, block number, hash, timestamp, epoch) on the same counter sequence as files, so every file has a block read before it and after it. `blockReadFileText`, `parseBlockReadFile`, `blockReadDigestB64`, `checkBlockRead` (the block's number and timestamp are taken from the chain's answer about its hash, never from the file; a hash off the canonical chain fails).
+- **`bitgraph-timeline-bundle/1` and `verifyTimelineBundle`.** A file's proof with the run of proofs from a block read before it to one after it, the block files and the epoch's genesis record, checked offline (every attestation, the unbroken run) and, with lookups, against the chains. The floor is the highest confirmed block stamped at or before the file's Nitro time ("bound after block A was produced"); the ceiling the first confirmed block stamped after it, above the floor, read within the lag limits ("bound before block B's timestamp, by the Nitro hardware clock, checked against the chain"). Lag limits: Base -2 s to 5 s, Ethereum -2 s to 60 s. Status verified, unconfirmed or failed; a bundle without its epoch's genesis record is never verified.
+- **`buildTimelineBundle`** cuts a file's bundle from the timeline's records; **`attestationTimeMs`** reads an attestation's time.
+- `checkEpochGenesis` takes `position: "any"`: a timeline epoch's genesis record may follow reads made while the Base write was pending.
+
 ## 1.26.0 (2026-10-23)
 
 - **`bitgraph-epoch-genesis/1`: an epoch opens with a write to Base.** A block read bound as an epoch's first BitGraph proves the epoch began after that block, but the host chooses the block, so an old one leaves the floor loose and nothing in the proofs says how old. Now the host puts the new epoch's id in a self-addressed Base transaction from the ceiling writer (calldata `BGE1` and the 32 bytes of the id), and once it is mined binds a record of it as the epoch's first BitGraph. The transaction cannot be made before the epoch's key, since the id is derived from it, and the first BitGraph cannot be made before the transaction's block. Epochs order by their genesis blocks on Base alone. `epochGenesisCalldata`, `epochIdOfCalldata`, `epochGenesisFileText`, `parseEpochGenesisFile`, `checkEpochGenesis`.
