@@ -28,6 +28,17 @@ const PROPERTIES = [
   { title: "Portable evidence", body: "Each proof carries an AWS Nitro attestation naming the published, reproducible enclave build that made it. It checks offline with an open-source verifier, without asking us." },
 ];
 
+/* Reads, never writes (2026-10-31): the block timeline binds a read of every Base and Ethereum block into the same
+   sequence, so each record sits between two public blocks with nothing written to any chain for it. */
+const NO_WRITES = [
+  { title: "No wallet required.", body: "Send a hash. Get a proof. No wallet to connect, tokens to buy or balance to maintain." },
+  { title: "No gas per record.", body: "Recording a file requires no blockchain transaction, so there\u2019s no gas fee for each record." },
+  { title: "A bracket in seconds.", body: "Your proof arrives when the record is bound. Its time bracket closes when the next qualifying block is read\u2014usually within a few seconds." },
+  { title: "Your hash stays off chain.", body: "No file, file hash or batch root is written to a blockchain. Only the epoch ID is announced on Base, once per epoch." },
+  { title: "Two public chains.", body: "Base provides frequent blocks. Ethereum keeps providing time brackets if Base is unavailable." },
+  { title: "Independently verifiable.", body: "Check the hardware attestations, signatures and counted sequence, then confirm the bracketing blocks against the public chains." },
+];
+
 const RELIEF = [
   { title: "One call.", body: "Send a SHA-256 over HTTP, the SDK or MCP. No new infrastructure, nothing to host." },
   { title: "Your files stay yours.", body: "Only the 32-byte digest leaves your systems. We never see the content." },
@@ -52,14 +63,32 @@ export default function HomePage() {
             in one call, with nothing to run. Competent already, stronger now. */}
         <h1 id="home-h">Order before&nbsp;time.</h1>
         <p className="sx-sub">
-          A BitGraph locks where a digital record stands in a counted sequence, after a value nobody could predict. That order needs no
-          clock and no blockchain. Time, identity and public witness are layers bound on top of it, by whoever you already trust. Send a
-          hash, get a proof that checks offline, without your servers or ours.
+          A BitGraph locks where a digital record stands in a counted sequence, after a value nobody could predict. Every record also gets
+          a public time bracket between two blockchain blocks, seconds apart, without a transaction of its own. Send a hash, get a proof
+          that checks offline, without your servers or ours.
         </p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">See it work</a>
           <a className="bg-action-link" href="/technology">How it works</a>
           <a className="bg-action-link" href="/proof/MXkV_2WRyBSlQV_BdOio2gc1NSrd2Wxl8zW0OrACCDk?counter=26&epoch=NihRUA1VRsV4cqmwWDO_4viNR7YhJRdCb75lGASeV3E">View a proof</a>
+        </div>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-reads">
+        <p className="home-kicker">Public time, without per-record transactions</p>
+        <h2 id="home-reads">Blockchain order, without the&nbsp;blockchain.</h2>
+        <p>
+          BitGraph records Base and Ethereum block reads in the same counted sequence as your records. Each record gets a public time
+          bracket: after an earlier block was produced, and before a later block&rsquo;s timestamp, checked by the enclave&rsquo;s
+          hardware clock. With Base, that bracket is usually about two seconds wide.
+        </p>
+        <div className="sx-cards is-3">
+          {NO_WRITES.map((r) => (
+            <article key={r.title} className="tl-card">
+              <h3>{r.title}</h3>
+              <p>{r.body}</p>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -168,7 +197,7 @@ TRUE
           <li><strong>Who made it, or that it is true.</strong> It binds bytes, not authorship or meaning.</li>
           <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other was.</li>
         </ul>
-        <p>What it rests on: AWS Nitro hardware, a published enclave build anyone can rebuild, and standard cryptography. Base, the public chain in the demo, is a witness, not a dependency. <a href="/technology#t-threat">The threat model</a>.</p>
+        <p>What it rests on: AWS Nitro hardware, a published enclave build anyone can rebuild, and standard cryptography. Base and Ethereum are read, never written per record. <a href="/technology#t-threat">The threat model</a>.</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-paths">
