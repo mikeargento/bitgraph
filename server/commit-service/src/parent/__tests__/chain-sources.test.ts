@@ -30,7 +30,7 @@ function rpcNode(blocks: RpcBlock[], opts: { fail?: boolean; chainId?: number } 
       if (method === "eth_chainId") return { result: "0x" + (opts.chainId ?? 8453).toString(16) };
       return { error: { message: "method not found" } };
     },
-    async getText() { throw new Error("not an Esplora server"); },
+    async getText() { throw new Error("not served"); },
   };
 }
 
