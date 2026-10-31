@@ -100,177 +100,256 @@ async function epoch() {
   return { epochId, bind, attested };
 }
 
+
 const T0 = 1_793_404_750; // a Base block time, Unix seconds
 const CHAIN_IDS: Record<BlockReadChain, string> = { base: "eip155:8453", ethereum: "eip155:1", bitcoin: "bip122:000000000019d6689c085ae165831e93" };
+const SPACING: Record<BlockReadChain, number> = { base: 2, ethereum: 12, bitcoin: 600 };
+const FIRST: Record<BlockReadChain, number> = { base: 37_500_000, ethereum: 23_700_000, bitcoin: 921_000 };
 const hashOf = (chain: BlockReadChain, n: number): string => (chain === "bitcoin" ? "" : "0x") + Buffer.from(sha256(enc.encode(`${chain} ${n}`))).toString("hex");
+/** Block n (from the chain's first test block) and its time. */
+const blockAt = (chain: BlockReadChain, n: number) => ({ number: FIRST[chain] + n, timestamp: T0 + SPACING[chain] * n });
 
 const WRITER = "0xf3972408d853c975f86351c311f4310220bbf2a3";
 const GENESIS = { blockNumber: 53_307_701, blockHash: "0x" + "d2".repeat(32), blockTimestamp: T0 - 100, txHash: "0x" + "8f".repeat(32) };
 
 /**
- * An epoch with its genesis at counts 1-2, then: a block read, the file, a block read. `read` sets each bracket's
- * chain, block number and how long after the block's time the enclave read it.
+ * One step of an epoch after its genesis:
+ *   read   a block read of block n of `chain`, by the enclave `lagS` after the block's time;
+ *          canonical: false puts it off the canonical chain, known: false makes the chain not know it at all
+ *   file   the file the bundle is for, at Nitro time `atS` (default: just after the step before)
+ *   other  someone else's file
  */
-async function scenario(opts: { floor?: { chain: BlockReadChain; lagS: number }; ceiling?: { chain: BlockReadChain; lagS: number }; between?: number } = {}) {
+type Step =
+  | { read: BlockReadChain; n: number; lagS?: number; canonical?: boolean; known?: boolean }
+  | { file: true; atS?: number }
+  | { other: true };
+
+async function scenario(steps: Step[], opts: { withGenesis?: boolean } = {}) {
   const e = await epoch();
   const genesisFile = epochGenesisFileText({ epochId: e.epochId, chainId: 8453, writer: WRITER, ...GENESIS });
   const genesisProof = await e.bind(b64(sha256(enc.encode(genesisFile))), (GENESIS.blockTimestamp + 1) * 1000);
 
   const blocks = new Map<string, ChainBlock>();
-  const read = async (chain: BlockReadChain, number: number, timestamp: number, lagS: number) => {
-    const hash = hashOf(chain, number);
-    blocks.set(hash, { hash, number, timestamp, canonical: true });
-    const text = blockReadFileText({ epochId: e.epochId, chain, chainId: CHAIN_IDS[chain], number, hash, timestamp });
-    return { text, proof: await e.bind(b64(sha256(enc.encode(text))), Math.round((timestamp + lagS) * 1000)) };
-  };
-  const f = opts.floor ?? { chain: "base", lagS: 1.5 };
-  const c = opts.ceiling ?? { chain: "base", lagS: 1.2 };
-  const floor = await read(f.chain, 37_500_000, T0, f.lagS);
-  const middle: BitGraphProof[] = [];
-  for (let i = 0; i < (opts.between ?? 0); i++) middle.push(await e.bind(b64(sha256(enc.encode(`someone else's file ${i}`))), (T0 + 1) * 1000));
+  const proofs: BitGraphProof[] = [];
+  const blockFiles: Record<string, string> = {};
   const fileBytes = enc.encode("the file");
-  const file = await e.bind(b64(sha256(fileBytes)), (T0 + 1) * 1000);
-  const ceiling = await read(c.chain, 37_500_001, T0 + 2, c.lagS);
-
+  let target = -1;
+  let clockS = T0 - 10;
+  for (const s of steps) {
+    if ("read" in s) {
+      const { number, timestamp } = blockAt(s.read, s.n);
+      const hash = hashOf(s.read, s.n);
+      if (s.known !== false) blocks.set(hash, { hash, number, timestamp, canonical: s.canonical !== false });
+      const text = blockReadFileText({ epochId: e.epochId, chain: s.read, chainId: CHAIN_IDS[s.read], number, hash, timestamp });
+      clockS = timestamp + (s.lagS ?? 1);
+      blockFiles[String(proofs.length)] = text;
+      proofs.push(await e.bind(b64(sha256(enc.encode(text))), Math.round(clockS * 1000)));
+    } else if ("file" in s) {
+      clockS = s.atS ?? clockS + 0.5;
+      target = proofs.length;
+      proofs.push(await e.bind(b64(sha256(fileBytes)), Math.round(clockS * 1000)));
+    } else {
+      clockS += 0.1;
+      proofs.push(await e.bind(b64(sha256(enc.encode(`someone else's file ${proofs.length}`))), Math.round(clockS * 1000)));
+    }
+  }
   const bundle: TimelineBundle = {
     format: TIMELINE_BUNDLE_FORMAT,
-    proofs: [floor.proof, ...middle, file, ceiling.proof],
-    target: 1 + middle.length,
-    floorFile: floor.text,
-    ceilingFile: ceiling.text,
-    genesis: { proof: genesisProof, file: genesisFile },
+    proofs,
+    target,
+    blockFiles,
+    ...(opts.withGenesis !== false ? { genesis: { proof: genesisProof, file: genesisFile } } : {}),
   };
   const lookups: TimelineLookups = {
     block: async (_chain, _id, hash) => blocks.get(hash) ?? null,
     genesisTx: async (txHash) => (txHash === GENESIS.txHash ? { from: WRITER, to: WRITER, input: epochGenesisCalldataHex(e.epochId), blockHash: GENESIS.blockHash, blockNumber: GENESIS.blockNumber } : null),
     genesisBlock: async (hash) => (hash === GENESIS.blockHash ? { hash, number: GENESIS.blockNumber, timestamp: GENESIS.blockTimestamp } : null),
   };
-  return { e, bundle, lookups, blocks, fileBytes };
+  const run = (o: Partial<Parameters<typeof verifyTimelineBundle>[0]> = {}) => verifyTimelineBundle({ bundle, lookups, attested: e.attested, ...o });
+  return { e, bundle, lookups, blocks, fileBytes, run };
 }
 
-test("a bundle the chains confirm is verified, with the chain's numbers and each read's own lag", async () => {
-  const { e, bundle, lookups, fileBytes } = await scenario({ between: 2 });
-  const r = await verifyTimelineBundle({ bundle, lookups, fileBytes, attested: e.attested });
-  assert.equal(r.status, "verified", [...r.reasons, ...r.unconfirmed].join("; "));
+const why = (r: { reasons: string[]; unconfirmed: string[] }) => [...r.reasons, ...r.unconfirmed].join("; ");
+
+test("a bundle the chains confirm is verified, with the chain's numbers and each read's own signed lag", async () => {
+  const { run, fileBytes } = await scenario([{ read: "base", n: 0, lagS: 1.5 }, { other: true }, { file: true }, { other: true }, { read: "base", n: 2, lagS: -0.8 }]);
+  const r = await run({ fileBytes });
+  assert.equal(r.status, "verified", why(r));
   assert.deepEqual(r.flags, []);
   assert.equal(r.genesis, "confirmed");
-  assert.equal(r.floor?.number, 37_500_000);
-  assert.equal(r.floor?.timestamp, T0);
-  assert.equal(r.floor?.lagS, 1.5);
-  assert.equal(r.ceiling?.number, 37_500_001);
-  assert.equal(r.ceiling?.lagS, 1.2);
-  assert.equal(r.file?.counter, "10");
+  assert.deepEqual([r.floor?.index, r.floor?.number, r.floor?.timestamp, r.floor?.lagS], [0, 37_500_000, T0, 1.5]);
+  assert.deepEqual([r.ceiling?.index, r.ceiling?.number, r.ceiling?.lagS], [4, 37_500_002, -0.8]);
+  assert.equal(r.file?.counter, "8");
 });
 
-test("the real attestation path refuses minted proofs: only the hardware makes a bundle verify", async () => {
-  const { bundle, lookups } = await scenario();
-  const r = await verifyTimelineBundle({ bundle, lookups });
+test("the floor is the latest confirmed read of the chain before the file", async () => {
+  const { run } = await scenario([{ read: "base", n: 0 }, { read: "ethereum", n: 0 }, { read: "base", n: 1 }, { file: true }, { read: "base", n: 2 }]);
+  const r = await run();
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.floor?.index, 2);
+  assert.equal(r.floor?.chain, "base");
+  assert.equal(r.ceiling?.index, 4);
+});
+
+test("a re-bound block at or below the floor is never a ceiling", async () => {
+  // Proof 2 re-binds the floor's own block right after the file: fresh by its lag, but not above the floor.
+  const { run } = await scenario([{ read: "base", n: 5 }, { file: true }, { read: "base", n: 5, lagS: 1 }, { read: "base", n: 6 }]);
+  const r = await run();
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.ceiling?.index, 3);
+  assert.match(r.passedOver.join(), /proof 2: block 37500005 is not above the floor's 37500005/);
+});
+
+test("a crafted read of an old block is never a ceiling: its lag passes it over", async () => {
+  // Block 3 is above the floor (block 2) but read 30 s after its time, so it is not a ceiling; block 20 is.
+  const { run } = await scenario([{ read: "base", n: 2 }, { file: true }, { read: "base", n: 3, lagS: 30 }, { read: "base", n: 20, lagS: 1 }]);
+  const r = await run();
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.ceiling?.index, 3);
+  assert.equal(r.ceiling?.number, 37_500_020);
+  assert.match(r.flags.join(), /proof 2, passed over as a ceiling: base block 37500003 was read 30\.0 s after its timestamp \(limit 5 s\)/);
+});
+
+test("with no qualifying read after the file, the ceiling is unconfirmed, never a lagging read", async () => {
+  const { run } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1, lagS: 6 }]);
+  const r = await run();
+  assert.equal(r.status, "unconfirmed");
+  assert.equal(r.ceiling, null);
+  assert.equal(r.floor?.index, 0);
+  assert.match(r.unconfirmed.join(), /no read after the file in this bundle qualifies as a base ceiling/);
+});
+
+test("a lagging floor is flagged and still used", async () => {
+  const { run } = await scenario([{ read: "base", n: 0, lagS: 9 }, { file: true }, { read: "base", n: 6, lagS: 0.5 }]);
+  const r = await run();
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.floor?.index, 0);
+  assert.match(r.flags.join(), /the floor: base block 37500000 was read 9\.0 s after/);
+});
+
+test("lag is signed: Base 2 s early is fine, 3 s early is flagged", async () => {
+  const ok = await (await scenario([{ read: "base", n: 0, lagS: -2 }, { file: true, atS: T0 }, { read: "base", n: 1, lagS: -2 }])).run();
+  assert.equal(ok.status, "verified", why(ok));
+  assert.deepEqual(ok.flags, []);
+  const early = await (await scenario([{ read: "base", n: 0, lagS: -3 }, { file: true, atS: T0 }, { read: "base", n: 1, lagS: -3 }, { read: "base", n: 2 }])).run();
+  assert.equal(early.status, "verified", why(early));
+  assert.match(early.flags.join(), /the floor: base block 37500000 was read 3\.0 s before its timestamp \(limit 2 s\)/);
+  assert.equal(early.ceiling?.index, 3);
+});
+
+test("with Base down, an Ethereum read brackets on Ethereum; other chains' reads are ignored", async () => {
+  const { run } = await scenario([{ read: "ethereum", n: 0, lagS: 8 }, { read: "bitcoin", n: 0, lagS: 9 }, { file: true }, { read: "ethereum", n: 1, lagS: 10 }]);
+  const r = await run();
+  assert.equal(r.status, "verified", why(r));
+  assert.deepEqual([r.floor?.chain, r.floor?.index, r.ceiling?.chain, r.ceiling?.index], ["ethereum", 0, "ethereum", 3]);
+});
+
+test("Bitcoin's limits: 3 h late is the most, 2 h early the least", async () => {
+  const r = await (await scenario([{ read: "bitcoin", n: 0, lagS: 2 * 3600 }, { file: true }, { read: "bitcoin", n: 1, lagS: 4 * 3600 }, { read: "bitcoin", n: 2, lagS: 7000 }])).run();
+  assert.equal(r.status, "verified", why(r));
+  assert.deepEqual(r.flags.length, 1);
+  assert.equal(r.ceiling?.index, 3);
+});
+
+test("only canonical blocks bracket: an orphaned or unknown read is passed over", async () => {
+  const { run } = await scenario([{ read: "base", n: 0 }, { read: "base", n: 1, canonical: false }, { file: true }, { read: "base", n: 2, known: false }, { read: "base", n: 3 }]);
+  const r = await run();
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.floor?.index, 0);
+  assert.equal(r.ceiling?.index, 4);
+  assert.match(r.passedOver.join(), /proof 1: .* not on base's canonical chain/);
+  assert.match(r.passedOver.join(), /proof 3: base does not know/);
+});
+
+test("a block file whose number or time the chain contradicts fails", async () => {
+  const { run, blocks } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }]);
+  const h = hashOf("base", 1);
+  blocks.set(h, { ...blocks.get(h)!, timestamp: T0 - 3600 });
+  const r = await run();
   assert.equal(r.status, "failed");
-  assert.match(r.reasons.join(), /does not verify/);
+  assert.match(r.reasons.join(), /proof 2: the file says time/);
+  assert.equal(r.ceiling, null);
+});
+
+test("the Nitro times must run in order: floor, file, ceiling", async () => {
+  const { run } = await scenario([{ read: "base", n: 0, lagS: 1 }, { file: true, atS: T0 - 5 }, { read: "base", n: 1 }]);
+  const r = await run();
+  assert.equal(r.status, "failed");
+  assert.match(r.reasons.join(), /floor read's Nitro time is after the file's/);
 });
 
 test("offline, the order is checked and the time is unconfirmed", async () => {
-  const { e, bundle } = await scenario();
+  const { e, bundle } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }]);
   const r = await verifyTimelineBundle({ bundle, attested: e.attested });
   assert.equal(r.status, "unconfirmed");
   assert.deepEqual(r.reasons, []);
   assert.equal(r.floor, null);
   assert.equal(r.ceiling, null);
   assert.equal(r.genesis, "unconfirmed");
-  assert.equal(r.unconfirmed.length, 3);
 });
 
 test("a chain that cannot be asked leaves the bundle unconfirmed, not failed", async () => {
-  const { e, bundle, lookups } = await scenario();
-  const down: TimelineLookups = { ...lookups, block: async () => { throw new Error("timeout"); } };
-  const r = await verifyTimelineBundle({ bundle, lookups: down, attested: e.attested });
+  const { run, lookups } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }]);
+  const r = await run({ lookups: { ...lookups, block: async () => { throw new Error("timeout"); } } });
   assert.equal(r.status, "unconfirmed");
   assert.match(r.unconfirmed.join(), /could not be asked/);
 });
 
-test("a bracket the chain does not have on its canonical chain fails", async () => {
-  const { e, bundle, lookups, blocks } = await scenario();
-  const floorHash = hashOf("base", 37_500_000);
-  blocks.set(floorHash, { ...blocks.get(floorHash)!, canonical: false });
-  const r = await verifyTimelineBundle({ bundle, lookups, attested: e.attested });
+test("the real attestation path refuses minted proofs: only the hardware makes a bundle verify", async () => {
+  const { bundle, lookups } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }]);
+  const r = await verifyTimelineBundle({ bundle, lookups });
   assert.equal(r.status, "failed");
-  assert.match(r.reasons.join(), /canonical/);
-  blocks.delete(floorHash);
-  assert.match((await verifyTimelineBundle({ bundle, lookups, attested: e.attested })).reasons.join(), /does not know/);
-});
-
-test("a block file whose number or time the chain contradicts fails", async () => {
-  const { e, bundle, lookups, blocks } = await scenario();
-  const ceilingHash = hashOf("base", 37_500_001);
-  blocks.set(ceilingHash, { ...blocks.get(ceilingHash)!, timestamp: T0 - 3600 });
-  const r = await verifyTimelineBundle({ bundle, lookups, attested: e.attested });
-  assert.equal(r.status, "failed");
-  assert.match(r.reasons.join(), /the ceiling read: the file says time/);
+  assert.match(r.reasons.join(), /does not verify/);
 });
 
 test("a proof left out of the run, or altered, fails", async () => {
-  const { e, bundle, lookups } = await scenario({ between: 2 });
-  const gap = { ...bundle, proofs: bundle.proofs.filter((_, i) => i !== 1), target: bundle.target - 1 };
-  assert.match((await verifyTimelineBundle({ bundle: gap, lookups, attested: e.attested })).reasons.join(), /unaccounted/);
+  const { run, bundle } = await scenario([{ read: "base", n: 0 }, { other: true }, { file: true }, { other: true }, { read: "base", n: 1 }]);
+  const gap = { ...bundle, proofs: bundle.proofs.filter((_, i) => i !== 1), target: 1, blockFiles: { "0": bundle.blockFiles["0"]!, "3": bundle.blockFiles["4"]! } };
+  assert.match((await run({ bundle: gap })).reasons.join(), /unaccounted/);
 
   const altered = structuredClone(bundle);
-  altered.proofs[2]!.artifact.digestB64 = b64(sha256(enc.encode("another file")));
-  const r = await verifyTimelineBundle({ bundle: altered, lookups, attested: e.attested });
+  altered.proofs[3]!.artifact.digestB64 = b64(sha256(enc.encode("another file")));
+  const r = await run({ bundle: altered });
   assert.equal(r.status, "failed");
-  assert.match(r.reasons.join(), /proof 2 .* does not verify/);
+  assert.match(r.reasons.join(), /proof 3 .* does not verify/);
 });
 
 test("the file's bytes must be the file's", async () => {
-  const { e, bundle, lookups } = await scenario();
-  const r = await verifyTimelineBundle({ bundle, lookups, fileBytes: enc.encode("other bytes"), attested: e.attested });
+  const { run } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }]);
+  const r = await run({ fileBytes: enc.encode("other bytes") });
   assert.equal(r.status, "failed");
   assert.match(r.reasons.join(), /the file's proof/);
 });
 
-test("lag outside the limits is flagged, never refused", async () => {
-  const { e, bundle, lookups } = await scenario({ floor: { chain: "base", lagS: 45 }, ceiling: { chain: "bitcoin", lagS: -3 * 3600 } });
-  const r = await verifyTimelineBundle({ bundle, lookups, attested: e.attested });
-  assert.equal(r.status, "verified", [...r.reasons, ...r.unconfirmed].join("; "));
-  assert.equal(r.flags.length, 2);
-  assert.match(r.flags[0]!, /base block 37500000 was read 45\.0 s after its timestamp \(limit 30 s\)/);
-  assert.match(r.flags[1]!, /bitcoin block 37500001 was read 10800\.0 s before its timestamp \(limit 7200 s\)/);
-  const relaxed = await verifyTimelineBundle({ bundle, lookups, attested: e.attested, lagLimits: { base: { maxS: 60 }, bitcoin: { maxS: 3 * 3600, minS: -4 * 3600 } } });
-  assert.deepEqual(relaxed.flags, []);
-});
-
-test("with Base down, Ethereum and Bitcoin reads bracket the file", async () => {
-  const { e, bundle, lookups } = await scenario({ floor: { chain: "ethereum", lagS: 8 }, ceiling: { chain: "bitcoin", lagS: 600 } });
-  const r = await verifyTimelineBundle({ bundle, lookups, attested: e.attested });
-  assert.equal(r.status, "verified", [...r.reasons, ...r.unconfirmed].join("; "));
-  assert.equal(r.floor?.chain, "ethereum");
-  assert.equal(r.ceiling?.chain, "bitcoin");
-});
-
 test("without a genesis record the file is pre-genesis; a genesis after the file fails", async () => {
-  const { e, bundle, lookups } = await scenario();
-  const { genesis, ...withoutGenesis } = bundle;
-  const pre = await verifyTimelineBundle({ bundle: withoutGenesis, lookups, attested: e.attested });
-  assert.equal(pre.status, "verified");
+  const steps: Step[] = [{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }];
+  const pre = await (await scenario(steps, { withGenesis: false })).run();
+  assert.equal(pre.status, "verified", why(pre));
   assert.equal(pre.genesis, "pre-genesis");
 
-  const late = { ...bundle, genesis: { proof: bundle.proofs[bundle.proofs.length - 1]!, file: genesis!.file } };
-  const r = await verifyTimelineBundle({ bundle: late, lookups, attested: e.attested });
+  const { run, bundle } = await scenario(steps);
+  const late = { ...bundle, genesis: { proof: bundle.proofs[2]!, file: bundle.genesis!.file } };
+  const r = await run({ bundle: late });
   assert.equal(r.status, "failed");
   assert.match(r.reasons.join(), /not before the file/);
 });
 
 test("a genesis Base does not confirm fails", async () => {
-  const { e, bundle, lookups } = await scenario();
+  const { run, lookups } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }]);
   const wrongTx: TimelineLookups = { ...lookups, genesisTx: async () => ({ from: WRITER, to: WRITER, input: epochGenesisCalldataHex("A".repeat(43) + "="), blockHash: GENESIS.blockHash, blockNumber: GENESIS.blockNumber }) };
-  const r = await verifyTimelineBundle({ bundle, lookups: wrongTx, attested: e.attested });
+  const r = await run({ lookups: wrongTx });
   assert.equal(r.status, "failed");
   assert.match(r.reasons.join(), /does not carry this epoch's id/);
 });
 
 test("malformed bundles are refused before anything is checked", async () => {
-  const { e, bundle } = await scenario();
-  for (const bad of [null, [], { ...bundle, format: "x" }, { ...bundle, target: 0 }, { ...bundle, target: bundle.proofs.length - 1 }, { ...bundle, proofs: bundle.proofs.slice(0, 2) }, { ...bundle, floorFile: undefined }]) {
-    const r = await verifyTimelineBundle({ bundle: bad, attested: e.attested });
+  const { run, bundle } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }]);
+  const bads: unknown[] = [
+    null, [], { ...bundle, format: "x" }, { ...bundle, target: 0 }, { ...bundle, target: 3 }, { ...bundle, proofs: bundle.proofs.slice(0, 1) },
+    { ...bundle, blockFiles: undefined }, { ...bundle, blockFiles: { "2": bundle.blockFiles["2"]! } }, { ...bundle, blockFiles: { ...bundle.blockFiles, "1": "x" } }, { ...bundle, blockFiles: { ...bundle.blockFiles, "9": "x" } },
+  ];
+  for (const bad of bads) {
+    const r = await run({ bundle: bad });
     assert.equal(r.status, "failed");
     assert.equal(r.reasons.length, 1);
   }

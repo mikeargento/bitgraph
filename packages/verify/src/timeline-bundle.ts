@@ -3,63 +3,66 @@
 /**
  * bitgraph-timeline-bundle/1: everything a file's place on the block timeline rests on, in one object.
  *
- * Block reads (block-read.ts) and files are bound on one counter sequence. A bundle holds every proof from a block
- * read before the file (the floor) to a block read after it (the ceiling), in counter order, with both block files,
- * and the epoch's genesis record when the epoch had one before the file. Each proof carries its own AWS Nitro
- * attestation, so nothing else about the enclave is needed.
+ * Block reads (block-read.ts) and files are bound on one counter sequence. A bundle holds an unbroken run of proofs
+ * around the file's, in counter order, the block files of the block reads in it, and the epoch's genesis record when
+ * the epoch had one before the file. Each proof carries its own AWS Nitro attestation, so nothing else about the
+ * enclave is needed. The first proof is a block read; its chain is the chain the file is bracketed on.
  *
- * verifyTimelineBundle checks, without any network:
- *   - every proof in full (verifyAttested): Ed25519, slot record, atomic counts, the attestation's chain to the AWS
- *     root, user_data = the signed body's hash, a published PCR0;
- *   - the run is unbroken (verifyStretch): one epoch and key, each nonce count right after the previous payload
- *     count, each prevB64 the previous proof's chain hash, so nothing was bound between them that is not shown;
- *   - the first and last proofs bind their block files, and the file's proof is strictly between them;
- *   - the genesis record, when given: it binds a bitgraph-epoch-genesis/1 file of this epoch, under the same key,
- *     before the file.
- * With lookups it also asks the chains, and only their answers give time:
- *   - each bracketing block's hash must be on its chain's canonical chain; its number and timestamp are the chain's,
- *     never the file's;
- *   - the genesis transaction and its block must be what the genesis file names.
- * Lag is each bracketing read's own Nitro time minus its block's chain timestamp. A lag outside the chain's limits
- * is flagged, never refused: catching up after an outage reads old blocks on purpose.
+ * The bracket is chosen by the verifier, on that chain, from reads the chain confirms (hash on its canonical chain;
+ * number and timestamp taken from the chain, never from the file):
  *
- * Status: "verified" when everything was checked and passed; "unconfirmed" when nothing failed but a chain was not
- * asked or could not answer (the order is proven, the time is not); "failed" otherwise.
+ *   floor     the latest confirmed read before the file.
+ *   ceiling   the first confirmed read after the file whose block number is strictly greater than the floor's and
+ *             whose lag is within the chain's limits.
+ *
+ * Anyone can bind a block file, of any block, at any time. A file naming an old block only loosens a floor, but as a
+ * ceiling it would claim the file existed before that old block. The two ceiling rules stop that: a read of a block
+ * at or below the floor is never a ceiling, and a read whose Nitro time is far after its block's time is never a
+ * ceiling. Such reads are passed over and the next one qualifies (a wider bracket, still true); when none does, the
+ * ceiling is unconfirmed. A floor outside the lag limits is flagged and still used.
+ *
+ * Lag is signed: a read's own Nitro time minus its block's timestamp. Base and Ethereum allow 2 s early (their
+ * timestamps are whole seconds), Bitcoin 2 h early (miners set its block times).
+ *
+ * Also checked, without any network: every proof in full (verifyAttested); the run unbroken (verifyStretch); every
+ * block file binds to its proof; the floor's, the file's and the ceiling's Nitro times in order; the genesis record
+ * of this epoch, under the same key, before the file. With lookups, the genesis write must be on Base.
+ *
+ * Status: "verified" when everything was checked and passed; "unconfirmed" when nothing failed but the time could
+ * not be settled (a chain not asked or not answering, or no qualifying ceiling in the bundle); "failed" otherwise.
  */
 
 import type { BitGraphProof } from "./types.js";
 import { verifyAttested, type AttestedOptions, type AttestedResult } from "./attested.js";
 import { createVerificationContext } from "./verifier.js";
 import { verifyStretch } from "./stretch.js";
-import { checkBlockRead, type BlockReadChain, type ChainBlock } from "./block-read.js";
+import { checkBlockRead, type BlockReadChain, type BlockReadFile, type ChainBlock } from "./block-read.js";
 import { checkEpochGenesis, type EpochGenesisBlock, type EpochGenesisTx } from "./epoch-genesis.js";
 
 export const TIMELINE_BUNDLE_FORMAT = "bitgraph-timeline-bundle/1" as const;
 
 export interface TimelineBundle {
   format: typeof TIMELINE_BUNDLE_FORMAT;
-  /** Every proof from the floor read to the ceiling read, inclusive, in counter order. */
+  /** An unbroken run of proofs, in counter order. The first is a block read. */
   proofs: BitGraphProof[];
-  /** The index in `proofs` of the file's proof: strictly between the first and the last. */
+  /** The index in `proofs` of the file's proof: strictly after the first. */
   target: number;
-  /** The block file the first proof binds. */
-  floorFile: string;
-  /** The block file the last proof binds. */
-  ceilingFile: string;
+  /** The block files of the block reads in the run, by their index in `proofs` (as a decimal string). Index 0 is required. */
+  blockFiles: Record<string, string>;
   /** The epoch's genesis record, when the epoch had one before the file. Absent: the file is pre-genesis. */
   genesis?: { proof: BitGraphProof; file: string };
 }
 
-/** Lag limits in seconds: a read is flagged when Nitro time minus block time is above maxS or below minS. */
+/** Lag limits in seconds: a read is outside them when Nitro time minus block time is above maxS or below minS. */
 export interface LagLimit {
   maxS: number;
-  minS?: number;
+  minS: number;
 }
 
-/** Defaults: Base 30 s, Ethereum 60 s, Bitcoin 3 h late or 2 h early (miners set Bitcoin's block times). */
+/** Defaults: Base 2 s early to 5 s late, Ethereum 2 s early to 60 s late, Bitcoin 2 h early to 3 h late. */
 export const DEFAULT_LAG_LIMITS: Readonly<Record<BlockReadChain, LagLimit>> = {
-  base: { maxS: 30 },
-  ethereum: { maxS: 60 },
+  base: { maxS: 5, minS: -2 },
+  ethereum: { maxS: 60, minS: -2 },
   bitcoin: { maxS: 3 * 3600, minS: -2 * 3600 },
 };
 
@@ -83,6 +86,8 @@ export interface TimelineBundleOptions {
 }
 
 export interface TimelineBound {
+  /** The read's index in the bundle's proofs. */
+  index: number;
   chain: BlockReadChain;
   chainId: string;
   hash: string;
@@ -94,7 +99,7 @@ export interface TimelineBound {
   counter: string;
   /** The block read's Nitro time, ms. */
   attestedAtMs: number;
-  /** attestedAtMs / 1000 minus timestamp. */
+  /** Signed: attestedAtMs / 1000 minus timestamp. */
   lagS: number;
 }
 
@@ -102,12 +107,13 @@ export interface TimelineBundleResult {
   status: "verified" | "unconfirmed" | "failed";
   /** What failed. */
   reasons: string[];
-  /** What was not confirmed: a chain not asked, or not answering. */
+  /** What could not be settled. */
   unconfirmed: string[];
-  /** Lags outside the limits. Flags never fail a bundle. */
+  /** Lags outside the limits, on the floor or on reads passed over as ceilings. Flags never fail a bundle. */
   flags: string[];
+  /** Reads passed over when choosing the bracket, and why. */
+  passedOver: string[];
   file: { counter: string; digestB64: string; attestedAtMs: number | null } | null;
-  /** Set only when the chain confirmed the block. */
   floor: TimelineBound | null;
   ceiling: TimelineBound | null;
   /** confirmed: the genesis write is on Base; unconfirmed: given but Base not asked; pre-genesis: the clock check rests on Nitro alone. */
@@ -120,69 +126,121 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
   const reasons: string[] = [];
   const unconfirmed: string[] = [];
   const flags: string[] = [];
-  const failed = (why: string): TimelineBundleResult => ({ status: "failed", reasons: [why], unconfirmed, flags, file: null, floor: null, ceiling: null, genesis: "pre-genesis" });
+  const passedOver: string[] = [];
+  const failed = (why: string): TimelineBundleResult => ({ status: "failed", reasons: [why], unconfirmed, flags, passedOver, file: null, floor: null, ceiling: null, genesis: "pre-genesis" });
 
   const shape = bundleShape(opts.bundle);
   if (typeof shape === "string") return failed(shape);
   const b = shape;
-  const last = b.proofs.length - 1;
   const attested = opts.attested ?? verifyAttested;
   const limits = { ...DEFAULT_LAG_LIMITS, ...(opts.lagLimits ?? {}) };
   const pcr0 = opts.pcr0 ? { pcr0: opts.pcr0 } : {};
+  const fileAt = (i: number): string | undefined => b.blockFiles[String(i)];
 
   // The run: unbroken, so nothing was bound inside it that the bundle does not show.
-  const stretch = verifyStretch(b.proofs);
-  reasons.push(...stretch.reasons);
+  reasons.push(...verifyStretch(b.proofs).reasons);
 
-  // Every proof in full, with one fork-detecting context across the bundle.
+  // Every proof in full, with one fork-detecting context across the bundle. A block read is checked against its file.
   const context = createVerificationContext();
   const times: (number | null)[] = [];
-  for (let i = 0; i <= last; i++) {
+  for (let i = 0; i < b.proofs.length; i++) {
     const proof = b.proofs[i]!;
-    const bytes = i === 0 ? enc.encode(b.floorFile) : i === last ? enc.encode(b.ceilingFile) : i === b.target ? opts.fileBytes : undefined;
+    const text = fileAt(i);
+    const bytes = text !== undefined ? enc.encode(text) : i === b.target ? opts.fileBytes : undefined;
     const r = await attested({ proof, ...(bytes !== undefined ? { bytes } : {}), ...pcr0, context });
     times.push(r.valid ? r.attestedAtMs : null);
-    const role = i === 0 ? "the floor read" : i === last ? "the ceiling read" : i === b.target ? "the file's proof" : `proof ${i}`;
+    const role = i === b.target ? "the file's proof" : `proof ${i}`;
     if (!r.valid) reasons.push(`${role} (counter ${proof.commit?.counter ?? "?"}) does not verify: ${r.reason ?? "invalid"}`);
     else if (r.attestedAtMs === null) reasons.push(`${role} has no Nitro time`);
   }
 
-  // The brackets: their block files, then what the chains say about them.
-  const bound = async (i: number, text: string, role: string): Promise<TimelineBound | null> => {
-    const proof = b.proofs[i]!;
-    let chain: ChainBlock | null | undefined;
-    const file = checkBlockRead({ file: text, proof });
-    if (file.status === "failed" || !file.file) {
-      reasons.push(...file.reasons.map((x) => `${role}: ${x}`));
-      return null;
+  // Every block file, offline: it must be a block read of this proof's epoch.
+  const reads = new Map<number, BlockReadFile>();
+  for (const [k, text] of Object.entries(b.blockFiles)) {
+    const i = Number(k);
+    const r = checkBlockRead({ file: text, proof: b.proofs[i]! });
+    if (r.status === "failed" || !r.file) reasons.push(...r.reasons.map((x) => `proof ${i}'s block file: ${x}`));
+    else reads.set(i, r.file);
+  }
+  const chain = reads.get(0)?.chain;
+
+  // The bracket, on the first read's chain. Each candidate is asked of the chain; only its answer gives time.
+  type Asked = { kind: "bound"; bound: TimelineBound } | { kind: "skip" } | { kind: "stop" };
+  const ask = async (i: number): Promise<Asked> => {
+    const f = reads.get(i)!;
+    if (!opts.lookups) {
+      unconfirmed.push(`block ${f.hash} (proof ${i}) was not looked up on ${f.chain}`);
+      return { kind: "stop" };
     }
-    const f = file.file;
-    if (opts.lookups) {
-      try {
-        chain = await opts.lookups.block(f.chain, f.chainId, f.hash);
-      } catch (e) {
-        unconfirmed.push(`${role}: ${f.chain} could not be asked about block ${f.hash} (${e instanceof Error ? e.message : String(e)})`);
-        return null;
-      }
-    } else {
-      unconfirmed.push(`${role}: block ${f.hash} was not looked up on ${f.chain}`);
-      return null;
+    let answer: ChainBlock | null;
+    try {
+      answer = await opts.lookups.block(f.chain, f.chainId, f.hash);
+    } catch (e) {
+      unconfirmed.push(`${f.chain} could not be asked about block ${f.hash} (proof ${i}): ${e instanceof Error ? e.message : String(e)}`);
+      return { kind: "stop" };
     }
-    const r = checkBlockRead({ file: text, proof, chain });
+    if (answer === null || answer.hash.toLowerCase() !== f.hash) {
+      passedOver.push(`proof ${i}: ${f.chain} does not know block ${f.hash}`);
+      return { kind: "skip" };
+    }
+    if (!answer.canonical) {
+      passedOver.push(`proof ${i}: block ${f.hash} is not on ${f.chain}'s canonical chain`);
+      return { kind: "skip" };
+    }
+    const r = checkBlockRead({ file: b.blockFiles[String(i)]!, proof: b.proofs[i]!, chain: answer });
     if (r.status !== "confirmed" || !r.block) {
-      reasons.push(...r.reasons.map((x) => `${role}: ${x}`));
-      return null;
+      // The chain knows the block and the file mislabels it: the host misreported a block.
+      reasons.push(...r.reasons.map((x) => `proof ${i}: ${x}`));
+      return { kind: "stop" };
     }
     const at = times[i];
-    if (typeof at !== "number") return null;
-    const lagS = (at - r.block.timestamp * 1000) / 1000;
-    const lim = limits[r.block.chain];
-    if (lagS > lim.maxS) flags.push(`${role}: ${r.block.chain} block ${r.block.number} was read ${lagS.toFixed(1)} s after its timestamp (limit ${lim.maxS} s)`);
-    if (lim.minS !== undefined && lagS < lim.minS) flags.push(`${role}: ${r.block.chain} block ${r.block.number} was read ${(-lagS).toFixed(1)} s before its timestamp (limit ${-lim.minS} s)`);
-    return { ...r.block, counter: String(proof.commit?.counter ?? ""), attestedAtMs: at, lagS };
+    if (typeof at !== "number") return { kind: "stop" };
+    return { kind: "bound", bound: { index: i, ...r.block, counter: String(b.proofs[i]!.commit?.counter ?? ""), attestedAtMs: at, lagS: (at - r.block.timestamp * 1000) / 1000 } };
   };
-  const floor = await bound(0, b.floorFile, "the floor read");
-  const ceiling = await bound(last, b.ceilingFile, "the ceiling read");
+  const outside = (x: TimelineBound): string | null => {
+    const lim = limits[x.chain];
+    if (x.lagS > lim.maxS) return `${x.chain} block ${x.number} was read ${x.lagS.toFixed(1)} s after its timestamp (limit ${lim.maxS} s)`;
+    if (x.lagS < lim.minS) return `${x.chain} block ${x.number} was read ${(-x.lagS).toFixed(1)} s before its timestamp (limit ${-lim.minS} s)`;
+    return null;
+  };
+
+  let floor: TimelineBound | null = null;
+  let ceiling: TimelineBound | null = null;
+  const sameChain = [...reads.keys()].filter((i) => reads.get(i)!.chain === chain).sort((x, y) => x - y);
+  if (chain !== undefined && reasons.length === 0) {
+    for (const i of sameChain.filter((i) => i < b.target).reverse()) {
+      const a = await ask(i);
+      if (a.kind === "stop") break;
+      if (a.kind === "bound") { floor = a.bound; break; }
+    }
+    if (floor) {
+      const lag = outside(floor);
+      if (lag) flags.push(`the floor: ${lag}`);
+      for (const i of sameChain.filter((i) => i > b.target)) {
+        const a = await ask(i);
+        if (a.kind === "stop") break;
+        if (a.kind === "skip") continue;
+        const c = a.bound;
+        if (c.number <= floor.number) { passedOver.push(`proof ${i}: block ${c.number} is not above the floor's ${floor.number}, so it is not a ceiling`); continue; }
+        const lag = outside(c);
+        if (lag) { flags.push(`proof ${i}, passed over as a ceiling: ${lag}`); passedOver.push(`proof ${i}: its lag is outside the limits, so it is not a ceiling`); continue; }
+        ceiling = c;
+        break;
+      }
+    } else if (unconfirmed.length === 0 && reasons.length === 0) {
+      unconfirmed.push(`no read before the file is a confirmed ${chain} block, so there is no floor`);
+    }
+    if (floor && !ceiling && unconfirmed.length === 0 && reasons.length === 0) {
+      unconfirmed.push(`no read after the file in this bundle qualifies as a ${chain} ceiling`);
+    }
+  }
+
+  // The hardware's clock must agree with the order.
+  const fileMs = times[b.target];
+  if (typeof fileMs === "number") {
+    if (floor && floor.attestedAtMs > fileMs) reasons.push("the floor read's Nitro time is after the file's");
+    if (ceiling && ceiling.attestedAtMs < fileMs) reasons.push("the ceiling read's Nitro time is before the file's");
+  }
 
   // Genesis: before the file, in the same epoch under the same key, and, when Base is asked, on Base.
   let genesis: TimelineBundleResult["genesis"] = "pre-genesis";
@@ -230,9 +288,10 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
     reasons,
     unconfirmed,
     flags,
-    file: { counter: String(target.commit?.counter ?? ""), digestB64: target.artifact?.digestB64 ?? "", attestedAtMs: times[b.target] ?? null },
-    floor,
-    ceiling,
+    passedOver,
+    file: { counter: String(target.commit?.counter ?? ""), digestB64: target.artifact?.digestB64 ?? "", attestedAtMs: fileMs ?? null },
+    floor: status === "failed" ? null : floor,
+    ceiling: status === "failed" ? null : ceiling,
     genesis,
   };
 }
@@ -243,10 +302,16 @@ function bundleShape(v: unknown): TimelineBundle | string {
   const o = v as Record<string, unknown>;
   if (o["format"] !== TIMELINE_BUNDLE_FORMAT) return `not ${TIMELINE_BUNDLE_FORMAT}`;
   const proofs = o["proofs"];
-  if (!Array.isArray(proofs) || proofs.length < 3 || proofs.some((p) => !p || typeof p !== "object")) return "a bundle holds at least three proofs: the floor read, the file, the ceiling read";
+  if (!Array.isArray(proofs) || proofs.length < 2 || proofs.some((p) => !p || typeof p !== "object")) return "a bundle holds at least a block read and the file";
   const target = o["target"];
-  if (!Number.isSafeInteger(target) || (target as number) <= 0 || (target as number) >= proofs.length - 1) return "the file's proof must be strictly between the floor read and the ceiling read";
-  if (typeof o["floorFile"] !== "string" || typeof o["ceilingFile"] !== "string") return "a bundle carries the floor and ceiling block files";
+  if (!Number.isSafeInteger(target) || (target as number) <= 0 || (target as number) >= proofs.length) return "the file's proof must come after the first block read";
+  const files = o["blockFiles"];
+  if (!files || typeof files !== "object" || Array.isArray(files)) return "a bundle carries the block files of its block reads";
+  for (const [k, text] of Object.entries(files as Record<string, unknown>)) {
+    if (!/^(0|[1-9][0-9]*)$/.test(k) || Number(k) >= proofs.length || typeof text !== "string") return `block file ${JSON.stringify(k)} names no proof of the bundle`;
+    if (Number(k) === target) return "the file's proof is not a block read";
+  }
+  if (typeof (files as Record<string, unknown>)["0"] !== "string") return "the first proof of a bundle is a block read, with its block file";
   const g = o["genesis"];
   if (g !== undefined) {
     const gg = g as Record<string, unknown> | null;
