@@ -78,11 +78,18 @@ export default function HomePage() {
 
       <section className="home-section" aria-labelledby="home-mech">
         <p className="home-kicker">The mechanism</p>
-        <h2 id="home-mech">The order is what matters.</h2>
+        <h2 id="home-mech">The position comes first.</h2>
         <p>
           A signature proves a key signed. A timestamp authority vouches for a time. Content Credentials carry a signer&rsquo;s
-          assertions. BitGraph constrains the recording itself: a specific, published enclave build binds each digest at a counted,
-          chained position, and the hardware attests to every proof.
+          assertions. A transparency log proves a record was registered. Each provides evidence about content that already exists.
+        </p>
+        <p>
+          BitGraph works the other way round. Inside a published, measured enclave, hardware draws an unpredictable value and assigns it
+          position N. Your digest is bound at N+1. Both records are signed in one atomic operation.
+        </p>
+        <p>
+          <strong>The content never chooses its place.</strong> Hardware attestation identifies the measured code that enforced the
+          sequence, and anyone can verify the resulting proof independently.
         </p>
         <MechanismFigure />
         <div className="sx-cards is-2x2">
