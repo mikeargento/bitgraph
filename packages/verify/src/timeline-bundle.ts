@@ -11,13 +11,16 @@
  * The bracket is chosen by the verifier, on that chain, from reads the chain confirms (hash on its canonical chain,
  * and every field of the block file equal to the chain's answer):
  *
- *   floor     the latest confirmed read before the file whose block timestamp, on the canonical chain, is at or
- *             before the file's own Nitro time. A stale floor is allowed: it is looser, still true. The claim is
- *             causal: the file was bound after block A was produced, because A's hash cannot be known before A exists.
+ *   floor     of the confirmed reads before the file whose block timestamp, on the canonical chain, is at or before
+ *             the file's own Nitro time, the one with the highest block number. Position does not decide it, so a
+ *             file of an ancient block bound just before the file cannot loosen its floor, and a read stamped a little
+ *             ahead is passed over rather than failing the bundle. A stale floor is allowed: looser, still true. The
+ *             claim is causal: the file was bound after block A was produced, because A's hash cannot be known before
+ *             A exists.
  *   ceiling   the first confirmed read after the file whose block timestamp, on the canonical chain, is strictly after
  *             the file's own Nitro time (no allowance), whose block number is above the floor's, and whose own lag is
- *             within the chain's limits. The claim is: the file was bound before block B's timestamp,
- *             by the Nitro hardware clock, cross-checked against the chain.
+ *             within the chain's limits. The claim is: the file was bound at Nitro hardware time T, before block B's
+ *             timestamp; the Nitro clock was checked against the chain at block B's read (lag within limits).
  *
  * Anyone can bind a block file, of any block, at any time, and a bundle need not show every read. The ceiling rule
  * holds anyway: it compares the chain's own timestamp for B with the hardware time of the file, so a re-bound or
@@ -221,14 +224,14 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
   const fileMs = times[b.target];
   const sameChain = [...reads.keys()].filter((i) => reads.get(i)!.chain === chain).sort((x, y) => x - y);
   if (chain !== undefined && reasons.length === 0) {
-    for (const i of sameChain.filter((i) => i < b.target).reverse()) {
+    // Every read before the file is asked; the floor is the highest-numbered one stamped at or before the file.
+    for (const i of sameChain.filter((i) => i < b.target)) {
       const a = await ask(i);
-      if (a.kind === "stop") break;
+      if (a.kind === "stop") { floor = null; break; }
       if (a.kind === "skip") continue;
       if (typeof fileMs !== "number") break;
       if (a.bound.timestamp * 1000 > fileMs) { passedOver.push(`proof ${i}: block ${a.bound.number}'s timestamp ${a.bound.timestamp} is after the file's Nitro time ${(fileMs / 1000).toFixed(3)}, so it is not a floor`); continue; }
-      floor = a.bound;
-      break;
+      if (!floor || a.bound.number > floor.number) floor = a.bound;
     }
     if (floor) {
       floor.claim = `bound after ${floor.chain} block ${floor.number} (${floor.hash}) was produced`;
@@ -244,7 +247,7 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
         if (c.number <= floor.number) { passedOver.push(`proof ${i}: block ${c.number} is not above the floor's ${floor.number}, so it is not a ceiling`); continue; }
         const lag = outside(c);
         if (lag) { flags.push(`proof ${i}, passed over as a ceiling: ${lag}`); passedOver.push(`proof ${i}: its lag is outside the limits, so it is not a ceiling`); continue; }
-        c.claim = `bound before ${c.chain} block ${c.number}'s timestamp ${c.timestamp}, by the Nitro hardware clock, cross-checked against the chain`;
+        c.claim = `bound at Nitro hardware time ${new Date(fileMs).toISOString()}, before ${c.chain} block ${c.number}'s timestamp ${new Date(c.timestamp * 1000).toISOString()}; the Nitro clock was checked against the chain at block ${c.number}'s read (lag ${c.lagS.toFixed(1)} s, within limits)`;
         ceiling = c;
         break;
       }

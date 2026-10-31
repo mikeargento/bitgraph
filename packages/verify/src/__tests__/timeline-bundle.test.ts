@@ -182,7 +182,7 @@ test("a bundle the chains confirm is verified, with the chain's numbers and each
   assert.equal(r.genesis, "confirmed");
   assert.equal(r.preGenesis, false);
   assert.equal(r.floor?.claim, `bound after base block 37500000 (${hashOf("base", 0)}) was produced`);
-  assert.equal(r.ceiling?.claim, `bound before base block 37500002's timestamp ${T0 + 4}, by the Nitro hardware clock, cross-checked against the chain`);
+  assert.equal(r.ceiling?.claim, `bound at Nitro hardware time ${new Date((T0 + 2.1) * 1000).toISOString()}, before base block 37500002's timestamp ${new Date((T0 + 4) * 1000).toISOString()}; the Nitro clock was checked against the chain at block 37500002's read (lag -0.8 s, within limits)`);
   assert.deepEqual([r.floor?.index, r.floor?.number, r.floor?.timestamp, r.floor?.lagS], [0, 37_500_000, T0, 1.5]);
   assert.deepEqual([r.ceiling?.index, r.ceiling?.number, r.ceiling?.lagS], [4, 37_500_002, -0.8]);
   assert.equal(r.file?.counter, "8");
@@ -195,6 +195,24 @@ test("the floor is the latest confirmed read of the chain before the file", asyn
   assert.equal(r.floor?.index, 2);
   assert.equal(r.floor?.chain, "base");
   assert.equal(r.ceiling?.index, 4);
+});
+
+test("the floor is the highest block, not the latest position: an ancient block bound just before the file does not loosen it", async () => {
+  // Proof 1 binds block 50, then proof 2 a file of block 0 (ancient, read 100 s after its time) just before the file.
+  const { run } = await scenario([{ read: "base", n: 50, lagS: 1 }, { read: "base", n: 0, lagS: 101 }, { file: true }, { read: "base", n: 52 }]);
+  const r = await run();
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.floor?.index, 0);
+  assert.equal(r.floor?.number, 37_500_050);
+});
+
+test("a fast-stamped read just before the file is passed over; the floor is the highest block at or before the file", async () => {
+  // Block 2 is stamped T0+4 and read 1.5 s early, at T0+2.5; the file is bound at T0+3. Block 1 is the floor.
+  const { run } = await scenario([{ read: "base", n: 0 }, { read: "base", n: 1, lagS: 0.3 }, { read: "base", n: 2, lagS: -1.5 }, { file: true, atS: T0 + 3 }, { read: "base", n: 3 }]);
+  const r = await run();
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.floor?.number, 37_500_001);
+  assert.match(r.passedOver.join(), /proof 2: .* so it is not a floor/);
 });
 
 test("a re-bound block at or below the floor is never a ceiling", async () => {
