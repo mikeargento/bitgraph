@@ -4,7 +4,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import type { LedgerRow } from "@/lib/running-ledger";
+import type { LedgerItem, LedgerRow } from "@/lib/running-ledger";
+import type { ReadsRow, TimelineRead } from "@/lib/timeline-ledger-core";
 import { proofFeedKey, warm } from "@/lib/warm";
 
 /**
@@ -79,8 +80,83 @@ function Row({ r }: { r: LedgerRow }) {
   );
 }
 
-export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: string; live: boolean; initial: LedgerRow[]; newestKey: string | null; hasOlder: boolean }) {
-  const [rows, setRows] = useState<LedgerRow[]>(initial);
+const isReads = (x: LedgerItem): x is ReadsRow => (x as ReadsRow).kind === "reads";
+const CHAIN_NAME: Record<string, string> = { base: "Base", ethereum: "Ethereum" };
+
+/** What a reads row's records are, in words. */
+function readsLabel(r: ReadsRow): string {
+  const n = fmt(r.count);
+  const one = r.count === 1;
+  if (r.state === "recorded") return `${n} block read${one ? "" : "s"}`;
+  if (r.state === "uploading") return `${n} block read${one ? "" : "s"}, uploading (the host uploads each minute)`;
+  if (r.state === "missing") return `${n} record${one ? "" : "s"}, not all on record`;
+  return `${n} record${one ? "" : "s"}, not listed (before the block timeline)`;
+}
+
+/**
+ * The block reads between two file rows (timeline-ledger.ts): one row standing for their counts, opened in place to
+ * list each read with its chain, block number and the enclave's time. Every count of the sequence is either a file's
+ * row or inside one of these.
+ */
+function ReadsRowView({ r, open, toggle }: { r: ReadsRow; open: boolean; toggle: () => void }) {
+  const [reads, setReads] = useState<{ reads: TimelineRead[]; truncated: boolean } | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!open || reads || r.state === "unlisted") return;
+    let gone = false;
+    (async () => {
+      const res = await fetch(`/api/ledger/reads?epoch=${r.epoch}&from=${r.from}&to=${r.to}`).catch(() => null);
+      if (gone) return;
+      if (!res || !res.ok) { setFailed(true); return; }
+      setReads((await res.json()) as { reads: TimelineRead[]; truncated: boolean });
+    })().catch(() => setFailed(true));
+    return () => { gone = true; };
+  }, [open, reads, r.epoch, r.from, r.to, r.state]);
+  const counts = r.from - 1 === r.to - 1 ? `count ${fmt(r.to)}` : `counts ${fmt(r.from - 1)}–${fmt(r.to)}`;
+  return (
+    <div className={`rl-reads rl-reads-${r.state}`}>
+      <button type="button" className="xp-row xp-row-base rl-row rl-reads-head" onClick={toggle} aria-expanded={open}>
+        <span className="rl-num">{open ? "▾" : "▸"} Reads</span>
+        <span className="rl-counts">{counts}</span>
+        <span className="rl-hash">{readsLabel(r)}</span>
+      </button>
+      {open && (
+        <div className="rl-reads-list">
+          {failed && <div className="rl-reads-note">The reads could not be loaded. Try again.</div>}
+          {!reads && !failed && r.state !== "unlisted" && <div className="rl-reads-note">Loading…</div>}
+          {reads?.reads.map((x) => (
+            <div key={x.counter} className="xp-row xp-row-base rl-row rl-read">
+              <span className="rl-num">#{fmt(x.counter)}</span>
+              <span className="rl-counts">counts {fmt(x.counter - 1)}, {fmt(x.counter)}</span>
+              <span className="rl-hash">{x.kind === "block" ? `${CHAIN_NAME[x.chain ?? ""] ?? x.chain ?? "Block"} block ${x.number !== undefined ? fmt(x.number) : "?"}` : x.kind === "genesis" ? "Epoch genesis" : "File (not in the index yet)"}</span>
+              {x.recordedMs !== null && (
+                <span className="rl-when">
+                  <span className="rl-when-long">{when(x.recordedMs)}</span>
+                  <span className="rl-when-short">{clock(x.recordedMs)}</span>
+                </span>
+              )}
+            </div>
+          ))}
+          {reads && reads.reads.length < r.count && !reads.truncated && r.state !== "uploading" && (
+            <div className="rl-reads-note">{fmt(r.count - reads.reads.length)} of these counts are on no record.</div>
+          )}
+          {reads?.truncated && <div className="rl-reads-note">The newest {fmt(reads.reads.length)} are listed.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: string; live: boolean; initial: LedgerItem[]; newestKey: string | null; hasOlder: boolean }) {
+  const [rows, setRows] = useState<LedgerItem[]>(initial);
+  // Show block reads: every reads row opened (remembered on this device). A row can also be opened by itself.
+  const [showReads, setShowReads] = useState(false);
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  useEffect(() => { try { setShowReads(localStorage.getItem("ledger-show-reads") === "1"); } catch { /* not kept */ } }, []);
+  const flipShowReads = () => {
+    setShowReads((v) => { try { localStorage.setItem("ledger-show-reads", v ? "0" : "1"); } catch { /* not kept */ } return !v; });
+    setOpened(new Set());
+  };
   const [older, setOlder] = useState(hasOlder);
   const [busy, setBusy] = useState(false);
   const newest = useRef<string | null>(newestKey);
@@ -95,10 +171,15 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: s
       try {
         const r = await fetch(`/api/ledger/rows?after=${encodeURIComponent(newest.current ?? "")}`, { cache: "no-store" });
         if (r.ok) {
-          const j = (await r.json()) as { rows: LedgerRow[]; newestKey: string | null };
+          const j = (await r.json()) as { rows: LedgerItem[]; newestKey: string | null };
           if (j.rows.length) {
+            // The reads above the newest file row come back recounted every poll: they replace the ones shown.
             const seen = new Set<string>();
-            setRows((cur) => [...j.rows, ...cur].filter((x) => (seen.has(x.key) ? false : (seen.add(x.key), true))));
+            setRows((cur) => {
+              const firstFile = cur.findIndex((x) => !isReads(x));
+              const rest = firstFile < 0 ? [] : cur.slice(firstFile);
+              return [...j.rows, ...rest].filter((x) => (seen.has(x.key) ? false : (seen.add(x.key), true)));
+            });
           }
           if (j.newestKey) newest.current = j.newestKey;
           // A new UTC day: today's page is a new page.
@@ -114,13 +195,13 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: s
   }, [live, day]);
 
   const showOlder = async () => {
-    const oldest = rows[rows.length - 1];
+    const oldest = [...rows].reverse().find((x): x is LedgerRow => !isReads(x));
     if (!oldest) return;
     setBusy(true);
     try {
       const r = await fetch(`/api/ledger/rows?day=${day}&before=${encodeURIComponent(oldest.key)}`);
       if (r.ok) {
-        const j = (await r.json()) as { rows: LedgerRow[]; hasOlder: boolean };
+        const j = (await r.json()) as { rows: LedgerItem[]; hasOlder: boolean };
         setRows((cur) => [...cur, ...j.rows]);
         setOlder(j.hasOlder);
       }
@@ -130,9 +211,19 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: s
   if (rows.length === 0) {
     return <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>{live ? "No BitGraphs yet today. New ones appear here as they are made." : "No BitGraphs on this day."}</div>;
   }
+  const anyReads = rows.some(isReads);
   return (
     <>
-      <div className="rl-rows">{rows.map((r) => <Row key={r.key} r={r} />)}</div>
+      {anyReads && (
+        <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 10px" }}>
+          <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={flipShowReads} aria-pressed={showReads}>{showReads ? "Hide block reads" : "Show block reads"}</button>
+        </div>
+      )}
+      <div className="rl-rows">
+        {rows.map((r) => isReads(r)
+          ? <ReadsRowView key={r.key} r={r} open={showReads !== opened.has(r.key)} toggle={() => setOpened((s) => { const n = new Set(s); if (n.has(r.key)) n.delete(r.key); else n.add(r.key); return n; })} />
+          : <Row key={r.key} r={r} />)}
+      </div>
       {older && (
         <div style={{ marginTop: 20 }}>
           <button type="button" className="bg-action-link" style={{ margin: 0 }} disabled={busy} onClick={() => void showOlder()}>{busy ? "Loading…" : "Show older"}</button>

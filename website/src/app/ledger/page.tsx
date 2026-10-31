@@ -70,6 +70,13 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
         .rl-when-short { display: none; }
         .rl-link { color: inherit; text-decoration: none !important; }
         .rl-link:hover .rl-num { text-decoration: underline; }
+        .rl-reads-head { width: 100%; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+        .rl-reads-head .rl-num, .rl-read .rl-num { color: var(--dim); font-weight: 600; }
+        .rl-reads-head .rl-hash { font-family: inherit; }
+        .rl-reads-missing .rl-reads-head .rl-hash { color: var(--err); }
+        .rl-reads-list { padding-left: 18px; }
+        .rl-read .rl-hash { font-family: inherit; }
+        .rl-reads-note { font-size: 12.5px; color: var(--faint); padding: 6px 0; }
         @media (max-width: 640px) {
           .rl-hash, .rl-when-long { display: none; }
           .rl-when-short { display: inline; }

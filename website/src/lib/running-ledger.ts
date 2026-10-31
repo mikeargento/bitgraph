@@ -17,6 +17,7 @@
 import { unstable_cache } from "next/cache";
 import { getCurrentEpoch, getObjectText, listEpochsWithBirth, listKeysAfter, listKeysUnderPrefix, runPool } from "@/lib/s3";
 import { recordedMsOf } from "@/lib/recorded-time";
+import { batchKeysOf, interleaveEpoch, type ReadsRow } from "@/lib/timeline-ledger";
 
 /** Enclave v11's first epoch (2026-10-17 02:22 UTC): the ledger starts here. */
 export const LEDGER_START_MS = Date.UTC(2026, 9, 17, 2, 22);
@@ -132,8 +133,46 @@ async function keysBelow(epoch: string, before: number, limit: number): Promise<
   }
 }
 
+/** A file's row, or the collapsed row of the block reads between two (timeline-ledger.ts). */
+export type LedgerItem = LedgerRow | ReadsRow;
+export const isReads = (x: LedgerItem): x is ReadsRow => (x as ReadsRow).kind === "reads";
+
+const epochOfKey = (k: string) => k.split("/")[1] ?? "";
+
+/**
+ * Rows (newest first, possibly several epochs) with every count between them accounted for. `above` and `below` are
+ * for the newest and the oldest epoch shown; the epochs in between were shown whole, from their start to their
+ * newest upload.
+ */
+async function withReads(rows: LedgerRow[], ends: { above: number | "uploaded" | null; below: number | null }): Promise<LedgerItem[]> {
+  const groups: { epoch: string; rows: LedgerRow[] }[] = [];
+  for (const r of rows) {
+    const e = epochOfKey(r.key);
+    const g = groups[groups.length - 1];
+    if (g && g.epoch === e) g.rows.push(r);
+    else groups.push({ epoch: e, rows: [r] });
+  }
+  const out: LedgerItem[] = [];
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i]!;
+    let batches: Awaited<ReturnType<typeof batchKeysOf>> = [];
+    try { batches = await batchKeysOf(g.epoch); } catch { /* the reads stay unlisted; the file rows still show */ }
+    out.push(...interleaveEpoch(g.epoch, g.rows, batches, { above: i === 0 ? ends.above : "uploaded", below: i === groups.length - 1 ? ends.below : 0 }));
+  }
+  return out;
+}
+
+/** The reads of epochs that have no file row to hang them on (a new epoch's first minutes), newest epoch first. */
+async function readsOnly(epochs: string[]): Promise<LedgerItem[]> {
+  const out: LedgerItem[] = [];
+  for (const e of [...epochs].reverse()) {
+    try { out.push(...interleaveEpoch(e, [], await batchKeysOf(e), { above: "uploaded", below: 0 })); } catch { /* none listed */ }
+  }
+  return out;
+}
+
 export interface LedgerPage {
-  rows: LedgerRow[];
+  rows: LedgerItem[];
   /** The newest key of the day so far (the live poll asks for rows after it), and whether older rows remain. */
   newestKey: string | null;
   hasOlder: boolean;
@@ -161,12 +200,15 @@ export async function ledgerPage(day: string, limit = 200, beforeKey?: string): 
     before = Infinity;
     if (r.more) break;
   }
-  return { rows: await rowsOfKeys(keys), newestKey, hasOlder: more };
+  const rows = await rowsOfKeys(keys);
+  if (rows.length === 0 && !beforeKey) return { rows: await readsOnly(epochs), newestKey, hasOlder: false };
+  const above = beforeKey ? counterOfKey(beforeKey) : "uploaded";
+  return { rows: await withReads(rows, { above: beforeKey && rows[0] && epochOfKey(rows[0].key) !== epochOfKey(beforeKey) ? "uploaded" : above, below: more ? null : 0 }), newestKey, hasOlder: more };
 }
 
 /** Today's BitGraphs made after `afterKey`, newest first: the live page's poll. It lists only what follows the key
  *  (its own epoch from that key on, and any newer epoch of the day), so it costs the same however long the day is. */
-export async function rowsAfter(afterKey: string | null, limit = 1000): Promise<{ rows: LedgerRow[]; newestKey: string | null }> {
+export async function rowsAfter(afterKey: string | null, limit = 1000): Promise<{ rows: LedgerItem[]; newestKey: string | null }> {
   const day = new Date().toISOString().slice(0, 10);
   const epochs = await epochsForDay(day);
   const afterEpoch = afterKey?.split("/")[1] ?? null;
@@ -176,5 +218,19 @@ export async function rowsAfter(afterKey: string | null, limit = 1000): Promise<
     const e = epochs[i]!;
     keys.push(...(await listKeysAfter(`proofs/${e}/`, e === afterEpoch ? afterKey ?? undefined : undefined, limit - keys.length)));
   }
-  return { rows: await rowsOfKeys(keys), newestKey: keys[keys.length - 1] ?? afterKey };
+  const rows = await rowsOfKeys(keys);
+  // The reads since the row the page already has: down to it in its epoch, from the start in a newer one.
+  let items: LedgerItem[] = rows.length ? await withReads(rows, { above: "uploaded", below: 0 }) : await readsOnly(epochs);
+  if (afterKey) {
+    const afterEpoch2 = epochOfKey(afterKey);
+    const sameEpoch = rows.length === 0 || epochOfKey(rows[rows.length - 1]!.key) === afterEpoch2;
+    if (rows.length === 0) {
+      let batches: Awaited<ReturnType<typeof batchKeysOf>> = [];
+      try { batches = await batchKeysOf(afterEpoch2); } catch { /* none listed */ }
+      items = interleaveEpoch(afterEpoch2, [], batches, { above: "uploaded", below: counterOfKey(afterKey) });
+    } else {
+      items = await withReads(rows, { above: "uploaded", below: sameEpoch ? counterOfKey(afterKey) : 0 });
+    }
+  }
+  return { rows: items, newestKey: keys[keys.length - 1] ?? afterKey };
 }
