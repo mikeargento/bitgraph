@@ -2,7 +2,7 @@
 
 /**
  * Reading the timeline's records back, for bundle export: the journal's lines not yet uploaded (pending.jsonl and
- * any batch-*.jsonl on disk) and the gzipped batches in the ledger bucket (timeline/<epoch>/<first>-<last>.jsonl.gz).
+ * any batch-*.jsonl on disk) and the gzipped batches in the ledger bucket (timeline/<epoch>/<first>-<last>-<n>.jsonl.gz).
  * Between them every record is found, whether it was made a second ago or a month ago.
  *
  * A file is found by its digest in the local lines, else through the bucket's by-digest index (the earliest proof of
@@ -59,7 +59,7 @@ export class TimelineRecords {
       // A batch holds about a minute of records; start well before the window and stop past it.
       const keys = await this.store.list(prefix, prefix + pad(c - span - 100_000n), (k) => BigInt(k.slice(prefix.length, prefix.length + 12)) > c + span);
       for (const key of keys) {
-        const m = /^(\d{12})-(\d{12})\.jsonl\.gz$/.exec(key.slice(prefix.length));
+        const m = /^(\d{12})-(\d{12})-\d+\.jsonl\.gz$/.exec(key.slice(prefix.length));
         if (!m || BigInt(m[2]!) < c - span) continue;
         const gz = await this.store.get(key);
         if (gz) out.push(...parseLines(gunzipSync(gz).toString("utf8")).filter(inRange));

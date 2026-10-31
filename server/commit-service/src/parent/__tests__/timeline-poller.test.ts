@@ -199,10 +199,10 @@ test("the journal uploads each minute's lines as one gzipped object per epoch, t
   jr.append(line(4)); jr.append(line(6)); jr.append(line(2, "A".repeat(43) + "="));
   await jr.flush();
   assert.deepEqual([...put.keys()].sort(), [
-    "timeline/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/000000000002-000000000002.jsonl.gz",
-    "timeline/KKOixUTETu9LB6jJxX-k-jvLaUZNUSoITPjHfzubqCo/000000000004-000000000006.jsonl.gz",
+    "timeline/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/000000000002-000000000002-1.jsonl.gz",
+    "timeline/KKOixUTETu9LB6jJxX-k-jvLaUZNUSoITPjHfzubqCo/000000000004-000000000006-2.jsonl.gz",
   ]);
-  const main = readTimelineObject(put.get("timeline/KKOixUTETu9LB6jJxX-k-jvLaUZNUSoITPjHfzubqCo/000000000004-000000000006.jsonl.gz")!);
+  const main = readTimelineObject(put.get("timeline/KKOixUTETu9LB6jJxX-k-jvLaUZNUSoITPjHfzubqCo/000000000004-000000000006-2.jsonl.gz")!);
   assert.deepEqual(main.map((l) => l.proof.commit.counter), ["4", "6"]);
   assert.deepEqual(readdirSync(dir), []);
   t += 60_000;
@@ -224,7 +224,7 @@ test("a failed upload keeps the batch and retries it first, oldest first", async
   jr.append(line(4));
   fail = false;
   await jr.flush();
-  assert.deepEqual(keys, [`timeline/KKOixUTETu9LB6jJxX-k-jvLaUZNUSoITPjHfzubqCo/000000000002-000000000002.jsonl.gz`, `timeline/KKOixUTETu9LB6jJxX-k-jvLaUZNUSoITPjHfzubqCo/000000000004-000000000004.jsonl.gz`]);
+  assert.deepEqual(keys, [`timeline/KKOixUTETu9LB6jJxX-k-jvLaUZNUSoITPjHfzubqCo/000000000002-000000000002-1.jsonl.gz`, `timeline/KKOixUTETu9LB6jJxX-k-jvLaUZNUSoITPjHfzubqCo/000000000004-000000000004-1.jsonl.gz`]);
   assert.equal(jr.stats.lastError, null);
 });
 

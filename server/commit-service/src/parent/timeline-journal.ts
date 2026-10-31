@@ -11,9 +11,11 @@
  * Uploading: pending.jsonl is renamed to batch-<ms>.jsonl (new appends start a fresh pending file), split by epoch,
  * gzipped and uploaded under
  *
- *   timeline/<epoch>/<first counter>-<last counter>.jsonl.gz
+ *   timeline/<epoch>/<first counter>-<last counter>-<records>.jsonl.gz
  *
- * (URL-safe epoch, 12-digit counters). The batch file is deleted only after every part has uploaded; a batch left
+ * (URL-safe epoch, 12-digit counters, then how many records the object holds). Every record takes two counts, so an
+ * object holds every record from first to last exactly when records = (last - first) / 2 + 1, which a listing of the
+ * keys alone shows: the public ledger accounts for every count without opening the objects. The batch file is deleted only after every part has uploaded; a batch left
  * by a crash or a failed upload is retried on the next pass, oldest first, before any newer one. Uploads are
  * create-only, so a retry of a part that did land is not an error.
  */
@@ -110,7 +112,7 @@ export class TimelineJournal {
     for (const [epoch, g] of byEpoch) {
       const body = Buffer.from(g.lines.join("\n") + "\n", "utf8");
       const gz = gzipSync(body, { level: 9 });
-      await this.put(`timeline/${safe(epoch)}/${pad(String(g.first))}-${pad(String(g.last))}.jsonl.gz`, gz);
+      await this.put(`timeline/${safe(epoch)}/${pad(String(g.first))}-${pad(String(g.last))}-${g.lines.length}.jsonl.gz`, gz);
       this.stats.objects++;
       this.stats.rawBytes += body.length;
       this.stats.gzipBytes += gz.length;
