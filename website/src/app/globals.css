@@ -5969,7 +5969,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section { padding-top: 80px !important; padding-bottom: 80px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section > h2 { margin-top: 12px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section > h2 + p { margin-top: 20px !important; max-width: 68ch !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section > :is(p:not(.home-kicker), ul, ol) { max-width: 68ch !important; text-wrap: pretty; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section > :is(p:not(.home-kicker), ul, ol) { max-width: 68ch !important; }
 /* The closing line is one sentence under a long headline: it runs with the headline, not the reading measure. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section[aria-labelledby="home-end"] > p { max-width: none !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section > .sx-cards { margin-top: 40px !important; gap: 20px !important; }
@@ -5982,3 +5982,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .sx-hero { padding-bottom: 52px !important; }
 }
 
+/* The mechanism figure on the home page stands on its own (2026-10-31): more room above and below than a card grid gets,
+   less than a section break, so it still belongs to its section. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section > .mf { margin-top: 96px !important; margin-bottom: 96px !important; }
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing .home-section > .mf { margin-top: 64px !important; margin-bottom: 64px !important; } }

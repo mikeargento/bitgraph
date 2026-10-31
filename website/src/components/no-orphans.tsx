@@ -18,7 +18,7 @@ import { usePathname } from "next/navigation";
  * React owns it, which its fiber key on the element says, and the pass is
  * retried for a few seconds so blocks that hydrate later get their turn.
  */
-const SELECTOR = ".prose p, .prose li, .prose dd, .prose dt, .prose blockquote, .lede, figcaption, .doors span, .facts span, .note, .receipt-row span";
+const SELECTOR = ".prose p, .prose li, .prose dd, .prose dt, .prose blockquote, .prose h3, .lede, figcaption, .mf-sub, .mf-note, .doors span, .facts span, .note, .receipt-row span";
 const RETRY_MS = [0, 300, 1200, 3000, 6000];
 
 const hydrated = (el: Element) => Object.keys(el).some((k) => k.startsWith("__reactFiber$"));
