@@ -101,6 +101,8 @@ function shapeReasons(o: Record<string, unknown>): string[] {
 
 /** What the chain says about a block hash, from the caller's lookup (eth_getBlockByHash, a Bitcoin block API). */
 export interface ChainBlock {
+  /** The CAIP-2 id of the chain that answered. */
+  chainId: string;
   hash: string;
   number: number;
   timestamp: number;
@@ -124,8 +126,8 @@ export interface BlockReadCheck {
  * Check a block read against its BitGraph and against the chain.
  *
  * The file must hash to the proof's digest and name the proof's epoch. `chain` is the lookup of the file's hash on
- * the file's chain: null means the chain does not know the hash. The block must be that hash, on the canonical
- * chain, with the number and timestamp the file names. Without `chain` (undefined) the read is unconfirmed and
+ * the file's chain: null means the chain does not know the hash. Every field must match: the block must be that
+ * hash, on the canonical chain, with the CAIP-2 chain id, number and timestamp the file names. Without `chain` (undefined) the read is unconfirmed and
  * not ok: the file alone says nothing about time. The number and timestamp returned are the chain's.
  */
 export function checkBlockRead(args: { file: string; proof: BitGraphProof; chain?: ChainBlock | null }): BlockReadCheck {
@@ -141,6 +143,7 @@ export function checkBlockRead(args: { file: string; proof: BitGraphProof; chain
   } else if (c === null) {
     reasons.push(`${file.chain} does not know block ${file.hash}`);
   } else {
+    if (c.chainId !== file.chainId) reasons.push(`the file names chain ${file.chainId}; the answer came from ${c.chainId}`);
     if (c.hash.toLowerCase() !== file.hash) reasons.push(`${file.chain} answered for another block`);
     if (!c.canonical) reasons.push(`block ${file.hash} is not on ${file.chain}'s canonical chain`);
     if (c.number !== file.number) reasons.push(`the file says block ${file.number}; ${file.chain} says ${c.number}`);

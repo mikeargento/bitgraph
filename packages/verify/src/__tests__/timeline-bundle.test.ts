@@ -124,10 +124,12 @@ type Step =
   | { file: true; atS?: number }
   | { other: true };
 
-async function scenario(steps: Step[], opts: { withGenesis?: boolean } = {}) {
+/** genesis: bound first (the usual case), last (Base was down at the epoch's start), or never shown. */
+async function scenario(steps: Step[], opts: { genesis?: "first" | "last" | "none" } = {}) {
   const e = await epoch();
   const genesisFile = epochGenesisFileText({ epochId: e.epochId, chainId: 8453, writer: WRITER, ...GENESIS });
-  const genesisProof = await e.bind(b64(sha256(enc.encode(genesisFile))), (GENESIS.blockTimestamp + 1) * 1000);
+  const where = opts.genesis ?? "first";
+  let genesisProof = where === "first" ? await e.bind(b64(sha256(enc.encode(genesisFile))), (GENESIS.blockTimestamp + 1) * 1000) : undefined;
 
   const blocks = new Map<string, ChainBlock>();
   const proofs: BitGraphProof[] = [];
@@ -139,7 +141,7 @@ async function scenario(steps: Step[], opts: { withGenesis?: boolean } = {}) {
     if ("read" in s) {
       const { number, timestamp } = blockAt(s.read, s.n);
       const hash = hashOf(s.read, s.n);
-      if (s.known !== false) blocks.set(hash, { hash, number, timestamp, canonical: s.canonical !== false });
+      if (s.known !== false) blocks.set(hash, { chainId: CHAIN_IDS[s.read], hash, number, timestamp, canonical: s.canonical !== false });
       const text = blockReadFileText({ epochId: e.epochId, chain: s.read, chainId: CHAIN_IDS[s.read], number, hash, timestamp });
       clockS = timestamp + (s.lagS ?? 1);
       blockFiles[String(proofs.length)] = text;
@@ -153,12 +155,13 @@ async function scenario(steps: Step[], opts: { withGenesis?: boolean } = {}) {
       proofs.push(await e.bind(b64(sha256(enc.encode(`someone else's file ${proofs.length}`))), Math.round(clockS * 1000)));
     }
   }
+  if (where === "last") genesisProof = await e.bind(b64(sha256(enc.encode(genesisFile))), Math.round((clockS + 30) * 1000));
   const bundle: TimelineBundle = {
     format: TIMELINE_BUNDLE_FORMAT,
     proofs,
     target,
     blockFiles,
-    ...(opts.withGenesis !== false ? { genesis: { proof: genesisProof, file: genesisFile } } : {}),
+    ...(genesisProof ? { genesis: { proof: genesisProof, file: genesisFile } } : {}),
   };
   const lookups: TimelineLookups = {
     block: async (_chain, _id, hash) => blocks.get(hash) ?? null,
@@ -177,6 +180,9 @@ test("a bundle the chains confirm is verified, with the chain's numbers and each
   assert.equal(r.status, "verified", why(r));
   assert.deepEqual(r.flags, []);
   assert.equal(r.genesis, "confirmed");
+  assert.equal(r.preGenesis, false);
+  assert.equal(r.floor?.claim, `bound after base block 37500000 (${hashOf("base", 0)}) was produced`);
+  assert.equal(r.ceiling?.claim, `bound before base block 37500002's timestamp ${T0 + 4}, by the Nitro hardware clock, cross-checked against the chain`);
   assert.deepEqual([r.floor?.index, r.floor?.number, r.floor?.timestamp, r.floor?.lagS], [0, 37_500_000, T0, 1.5]);
   assert.deepEqual([r.ceiling?.index, r.ceiling?.number, r.ceiling?.lagS], [4, 37_500_002, -0.8]);
   assert.equal(r.file?.counter, "8");
@@ -197,7 +203,7 @@ test("a re-bound block at or below the floor is never a ceiling", async () => {
   const r = await run();
   assert.equal(r.status, "verified", why(r));
   assert.equal(r.ceiling?.index, 3);
-  assert.match(r.passedOver.join(), /proof 2: block 37500005 is not above the floor's 37500005/);
+  assert.match(r.passedOver.join(), /proof 2: block 37500005.* so it is not a ceiling/);
 });
 
 test("a crafted read of an old block is never a ceiling: its lag passes it over", async () => {
@@ -217,6 +223,24 @@ test("with no qualifying read after the file, the ceiling is unconfirmed, never 
   assert.equal(r.ceiling, null);
   assert.equal(r.floor?.index, 0);
   assert.match(r.unconfirmed.join(), /no read after the file in this bundle qualifies as a base ceiling/);
+});
+
+test("a fresh-looking read of a block stamped before the file is never a ceiling", async () => {
+  // Block 1 is above the floor and read within 5 s of its time, but it was stamped 4 s before the file was bound.
+  const { run } = await scenario([{ read: "base", n: 0 }, { file: true, atS: T0 + 6 }, { read: "base", n: 1, lagS: 4.5 }, { read: "base", n: 3 }]);
+  const r = await run();
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.ceiling?.index, 3);
+  assert.equal(r.ceiling?.number, 37_500_003);
+  assert.match(r.passedOver.join(), /proof 2: block 37500001's timestamp 1793404752 is before the file's Nitro time 1793404756\.000/);
+});
+
+test("a ceiling block stamped up to 1 s before the file's time is allowed for clock skew", async () => {
+  const ok = await (await scenario([{ read: "base", n: 0 }, { file: true, atS: T0 + 3 }, { read: "base", n: 1, lagS: 1.5 }])).run();
+  assert.equal(ok.status, "verified", why(ok));
+  assert.equal(ok.ceiling?.index, 2);
+  const late = await (await scenario([{ read: "base", n: 0 }, { file: true, atS: T0 + 3.5 }, { read: "base", n: 1, lagS: 1.6 }])).run();
+  assert.equal(late.ceiling, null);
 });
 
 test("a lagging floor is flagged and still used", async () => {
@@ -244,11 +268,14 @@ test("with Base down, an Ethereum read brackets on Ethereum; other chains' reads
   assert.deepEqual([r.floor?.chain, r.floor?.index, r.ceiling?.chain, r.ceiling?.index], ["ethereum", 0, "ethereum", 3]);
 });
 
-test("Bitcoin's limits: 3 h late is the most, 2 h early the least", async () => {
-  const r = await (await scenario([{ read: "bitcoin", n: 0, lagS: 2 * 3600 }, { file: true }, { read: "bitcoin", n: 1, lagS: 4 * 3600 }, { read: "bitcoin", n: 2, lagS: 7000 }])).run();
+test("Bitcoin: a ceiling's block time must reach the file's time, and 3 h late is the most", async () => {
+  // Block 1 was stamped before the file; block 2 was read 4 h after its time; block 3 qualifies.
+  const r = await (await scenario([{ read: "bitcoin", n: 0, lagS: 900 }, { file: true }, { read: "bitcoin", n: 1, lagS: 400 }, { read: "bitcoin", n: 2, lagS: 4 * 3600 }, { read: "bitcoin", n: 3, lagS: 60 }])).run();
   assert.equal(r.status, "verified", why(r));
-  assert.deepEqual(r.flags.length, 1);
-  assert.equal(r.ceiling?.index, 3);
+  assert.equal(r.ceiling?.index, 4);
+  assert.equal(r.passedOver.length, 2);
+  assert.match(r.passedOver[0]!, /timestamp .* is before the file's Nitro time/);
+  assert.equal(r.flags.length, 1);
 });
 
 test("only canonical blocks bracket: an orphaned or unknown read is passed over", async () => {
@@ -269,6 +296,15 @@ test("a block file whose number or time the chain contradicts fails", async () =
   assert.equal(r.status, "failed");
   assert.match(r.reasons.join(), /proof 2: the file says time/);
   assert.equal(r.ceiling, null);
+});
+
+test("a lookup answering from another chain id fails", async () => {
+  const { run, blocks } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }]);
+  const h = hashOf("base", 0);
+  blocks.set(h, { ...blocks.get(h)!, chainId: "eip155:84532" });
+  const r = await run();
+  assert.equal(r.status, "failed");
+  assert.match(r.reasons.join(), /answer came from eip155:84532/);
 });
 
 test("the Nitro times must run in order: floor, file, ceiling", async () => {
@@ -321,17 +357,28 @@ test("the file's bytes must be the file's", async () => {
   assert.match(r.reasons.join(), /the file's proof/);
 });
 
-test("without a genesis record the file is pre-genesis; a genesis after the file fails", async () => {
-  const steps: Step[] = [{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }];
-  const pre = await (await scenario(steps, { withGenesis: false })).run();
-  assert.equal(pre.status, "verified", why(pre));
-  assert.equal(pre.genesis, "pre-genesis");
+test("a genesis record after the file confirms the epoch; the file is pre-genesis", async () => {
+  const r = await (await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }], { genesis: "last" })).run();
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.genesis, "confirmed");
+  assert.equal(r.preGenesis, true);
+});
 
+test("without its epoch's genesis record a bundle is never verified", async () => {
+  const r = await (await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }], { genesis: "none" })).run();
+  assert.equal(r.status, "unconfirmed");
+  assert.equal(r.genesis, "missing");
+  assert.match(r.unconfirmed.join(), /does not carry its epoch's genesis record/);
+});
+
+test("a genesis record of another key or epoch fails", async () => {
+  const steps: Step[] = [{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1 }];
   const { run, bundle } = await scenario(steps);
-  const late = { ...bundle, genesis: { proof: bundle.proofs[2]!, file: bundle.genesis!.file } };
-  const r = await run({ bundle: late });
+  const other = await scenario(steps);
+  const r = await run({ bundle: { ...bundle, genesis: other.bundle.genesis } });
   assert.equal(r.status, "failed");
-  assert.match(r.reasons.join(), /not before the file/);
+  assert.match(r.reasons.join(), /another key/);
+  assert.match(r.reasons.join(), /another epoch/);
 });
 
 test("a genesis Base does not confirm fails", async () => {

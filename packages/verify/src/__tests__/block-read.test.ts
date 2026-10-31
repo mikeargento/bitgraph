@@ -20,7 +20,7 @@ function proofOf(text: string, epochId = EPOCH): BitGraphProof {
   return { artifact: { hashAlg: "sha256", digestB64: blockReadDigestB64(text) }, commit: { epochId } } as unknown as BitGraphProof;
 }
 
-const onChain = (over: Partial<ChainBlock> = {}): ChainBlock => ({ hash: BASE_HASH, number: baseRead.number, timestamp: baseRead.timestamp, canonical: true, ...over });
+const onChain = (over: Partial<ChainBlock> = {}): ChainBlock => ({ chainId: "eip155:8453", hash: BASE_HASH, number: baseRead.number, timestamp: baseRead.timestamp, canonical: true, ...over });
 
 test("the file's text is fixed byte for byte", () => {
   const text = blockReadFileText(baseRead);
@@ -96,6 +96,13 @@ test("a file whose number or time disagrees with the chain fails", () => {
   const r = checkBlockRead({ file: lyingTime, proof: proofOf(lyingTime), chain: onChain() });
   assert.equal(r.ok, false);
   assert.match(r.reasons.join(), /says time/);
+});
+
+test("an answer from another chain id fails", () => {
+  const text = blockReadFileText(baseRead);
+  const r = checkBlockRead({ file: text, proof: proofOf(text), chain: onChain({ chainId: "eip155:84532" }) });
+  assert.equal(r.status, "failed");
+  assert.match(r.reasons.join(), /names chain eip155:8453; the answer came from eip155:84532/);
 });
 
 test("the file must be the proof's, in the proof's epoch", () => {

@@ -4,32 +4,38 @@
  * bitgraph-timeline-bundle/1: everything a file's place on the block timeline rests on, in one object.
  *
  * Block reads (block-read.ts) and files are bound on one counter sequence. A bundle holds an unbroken run of proofs
- * around the file's, in counter order, the block files of the block reads in it, and the epoch's genesis record when
- * the epoch had one before the file. Each proof carries its own AWS Nitro attestation, so nothing else about the
- * enclave is needed. The first proof is a block read; its chain is the chain the file is bracketed on.
+ * around the file's, in counter order, the block files of the block reads in it, and the epoch's genesis record,
+ * wherever it falls in the epoch. Each proof carries its own AWS Nitro attestation, so nothing else about the enclave
+ * is needed. The first proof is a block read; its chain is the chain the file is bracketed on.
  *
- * The bracket is chosen by the verifier, on that chain, from reads the chain confirms (hash on its canonical chain;
- * number and timestamp taken from the chain, never from the file):
+ * The bracket is chosen by the verifier, on that chain, from reads the chain confirms (hash on its canonical chain,
+ * and every field of the block file equal to the chain's answer):
  *
- *   floor     the latest confirmed read before the file.
- *   ceiling   the first confirmed read after the file whose block number is strictly greater than the floor's and
- *             whose lag is within the chain's limits.
+ *   floor     the latest confirmed read before the file. The claim is causal: the file was bound after block A was
+ *             produced, because A's hash cannot be known before A exists.
+ *   ceiling   the first confirmed read after the file whose block timestamp, on the canonical chain, is at or after
+ *             the file's own Nitro time (less at most 1 s of clock skew), whose block number is above the floor's, and
+ *             whose own lag is within the chain's limits. The claim is: the file was bound before block B's timestamp,
+ *             by the Nitro hardware clock, cross-checked against the chain.
  *
- * Anyone can bind a block file, of any block, at any time. A file naming an old block only loosens a floor, but as a
- * ceiling it would claim the file existed before that old block. The two ceiling rules stop that: a read of a block
- * at or below the floor is never a ceiling, and a read whose Nitro time is far after its block's time is never a
- * ceiling. Such reads are passed over and the next one qualifies (a wider bracket, still true); when none does, the
- * ceiling is unconfirmed. A floor outside the lag limits is flagged and still used.
+ * Anyone can bind a block file, of any block, at any time, and a bundle need not show every read. The ceiling rule
+ * holds anyway: it compares the chain's own timestamp for B with the hardware time of the file, so a re-bound or
+ * injected file of an older block is never a ceiling, whatever reads are shown or hidden. Reads that fail the rule
+ * are passed over and the next one qualifies (a wider bracket, still true); when none does, the ceiling is
+ * unconfirmed. A floor outside the lag limits is flagged and still used.
  *
  * Lag is signed: a read's own Nitro time minus its block's timestamp. Base and Ethereum allow 2 s early (their
  * timestamps are whole seconds), Bitcoin 2 h early (miners set its block times).
  *
  * Also checked, without any network: every proof in full (verifyAttested); the run unbroken (verifyStretch); every
- * block file binds to its proof; the floor's, the file's and the ceiling's Nitro times in order; the genesis record
- * of this epoch, under the same key, before the file. With lookups, the genesis write must be on Base.
+ * block file binds to its proof and names its epoch; the floor's, the file's and the ceiling's Nitro times in order;
+ * the genesis record of this epoch, under the same key. With lookups, the genesis write must be on Base. A file bound
+ * before its epoch's genesis record is pre-genesis: until then its clock check rests on Nitro alone. A bundle without
+ * its epoch's genesis record is never verified.
  *
- * Status: "verified" when everything was checked and passed; "unconfirmed" when nothing failed but the time could
- * not be settled (a chain not asked or not answering, or no qualifying ceiling in the bundle); "failed" otherwise.
+ * Status: "verified" when everything was checked and passed; "unconfirmed" when nothing failed but something could
+ * not be settled (a chain not asked or not answering, no qualifying ceiling in the bundle, no genesis record);
+ * "failed" otherwise.
  */
 
 import type { BitGraphProof } from "./types.js";
@@ -49,7 +55,7 @@ export interface TimelineBundle {
   target: number;
   /** The block files of the block reads in the run, by their index in `proofs` (as a decimal string). Index 0 is required. */
   blockFiles: Record<string, string>;
-  /** The epoch's genesis record, when the epoch had one before the file. Absent: the file is pre-genesis. */
+  /** The epoch's genesis record, wherever it falls in the epoch, before or after the file. Absent: unconfirmed. */
   genesis?: { proof: BitGraphProof; file: string };
 }
 
@@ -60,6 +66,9 @@ export interface LagLimit {
 }
 
 /** Defaults: Base 2 s early to 5 s late, Ethereum 2 s early to 60 s late, Bitcoin 2 h early to 3 h late. */
+/** A ceiling block's timestamp may be this much before the file's Nitro time: the clocks' skew, at most. */
+export const CEILING_SKEW_S = 1;
+
 export const DEFAULT_LAG_LIMITS: Readonly<Record<BlockReadChain, LagLimit>> = {
   base: { maxS: 5, minS: -2 },
   ethereum: { maxS: 60, minS: -2 },
@@ -101,6 +110,8 @@ export interface TimelineBound {
   attestedAtMs: number;
   /** Signed: attestedAtMs / 1000 minus timestamp. */
   lagS: number;
+  /** What the bound means, in words. */
+  claim: string;
 }
 
 export interface TimelineBundleResult {
@@ -116,8 +127,10 @@ export interface TimelineBundleResult {
   file: { counter: string; digestB64: string; attestedAtMs: number | null } | null;
   floor: TimelineBound | null;
   ceiling: TimelineBound | null;
-  /** confirmed: the genesis write is on Base; unconfirmed: given but Base not asked; pre-genesis: the clock check rests on Nitro alone. */
-  genesis: "confirmed" | "unconfirmed" | "pre-genesis";
+  /** confirmed: the epoch's genesis write is on Base; unconfirmed: given, Base not asked; missing: not in the bundle. */
+  genesis: "confirmed" | "unconfirmed" | "missing";
+  /** True when the file was bound before its epoch's genesis record (or none is shown): its clock check rests on Nitro alone. */
+  preGenesis: boolean;
 }
 
 const enc = new TextEncoder();
@@ -127,7 +140,7 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
   const unconfirmed: string[] = [];
   const flags: string[] = [];
   const passedOver: string[] = [];
-  const failed = (why: string): TimelineBundleResult => ({ status: "failed", reasons: [why], unconfirmed, flags, passedOver, file: null, floor: null, ceiling: null, genesis: "pre-genesis" });
+  const failed = (why: string): TimelineBundleResult => ({ status: "failed", reasons: [why], unconfirmed, flags, passedOver, file: null, floor: null, ceiling: null, genesis: "missing", preGenesis: true });
 
   const shape = bundleShape(opts.bundle);
   if (typeof shape === "string") return failed(shape);
@@ -195,7 +208,7 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
     }
     const at = times[i];
     if (typeof at !== "number") return { kind: "stop" };
-    return { kind: "bound", bound: { index: i, ...r.block, counter: String(b.proofs[i]!.commit?.counter ?? ""), attestedAtMs: at, lagS: (at - r.block.timestamp * 1000) / 1000 } };
+    return { kind: "bound", bound: { index: i, ...r.block, counter: String(b.proofs[i]!.commit?.counter ?? ""), attestedAtMs: at, lagS: (at - r.block.timestamp * 1000) / 1000, claim: "" } };
   };
   const outside = (x: TimelineBound): string | null => {
     const lim = limits[x.chain];
@@ -206,6 +219,7 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
 
   let floor: TimelineBound | null = null;
   let ceiling: TimelineBound | null = null;
+  const fileMs = times[b.target];
   const sameChain = [...reads.keys()].filter((i) => reads.get(i)!.chain === chain).sort((x, y) => x - y);
   if (chain !== undefined && reasons.length === 0) {
     for (const i of sameChain.filter((i) => i < b.target).reverse()) {
@@ -214,6 +228,7 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
       if (a.kind === "bound") { floor = a.bound; break; }
     }
     if (floor) {
+      floor.claim = `bound after ${floor.chain} block ${floor.number} (${floor.hash}) was produced`;
       const lag = outside(floor);
       if (lag) flags.push(`the floor: ${lag}`);
       for (const i of sameChain.filter((i) => i > b.target)) {
@@ -221,9 +236,12 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
         if (a.kind === "stop") break;
         if (a.kind === "skip") continue;
         const c = a.bound;
+        if (typeof fileMs !== "number") break;
+        if (c.timestamp * 1000 < fileMs - CEILING_SKEW_S * 1000) { passedOver.push(`proof ${i}: block ${c.number}'s timestamp ${c.timestamp} is before the file's Nitro time ${(fileMs / 1000).toFixed(3)}, so it is not a ceiling`); continue; }
         if (c.number <= floor.number) { passedOver.push(`proof ${i}: block ${c.number} is not above the floor's ${floor.number}, so it is not a ceiling`); continue; }
         const lag = outside(c);
         if (lag) { flags.push(`proof ${i}, passed over as a ceiling: ${lag}`); passedOver.push(`proof ${i}: its lag is outside the limits, so it is not a ceiling`); continue; }
+        c.claim = `bound before ${c.chain} block ${c.number}'s timestamp ${c.timestamp}, by the Nitro hardware clock, cross-checked against the chain`;
         ceiling = c;
         break;
       }
@@ -236,14 +254,14 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
   }
 
   // The hardware's clock must agree with the order.
-  const fileMs = times[b.target];
   if (typeof fileMs === "number") {
     if (floor && floor.attestedAtMs > fileMs) reasons.push("the floor read's Nitro time is after the file's");
     if (ceiling && ceiling.attestedAtMs < fileMs) reasons.push("the ceiling read's Nitro time is before the file's");
   }
 
-  // Genesis: before the file, in the same epoch under the same key, and, when Base is asked, on Base.
-  let genesis: TimelineBundleResult["genesis"] = "pre-genesis";
+  // Genesis: this epoch's, under the same key, before or after the file, and, when Base is asked, on Base.
+  let genesis: TimelineBundleResult["genesis"] = "missing";
+  let preGenesis = true;
   const target = b.proofs[b.target]!;
   if (b.genesis) {
     const g = b.genesis;
@@ -252,7 +270,10 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
     if (!gr.valid) reasons.push(`the genesis record does not verify: ${gr.reason ?? "invalid"}`);
     if (g.proof.signer?.publicKeyB64 !== target.signer?.publicKeyB64) reasons.push("the genesis record is signed by another key");
     try {
-      if (BigInt(g.proof.commit?.counter ?? "") >= BigInt(target.slotAllocation?.counter ?? "")) reasons.push("the genesis record is not before the file");
+      const gc = BigInt(g.proof.commit?.counter ?? "");
+      const tc = BigInt(target.commit?.counter ?? "");
+      if (gc === tc) reasons.push("the genesis record is the file's own proof");
+      preGenesis = gc > tc;
     } catch {
       reasons.push("the genesis record's counter does not parse");
     }
@@ -280,6 +301,8 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
         unconfirmed.push("genesis: the transaction was not looked up on Base");
       }
     }
+  } else {
+    unconfirmed.push("the bundle does not carry its epoch's genesis record");
   }
 
   const status = reasons.length > 0 ? "failed" : unconfirmed.length > 0 ? "unconfirmed" : "verified";
@@ -293,6 +316,7 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
     floor: status === "failed" ? null : floor,
     ceiling: status === "failed" ? null : ceiling,
     genesis,
+    preGenesis,
   };
 }
 
