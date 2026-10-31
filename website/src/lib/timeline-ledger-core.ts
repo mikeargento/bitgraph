@@ -3,11 +3,18 @@
 /** The pure part of lib/timeline-ledger.ts (see there): batch keys, what accounts for a span of counts, and the
  *  ledger's rows with a reads row in every gap. No I/O, so it is tested on its own. */
 
-export interface TimelineBatchKey { key: string; first: number; last: number; records: number }
+export interface TimelineBatchKey {
+  key: string;
+  first: number;
+  last: number;
+  records: number;
+  /** The enclave host's records not yet uploaded (GET /timeline/recent), standing in for the batch to come. */
+  live?: boolean;
+}
 
 export interface ReadsRow {
   kind: "reads";
-  /** reads:<epoch>:<from>-<to>, unique among the ledger's rows. */
+  /** reads:<epoch>:<from>, unique among the ledger's rows, and the same while the newest run grows live. */
   key: string;
   epoch: string;
   /** The payload counts of the first and last record the row stands for (each record also takes the count before). */
@@ -49,7 +56,9 @@ export function spanState(from: number, to: number, batches: readonly TimelineBa
   for (const b of sorted) {
     if (b.last < cursor) continue;
     if (b.first > to) break;
-    if (b.first > cursor) return "missing"; // counts no batch holds, below one that does
+    // Counts no batch holds, below one that does. Right below the live records it is a batch uploaded between the
+    // listing and the live fetch, so the counts are on their way, not lost.
+    if (b.first > cursor) return b.live ? "uploading" : "missing";
     if (!complete(b)) return "missing";
     cursor = b.last + 2;
     if (cursor > to) return "recorded";
@@ -59,7 +68,7 @@ export function spanState(from: number, to: number, batches: readonly TimelineBa
 
 function span(epoch: string, from: number, to: number, batches: readonly TimelineBatchKey[]): ReadsRow | null {
   if (to < from) return null;
-  return { kind: "reads", key: `reads:${epoch}:${from}-${to}`, epoch, from, to, count: (to - from) / 2 + 1, state: spanState(from, to, batches) };
+  return { kind: "reads", key: `reads:${epoch}:${from}`, epoch, from, to, count: (to - from) / 2 + 1, state: spanState(from, to, batches) };
 }
 
 /**
@@ -108,4 +117,11 @@ export function interleaveDay<R extends { counter: string; key: string }>(
     out.push(...interleaveEpoch(e, byEpoch.get(e) ?? [], batches[e] ?? [], { above: i === 0 ? ends.above : "uploaded", below }));
   });
   return out;
+}
+
+/** The live records (counts after the newest uploaded batch) as one batch-like span, or null when there are none. */
+export function liveBatch(epoch: string, counters: readonly number[]): TimelineBatchKey | null {
+  if (counters.length === 0) return null;
+  const first = Math.min(...counters), last = Math.max(...counters);
+  return { key: `live:${epoch}`, first, last, records: new Set(counters).size, live: true };
 }

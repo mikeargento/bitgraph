@@ -16,7 +16,8 @@ export async function GET(req: Request) {
   }
   try {
     const r = await readsBetween(epoch, from, to);
-    return NextResponse.json(r, { headers: { "Cache-Control": "public, s-maxage=60" } });
+    // The newest run includes live records, so nothing is cached at the edge for long.
+    return NextResponse.json(r, { headers: { "Cache-Control": "public, s-maxage=2" } });
   } catch {
     return NextResponse.json({ error: "the timeline could not be read" }, { status: 503 });
   }

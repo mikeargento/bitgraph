@@ -23,13 +23,19 @@ function when(ms: number): string {
 function clock(ms: number): string {
   return new Date(ms).toLocaleTimeString("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
+/** The viewer's own time, for the hover: the page itself stays in UTC, the ledger's days and the chains' clock. */
+function local(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short" });
+}
 
 /** An epoch's first BitGraph (counts 1, 2) is, from enclave v13, a read of the latest Base block
  *  (epoch-floor.json). Shown only when the file served for the epoch hashes, here, to this row's digest. */
-function useEpochStart(r: LedgerRow): number | null {
+function useEpochStart(r: LedgerRow, firstOfEpoch: boolean): number | null {
   const [block, setBlock] = useState<number | null>(null);
   useEffect(() => {
-    if (r.nonceCounter !== "1" || !r.digest) return;
+    // From the block timeline on, the genesis record may follow a few reads made while the Base write was pending:
+    // it is then the epoch's first file row. Either way the file served for the epoch must hash to this row's digest.
+    if ((r.nonceCounter !== "1" && !firstOfEpoch) || !r.digest) return;
     const epoch = r.key.split("/")[1];
     if (!epoch) return;
     let gone = false;
@@ -44,12 +50,12 @@ function useEpochStart(r: LedgerRow): number | null {
       if (!gone && urlSafe === r.digest && typeof j.block?.number === "number") setBlock(j.block.number);
     })().catch(() => {});
     return () => { gone = true; };
-  }, [r.key, r.digest, r.nonceCounter]);
+  }, [r.key, r.digest, r.nonceCounter, firstOfEpoch]);
   return block;
 }
 
-function Row({ r }: { r: LedgerRow }) {
-  const epochStart = useEpochStart(r);
+function Row({ r, firstOfEpoch }: { r: LedgerRow; firstOfEpoch: boolean }) {
+  const epochStart = useEpochStart(r, firstOfEpoch);
   const inner = (
     <>
       {/* The epoch's first BitGraph leads with "Genesis", its number where "Genesis" was (2026-10-20). */}
@@ -59,7 +65,7 @@ function Row({ r }: { r: LedgerRow }) {
       <span className="rl-counts" title={epochStart !== null ? `Epoch start: Base block ${fmt(epochStart)}` : undefined}>{r.nonceCounter ? `counts ${fmt(r.nonceCounter)}, ${fmt(r.counter)}` : ""}{r.anchor ? " · anchor" : ""}{epochStart !== null ? ` · #${fmt(r.counter)}` : ""}</span>
       <span className="rl-hash" title="SHA-256 of the bound content">{r.digest ?? r.proofHash}</span>
       {r.recordedMs !== null && (
-        <span className="rl-when">
+        <span className="rl-when" title={local(r.recordedMs)}>
           <span className="rl-when-long">{when(r.recordedMs)}</span>
           <span className="rl-when-short">{clock(r.recordedMs)}</span>
         </span>
@@ -98,17 +104,21 @@ function readsLabel(r: ReadsRow): string {
  * list each read with its chain, block number and the enclave's time. Every count of the sequence is either a file's
  * row or inside one of these.
  */
-function ReadsRowView({ r, open, toggle }: { r: ReadsRow; open: boolean; toggle: () => void }) {
-  const [reads, setReads] = useState<{ reads: TimelineRead[]; truncated: boolean } | null>(null);
+function ReadsRowView({ r }: { r: ReadsRow }) {
+  const [open, setOpen] = useState(false);
+  const toggle = () => setOpen((o) => !o);
+  const [reads, setReads] = useState<{ to: number; reads: TimelineRead[]; truncated: boolean } | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
-    if (!open || reads || r.state === "unlisted") return;
+    // Fetched when opened, and again when the run has grown since (the newest run grows while the page is live).
+    if (!open || (reads && reads.to === r.to) || r.state === "unlisted") return;
     let gone = false;
     (async () => {
-      const res = await fetch(`/api/ledger/reads?epoch=${r.epoch}&from=${r.from}&to=${r.to}`).catch(() => null);
+      const res = await fetch(`/api/ledger/reads?epoch=${r.epoch}&from=${r.from}&to=${r.to}`, { cache: "no-store" }).catch(() => null);
       if (gone) return;
       if (!res || !res.ok) { setFailed(true); return; }
-      setReads((await res.json()) as { reads: TimelineRead[]; truncated: boolean });
+      setFailed(false);
+      setReads({ to: r.to, ...((await res.json()) as { reads: TimelineRead[]; truncated: boolean }) });
     })().catch(() => setFailed(true));
     return () => { gone = true; };
   }, [open, reads, r.epoch, r.from, r.to, r.state]);
@@ -130,7 +140,7 @@ function ReadsRowView({ r, open, toggle }: { r: ReadsRow; open: boolean; toggle:
               <span className="rl-counts">counts {fmt(x.counter - 1)}, {fmt(x.counter)}</span>
               <span className="rl-hash">{x.kind === "block" ? `${CHAIN_NAME[x.chain ?? ""] ?? x.chain ?? "Block"} block ${x.number !== undefined ? fmt(x.number) : "?"}` : x.kind === "genesis" ? "Epoch genesis" : "File (not in the index yet)"}</span>
               {x.recordedMs !== null && (
-                <span className="rl-when">
+                <span className="rl-when" title={local(x.recordedMs)}>
                   <span className="rl-when-long">{when(x.recordedMs)}</span>
                   <span className="rl-when-short">{clock(x.recordedMs)}</span>
                 </span>
@@ -149,14 +159,6 @@ function ReadsRowView({ r, open, toggle }: { r: ReadsRow; open: boolean; toggle:
 
 export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: string; live: boolean; initial: LedgerItem[]; newestKey: string | null; hasOlder: boolean }) {
   const [rows, setRows] = useState<LedgerItem[]>(initial);
-  // Show block reads: every reads row opened (remembered on this device). A row can also be opened by itself.
-  const [showReads, setShowReads] = useState(false);
-  const [opened, setOpened] = useState<Set<string>>(new Set());
-  useEffect(() => { try { setShowReads(localStorage.getItem("ledger-show-reads") === "1"); } catch { /* not kept */ } }, []);
-  const flipShowReads = () => {
-    setShowReads((v) => { try { localStorage.setItem("ledger-show-reads", v ? "0" : "1"); } catch { /* not kept */ } return !v; });
-    setOpened(new Set());
-  };
   const [older, setOlder] = useState(hasOlder);
   const [busy, setBusy] = useState(false);
   const newest = useRef<string | null>(newestKey);
@@ -211,18 +213,19 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: s
   if (rows.length === 0) {
     return <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>{live ? "No BitGraphs yet today. New ones appear here as they are made." : "No BitGraphs on this day."}</div>;
   }
-  const anyReads = rows.some(isReads);
+  // An epoch's first file row: the next item is its epoch's reads from the start, or nothing older in its epoch.
+  const epochOf = (x: LedgerItem) => (isReads(x) ? x.epoch : x.key.split("/")[1]);
+  const firstOfEpoch = (i: number): boolean => {
+    const next = rows[i + 1];
+    if (!next || epochOf(next) !== epochOf(rows[i]!)) return !older;
+    return isReads(next) && next.from === 2 && (!rows[i + 2] || epochOf(rows[i + 2]!) !== epochOf(rows[i]!));
+  };
   return (
     <>
-      {anyReads && (
-        <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 10px" }}>
-          <button type="button" className="bg-action-link" style={{ margin: 0 }} onClick={flipShowReads} aria-pressed={showReads}>{showReads ? "Hide block reads" : "Show block reads"}</button>
-        </div>
-      )}
       <div className="rl-rows">
-        {rows.map((r) => isReads(r)
-          ? <ReadsRowView key={r.key} r={r} open={showReads !== opened.has(r.key)} toggle={() => setOpened((s) => { const n = new Set(s); if (n.has(r.key)) n.delete(r.key); else n.add(r.key); return n; })} />
-          : <Row key={r.key} r={r} />)}
+        {rows.map((r, i) => isReads(r)
+          ? <ReadsRowView key={r.key} r={r} />
+          : <Row key={r.key} r={r} firstOfEpoch={firstOfEpoch(i)} />)}
       </div>
       {older && (
         <div style={{ marginTop: 20 }}>

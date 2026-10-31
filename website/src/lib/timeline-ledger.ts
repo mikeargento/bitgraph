@@ -20,9 +20,9 @@ import { unstable_cache } from "next/cache";
 import { gunzipSync } from "node:zlib";
 import { getObjectBytes, listKeysUnderPrefix } from "@/lib/s3";
 import { recordedMsOf } from "@/lib/recorded-time";
-import { parseBatchKey, type TimelineBatchKey, type TimelineRead } from "@/lib/timeline-ledger-core";
+import { liveBatch, parseBatchKey, type TimelineBatchKey, type TimelineRead } from "@/lib/timeline-ledger-core";
 
-export { interleaveEpoch, interleaveDay, spanState, parseBatchKey, type ReadsRow, type TimelineRead, type TimelineBatchKey } from "@/lib/timeline-ledger-core";
+export { interleaveEpoch, interleaveDay, spanState, parseBatchKey, liveBatch, type ReadsRow, type TimelineRead, type TimelineBatchKey } from "@/lib/timeline-ledger-core";
 
 /** The epoch's batch keys. A closed epoch's never change; today's are re-listed every 15 s at most. */
 export const batchKeysOf = unstable_cache(async (epoch: string): Promise<TimelineBatchKey[]> => {
@@ -35,10 +35,46 @@ const batchLines = unstable_cache(async (key: string): Promise<string[]> => {
   return bytes ? gunzipSync(bytes).toString("utf8").split("\n").filter(Boolean) : [];
 }, ["timeline-ledger-batch-v1"], { revalidate: false });
 
-/** The records with payload counts from..to, newest first, read from the batches that hold them (at most `limit`). */
+const LIVE_URL = process.env.TIMELINE_LIVE_URL || "https://nitro.occproof.com/timeline/recent";
+
+/**
+ * The enclave host's records of `epoch` after count `after` that are not in an uploaded batch yet: the last minute or
+ * so of the timeline. Empty when the host does not answer within 3 s; the ledger then shows what is uploaded.
+ */
+export async function liveRecords(epoch: string, after: number): Promise<TimelineRead[]> {
+  try {
+    const r = await fetch(`${LIVE_URL}?epoch=${epoch}&after=${after}`, { cache: "no-store", signal: AbortSignal.timeout(3000) });
+    if (!r.ok) return [];
+    const j = (await r.json()) as { records?: TimelineRead[] };
+    return Array.isArray(j.records) ? j.records.filter((x) => typeof x.counter === "number" && x.counter > after) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** The epoch's uploaded batch keys and, when `live`, the host's records after the newest of them as one live span. */
+export async function batchKeysWithLive(epoch: string, live: boolean): Promise<TimelineBatchKey[]> {
+  const batches = await batchKeysOf(epoch);
+  if (!live) return batches;
+  const uploaded = batches.reduce((m, b) => Math.max(m, b.last), 0);
+  const lb = liveBatch(epoch, (await liveRecords(epoch, uploaded)).map((r) => r.counter));
+  return lb ? [...batches, lb] : batches;
+}
+
+/** The records with payload counts from..to, newest first, read from the batches that hold them (at most `limit`), and
+ *  past the newest uploaded batch from the host's live records. */
 export async function readsBetween(epoch: string, from: number, to: number, limit = 2000): Promise<{ reads: TimelineRead[]; truncated: boolean }> {
-  const batches = (await batchKeysOf(epoch)).filter((b) => b.last >= from && b.first <= to).sort((a, b) => b.first - a.first);
+  const all = await batchKeysOf(epoch);
+  const uploaded = all.reduce((m, b) => Math.max(m, b.last), 0);
+  const batches = all.filter((b) => b.last >= from && b.first <= to).sort((a, b) => b.first - a.first);
   const reads: TimelineRead[] = [];
+  if (to > uploaded) {
+    for (const r of (await liveRecords(epoch, Math.max(uploaded, from - 2))).reverse()) {
+      if (r.counter < from || r.counter > to) continue;
+      reads.push(r);
+      if (reads.length >= limit) return { reads, truncated: true };
+    }
+  }
   for (const b of batches) {
     for (const raw of (await batchLines(b.key)).reverse()) {
       let line: { kind?: string; proof?: { commit?: { counter?: string } }; blockFile?: string };

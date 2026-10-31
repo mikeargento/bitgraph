@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { interleaveDay, interleaveEpoch, parseBatchKey, spanState, type TimelineBatchKey } from "../timeline-ledger-core.ts";
+import { interleaveDay, interleaveEpoch, liveBatch, parseBatchKey, spanState, type TimelineBatchKey } from "../timeline-ledger-core.ts";
 
 const E = "KKOixUTETu9LB6jJxX-k-jvLaUZNUSoITPjHfzubqCo";
 const P = `timeline/${E}/`;
@@ -68,4 +68,20 @@ test("a day with two epochs: an epoch with reads but no file row still shows, in
   // The live poll: below the row the page has in its epoch, whole in a newer one.
   const poll = interleaveDay([], [C, A], batches, { above: "uploaded", below: 0 }, { [A]: 10 }, epochOf);
   assert.deepEqual(poll.map((x) => ("kind" in x ? `${x.epoch[0]} ${x.from}-${x.to}` : "")), ["C 2-8", "A 12-20"]);
+});
+
+test("live records: the newest run counts them as they are made; a hole just below them is uploading, not missing", () => {
+  const uploaded = [batch(2, 40)];
+  const live = liveBatch(E, [42, 44, 46, 48])!;
+  assert.deepEqual([live.first, live.last, live.records, live.live], [42, 48, 4, true]);
+  const items = interleaveEpoch(E, [row(30)], [...uploaded, live], { above: "uploaded", below: 0 });
+  const top = items[0]!;
+  assert.ok("kind" in top);
+  assert.deepEqual([top.from, top.to, top.state], [32, 48, "recorded"]);
+  // A batch uploaded between the listing and the live fetch: counts 42..44 in neither.
+  const hole = interleaveEpoch(E, [row(30)], [...uploaded, liveBatch(E, [46, 48])!], { above: "uploaded", below: 0 })[0]!;
+  assert.ok("kind" in hole);
+  assert.equal(hole.state, "uploading");
+  assert.equal(liveBatch(E, []), null);
+  assert.equal(hole.key, `reads:${E}:32`, "the newest run keeps its key while it grows");
 });
