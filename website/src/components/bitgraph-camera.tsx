@@ -792,10 +792,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const c = p.commit?.counter;
     const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
     const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
-    // Cache the artifact bytes (and any embedded C2PA manifest) in the
-    // background; the client-side push keeps this JS context alive and the
-    // proof page polls IndexedDB, so navigation never waits on the ~6 MB C2PA
-    // toolkit. For a dropped proof.json the file in hand is the JSON, not the
+    // Cache the artifact bytes in the background; the client-side push keeps
+    // this JS context alive and the proof page polls IndexedDB, so navigation
+    // never waits on the write. For a dropped proof.json the file in hand is the JSON, not the
     // artifact, so only cache a real file.
     const artifactFile = item.fromProofJson ? item.matchedFile : item.file;
     if (artifactFile) void cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
@@ -1402,7 +1401,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}${fresh ? "&fresh=1" : ""}` : (fresh ? "?fresh=1" : "");
       // Fire-and-forget: bytes land in IndexedDB while the client-side push
       // happens now; the proof page polls the cache, so navigation never waits
-      // on the ~6 MB C2PA toolkit.
+      // on the write.
       void cacheArtifactToIDB(file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
       // A tree member that arrived in its own BitGraphed file (carrier/4) goes over with the
       // evidence its block placed it by (the strip checked it against the proof): a tree's

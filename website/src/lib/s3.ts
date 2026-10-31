@@ -1248,15 +1248,6 @@ export async function putFloorLinkOnce(digestB64: string, epochId: string, count
   }
 }
 
-/* ── TrustMark (lib/trustmark) ─────────────────────────────────────────────
- * The fingerprint records published when a photo is exported with a TrustMark, kept by the pointer the mark carries:
- *   trustmark/records/<epochRef>/<counter>/<epochId, url-safe>/<record digest, url-safe>.json
- * so a reader holding only a copy finds every candidate for its pointer with one listing.
- */
-export const trustmarkRecordPrefix = (eref: number, counter: number) => `trustmark/records/${eref}/${counter}/`;
-export const trustmarkRecordKey = (eref: number, counter: number, epochId: string, recordDigestB64: string) =>
-  `${trustmarkRecordPrefix(eref, counter)}${toSafe(epochId)}/${toSafe(recordDigestB64)}.json`;
-
 /* Hosted originals (app/api/sources, lib/source-url): where the holder keeps the exact file, kept under the file's
  * position once the server has fetched it and found it hashes to the bound digest. Not in the proof, not in the tree:
  * a link can be added, replaced or fail without touching anything bound.
@@ -1279,78 +1270,4 @@ export async function putSourceNote(digestB64: string, epochId: string, counter:
   if (!ledgerWritesOn()) return false;
   await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: positionKey("sources", digestB64, epochId, counter), Body: JSON.stringify(note, null, 1), ContentType: "application/json" }));
   return true;
-}
-
-/* Lineage (app/api/lineage): a later BitGraph of the same picture (a re-export, a re-save, after the first file was
- * lost) points back to the earliest one. Written once, by the holder who chose to record the later file, and only
- * after the server has found both positions' published records within the find's distance of each other and the
- * first recorded earlier. Not in the proof, not in the tree: a note beside the later position.
- *   lineage/<digest, url-safe>/<epochId, url-safe>-<counter, padded>.json
- */
-export type LineageNote = { format: "bitgraph-lineage/1"; first: { digestB64: string; epochId: string; counter: string; recordedMs: number | null }; distance: number; addedAt: number };
-export async function getLineageNote(digestB64: string, epochId: string, counter: string): Promise<LineageNote | null> {
-  try {
-    const r = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: positionKey("lineage", digestB64, epochId, counter) }));
-    const body = await r.Body?.transformToString();
-    return body ? (JSON.parse(body) as LineageNote) : null;
-  } catch (err) {
-    const name = (err as { name?: string }).name;
-    if (name === "NoSuchKey" || name === "NotFound") return null;
-    throw new LedgerUnavailableError("lineage note", err);
-  }
-}
-/** Writes a lineage note once; false when one stands already (a BitGraph has one first, never changed). */
-export async function putLineageNoteOnce(digestB64: string, epochId: string, counter: string, note: LineageNote): Promise<boolean> {
-  if (!ledgerWritesOn()) return false;
-  try {
-    await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: positionKey("lineage", digestB64, epochId, counter), Body: JSON.stringify(note, null, 1), ContentType: "application/json", IfNoneMatch: "*" }));
-    return true;
-  } catch (err) {
-    const name = (err as { name?: string; $metadata?: { httpStatusCode?: number } }).name;
-    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
-    throw new LedgerUnavailableError("lineage note", err);
-  }
-}
-
-/* Finding a copy's original (app/api/find): every published record's pHash, as a key, so a copy with everything stripped is matched by what
- * it looks like. A listing of the prefix is the whole index; nothing is read until a pHash is close.
- *   find/phash/<pHash, 16 hex>/<epochRef>/<counter>/<epochId, url-safe>/<record digest, url-safe>
- */
-export const FIND_PREFIX = "find/phash/";
-export const findKey = (phash: string, eref: number, counter: number, epochId: string, recordDigestB64: string) =>
-  `${FIND_PREFIX}${phash}/${eref}/${counter}/${toSafe(epochId)}/${toSafe(recordDigestB64)}`;
-export type FindEntry = { phash: string; eref: number; counter: number; epochSafe: string; recordSafe: string };
-export function parseFindKey(key: string): FindEntry | null {
-  const m = /^find\/phash\/([0-9a-f]{16})\/(\d+)\/(\d+)\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)$/.exec(key);
-  return m ? { phash: m[1]!, eref: Number(m[2]), counter: Number(m[3]), epochSafe: m[4]!, recordSafe: m[5]! } : null;
-}
-/** Write a find key once (an empty object; the key is the entry). */
-export async function putFindKeyOnce(key: string): Promise<boolean> {
-  if (!ledgerWritesOn()) return false;
-  try {
-    await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: key, Body: "", IfNoneMatch: "*" }));
-    return true;
-  } catch (err) {
-    const name = (err as { name?: string }).name;
-    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
-    throw err;
-  }
-}
-
-/** Write a published record once; false when it is already there. */
-/** Rewrite a published record: only app/api/trustmark/records does this, to add a thumbnail to a record published without one. */
-export async function putTrustmarkRecord(key: string, body: string): Promise<void> {
-  if (!ledgerWritesOn()) return;
-  await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: key, Body: body, ContentType: "application/json" }));
-}
-export async function putTrustmarkRecordOnce(key: string, body: string): Promise<boolean> {
-  if (!ledgerWritesOn()) return false;
-  try {
-    await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: key, Body: body, ContentType: "application/json", IfNoneMatch: "*" }));
-    return true;
-  } catch (err) {
-    const name = (err as { name?: string }).name;
-    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
-    throw err;
-  }
 }

@@ -23,8 +23,7 @@ export default function MakePage() {
         <h2 id="m-intro">Record a BitGraph of your files.</h2>
         <p>
           A BitGraph fixes where these exact bits were bound in a counted sequence, right after a value nobody could predict. Many files
-          at once become one tree and one BitGraph, and each file in it can be checked on its own. A photo&rsquo;s fingerprint is bound
-          with it in the same tree, so a later BitGraph of the same picture names this one. BitGraphs are permanent, and a file
+          at once become one tree and one BitGraph, and each file in it can be checked on its own. BitGraphs are permanent, and a file
           dropped again opens its BitGraph.
         </p>
         <div className="page-box"><DropBox mode="make" /></div>

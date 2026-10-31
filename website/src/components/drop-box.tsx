@@ -20,7 +20,7 @@
  * (project_ledger_read_honesty).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { verifyAttested, createVerificationContext } from "@mikeargento/bitgraph-verify";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
@@ -32,17 +32,6 @@ import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
 import { DIGEST_TREE_FORMAT, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes, withMember } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
-import { publishFoundRecords, publishRecord } from "@/lib/trustmark/ledger";
-import { makeThumb, THUMB_SUFFIX } from "@/lib/trustmark/thumb";
-import { FoundThumb } from "@/components/found-thumb";
-import { MAX_FINGERPRINTED, decodeForReading, decodeForRecord, fingerprintOf, isPhotographic, looksLikePhoto, recordBytesOf, recordFile, RECORD_SUFFIX, type Fingerprint } from "@/lib/trustmark/record";
-import { judge as judgeLooks, opensAlone, type LooksVerdict, type Original } from "@/lib/trustmark/check";
-import { setHeldCopy } from "@/lib/trustmark/held-copy";
-/** A BitGraph's position: the earliest one of a picture, which a later record of it names (app/api/lineage). */
-type FirstPosition = { digestB64: string; epochId: string; counter: string };
-import { noteCopyOf, noteDroppedCopy } from "@/lib/trustmark/copy-note";
-import { C2PA_SUFFIX, MAX_MANIFEST_BYTES, manifestStoreOf } from "@/lib/trustmark/c2pa-leaf";
-import { MAX_GALLERY, handOriginal, setGallery, type Gallery, type GalleryItem } from "@/lib/gallery";
 
 const MAX_FILES = 25;
 
@@ -54,11 +43,9 @@ type Row = {
   size: number;
   digestB64?: string;
   bytes?: Uint8Array;
-  state: "hashing" | "looking" | "found" | "in-tree" | "copy" | "new" | "making" | "made" | "error";
+  state: "hashing" | "looking" | "found" | "in-tree" | "new" | "making" | "made" | "error";
   /** The file is a member of a tree made on the Make page, proven here (lib/tree-entries.ts). */
   tree?: FoundInTree;
-  /** A photo not on record that looks like a recorded original: which one, and how closely (lib/trustmark/check). */
-  looks?: LooksVerdict;
   proof?: Proof;
   valid?: boolean;
   note?: string;
@@ -144,19 +131,6 @@ async function filesOfDrop(dt: DataTransfer, onProgress?: (msg: string) => void)
 }
 
 /** Run `fn` over `items` with at most `n` at once. */
-/** At most `n` of these at once, the rest waiting their turn. */
-function limiter(n: number) {
-  let busy = 0; const queue: Array<() => void> = [];
-  return async <T,>(fn: () => Promise<T>): Promise<T> => {
-    if (busy >= n) await new Promise<void>((go) => queue.push(go));
-    busy++;
-    try { return await fn(); } finally { busy--; queue.shift()?.(); }
-  };
-}
-// Reading photos for a pointer: two at a time. Each decoded photo is hundreds of MB and the pointer's models run on it;
-// a drop of twenty read all at once ran the browser out of memory.
-const photoRead = limiter(2);
-
 async function pool<T>(items: T[], n: number, fn: (x: T, i: number) => Promise<void>): Promise<void> {
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
@@ -217,96 +191,6 @@ async function unwrapBitGraphed(files: File[]): Promise<File[]> {
   return out;
 }
 
-/** Each photo's fingerprint and Content Credentials (lib/trustmark/record.ts), for the photos this browser can open, up
- *  to MAX_FINGERPRINTED; a record already in the drop (a folder dropped again with its records) is not made twice.
- *  Worked out from the pictures alone, so it runs while the drop is being hashed; the records take each photo's SHA-256
- *  once that is known (fingerprintRecords). */
-// The browser decodes photos off the page's thread, so several run side by side; eight at once was no faster than four.
-const PRINTS_AT_ONCE = 4;
-type PhotoPrint = { name: string; index: number; fp: Fingerprint; store: Uint8Array | null; thumb: Uint8Array | null };
-async function photoPrints(files: File[], onProgress?: (n: number, of: number) => void): Promise<PhotoPrint[]> {
-  const names = new Set(files.map((f) => f.webkitRelativePath || f.name));
-  const photos = files.map((f, index) => ({ f, index, name: f.webkitRelativePath || f.name }))
-    .filter((p) => looksLikePhoto(p.f) && !p.name.endsWith(RECORD_SUFFIX) && !p.name.endsWith(THUMB_SUFFIX) && !names.has(`${p.name}${RECORD_SUFFIX}`));
-  if (photos.length === 0 || photos.length > MAX_FINGERPRINTED) return [];
-  // several photos at a time, each decoded straight to the fingerprint's size; the prints keep the drop's order
-  const each: Array<PhotoPrint | null> = new Array(photos.length).fill(null);
-  let n = 0;
-  await pool(photos, PRINTS_AT_ONCE, async (p, i) => {
-    const img = await decodeForRecord(p.f);
-    // graphics are recorded as they are: the pointer shows on them (isPhotographic)
-    if (img && isPhotographic(img)) {
-      // its Content Credentials, when it carries them, go beside it (lib/trustmark/c2pa-leaf.ts)
-      const store = manifestStoreOf(new Uint8Array(await p.f.arrayBuffer()));
-      // and its reference thumbnail (lib/trustmark/thumb.ts), bound beside it and published with the record
-      const thumb = await makeThumb(p.f).catch(() => null);
-      each[i] = { name: p.name, index: p.index, fp: fingerprintOf(img), store: store && store.length <= MAX_MANIFEST_BYTES ? store : null, thumb };
-    }
-    n++;
-    if (onProgress && (n % 10 === 0 || n === photos.length)) onProgress(n, photos.length);
-  });
-  return each.filter((x): x is PhotoPrint => x !== null);
-}
-/** The record files of a drop's photos, each with its photo's SHA-256 from the drop's leaves, as tree leaves. */
-async function fingerprintRecords(prints: PhotoPrint[], leaves: Array<[string, string, string]>): Promise<{ leaves: Array<[string, string, string]>; records: Uint8Array[]; thumbs: Array<Uint8Array | null> }> {
-  const made: Array<{ file: File; name: string }> = [];
-  const records: Uint8Array[] = [], thumbs: Array<Uint8Array | null> = [];
-  for (const p of prints) {
-    const bytes = recordBytesOf(leaves[p.index]![2], p.fp);
-    records.push(bytes); thumbs.push(p.thumb);
-    made.push({ file: recordFile(p.name, bytes), name: `${p.name}${RECORD_SUFFIX}` });
-    if (p.thumb) made.push({ file: new File([p.thumb as BlobPart], `${p.name}${THUMB_SUFFIX}`, { type: "image/jpeg" }), name: `${p.name}${THUMB_SUFFIX}` });
-    if (p.store) made.push({ file: new File([p.store as BlobPart], `${p.name}${C2PA_SUFFIX}`, { type: "application/c2pa" }), name: `${p.name}${C2PA_SUFFIX}` });
-  }
-  // the leaf's name is the photo's path in the drop plus the suffix (a File's own name cannot hold the path)
-  return { leaves: (await hashLeaves(made.map((m) => m.file))).map((l, i) => [made[i]!.name, l[1], l[2]]), records, thumbs };
-}
-
-/** A photo whose pixels carry a hidden pointer (a TrustMark): the BitGraph it points to, and, quietly, how closely
- *  this copy matches the picture that BitGraph bound (a visual match; the original's own bytes are what prove it). */
-const proofHref = (o: Original) => `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
-/** copy: the row's own bytes, carried to the proof page it opens so that page shows the copy and its reference. */
-function LooksLine({ v, copy }: { v: LooksVerdict; copy: { name: string; data: Uint8Array } | null }) {
-  const router = useRouter();
-  const all = useMemo(() => (v.verdict === "match" ? [{ original: v.original, score: v.score }, ...v.others] : []), [v]);
-  const originals = useMemo(() => all.map((m) => m.original), [all]);
-  if (v.verdict !== "match") return null;
-  const open = (o: Original) => {
-    if (copy) setHeldCopy(toUrlSafe(o.photoDigestB64), { name: copy.name, data: copy.data.slice().buffer as ArrayBuffer, kind: "copy", score: all.find((m) => m.original === o)?.score ?? v.score, found: o, others: all.map((m) => m.original).filter((x) => x !== o) });
-    router.push(proofHref(o));
-  };
-  const link = (o: Original, label: React.ReactNode) => <a href={proofHref(o)} onClick={(e) => { e.preventDefault(); open(o); }}>{label}</a>;
-  if (all.length === 1) {
-    const o = v.original, href = proofHref(o);
-    return (
-      <>
-        <span className="db-ok">Looks like {link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}</span>
-        <span className="db-size db-wrap">Your copy matches the picture this BitGraph recorded. Its proof page proves the original file.</span>
-        <FoundThumb o={o} href={href} onOpen={() => open(o)} />
-      </>
-    );
-  }
-  // The same picture bound as more than one file (an export made twice): each is an original with its own proof, and
-  // only the holder knows which they mean, so every one is listed, with its reference and whether its file is hosted.
-  return (
-    <>
-      <span className="db-ok">Looks like a picture recorded {all.length} times</span>
-      <span className="db-size db-wrap">The same picture was recorded as {all.length} different files, earliest first.</span>
-      <ul className="db-looks-list">
-        {all.map(({ original: o }) => {
-          const href = proofHref(o);
-          return (
-            <li key={`${o.photoDigestB64}/${o.epochId}/${o.counter}`}>
-              <span className="db-ok">{link(o, <>BitGraph #{o.counter.toLocaleString("en-US")}</>)}</span>
-              <FoundThumb o={o} href={href} onOpen={() => open(o)} among={originals} />
-            </li>
-          );
-        })}
-      </ul>
-    </>
-  );
-}
-
 /** The earliest of a file's BitGraphs, by the enclave's signed time, then by count. */
 function earliestOf(entries: Array<{ proof: Proof; writeTime?: number | null }>): Proof | undefined {
   const when = (e: { proof: Proof; writeTime?: number | null }) => recordedMsOf(e.proof) ?? e.writeTime ?? Number.POSITIVE_INFINITY;
@@ -358,20 +242,6 @@ async function firstsOf(digests: string[]): Promise<Map<string, Proof>> {
   return out;
 }
 
-/** A checked photo as a gallery item: the BitGraph it leads to, and how its file is handed to that page. */
-type Found = { file: File; item: GalleryItem; prepare: () => Promise<void> };
-function foundOriginal(file: File, digest: string, proof: Proof): Found | null {
-  const c = proof.commit as { counter?: string | number; epochId?: string } | undefined;
-  if (c?.counter === undefined || !c.epochId) return null;
-  const item = { digest, name: file.name, counter: String(c.counter), epochId: String(c.epochId) };
-  return { file, item, prepare: () => handOriginal(file, digest, proof, item.counter, item.epochId) };
-}
-/** The checked photos of a drop as a gallery, each once, when there are two or more. */
-// No galleries (2026-10-30): a check no longer gathers its photos into a strip of thumbnails.
-function galleryOfFound(_found: Found[]): Gallery | null {
-  return null;
-}
-
 export function DropBox({ mode = "make", variant = "zone", canMake = false }: { mode?: "make" | "check"; variant?: "zone" | "buttons"; canMake?: boolean }) {
   // The drop box on /make makes and checks (2026-10-17), both in one box. The ledger's search
   // (mode "check", variant "buttons": two Finder buttons, no box) only looks files up and never makes one.
@@ -390,8 +260,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
   const [bulk, setBulk] = useState<{ total: number; made: number; found: number; missing: number; failed: number; done: boolean; proofs: Proof[]; ms: number } | null>(null);
   // The files of a big check that are not on record yet, one per digest: on Proofs, offered to be made in one press.
   const [bulkNew, setBulkNew] = useState<File[]>([]);
-  // A check of several photos: those that lead to a proof, as a gallery (as a drop of photos on Make).
-  const [checked, setChecked] = useState<Gallery | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -408,11 +276,9 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     lookup?: { stored: number; total: number; state: "sealing" | "saving" | "done" | "failed"; note?: string };
     /** The tree was already a BitGraph: nothing was bound, its index was finished (2026-10-20). */
     already?: boolean;
-    /** Two or more photos in the drop: each one's proof, a page at a time or as a grid. */
-    gallery?: Gallery;
     /** The files of a drop of two or more, in the drop's order, each with its own proof page (2026-10-31). */
     members?: Array<{ name: string; href: string }>;
-    /** How many files were dropped: the tree also holds each photo's thumbnail and fingerprint record, which are not counted. */
+    /** How many files were dropped. */
     dropCount?: number;
   } | null>(null);
 
@@ -457,7 +323,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
   /* A big drop: hash everything here, then bind in batches of 50 (make) or look each up (check). Rate limits are
      waited out, never treated as failures; the enclave's daily restart (503) is waited out too. */
   const takeMany = useCallback(async (files: File[]) => {
-    setRows([]); setStatus(null); setBulkNew([]); setChecked(null);
+    setRows([]); setStatus(null); setBulkNew([]);
     const total = files.length;
     const t0 = performance.now();
     const st = { total, made: 0, found: 0, missing: 0, failed: 0, done: false, proofs: [] as Proof[], ms: 0 };
@@ -537,7 +403,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       });
     }
     st.done = true; setStatus(null); show();
-    if (mode === "check") setChecked(galleryOfFound(files.flatMap((f, i) => { const d = digests[i], p = d ? firstOf.get(d) : undefined; const x = p && looksLikePhoto(f) ? foundOriginal(f, d!, p) : null; return x ? [x] : []; })));
   }, [mode, canMake]);
 
   const downloadAll = () => {
@@ -606,22 +471,12 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     st.done = true; setStatus(null); show();
   }, []);
 
-  /* first: the earliest BitGraph of the picture this file shows, when the find knows one; the new BitGraph names it
-     (app/api/lineage). Found below for a single picture; a caller may pass it. */
-  const takePlugins = useCallback(async (files: File[], list?: Array<{ hex: string; name: string }>, first?: FirstPosition) => {
-    setRows([]); setBulk(null); setBatch(null); setPairing(null); setPlug(null); setPlugError(null); setChecked(null); setBusy(true);
+  const takePlugins = useCallback(async (files: File[], list?: Array<{ hex: string; name: string }>) => {
+    setRows([]); setBulk(null); setBatch(null); setPairing(null); setPlug(null); setPlugError(null); setBusy(true);
     // ?timer times the run from the drop to the proof (2026-10-18: for timing the 100,000-file tree).
     const t0 = performance.now();
     const secs = () => ((performance.now() - t0) / 1000).toFixed(1);
-    let looksLater: Promise<Awaited<ReturnType<typeof judgeLooks>> | null> | null = null;
     let cachedLater: Promise<unknown> | null = null;
-    const firstOfLooks = (v: Awaited<ReturnType<typeof judgeLooks>> | null): FirstPosition | undefined => {
-      if (v?.verdict !== "match") return undefined;
-      const all = [v.original, ...v.others.map((m) => m.original)];
-      const when = (o: Original) => o.recordedMs ?? Number.POSITIVE_INFINITY;
-      const o = all.slice().sort((a, b) => when(a) - when(b) || Number(a.counter) - Number(b.counter))[0]!;
-      return { digestB64: o.photoDigestB64, epochId: o.epochId, counter: String(o.counter) };
-    };
     try {
       /* One file that already has a BitGraph is not recorded again (2026-10-29): existence is one-directional, so a
          later record of the same bytes says less than the first and costs a count. Its oldest proof opens instead,
@@ -631,9 +486,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         setStatus("Checking the ledger…");
         const bytes = new Uint8Array(await f.arrayBuffer());
         const digest = await digestOf(bytes);
-        // The looks check (below) starts now, beside the lookup and the hashing (2026-10-30): its answer is needed only
-        // after the bind, to name the first BitGraph of the picture, so nothing waits on it.
-        if (looksLikePhoto(f) && !first) looksLater = decodeForReading(f).catch(() => null).then((img) => (img ? judgeLooks(img, { search: true }).catch(() => null) : null));
         // The file is saved for its proof page now too, during the bind rather than after it.
         cachedLater = cacheArtifactToIDB(f, digest).catch(() => {});
         const res = await fetch(`/api/proofs/${toUrlSafe(digest)}`).catch(() => null);
@@ -649,32 +501,20 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           router.push(`/proof/${toUrlSafe(digest)}?counter=${encodeURIComponent(fc.counter)}&epoch=${encodeURIComponent(toUrlSafe(fc.epochId))}`);
           return;
         }
-        // One action (2026-10-29): new bytes are recorded, always. A picture that looks like one already recorded (a
-        // re-export, a re-save, a copy) is recorded too, and the new BitGraph names the earliest one of that picture
-        // (app/api/lineage), so its page says so; nothing is chosen for the holder and nothing opens in its place.
-        // The find failing to answer costs only the note.
+        // New bytes are recorded, always (2026-10-29).
       }
       /* Every drop, one file or many, is one tree and one BitGraph (2026-10-20). Its floor and ceiling come from the block
          timeline: the Base block reads bound on the same counter sequence just before and just after it, so the tree
          holds only the files and nothing is written to any chain for it. */
       const count = list ? list.length : files.length;
       setStatus(list ? `Reading 0 of ${count.toLocaleString("en-US")} hashes…` : `Hashing 0 of ${count.toLocaleString("en-US")}…`);
-      // Everything that does not wait on the bind runs at once: the files are hashed, each photo's fingerprint is worked
-      // out from its picture (lib/trustmark/record.ts, so a photo can later carry a pointer back here; up to
-      // MAX_FINGERPRINTED a drop, a photo this browser cannot open is recorded as it is), and the latest Base block is
-      // A folder is not looked up first: every folder drop is a new tree and a new BitGraph.
-      let hashed = 0, printed = 0, printing = 0;
-      const say = () => setStatus(printing ? `Hashing ${hashed.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}, fingerprinting ${printed.toLocaleString("en-US")} of ${printing.toLocaleString("en-US")} photos…${timer ? ` ${secs()} s` : ""}` : `Hashing ${hashed.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}…${timer ? ` ${secs()} s` : ""}`);
-      const [dropped, prints] = await Promise.all([
-        list
-          ? leavesOfDigests(list, (n) => setStatus(`Reading ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")} hashes…${timer ? ` ${secs()} s` : ""}`))
-          : hashLeaves(files, (n) => { hashed = n; say(); }),
-        list ? Promise.resolve([] as PhotoPrint[]) : photoPrints(files, (n, of) => { printed = n; printing = of; say(); }),
-      ]);
-      const fp = prints.length ? await fingerprintRecords(prints, dropped) : { leaves: [], records: [], thumbs: [] };
-      const leaves = fp.leaves.length ? [...dropped, ...fp.leaves] : dropped;
-      // Files sorted by path, so the same folder always makes the same tree (2026-10-20).
-      const fileLeaves = sortedLeaves(leaves);
+      // The files are hashed. A folder is not looked up first: every folder drop is a new tree and a new BitGraph.
+      const dropped = list
+        ? await leavesOfDigests(list, (n) => setStatus(`Reading ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")} hashes…${timer ? ` ${secs()} s` : ""}`))
+        : await hashLeaves(files, (n) => setStatus(`Hashing ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}…${timer ? ` ${secs()} s` : ""}`));
+      // Files sorted by path, so the same folder always makes the same tree (2026-10-20). The tree holds the dropped
+      // files' leaves and nothing else.
+      const fileLeaves = sortedLeaves(dropped);
       let tree: PluginTree | null = null, rootText = "";
       const block: BaseBlock | null = null;
       const already: Proof | null = null;
@@ -693,9 +533,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       // One file goes straight on to its proof page (below), so the tree's panel is never drawn for it: shown for the
       // moment its index is written, it would flash up under "Opening the proof…" before the page changes.
       const opensProof = !list && files.length === 1 && !timer;
-      // No gallery of thumbnails after a drop (2026-10-30): the tree's panel lists the BitGraph, and each file's own proof
-      // opens from its proof page.
-      const gallery: Gallery | undefined = undefined;
       // The drop's files as a plain list, no thumbnails (2026-10-31): each opens its own proof page, which finds the file
       // by its hash once the index below is written. Each file once, as dropped.
       const members = (() => {
@@ -703,52 +540,28 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         const seen = new Set<string>(), counter = encodeURIComponent(String(b.commit.counter)), epoch = encodeURIComponent(toUrlSafe(String(b.commit.epochId)));
         return dropped.flatMap((l) => (seen.has(l[2]) || !seen.add(l[2]) ? [] : [{ name: l[0], href: `/proof/${toUrlSafe(l[2])}?counter=${counter}&epoch=${epoch}` }]));
       })();
-      const dropCount = list ? t.files : new Set(dropped.map((l) => l[2])).size;
-      if (!opensProof) setPlug({ members, dropCount, gallery, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
+      const dropCount = list ? t.files : files.length;
+      if (!opensProof) setPlug({ members, dropCount, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
       // Each file is indexed under its own hash (lib/tree-member.ts): written after the proof is
       // shown, so the BitGraph never waits on it; the server checks every path to the root before it writes.
       type Lookup = { stored: number; total: number; state: "sealing" | "saving" | "done" | "failed"; note?: string };
       const lookup = (l: Lookup) => setPlug((p) => (p && p.b === b ? { ...p, lookup: l } : p));
       lookup({ stored: 0, total, state: "saving" });
-      const indexed = (async () => {
+      void (async () => {
         try {
           const stored = await postTreeMembers({ rootDigestB64: contentDigest, epochId: String(b.commit!.epochId), counter: String(b.commit!.counter), rootText, ...(blocks[0]?.floor ? { floor: blocks[0].floor } : {}) },
             t.leaves.map((l, i) => ({ digestB64: l[2], index: i, path: blocks[i]!.path })), (n) => lookup({ stored: n, total, state: "saving" }));
           lookup({ stored, total, state: stored >= total ? "done" : "failed", note: stored >= total ? undefined : `${(total - stored).toLocaleString("en-US")} could not be saved` });
-          return stored >= total;
-        } catch (e) { lookup({ stored: 0, total, state: "failed", note: (e as Error).message }); return false; }
+        } catch (e) { lookup({ stored: 0, total, state: "failed", note: (e as Error).message }); }
       })();
-      // Each photo's fingerprint record is published once the tree is indexed (the server checks each against the
-      // tree before keeping it), so a copy with everything stripped can still find the original's proof by what it
-      // looks like (lib/trustmark/check, on Check). The record is what the tree already binds, a pHash and a brightness grid, never the photo.
-      if (fp.records.length) void indexed.then(async (ok) => {
-        if (!ok) return;
-        let next = 0;
-        await Promise.all(Array.from({ length: 3 }, async () => { while (next < fp.records.length) { const i = next++; await publishRecord(fp.records[i]!, null, null).catch(() => false); } }));
-      });
       /* One file opens its own proof page, as a plain drop always has: its tree is the file alone, so its index is
          written in a moment; the page opens with the proof in hand either way. */
       if (opensProof) {
         setStatus("Opening the proof…");
         const fileDigest = dropped[0]![2], i = t.leaves.findIndex((l) => l[2] === fileDigest);
         /* The proof opens the moment the bind is back (2026-10-30): the page is handed the proof below, so it never
-           waited on the index. The index, the picture's record and the naming of the picture's first BitGraph finish
-           behind it; the page re-reads the lineage for a while, so the name lands when it is written. The second ledger
-           lookup is gone: the same bytes were looked up before anything was recorded. */
-        const nc = b.commit as { counter?: string; epochId?: string } | undefined;
-        void (async () => {
-          if (!(await indexed) || !fp.records.length) return;
-          const v = looksLater ? await looksLater : null;
-          const named = first ?? firstOfLooks(v);
-          if (!named) return;
-          if (!(await publishRecord(fp.records[0]!, null, null).catch(() => false)) || !nc?.counter || !nc.epochId) return;
-          const body = JSON.stringify({ digest: toUrlSafe(fileDigest), epoch: toUrlSafe(nc.epochId), counter: String(nc.counter), firstDigest: toUrlSafe(named.digestB64), firstEpoch: toUrlSafe(named.epochId), firstCounter: named.counter });
-          for (let attempt = 0; attempt < 6; attempt++) {
-            const r = await fetch("/api/lineage", { method: "POST", headers: { "content-type": "application/json" }, body }).catch(() => null);
-            if (r && r.status !== 404 && r.status < 500) break;
-            await new Promise((res) => setTimeout(res, 2000));
-          }
-        })();
+           waited on the index, which finishes behind it. The second ledger lookup is gone: the same bytes were looked up
+           before anything was recorded. */
         // The file goes with the page (the proof opens with it in hand): its save started during the bind, so this is brief.
         try { await Promise.race([cachedLater ?? cacheArtifactToIDB(files[0]!, fileDigest), new Promise((r) => setTimeout(r, 1500))]); } catch { /* the page still opens; the reader can drop the file there */ }
         const commit = b.commit as { counter?: string; epochId?: string } | undefined;
@@ -824,7 +637,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     // A BitGraphed file carries its proof after the file's own bytes: look up the file it wraps, never record the
     // wrapper as new bytes (2026-10-20). photo.bitgraph.jpg is checked as photo.jpg.
     const files = await unwrapBitGraphed(filesIn);
-    setBatch(null); setPairing(null); setChecked(null);
+    setBatch(null); setPairing(null);
     // Proof files in the drop: a list, or more than one single proof. They are paired with the rest, never made.
     const proofs = new Map<string, Proof>();
     const proofFiles = new Set<File>();
@@ -863,7 +676,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     const fresh: Row[] = picked.map((f, i) => ({ key: `${Date.now()}-${i}-${f.name}`, name: f.name, size: f.size, state: "hashing" }));
     setRows(single ? [] : fresh);
     if (single) setStatus("Checking…");
-    const originals: Array<{ f: File; photoDigestB64: string; name: string }> = [];
     const ended: Row[] = await Promise.all(picked.map(async (f, i): Promise<Row> => {
       const row = fresh[i]!;
       const end = (p: Partial<Row>) => { patch(row.key, p); return { ...row, ...p } as Row; };
@@ -872,13 +684,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         const asProof = proofFileOf(f, bytes);
         if (asProof) return end({ state: "found", proof: asProof, digestB64: asProof.artifact!.digestB64!, isProofFile: true });
         const digestB64 = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
-        // A photo may be a copy of a recorded original (lib/trustmark/check): that read starts now, beside the ledger
-        // lookup, and is waited for only if the lookup finds nothing. Early only for one file: started for many at
-        // once, every photo would be decoded together.
-        // read from the photo decoded at the reading size, never whole: a large photo whole is hundreds of MB
-        // one picture also gets the search inside a framed screenshot; many at once would be a lookup per rectangle each
-        const readLooks = () => photoRead(() => decodeForReading(f).then((img) => (img ? judgeLooks(img, { search: single }) : null))).catch(() => null);
-        const early = looksLikePhoto(f) && single ? readLooks() : null;
         patch(row.key, { bytes, digestB64, state: "looking" });
         const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
         if (!res.ok) return end({ bytes, digestB64, state: "error", note: "Could not check the ledger just now. Try again in a moment." });
@@ -889,46 +694,13 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           // Not a BitGraph of its own: perhaps a file of a tree, found by its sealed entry and proven here.
           const inTree = await findInTree(bytes).catch(() => null);
           if (inTree) return end({ bytes, digestB64, state: "in-tree", tree: inTree });
-          // Not on record by its bytes: a photo may still be a copy (recompressed, cropped, screenshotted) of a recorded
-          // original, found by what it looks like. A check says so. Make records it all the same (recording only says
-          // these bytes existed by then) and its proof page says whose copy it is. Not finding one never makes a photo
-          // an original: a copy can differ too much to be found.
-          if (looksLikePhoto(f)) {
-            if (single) setStatus("Checking the ledger…");
-            const v = await (early ?? readLooks());
-            if (v?.verdict === "match" && mode === "check" && !single) return end({ bytes, digestB64, state: "copy", looks: v });
-            if (v?.verdict === "match") {
-              const o = v.original, href = `/proof/${toUrlSafe(o.photoDigestB64)}?counter=${encodeURIComponent(String(o.counter))}&epoch=${encodeURIComponent(toUrlSafe(o.epochId))}`;
-              // One copy dropped on Make leads to its original, the earliest known recording, instead of being recorded.
-              // (Not finding one says nothing, so those are recorded.)
-              // Several recorded originals look like it (a picture exported twice): the earliest opens, and its page offers the rest.
-              if (single) {
-                if (opensAlone(v)) {
-                  noteDroppedCopy(toUrlSafe(o.photoDigestB64), v.score);
-                  // the copy itself opens in the original's file pane, labelled as a copy (lib/trustmark/held-copy)
-                  setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o, others: v.others.map((m) => m.original) });
-                  setStatus("Opening the original…");
-                  router.push(href);
-                }
-                return end({ bytes, digestB64, state: "copy", looks: v });
-              }
-              noteCopyOf(toUrlSafe(digestB64), { counter: o.counter, href });
-            }
-            // the ledger could not be asked: said so, never read as "not a copy" (on Make, one file is not recorded blind)
-            if (v?.verdict === "unavailable" && (mode === "check" || single)) return end({ bytes, digestB64, state: "error", note: "Could not check the ledger just now. Try again in a moment." });
-            // 8. a picture this browser cannot decode (HEIC outside Safari, say) is said, not passed off as not a copy
-            if (v === null && mode === "check" && !(await decodeForReading(f).catch(() => null))) return end({ bytes, digestB64, state: "error", note: "This browser cannot decode this image, so it could not be matched by its looks. Try Safari for HEIC, or drop a JPEG of it." });
-          }
           return end({ bytes, digestB64, state: "new" });
         }
-        // an original in hand: its record goes to the find index, so a copy of it can lead here (after the drop, never waited for)
-        if (looksLikePhoto(f)) originals.push({ f, photoDigestB64: digestB64, name: f.name });
         return end({ bytes, digestB64, state: "found", proof: first, valid: await check(first, bytes) });
       } catch {
         return end({ state: "error", note: "This browser could not read or check that file." });
       }
     }));
-    if (originals.length) void publishFoundRecords(originals).catch(() => {});
     // A file of the tree this page just made is that tree's, even before its index is written: it is shown in the tree,
     // never made again (2026-10-20: a file of a 50,000-file tree was re-recorded instead of checked).
     const pt = plugRef.current;
@@ -941,27 +713,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       patch(r.key, p);
       return { ...r, ...p };
     });
-    // Several photos checked: each that leads to a proof, its own first BitGraph, the original's for a copy, or its tree's
-    if (!single) {
-      setChecked(galleryOfFound(ended2.flatMap((r, k): Found[] => {
-        const f = picked[k]!;
-        if (!looksLikePhoto(f) || !r.digestB64) return [];
-        if (r.state === "found" && r.proof && !r.isProofFile) { const x = foundOriginal(f, r.digestB64, r.proof); return x ? [x] : []; }
-        if (r.state === "copy" && r.looks?.verdict === "match" && r.bytes) {
-          const v = r.looks, o = v.original, bytes = r.bytes;
-          const item = { digest: o.photoDigestB64, name: f.name, counter: String(o.counter), epochId: String(o.epochId) };
-          return [{ file: f, item, prepare: async () => setHeldCopy(toUrlSafe(o.photoDigestB64), { name: f.name, data: bytes.slice().buffer as ArrayBuffer, kind: "copy", score: v.score, found: o, others: v.others.map((x) => x.original) }) }];
-        }
-        if (r.state === "in-tree" && r.tree) return [{ file: f, item: { digest: r.tree.proof.digestB64, name: f.name, counter: r.tree.proof.counter, epochId: r.tree.proof.epochId }, prepare: async () => {} }];
-        return [];
-      })));
-    }
-    if (single && ended2[0]?.state === "copy" && ended2[0]?.looks?.verdict === "match") {
-      // led to its original; or, with several originals, listed them (the row stays, nothing is recorded)
-      if (!opensAlone(ended2[0].looks)) { setRows(ended2); setStatus(null); }
-      return;
-    }
-    if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "copy")) { setRows(ended2); setStatus(null); return; }
+    if (single && ended2[0]?.state === "in-tree") { setRows(ended2); setStatus(null); return; }
     const fresh_new = ended2.filter((r) => r.state === "new" && r.digestB64);
     // A new file is made the one way every drop is: a tree of the dropped files (2026-10-20).
     if (mode === "make" && single && fresh_new.length === 1) { await takePlugins([picked[0]!]); return; }
@@ -1190,7 +942,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               </div>
             </div>
           )}
-          {/* the files not on record yet, made as one drop is (a tree on the Base floor, photos with their fingerprints) */}
+          {/* the files not on record yet, made as one drop is (one tree, one BitGraph) */}
           {bulk.done && mode === "check" && canMake && bulkNew.length > 0 && (
             <div className="db-make">
               <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={busy} onClick={() => { const fs = bulkNew; setBulk(null); setBulkNew([]); void takePlugins(fs); }}>
@@ -1224,7 +976,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
                     </span>
                   </>
                 )}
-                {r.state === "copy" && r.looks && <LooksLine v={r.looks} copy={r.bytes ? { name: r.name, data: r.bytes } : null} />}
                 {r.state === "making" && "Binding…"}
                 {r.state === "error" && r.note}
                 {(r.state === "found" || r.state === "made") && r.proof && (
@@ -1246,7 +997,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
 
       {(mode === "make" || canMake) && newCount > 0 && (
         <div className="db-make">
-          {/* On Proofs the new files are made as one drop is (a tree on the Base floor, photos with their fingerprints) */}
+          {/* On Proofs the new files are made as one drop is (one tree, one BitGraph) */}
           <button type="button" className="bg-action-link is-make" style={{ margin: 0 }} disabled={busy} onClick={() => void (mode === "make" ? make() : takePlugins(rows.filter((r) => r.state === "new" && r.bytes).map((r) => new File([r.bytes!.slice()], r.name))))}>
             {busy ? "Making…" : newCount === 1 ? "Make a BitGraph" : mode === "make" ? `Make ${newCount} BitGraphs` : `Make one BitGraph of these ${newCount}`}
           </button>

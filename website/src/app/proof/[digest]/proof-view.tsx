@@ -9,7 +9,7 @@
  *
  *   1. The record        what this is: its number and epoch, the instant it was
  *                        recorded, the file (or the box that finds it), what the
- *                        file says about itself (Content Credentials, set members)
+ *                        file says about itself (set members)
  *   2. Where it sits     the window: the floor in time, the recorded instant, the
  *                        ceiling in time, the ceiling in position, in that order,
  *                        each with its public link (a Base floor, enclave v10: the
@@ -31,7 +31,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { TimeChip, longDateTz, stampTz, timeTz, sameDayTz } from "@/lib/format-time";
 import type { BitGraphProof } from "@/lib/bitgraph";
-import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
 import { baseTimeIsBound, decodeNitroAttestation, floorTimeIsBound } from "@mikeargento/bitgraph-verify";
 import { CopyIcon, useCopied } from "@/components/copy-icon";
@@ -129,7 +128,6 @@ export interface ProofViewModel {
   openType?: string | null;
   /** The file in hand, by name (2026-10-30): a receipt line beside its hash. */
   fileName?: string | null;
-  c2pa: C2PAReadResult | null;
   /** A set, or a tree/1 (whose page can list only the file in hand, once placed: a tree's members are known file by file, from evidence). */
   set: { kind: "set/1" | "set/2" | "tree/1"; count: number; root: string | null; rows: SetRowView[] } | null;
   /** Anchors: which Ethereum block this anchor recorded, and its Etherscan link. */
@@ -152,8 +150,6 @@ export interface ProofViewModel {
   ceilingTime: CeilingTimeView | null;
   /** The Base plugin's floor: BitGraph 1, which bound the latest Base block before this record, in the same epoch (app/api/floors). */
   floorLink?: { floor: { bitgraph: { digestB64: string; epochId: string; counter: string }; blockNumber: number; blockHash: string; blockTimestamp: number } } | null;
-  /** The earliest BitGraph of the same picture, when this one was recorded later by choice (app/api/lineage). */
-  firstRecorded?: { digest: string; epoch: string; counter: string; recordedMs: number | null } | null;
   /** This proof is itself a floor: it binds base-floor.json, the latest Base block, read for the record bound right after it. */
   floorOf?: { floor: { blockNumber: number; blockHash: string; blockTimestamp: number }; record: { digestB64: string; epochId: string; counter: string } } | null;
   /** This proof is its epoch's first BitGraph, a read of the latest Base block; the file hashed to its digest here. */
@@ -189,14 +185,6 @@ export interface ProofViewModel {
   carrierNote?: string | null;
   /** No file in hand and the content box's pickers are on the page: the second button connects the file. */
   canConnect?: boolean;
-  /** The Content Credentials shown came from the manifest published with this BitGraph, not from the photo in hand. */
-  c2paRecorded?: boolean;
-  /** A search's copy matched those credentials' signed thumbnail this closely. */
-  c2paMatch?: number | null;
-  /** The file just dropped on Make was a copy of this BitGraph, and Make opened this page instead of recording it. */
-  droppedCopy?: number | null;
-  /** This photo carries a pointer to an earlier BitGraph, noticed as it was made: whose copy it is. */
-  copyOf?: { counter: number; href: string } | null;
   /** Every BitGraph of this file's exact bytes, oldest first; `current` is this page's. */
   bindings?: Array<{ counter: number; ms: number | null; href: string; epochId: string; current?: boolean }>;
   /** "Check it anywhere": the command that matches this kind of export, or null. */
@@ -350,7 +338,8 @@ function FileInPlace({ url, type, name }: { url: string; type: string | null; na
   else body = <div className="pv-note">This kind of file does not show in the browser. <a className="pv-link" href={url} download={name ?? undefined}>Download it</a>.</div>;
   return (
     <div className="pv-row pv-file-open" style={{ gridColumn: "1 / -1" }}>
-      <div className="pv-row-label">{name ?? "The file"} <a className="pv-link" href={url} target="_blank" rel="noopener" style={{ marginLeft: 8 }}>Open in a new tab</a></div>
+      {/* A tree's file is its root list of hashes, there for the verifier: nothing to open in a tab of its own. */}
+      <div className="pv-row-label">{name ?? "The file"}{name !== "merkle-root.txt" && <a className="pv-link" href={url} target="_blank" rel="noopener" style={{ marginLeft: 8 }}>Open in a new tab</a>}</div>
       <div className="pv-row-value">{body}</div>
     </div>
   );
@@ -485,12 +474,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             </div>
           )}
           {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
-          {m.firstRecorded && (
-            <div className="pv-row">
-              <div className="pv-row-label">Same picture, first recorded</div>
-              <div className="pv-row-value">{m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "Earlier"} <a className="pv-link" style={{ marginLeft: 8 }} href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>#{fmtNum(m.firstRecorded.counter)}</a></div>
-            </div>
-          )}
           {blockReadCell}
           {floorCell}
           {ceilingCell}
@@ -498,11 +481,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       </div>
     </>
   );
-  /* The receipt: Position's lines, the credentials, the signature, the enclave, in that order, as one list. */
+  /* The receipt: Position's lines, the signature, the enclave, in that order, as one list. */
   const receipt = (
     <section className="pv-card pv-receipt">
       {counterCard}
-      {m.c2pa?.present && <div className="pv-receipt-group"><ContentCredentials c2pa={m.c2pa} recorded={m.c2paRecorded} match={m.c2paMatch} /></div>}
       <div className="pv-receipt-group">
         <div className="pv-section-title">Signature</div>
         <div className="pv-counter-grid">{m.signatureRows.map((f) => <Row key={f.label} f={f} />)}</div>
@@ -544,11 +526,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       </div>
     </section>
   );
-  /* The recorded instant leads the page on its own (2026-10-29): the BitGraph's name at heading size and the time
-     large, with the earliest BitGraph of the same picture beside it when there is one. */
+  /* The recorded instant leads the page on its own (2026-10-29): the BitGraph's name at heading size and the time large. */
   const recordedCard = null;
 
-  /* Every proof leads with its file (the photo, its BitGraphed file or a copy, any other file, or the drop box), one line
+  /* Every proof leads with its file (the photo, its BitGraphed file, any other file, or the drop box), one line
      saying what the BitGraph says, the downloads, and the proof itself in full. */
   {
     const verdictWord = c.state === "done" ? (c.verdict === "TRUE" ? "\u2713 Valid proof" : c.verdict === "FALSE" ? "\u2717 Not a valid proof" : "Undetermined") : c.state === "failed" ? "Not checked" : "Checking\u2026";
@@ -562,11 +543,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {/* With no file in hand the content box is only the pickers the "Search this computer" button opens (2026-10-30):
             it stays mounted, out of sight, and no empty card shows. */}
         {m.canConnect && !searching && <div hidden>{m.filePane}</div>}
-        {!(m.canConnect && !(c.state === "done" && c.verdict === "FALSE") && !m.sourceField && !m.copyOf) && ((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField || m.copyOf) && (
+        {!(m.canConnect && !(c.state === "done" && c.verdict === "FALSE") && !m.sourceField) && ((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField) && (
         <section className="pv-card pv-photo">
-          {/* The content card (2026-10-29): the picture or file and its buttons. The time card above says when, the
-              Content Credentials card below says who; the name leads here only when no time card names it, and a
-              proof that fails says so in its place, never folded away. */}
+          {/* The content card (2026-10-29): the picture or file and its buttons. The time card above says when; the
+              name leads here only when no time card names it, and a proof that fails says so in its place, never folded away. */}
           {(!showTime || (c.state === "done" && c.verdict === "FALSE")) && (
             <div className="pv-photo-strip">
               {!showTime && <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>}
@@ -575,7 +555,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           )}
           {!m.canConnect && m.filePane}
           {m.sourceField}
-          {m.copyOf && <div className="pv-note">A copy of <a href={m.copyOf.href}>BitGraph #{m.copyOf.counter.toLocaleString("en-US")}</a>, recorded earlier.</div>}
         </section>
         )}
         {/* Every proof opens in full: no Proof details fold. The verdict and its tally lead, then when, who, and how. */}
@@ -657,48 +636,6 @@ function ClaimRow({ x }: { x: CarrierClaim }) {
         <svg className="pv-chevron pv-claim-chev" width="18" height="18" viewBox="0 0 24 24" aria-hidden><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
       {open && <div className="pv-claim-detail">{note ? note.text(x) : x.detail}</div>}
-    </div>
-  );
-}
-
-const SOURCE_TYPE_LABELS: Record<string, string> = {
-  trainedAlgorithmicMedia: "Generated by AI",
-  compositeWithTrainedAlgorithmicMedia: "Contains AI-generated elements",
-  digitalCapture: "Camera capture",
-};
-
-/** "lightroom_classic/15.3.1" -> "Lightroom Classic 15.3.1"; the structured generator info first, then the User-Agent string. */
-function formatGenerator(c2pa: C2PAReadResult): string | undefined {
-  const prettify = (s: string) => s.replace(/[_-]+/g, " ").trim().replace(/\b\w/g, (ch) => ch.toUpperCase());
-  const info = c2pa.claimGeneratorInfo?.find((g) => g.name);
-  if (info?.name) return info.version ? `${prettify(info.name)} ${info.version}` : prettify(info.name);
-  const raw = c2pa.claimGenerator;
-  if (!raw) return undefined;
-  const [namePart, version] = (raw.split(/\s+/)[0] ?? "").split("/");
-  return version ? `${prettify(namePart ?? "")} ${version}` : prettify(namePart ?? "");
-}
-
-function ContentCredentials({ c2pa, recorded, match }: { c2pa: C2PAReadResult; recorded?: boolean; match?: number | null }) {
-  const src = c2pa.digitalSourceType ? (SOURCE_TYPE_LABELS[c2pa.digitalSourceType] ?? c2pa.digitalSourceType.split("/").pop() ?? c2pa.digitalSourceType) : null;
-  const gen = formatGenerator(c2pa) ?? null;
-  const rows: FieldView[] = [];
-  if (src) rows.push({ label: "Source", value: src });
-  if (gen) rows.push({ label: "Made with", value: gen });
-  if (c2pa.creator) rows.push({ label: "Creator", value: c2pa.creator });
-  if (c2pa.signatureIssuer) rows.push({ label: "Signed by", value: c2pa.signatureIssuer });
-  (c2pa.chain ?? []).forEach((link, i) => rows.push({ label: i === 0 ? "Chain" : "", value: `${link.relationship ?? "ingredient"} \u00b7 ${link.signer ?? "unsigned"}` }));
-  const openai = /openai|chatgpt|dall/i.test(`${c2pa.claimGenerator ?? ""} ${c2pa.signatureIssuer ?? ""}`);
-  return (
-    <div className="pv-sub pv-c2pa">
-      <div className="pv-section-title">Content Credentials (C2PA)</div>
-      {/* Rows, no thumbnail (2026-10-29): what the signed manifest says, and where to check it. The signature is
-          verified in the browser before Signed by is shown; the open verifier does the same for anyone. */}
-      {rows.map((f, i) => <Row key={`${f.label}-${i}`} f={f} />)}
-      {/* Stacked, one link per line (2026-10-30). */}
-      <div className="pv-sub-note" style={{ display: "grid", gap: 6 }}>
-        <a className="pv-link" href="https://contentcredentials.org/verify" target="_blank" rel="noopener" style={{ width: "fit-content" }}>Check C2PA</a>
-        {openai && <a className="pv-link" href="https://openai.com/research/verify/" target="_blank" rel="noopener" style={{ width: "fit-content" }}>Verify with OpenAI</a>}
-      </div>
     </div>
   );
 }
