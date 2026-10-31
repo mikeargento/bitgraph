@@ -268,11 +268,14 @@ export default function ProofPage() {
     const ask = async () => {
       const r = await fetch(`/api/timeline/bracket?epoch=${ep}&counter=${c.counter}`, { cache: "no-store" }).catch(() => null);
       const j = r?.ok ? ((await r.json().catch(() => null)) as ProofViewModel["timeline"] & { state?: string } | null) : null;
-      if (cancelled || !j) return;
-      if (j.state === "none") return;
+      if (cancelled) return;
+      const since = Date.now() - started;
+      // No answer, or no timeline record: a page opened the moment its bind returned can ask before the host has the
+      // record in hand, so it asks again for a little while; an older proof outside the timeline stops after that.
+      if (!j || j.state === "none") { if (since < 30_000) timer = setTimeout(ask, 3000); return; }
       setTimeline({ ...j, epochUrl: ep });
       // The ceiling is the next block read stamped after this record: a few seconds after a bind.
-      if ((j.state === "pending" || j.state === "unconfirmed") && Date.now() - started < 120_000) timer = setTimeout(ask, 3000);
+      if ((j.state === "pending" || j.state === "unconfirmed") && since < 120_000) timer = setTimeout(ask, 3000);
     };
     void ask();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };

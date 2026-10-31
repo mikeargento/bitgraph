@@ -1,6 +1,5 @@
-import { NextRequest, NextResponse, after } from "next/server";
-import { storeProofByDigest, getProofByDigest, putFloorLinkOnce } from "@/lib/s3";
-import { checkFloorLink, floorFileText, latestBaseBlock, sha256B64 } from "@/lib/floor-link";
+import { NextRequest, NextResponse } from "next/server";
+import { storeProofByDigest, getProofByDigest } from "@/lib/s3";
 import { FOLDER_VERSION } from "@/lib/folder-version";
 import { commitsMayProceed, TEE_URL, teeRestarting503 as teeRestarting503Bare } from "@/lib/anchor-gate";
 import { isNoBaseFloorRefusal } from "@/lib/fuse-core";
@@ -38,28 +37,10 @@ export async function POST(req: NextRequest) {
     // legacy default chain, outside that sequence.
     if (body && typeof body === "object" && !Array.isArray(body) && body.chainId === undefined) body.chainId = "bitgraph:main";
 
-    // Every BitGraph gets a Base floor and a Base ceiling (2026-10-21; the Make page had them since 2026-10-20,
-    // the rest of the site did not). The ceiling: the host queues the proof hash for Base when asked, so ask for every
-    // bind. The floor: the latest Base block is bound as BitGraph 1, in this same request, right before the caller's
-    // digest; the link that says 1 is 2's floor is written once the enclave has answered (lib/floor-link.ts). A bind
-    // whose tree already carries the block as its first leaf (the Make page, `floorLeaf: true`) needs no second floor.
-    // Base not answering costs the bind its floor, never the bind: the proof page then shows the ceiling alone.
-    let floor: { digestB64: string; file: string } | null = null;
-    if (body && typeof body === "object" && !Array.isArray(body)) {
-      body.ceiling = true;
-      const leaf = body.floorLeaf === true;
-      delete body.floorLeaf;
-      const plain = Array.isArray(body.digests) && body.digests.length > 0 && body.slotId === undefined && body.slot === undefined && body.agency === undefined;
-      if (plain && !leaf) {
-        try {
-          const file = floorFileText(await latestBaseBlock());
-          floor = { digestB64: sha256B64(file), file };
-          body.digests = [{ digestB64: floor.digestB64, hashAlg: "sha256" }, ...body.digests];
-        } catch (e) {
-          console.warn("[api/commit] no floor for this bind: Base did not answer:", (e as Error).message);
-        }
-      }
-    }
+    // The block timeline supplies every record's floor and ceiling (block reads bound beside it on the same counter
+    // sequence, read from Base and Ethereum), so nothing is bound in front of a caller's digest and no Base write is
+    // asked for. `floorLeaf` and `ceiling` from older clients are accepted and dropped.
+    if (body && typeof body === "object" && !Array.isArray(body)) { delete body.floorLeaf; delete body.ceiling; }
 
     // Snapshot what the legacy by-digest key holds BEFORE committing. The EC2
     // parent overwrites that key fire-and-forget as soon as the TEE responds,
@@ -115,32 +96,7 @@ export async function POST(req: NextRequest) {
       return storeProofByDigest(p, digestB64 !== undefined ? priors.get(digestB64) : undefined);
     }));
 
-    // The floor is the site's, not the caller's: the caller gets the proofs of the digests it sent, in the shape it
-    // always has, and the floor link is written after this reply (the proof page asks /api/floors for it).
-    const digestOf = (p: Record<string, unknown>) => (p?.artifact as { digestB64?: string } | undefined)?.digestB64;
-    const floorProof = floor ? proofs.find((p) => digestOf(p) === floor!.digestB64) ?? null : null;
-    const made = floorProof ? proofs.filter((p) => p !== floorProof) : proofs;
-    if (floor && floorProof) {
-      const { digestB64: floorDigest, file } = floor;
-      after(async () => {
-        for (const p of made) {
-          try {
-            const r = await checkFloorLink(floorProof, p, file);
-            if (!r.ok) { console.warn(`[api/commit] floor link not written for ${digestOf(p)}: ${r.error}`); continue; }
-            const text = JSON.stringify(r.link, null, 2);
-            await putFloorLinkOnce(r.link.record.digestB64, r.link.record.epochId, r.link.record.counter, text);
-            // The same link under the floor's own position, so the floor's proof page can say which record it floors
-            // (2026-10-21: a floor's page otherwise showed no floor): a floor is BitGraph 1 and has none of its own.
-            const f = r.link.floor.bitgraph;
-            await putFloorLinkOnce(f.digestB64, f.epochId, f.counter, text);
-          } catch (e) {
-            console.warn(`[api/commit] floor link failed for ${digestOf(p)} (floor ${floorDigest}):`, (e as Error).message);
-          }
-        }
-      });
-    } else if (floor) {
-      console.warn("[api/commit] the enclave's reply carried no proof for the floor digest; no link written");
-    }
+    const made = proofs;
 
     return NextResponse.json(Array.isArray(teeData) ? made : made[0] ?? teeData, { headers: VERSION_HEADER });
   } catch (e) {

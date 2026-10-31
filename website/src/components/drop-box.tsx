@@ -30,8 +30,8 @@ import { zipSync, strToU8 } from "fflate";
 import { attachEnvironments } from "@/lib/proof-environment";
 import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
-import { DIGEST_TREE_FORMAT, baseBlockFileText, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes, withMember } from "@/lib/tree-member";
-import { bindOne, digestOf, hashLeaves, latestBaseBlock, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
+import { DIGEST_TREE_FORMAT, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes, withMember } from "@/lib/tree-member";
+import { bindOne, digestOf, hashLeaves, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
 import { publishFoundRecords, publishRecord } from "@/lib/trustmark/ledger";
 import { makeThumb, THUMB_SUFFIX } from "@/lib/trustmark/thumb";
 import { FoundThumb } from "@/components/found-thumb";
@@ -648,18 +648,15 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         // (app/api/lineage), so its page says so; nothing is chosen for the holder and nothing opens in its place.
         // The find failing to answer costs only the note.
       }
-      /* Every drop, one file or many, is one tree and one BitGraph (2026-10-20). Its first leaf is the latest Base
-         block (base-block.json): the bound root holds that block's hash, so everything in the tree was bound after the
-         block existed. Every BitGraph gets a Base ceiling too, so each file's proof carries a window, after block X and
-         by block Y. The Base switch and its second BitGraph are gone. */
+      /* Every drop, one file or many, is one tree and one BitGraph (2026-10-20). Its floor and ceiling come from the block
+         timeline: the Base block reads bound on the same counter sequence just before and just after it, so the tree
+         holds only the files and nothing is written to any chain for it. */
       const count = list ? list.length : files.length;
       setStatus(list ? `Reading 0 of ${count.toLocaleString("en-US")} hashes…` : `Hashing 0 of ${count.toLocaleString("en-US")}…`);
       // Everything that does not wait on the bind runs at once: the files are hashed, each photo's fingerprint is worked
       // out from its picture (lib/trustmark/record.ts, so a photo can later carry a pointer back here; up to
       // MAX_FINGERPRINTED a drop, a photo this browser cannot open is recorded as it is), and the latest Base block is
-      // read for the floor. A folder is not looked up first: every folder drop is a new tree and a new BitGraph.
-      const blockLater = latestBaseBlock();
-      blockLater.catch(() => {});
+      // A folder is not looked up first: every folder drop is a new tree and a new BitGraph.
       let hashed = 0, printed = 0, printing = 0;
       const say = () => setStatus(printing ? `Hashing ${hashed.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}, fingerprinting ${printed.toLocaleString("en-US")} of ${printing.toLocaleString("en-US")} photos…${timer ? ` ${secs()} s` : ""}` : `Hashing ${hashed.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}…${timer ? ` ${secs()} s` : ""}`);
       const [dropped, prints] = await Promise.all([
@@ -670,33 +667,31 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       ]);
       const fp = prints.length ? await fingerprintRecords(prints, dropped) : { leaves: [], records: [], thumbs: [] };
       const leaves = fp.leaves.length ? [...dropped, ...fp.leaves] : dropped;
-      // Files sorted by path, so the same folder always makes the same tree around its floor (2026-10-20).
+      // Files sorted by path, so the same folder always makes the same tree (2026-10-20).
       const fileLeaves = sortedLeaves(leaves);
-      let tree: PluginTree | null = null, rootText = "", floorFile: string | null = null, block: BaseBlock | null = null;
+      let tree: PluginTree | null = null, rootText = "";
+      const block: BaseBlock | null = null;
       const already: Proof | null = null;
       const tHashed = performance.now();
       if (!already) {
-        block = await blockLater;
-        floorFile = baseBlockFileText(block);
-        const [floorLeaf] = await hashLeaves([new File([floorFile], "base-block.json", { type: "application/json" })]);
-        const t = await treeFromLeaves([floorLeaf!, ...fileLeaves]);
+        const t = await treeFromLeaves(fileLeaves);
         tree = t.tree; rootText = t.rootText;
         setStatus("Making the BitGraph…");
       }
       const contentName = "merkle-root.txt", contentDigest = await digestOf(new TextEncoder().encode(rootText));
-      const b = already ?? await bindOne(contentDigest, { ceiling: true, floorLeaf: true });
+      const b = already ?? await bindOne(contentDigest);
       void cacheArtifactToIDB(new File([rootText], contentName, { type: "text/plain" }), contentDigest).catch(() => {});
       const tDone = performance.now();
       const t = tree!, total = t.files;
-      const blocks = memberBlocks(t, rootText, floorFile ?? undefined);
+      const blocks = memberBlocks(t, rootText);
       // One file goes straight on to its proof page (below), so the tree's panel is never drawn for it: shown for the
       // moment its index is written, it would flash up under "Opening the proof…" before the page changes.
       const opensProof = !list && files.length === 1 && !timer;
       // No gallery of thumbnails after a drop (2026-10-30): the tree's panel lists the BitGraph, and each file's own proof
       // opens from its proof page.
       const gallery: Gallery | undefined = undefined;
-      if (!opensProof) setPlug({ gallery, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: already ? null : "waiting", ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
-      // Each file is indexed under its own hash with the tree's floor (lib/tree-member.ts): written after the proof is
+      if (!opensProof) setPlug({ gallery, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
+      // Each file is indexed under its own hash (lib/tree-member.ts): written after the proof is
       // shown, so the BitGraph never waits on it; the server checks every path to the root before it writes.
       type Lookup = { stored: number; total: number; state: "sealing" | "saving" | "done" | "failed"; note?: string };
       const lookup = (l: Lookup) => setPlug((p) => (p && p.b === b ? { ...p, lookup: l } : p));
@@ -717,8 +712,8 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         let next = 0;
         await Promise.all(Array.from({ length: 3 }, async () => { while (next < fp.records.length) { const i = next++; await publishRecord(fp.records[i]!, null, null).catch(() => false); } }));
       });
-      /* One file opens its own proof page, as a plain drop always has: its tree is two leaves (the floor and the file), so
-         its index is written in a moment; the page opens with the proof in hand either way. */
+      /* One file opens its own proof page, as a plain drop always has: its tree is the file alone, so its index is
+         written in a moment; the page opens with the proof in hand either way. */
       if (opensProof) {
         setStatus("Opening the proof…");
         const fileDigest = dropped[0]![2], i = t.leaves.findIndex((l) => l[2] === fileDigest);
@@ -954,7 +949,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     }
     if (single && (ended2[0]?.state === "in-tree" || ended2[0]?.state === "copy")) { setRows(ended2); setStatus(null); return; }
     const fresh_new = ended2.filter((r) => r.state === "new" && r.digestB64);
-    // A new file is made the one way every drop is: a tree with the Base block as its floor (2026-10-20).
+    // A new file is made the one way every drop is: a tree of the dropped files (2026-10-20).
     if (mode === "make" && single && fresh_new.length === 1) { await takePlugins([picked[0]!]); return; }
     if (single && mode === "make" && fresh_new.length) setStatus("Making the BitGraph…");
     const made = mode === "make" ? await makeRows(fresh_new) : [];
