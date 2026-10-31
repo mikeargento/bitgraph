@@ -80,10 +80,8 @@ const SITE_DESCRIPTION =
 
 export const metadata: Metadata = {
   title: {
-    // Home's tab title is the home h1 (2026-08-19), with no
-    // "BitGraph |" prefix: the sentence already names BitGraph, and the
-    // template below still brands every other page's tab. It was "BitGraph |
-    // A camera for bits" from 2026-07 until the title became the claim.
+    // Home's tab title is "BitGraph: " plus the home h1, set in page.tsx; the
+    // template below brands every other page's tab.
     default: "BitGraph",
     template: "%s | BitGraph",
   },

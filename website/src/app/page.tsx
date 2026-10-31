@@ -15,7 +15,7 @@ const DESCRIPTION =
   "Send a hash. Get a proof of where it stands in a counted, attested sequence. It checks offline, without your servers or ours. Time, identity and public witness bind on top.";
 
 export const metadata: Metadata = {
-  title: { absolute: "BitGraph: a stronger proof for the products you already sell" },
+  title: { absolute: "BitGraph: Order before time" },
   description: DESCRIPTION,
   openGraph: { title: "Order before time.", description: DESCRIPTION },
   twitter: { title: "Order before time.", description: DESCRIPTION },
