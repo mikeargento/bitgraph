@@ -13,6 +13,8 @@
     "build:ceiling": "esbuild src/ceiling/main.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist-ceiling/writer.mjs --external:@aws-sdk/client-s3 --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\" && esbuild src/ceiling/keygen.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist-ceiling/keygen.mjs",
     "test:enclave": "node --import tsx/esm --test src/enclave/__tests__/bind-failure.test.ts",
     "test:timeline": "node --import tsx/esm --test src/parent/__tests__/chain-sources.test.ts src/parent/__tests__/timeline-poller.test.ts src/parent/__tests__/timeline-records.test.ts src/parent/__tests__/timeline-alerts.test.ts",
+    "audit:base": "node --import tsx/esm scripts/timeline-audit.ts",
+    "test:audit": "node --import tsx/esm --test src/audit/__tests__/base-day.test.ts",
     "smoke:timeline": "node --import tsx/esm local-enclave/timeline-smoke.mts",
     "test:ceiling": "node --import tsx/esm --test src/ceiling/__tests__/writer.test.ts src/ceiling/__tests__/settlement.test.ts src/ceiling/__tests__/output-root.test.ts"
   },
