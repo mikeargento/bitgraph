@@ -325,6 +325,7 @@ export default function TechnologyPage() {
             <p>The evaluation guide walks through making a BitGraph, verifying it offline, and watching each kind of tampering fail.</p>
             <div className="sx-cta">
               <a className="bg-action-link is-make" href="/evaluate">Evaluate the technology</a>
+              <a className="bg-action-link" href="/applications">Where it fits</a>
               <a className="bg-action-link" href="/integrate">Integrate</a>
             </div>
           </section>

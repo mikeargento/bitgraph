@@ -57,7 +57,7 @@ const FITS = [
 
 export default function HomePage() {
   return (
-    <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page">
+    <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page is-landing">
       <section className="sx-hero" aria-labelledby="home-h">
         {/* The first screen says what the buyer gains (2026-10-28): they already issue proofs; now each one rests on hardware,
             in one call, with nothing to run. Competent already, stronger now. */}

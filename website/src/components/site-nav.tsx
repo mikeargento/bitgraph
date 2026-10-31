@@ -15,13 +15,12 @@ import { useEffect, useState } from "react";
 const LINKS: Array<{ href: string; label: string; also?: string[] }> = [
   // The site sells the mechanism to companies that sell proof (2026-10-27): what it is, where it fits, how to build
   // on it, how to license it. Make, Check, the ledger and the demos are its evidence, under Try it.
-  { href: "/technology", label: "Technology" },
-  { href: "/applications", label: "Applications" },
-  { href: "/integrate", label: "Integrate" },
-  { href: "/licensing", label: "Licensing" },
-  { href: "/tools", label: "Docs" },
+  // Five things, flat (2026-10-31): what it is, how to build on it, the live evidence, how to license it, and Try it.
+  // Applications is reached from Technology and the home page; the reference from Developers; Evaluate from Licensing.
+  { href: "/technology", label: "Technology", also: ["/applications"] },
+  { href: "/integrate", label: "Developers", also: ["/tools"] },
   { href: "/ledger", label: "Ledger" },
-  { href: "/evaluate", label: "Evaluate" },
+  { href: "/licensing", label: "Licensing", also: ["/evaluate"] },
 ];
 // The button is the one action a visitor should take: Try it, where a drop proves the product in a minute.
 const CTA = { href: "/demos", label: "Try it", also: ["/make", "/jev", "/generate", "/exam"] };
