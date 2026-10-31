@@ -47,3 +47,4 @@ export {
   type RecoveryJobFile, type RecoveryJobSummary, type FlushResult, type RunJobOptions, type PendingMember, type PendingMembers,
 } from "./recovery-jobs.js";
 export type { ServeOptions, RunningServer } from "./serve.js";
+export { rpcTimelineLookups, verifyTimelineBundleOnline, DEFAULT_TIMELINE_RPCS } from "./timeline.js";

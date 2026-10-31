@@ -91,6 +91,11 @@ const HELP = `bitgraph: make, check and verify BitGraphs from any stack
   ceiling verify <proof.json> <ceiling.json> [--rpc URL] [--writer 0x..] [--chain 8453]
                                        check a ceiling in time offline; --rpc also
                                        asks a Base node that the block is Base's
+  timeline verify <bundle.json> [--file path] [--base-rpc URL[,URL]] [--ethereum-rpc URL[,URL]] [--offline]
+                                       a file's place between two block reads: every proof, the
+                                       unbroken run, and the bracket's blocks and the genesis write
+                                       asked of Base and Ethereum (two URLs: both must agree).
+                                       Exit 0 verified, 3 unconfirmed, 2 failed.
   serve [--port ${DEFAULT_PORT}]                    localhost API (127.0.0.1 only)
   recovery list                        trees whose recovery entries are still pending
   recovery flush [--budget ms]         write them (the next record does this too)
@@ -386,6 +391,35 @@ async function main(): Promise<void> {
       });
       if (!r.ok || online.onChain === false) process.exit(2);
       return;
+    }
+    case "timeline": {
+      if (args[0] !== "verify" || args.length !== 2) fail("usage: bitgraph timeline verify <bundle.json> [--file path] [--base-rpc URL[,URL]] [--ethereum-rpc URL[,URL]] [--offline]");
+      const { verifyTimelineBundleOnline } = await import("./timeline.js");
+      const doc = JSON.parse(await readFile(args[1] as string, "utf8")) as { bundle?: unknown; format?: string };
+      // The bundle alone, or GET /timeline/bundle's answer around it.
+      const bundle = doc.format === undefined && doc.bundle !== undefined ? doc.bundle : doc;
+      const list = (k: string) => { const v = flags.get(k); return typeof v === "string" ? v.split(",").map((x) => x.trim()).filter(Boolean) : undefined; };
+      const file = flags.get("file");
+      const base = list("base-rpc");
+      const ethereum = list("ethereum-rpc");
+      const r = await verifyTimelineBundleOnline(bundle, {
+        ...(typeof file === "string" ? { fileBytes: new Uint8Array(await readFile(file)) } : {}),
+        ...(base ? { base } : {}),
+        ...(ethereum ? { ethereum } : {}),
+        offline: flags.get("offline") === true,
+      });
+      out(r, () => {
+        const head = r.status === "verified" ? "VERIFIED" : r.status === "unconfirmed" ? "UNCONFIRMED" : "NOT VERIFIED";
+        const lines = [`${head}  file at count ${r.file?.counter ?? "?"}${typeof file === "string" ? ` (${file}, bytes checked)` : ""}`];
+        if (r.floor) lines.push(`  floor: ${r.floor.claim}`);
+        if (r.ceiling) lines.push(`  ceiling: ${r.ceiling.claim}`);
+        lines.push(`  genesis: ${r.genesis}${r.preGenesis ? " (the file was bound before it: pre-genesis)" : ""}`);
+        for (const x of r.reasons) lines.push(`  failed: ${x}`);
+        for (const x of r.unconfirmed) lines.push(`  unconfirmed: ${x}`);
+        for (const x of r.flags) lines.push(`  flag: ${x}`);
+        return lines.join("\n");
+      });
+      process.exit(r.status === "verified" ? 0 : r.status === "unconfirmed" ? 3 : 2);
     }
     case "serve": {
       const portFlag = flags.get("port");
