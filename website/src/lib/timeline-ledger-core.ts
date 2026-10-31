@@ -86,3 +86,26 @@ export function interleaveEpoch<R extends { counter: string }>(epoch: string, ro
   });
   return out;
 }
+
+/**
+ * Rows (newest first) with every count of every epoch the page covers accounted for. `covered` is those epochs,
+ * newest first: an epoch with block reads but no file row on the page still shows them, in its place. `above` and
+ * `below` bound the newest and the oldest covered epoch (below: null when an older page follows); the epochs in
+ * between are shown whole, from their start to their newest upload. `belowByEpoch` sets an epoch's own lower bound
+ * (the live poll: the row the page already has).
+ */
+export function interleaveDay<R extends { counter: string; key: string }>(
+  rows: readonly R[], covered: readonly string[], batches: Readonly<Record<string, readonly TimelineBatchKey[]>>,
+  ends: { above: number | "uploaded" | null; below: number | null }, belowByEpoch: Readonly<Record<string, number>>, epochOf: (key: string) => string,
+): Array<R | ReadsRow> {
+  const byEpoch = new Map<string, R[]>();
+  for (const r of rows) byEpoch.set(epochOf(r.key), [...(byEpoch.get(epochOf(r.key)) ?? []), r]);
+  const order = [...covered];
+  for (const e of byEpoch.keys()) if (!order.includes(e)) order.push(e);
+  const out: Array<R | ReadsRow> = [];
+  order.forEach((e, i) => {
+    const below = belowByEpoch[e] ?? (i === order.length - 1 ? ends.below : 0);
+    out.push(...interleaveEpoch(e, byEpoch.get(e) ?? [], batches[e] ?? [], { above: i === 0 ? ends.above : "uploaded", below }));
+  });
+  return out;
+}

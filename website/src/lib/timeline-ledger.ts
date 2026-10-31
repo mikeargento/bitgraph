@@ -22,7 +22,7 @@ import { getObjectBytes, listKeysUnderPrefix } from "@/lib/s3";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { parseBatchKey, type TimelineBatchKey, type TimelineRead } from "@/lib/timeline-ledger-core";
 
-export { interleaveEpoch, spanState, parseBatchKey, type ReadsRow, type TimelineRead, type TimelineBatchKey } from "@/lib/timeline-ledger-core";
+export { interleaveEpoch, interleaveDay, spanState, parseBatchKey, type ReadsRow, type TimelineRead, type TimelineBatchKey } from "@/lib/timeline-ledger-core";
 
 /** The epoch's batch keys. A closed epoch's never change; today's are re-listed every 15 s at most. */
 export const batchKeysOf = unstable_cache(async (epoch: string): Promise<TimelineBatchKey[]> => {

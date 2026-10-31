@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { interleaveEpoch, parseBatchKey, spanState, type TimelineBatchKey } from "../timeline-ledger-core.ts";
+import { interleaveDay, interleaveEpoch, parseBatchKey, spanState, type TimelineBatchKey } from "../timeline-ledger-core.ts";
 
 const E = "KKOixUTETu9LB6jJxX-k-jvLaUZNUSoITPjHfzubqCo";
 const P = `timeline/${E}/`;
@@ -50,4 +50,22 @@ test("adjacent file rows leave no gap; pages and the live poll bound the ends", 
   assert.deepEqual(older.map((x) => ("kind" in x ? `${x.from}-${x.to}` : x.counter)), ["22-28", "20"], "up to just below the row the newer page shows");
   const poll = interleaveEpoch(E, [], [batch(2, 40)], { above: "uploaded", below: 30 });
   assert.deepEqual(poll.map((x) => ("kind" in x ? `${x.from}-${x.to}` : x.counter)), ["32-40"], "no new file: the reads since the last one");
+});
+
+test("a day with two epochs: an epoch with reads but no file row still shows, in its place", () => {
+  const A = "A".repeat(43), B = "B".repeat(43), C = "C".repeat(43);
+  const rowIn = (e: string, counter: number) => ({ counter: String(counter), key: `proofs/${e}/${pad(counter)}-x.json` });
+  const at = (e: string) => (b: TimelineBatchKey) => ({ ...b, key: b.key.replace(E, e) });
+  const batches = { [A]: [batch(2, 20)].map(at(A)), [B]: [batch(2, 30)].map(at(B)), [C]: [batch(2, 8)].map(at(C)) };
+  const epochOf = (k: string) => k.split("/")[1]!;
+  // Newest first: C (a file at 6), B (reads only), A (a file at 10).
+  const items = interleaveDay([rowIn(C, 6), rowIn(A, 10)], [C, B, A], batches, { above: "uploaded", below: 0 }, {}, epochOf);
+  assert.deepEqual(items.map((x) => ("kind" in x ? `${x.epoch[0]} reads ${x.from}-${x.to}` : `${x.key.split("/")[1]![0]} file ${x.counter}`)), [
+    "C reads 8-8", "C file 6", "C reads 2-4",
+    "B reads 2-30",
+    "A reads 12-20", "A file 10", "A reads 2-8",
+  ]);
+  // The live poll: below the row the page has in its epoch, whole in a newer one.
+  const poll = interleaveDay([], [C, A], batches, { above: "uploaded", below: 0 }, { [A]: 10 }, epochOf);
+  assert.deepEqual(poll.map((x) => ("kind" in x ? `${x.epoch[0]} ${x.from}-${x.to}` : "")), ["C 2-8", "A 12-20"]);
 });
