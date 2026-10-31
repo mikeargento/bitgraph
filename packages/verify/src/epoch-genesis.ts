@@ -156,8 +156,11 @@ export interface EpochGenesisCheck {
  * file's epoch; the transaction, when supplied, must be the writer's self-addressed transaction carrying this
  * epoch's id, mined in the block the file names; the block, when supplied, must be that block with that time.
  * Without `tx` and `block` only the file and the proof are checked (offline).
+ *
+ * `position: "any"` drops the counts-1-and-2 rule, for a timeline epoch that read blocks and bound files while the
+ * Base write was still pending: its genesis record is the first record that ends pre-genesis, wherever it falls.
  */
-export function checkEpochGenesis(args: { file: string; proof: BitGraphProof; tx?: EpochGenesisTx | null; block?: EpochGenesisBlock | null }): EpochGenesisCheck {
+export function checkEpochGenesis(args: { file: string; proof: BitGraphProof; tx?: EpochGenesisTx | null; block?: EpochGenesisBlock | null; position?: "first" | "any" }): EpochGenesisCheck {
   const reasons: string[] = [];
   const genesis = parseEpochGenesisFile(args.file);
   if (!genesis) return { ok: false, reasons: ["the file is not a bitgraph-epoch-genesis/1 record"], genesis: null };
@@ -165,7 +168,7 @@ export function checkEpochGenesis(args: { file: string; proof: BitGraphProof; tx
   if (digest !== args.proof.artifact?.digestB64) reasons.push("the file does not hash to the proof's digest");
   const commit = args.proof.commit as { counter?: string; slotCounter?: string; epochId?: string };
   if (commit.epochId !== genesis.epochId) reasons.push("the proof is not of the epoch the file names");
-  if (commit.slotCounter !== "1" || commit.counter !== "2") reasons.push("the proof is not the epoch's first BitGraph (counts 1 and 2)");
+  if (args.position !== "any" && (commit.slotCounter !== "1" || commit.counter !== "2")) reasons.push("the proof is not the epoch's first BitGraph (counts 1 and 2)");
   if (args.tx) {
     const t = args.tx;
     if (t.from.toLowerCase() !== genesis.writer) reasons.push("the transaction was not sent by the writer the file names");

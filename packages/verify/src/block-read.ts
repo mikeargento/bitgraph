@@ -109,7 +109,11 @@ export interface ChainBlock {
 }
 
 export interface BlockReadCheck {
+  /** True only when confirmed: the chain itself vouched for the block. */
   ok: boolean;
+  /** confirmed: the chain vouched; unconfirmed: nothing failed but the chain was not asked; failed: see reasons. */
+  status: "confirmed" | "unconfirmed" | "failed";
+  /** What failed; empty unless failed. */
   reasons: string[];
   file: BlockReadFile | null;
   /** The block's number and timestamp as the CHAIN reports them; set only when the chain confirmed the block. */
@@ -126,14 +130,14 @@ export interface BlockReadCheck {
  */
 export function checkBlockRead(args: { file: string; proof: BitGraphProof; chain?: ChainBlock | null }): BlockReadCheck {
   const file = parseBlockReadFile(args.file);
-  if (!file) return { ok: false, reasons: [`the file is not a ${BLOCK_READ_FORMAT} record`], file: null, block: null };
+  if (!file) return { ok: false, status: "failed", reasons: [`the file is not a ${BLOCK_READ_FORMAT} record`], file: null, block: null };
   const reasons: string[] = [];
   if (blockReadDigestB64(args.file) !== args.proof.artifact?.digestB64) reasons.push("the file does not hash to the proof's digest");
   if (args.proof.commit?.epochId !== file.epochId) reasons.push("the proof is not of the epoch the file names");
 
   const c = args.chain;
   if (c === undefined) {
-    reasons.push(`unconfirmed: the block was not looked up on ${file.chain}`);
+    // Not looked up: nothing more to check, and nothing about time is known.
   } else if (c === null) {
     reasons.push(`${file.chain} does not know block ${file.hash}`);
   } else {
@@ -143,8 +147,10 @@ export function checkBlockRead(args: { file: string; proof: BitGraphProof; chain
     if (c.timestamp !== file.timestamp) reasons.push(`the file says time ${file.timestamp}; ${file.chain} says ${c.timestamp}`);
   }
   const confirmed = reasons.length === 0 && c;
+  const status = reasons.length > 0 ? "failed" : c ? "confirmed" : "unconfirmed";
   return {
-    ok: reasons.length === 0,
+    ok: status === "confirmed",
+    status,
     reasons,
     file,
     block: confirmed ? { chain: file.chain, chainId: file.chainId, hash: file.hash, number: c.number, timestamp: c.timestamp } : null,

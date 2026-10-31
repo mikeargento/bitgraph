@@ -1,0 +1,12 @@
+{
+  "format": "bitgraph-epoch-genesis/1",
+  "epochId": "KKOixUTETu9LB6jJxX+k+jvLaUZNUSoITPjHfzubqCo=",
+  "chain": "base-mainnet",
+  "chainId": 8453,
+  "writer": "0xf3972408d853c975f86351c311f4310220bbf2a3",
+  "txHash": "0x8f664b701ae4189bfc76d0a9a2b9c59e9a00702f5787bd49aa34f3c9cdccfc18",
+  "blockNumber": 53307701,
+  "blockHash": "0xd2df0843279950785d6119f4025bdf606442fc1aa25ff18efe2dba3a6df41322",
+  "blockTimestamp": 1793404749,
+  "note": "The first BitGraph of this epoch. Base transaction 0x8f664b701ae4189bfc76d0a9a2b9c59e9a00702f5787bd49aa34f3c9cdccfc18 carries this epoch's id and was mined in block 53307701, so this epoch's key existed before that block and every BitGraph of this epoch was made after it."
+}

@@ -214,3 +214,6 @@ export type { EpochGenesisFile, EpochGenesisTx, EpochGenesisBlock, EpochGenesisC
 /* bitgraph-block-read/1: a block of Base, Ethereum or Bitcoin read and bound as a plain BitGraph; only the chain's own answer about the hash counts. */
 export { BLOCK_READ_FORMAT, BLOCK_READ_CHAIN_IDS, isBlockReadHash, blockReadFileText, blockReadDigestB64, parseBlockReadFile, checkBlockRead } from "./block-read.js";
 export type { BlockReadChain, BlockReadFile, ChainBlock, BlockReadCheck } from "./block-read.js";
+/* bitgraph-timeline-bundle/1: a file's proof with the block reads either side of it and every proof between, verified offline; the chains give the time. */
+export { TIMELINE_BUNDLE_FORMAT, DEFAULT_LAG_LIMITS, verifyTimelineBundle } from "./timeline-bundle.js";
+export type { TimelineBundle, LagLimit, TimelineLookups, TimelineBundleOptions, TimelineBound, TimelineBundleResult } from "./timeline-bundle.js";

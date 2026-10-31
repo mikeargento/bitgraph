@@ -66,6 +66,7 @@ test("a read the chain confirms takes its number and time from the chain", () =>
   const text = blockReadFileText(baseRead);
   const r = checkBlockRead({ file: text, proof: proofOf(text), chain: onChain() });
   assert.equal(r.ok, true, r.reasons.join("; "));
+  assert.equal(r.status, "confirmed");
   assert.deepEqual(r.block, { chain: "base", chainId: "eip155:8453", hash: BASE_HASH, number: 37_500_000, timestamp: 1_793_404_750 });
 });
 
@@ -73,8 +74,9 @@ test("without a lookup the read is unconfirmed, never ok", () => {
   const text = blockReadFileText(baseRead);
   const r = checkBlockRead({ file: text, proof: proofOf(text) });
   assert.equal(r.ok, false);
+  assert.equal(r.status, "unconfirmed");
+  assert.deepEqual(r.reasons, []);
   assert.equal(r.block, null);
-  assert.match(r.reasons.join(), /unconfirmed/);
 });
 
 test("a hash the chain does not know, or not on its canonical chain, fails", () => {
@@ -82,6 +84,7 @@ test("a hash the chain does not know, or not on its canonical chain, fails", () 
   assert.match(checkBlockRead({ file: text, proof: proofOf(text), chain: null }).reasons.join(), /does not know/);
   const orphan = checkBlockRead({ file: text, proof: proofOf(text), chain: onChain({ canonical: false }) });
   assert.equal(orphan.ok, false);
+  assert.equal(orphan.status, "failed");
   assert.equal(orphan.block, null);
   assert.match(orphan.reasons.join(), /canonical/);
 });
