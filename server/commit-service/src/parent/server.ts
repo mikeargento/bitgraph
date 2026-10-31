@@ -877,6 +877,30 @@ async function handleAllocateSlot(req: IncomingMessage, res: ServerResponse): Pr
   }
 }
 
+/**
+ * GET /timeline/bundle?digest=<base64url or base64> | ?epoch=<id>&counter=<n>: a file's bitgraph-timeline-bundle/1,
+ * everything needed to check its place between two block reads offline (verifyTimelineBundle; the chains give the
+ * time). 409 with retryable: true until the block read that will be its ceiling exists, a few seconds after a bind.
+ */
+async function handleTimelineBundle(url: URL, res: ServerResponse): Promise<void> {
+  if (!timeline) { sendError(res, 404, "the block timeline is not running on this host"); return; }
+  const d = url.searchParams.get("digest");
+  const digestB64 = d ? Buffer.from(d.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("base64") : undefined;
+  if (d && Buffer.from(digestB64!, "base64").length !== 32) { sendError(res, 400, "digest must be a 32-byte SHA-256 in base64 or base64url"); return; }
+  const epochId = url.searchParams.get("epoch") ?? undefined;
+  const counter = url.searchParams.get("counter") ?? undefined;
+  if (counter !== undefined && !/^[1-9][0-9]*$/.test(counter)) { sendError(res, 400, "counter must be a positive decimal count"); return; }
+  if (!digestB64 && !(epochId && counter)) { sendError(res, 400, "give digest, or epoch and counter"); return; }
+  try {
+    const r = await timeline.bundle({ ...(digestB64 ? { digestB64 } : {}), ...(epochId ? { epochId: epochId.replace(/-/g, "+").replace(/_/g, "/").padEnd(44, "=") } : {}), ...(counter ? { counter } : {}) });
+    if (r.ok) { sendJson(res, 200, { bundle: r.bundle, chain: r.chain, notes: r.notes }); return; }
+    if (r.retryable) res.setHeader("Retry-After", "5");
+    sendJson(res, r.retryable ? 409 : r.found ? 422 : 404, { error: r.reason, retryable: r.retryable });
+  } catch (e) {
+    sendJson(res, 503, { error: `the timeline's records could not be read: ${e instanceof Error ? e.message : String(e)}`, retryable: true });
+  }
+}
+
 async function handleHealth(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   sendJson(res, 200, timeline ? { ok: true, timeline: timeline.status() } : { ok: true });
 }
@@ -910,6 +934,8 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       await handleVerify(req, res);
     } else if (method === "GET" && url.pathname === "/health") {
       await handleHealth(req, res);
+    } else if (method === "GET" && url.pathname === "/timeline/bundle") {
+      await handleTimelineBundle(url, res);
     } else {
       sendError(res, 404, `${method} ${url.pathname} not found`);
     }

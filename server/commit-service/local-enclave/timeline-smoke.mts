@@ -2,8 +2,9 @@
 // with TIMELINE=on, and stand-in Base and Ethereum nodes, two per chain, on loopback. No ledger, no production.
 //
 // It binds a file while the genesis write is still pending, then supplies the genesis result as the ceiling writer
-// would, and checks: every block of both chains bound in order with no gap, one unbroken counter run, and a bundle
-// for the file that verifyTimelineBundle verifies (with the stand-in attestation's time in place of Nitro's).
+// would, and checks: every block of both chains bound in order with no gap, one unbroken counter run, and the file's
+// bundle from GET /timeline/bundle verified by verifyTimelineBundle (with the stand-in attestation's time in place
+// of Nitro's).
 //
 //   cd server/commit-service && node --import tsx/esm local-enclave/timeline-smoke.mts
 import { createServer, type Server } from "node:http";
@@ -14,7 +15,7 @@ import { keccak_256 } from "@noble/hashes/sha3";
 import { sha256 } from "@noble/hashes/sha256";
 import {
   verifyTimelineBundle, verifyStretch, verifyProofIntegrity, parseBlockReadFile, epochGenesisFileText, epochGenesisCalldataHex,
-  TIMELINE_BUNDLE_FORMAT, type TimelineBundle, type AttestedResult,
+  type TimelineBundle, type AttestedResult,
 } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof } from "bitgraph";
 import { encodeBaseHeaderRlp, type RpcBlock } from "../src/parent/base-head.js";
@@ -90,7 +91,7 @@ const stack = await startStack({
   quiet: true,
   parentEnv: {
     TIMELINE: "on", TIMELINE_STATE_DIR: state, EPOCH_GENESIS_DIR: genesisDir,
-    TIMELINE_BASE_RPC_URLS: base.urls, TIMELINE_ETHEREUM_RPC_URLS: eth.urls, TIMELINE_ETHEREUM_POLL_MS: "1000",
+    TIMELINE_BASE_RPC_URLS: base.urls, TIMELINE_ETHEREUM_RPC_URLS: eth.urls, TIMELINE_ETHEREUM_POLL_MS: "1000", TIMELINE_HARNESS_TIME: "on",
   },
 });
 
@@ -100,6 +101,9 @@ try {
   const fileDigest = randomDigestB64();
   const c = await post(`${stack.parentUrl}/commit`, { digests: [{ digestB64: fileDigest, hashAlg: "sha256" }] });
   check(c.status === 200, `a file binds while the genesis write is pending (HTTP ${c.status})`);
+  const b64url = fileDigest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const early = await fetch(`${stack.parentUrl}/timeline/bundle?digest=${b64url}`);
+  check(early.status === 409, `right after the bind its bundle is not ready yet (HTTP ${early.status}, retry after ${early.headers.get("retry-after")} s)`);
   await sleep(5000);
 
   // The ceiling writer's part: the genesis transaction is mined, and its result file appears.
@@ -126,13 +130,12 @@ try {
   const fileIdx = lines.findIndex((l) => l.proof.artifact.digestB64 === fileDigest);
   check(!!genesisLine && Number(genesisLine.proof.commit.counter) > Number(lines[fileIdx]!.proof.commit.counter), "the genesis record is bound, after the pre-genesis file");
 
-  // The bundle: from a Base read a few records before the file to the end of the run.
-  let first = fileIdx;
-  for (let seen = 0; first > 0 && seen < 2; ) { first--; if (lines[first]!.kind === "block" && parseBlockReadFile(lines[first]!.blockFile!)!.chain === "base") seen++; }
-  const run = lines.slice(first);
-  const blockFiles: Record<string, string> = {};
-  run.forEach((l, i) => { if (l.blockFile) blockFiles[String(i)] = l.blockFile; });
-  const bundle: TimelineBundle = { format: TIMELINE_BUNDLE_FORMAT, proofs: run.map((l) => l.proof), target: fileIdx - first, blockFiles, genesis: { proof: genesisLine!.proof, file: genesisLine!.genesisFile! } };
+  // The bundle, as GET /timeline/bundle exports it.
+  const exp = await fetch(`${stack.parentUrl}/timeline/bundle?digest=${b64url}`);
+  const got = (await exp.json()) as { bundle: TimelineBundle; chain: string; notes: string[] };
+  check(exp.status === 200 && got.bundle?.genesis !== undefined, `GET /timeline/bundle exports it (HTTP ${exp.status}, ${got.bundle?.proofs.length} proofs on ${got.chain}, genesis included)`);
+  const bundle = got.bundle;
+  const run = bundle.proofs;
   const harnessTime = (p: BitGraphProof) => Number(new TextDecoder().decode(Buffer.from(p.environment.attestation!.reportB64, "base64")).split(":")[2]);
   const r = await verifyTimelineBundle({
     bundle,
