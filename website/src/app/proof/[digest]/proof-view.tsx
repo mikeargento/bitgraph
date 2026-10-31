@@ -125,6 +125,8 @@ export interface ProofViewModel {
   sourceField?: ReactNode;
   /** The shown photo at full size, opened in a new tab beside the downloads. */
   openUrl?: string | null;
+  /** The open file's type (from its name), so it shows in place: a picture, a PDF, text, video or audio. */
+  openType?: string | null;
   /** The file in hand, by name (2026-10-30): a receipt line beside its hash. */
   fileName?: string | null;
   c2pa: C2PAReadResult | null;
@@ -323,7 +325,39 @@ function whenBeside(ms: number, ref: number | null): string {
 
 /* ── The view ─────────────────────────────────────────────────────────────── */
 
+/**
+ * The file in hand, opened in place under its content hash (2026-10-31): a picture, a PDF, text, a page (sandboxed, no
+ * scripts), video or audio shows here; anything else is offered as a download. A link still opens it in a tab.
+ */
+function FileInPlace({ url, type, name }: { url: string; type: string | null; name: string | null }) {
+  const t = type ?? "";
+  const [text, setText] = useState<string | null>(null);
+  const isText = t.startsWith("text/plain") || t === "application/json";
+  useEffect(() => {
+    if (!isText) return;
+    let gone = false;
+    void fetch(url).then((r) => r.blob()).then((b) => b.slice(0, 200_000).text()).then((x) => { if (!gone) setText(x); }).catch(() => {});
+    return () => { gone = true; };
+  }, [url, isText]);
+  const frame = { width: "100%", height: "70vh", border: "1px solid var(--line)", background: "var(--panel)" } as const;
+  let body: ReactNode;
+  if (t.startsWith("image/")) body = <img src={url} alt={name ?? "The file"} style={{ display: "block", maxWidth: "100%", maxHeight: "75vh", margin: "0 auto" }} />;
+  else if (t === "application/pdf") body = <iframe src={url} title={name ?? "The file"} style={frame} />;
+  else if (t === "text/html") body = <iframe src={url} title={name ?? "The file"} sandbox="" style={{ ...frame, background: "#fff" }} />;
+  else if (t.startsWith("video/")) body = <video src={url} controls style={{ display: "block", maxWidth: "100%", maxHeight: "75vh", margin: "0 auto" }} />;
+  else if (t.startsWith("audio/")) body = <audio src={url} controls style={{ width: "100%" }} />;
+  else if (isText) body = <pre className="pv-mono" style={{ margin: 0, maxHeight: "60vh", overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 13 }}>{text ?? "Reading the file\u2026"}</pre>;
+  else body = <div className="pv-note">This kind of file does not show in the browser. <a className="pv-link" href={url} download={name ?? undefined}>Download it</a>.</div>;
+  return (
+    <div className="pv-row pv-file-open" style={{ gridColumn: "1 / -1" }}>
+      <div className="pv-row-label">{name ?? "The file"} <a className="pv-link" href={url} target="_blank" rel="noopener" style={{ marginLeft: 8 }}>Open in a new tab</a></div>
+      <div className="pv-row-value">{body}</div>
+    </div>
+  );
+}
+
 export function ProofView({ m }: { m: ProofViewModel }) {
+  const [fileOpen, setFileOpen] = useState(false);
   /* Stripped to the primitive (2026-10-17), with the Base floor and ceiling back (2026-10-18). Anchors, export
      packages and the position lists stay off the page; every old proof still opens, and all of it is in the raw JSON. */
   // Where it sits in time, on Base (2026-10-18: the Base write is back beside the floor and ceiling times, as before):
@@ -437,9 +471,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {contentCount !== null && (
             <div className="pv-row">
               <div className="pv-row-label">#{fmtNum(contentCount)}: Content hash</div>
-              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}{m.openUrl && <> <a className="pv-link pv-open-link" href={m.openUrl} target="_blank" rel="noopener">Open file</a></>}</div>
+              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}{m.openUrl && <> <button type="button" className="pv-link pv-open-link" aria-expanded={fileOpen} onClick={() => setFileOpen((v) => !v)} style={{ background: "none", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}>{fileOpen ? "Close file" : "Open file"}</button></>}</div>
             </div>
           )}
+          {fileOpen && m.openUrl && <FileInPlace url={m.openUrl} type={m.openType ?? null} name={m.fileName ?? null} />}
           {(commit as { prevB64?: string }).prevB64 && (
             <Row f={{ label: "Previous BitGraph", value: (commit as { prevB64?: string }).prevB64!, mono: true }} />
           )}

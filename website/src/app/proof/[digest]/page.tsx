@@ -402,12 +402,14 @@ export default function ProofPage() {
   // Any file in hand opens in a tab of its own (2026-10-30): a blob of its bytes with the type its name says, so a PDF,
   // a text file or a picture shows in the browser; the rest download. Beside the content hash on the receipt.
   const [fileOpenUrl, setFileOpenUrl] = useState<string | null>(null);
+  const [fileOpenType, setFileOpenType] = useState<string | null>(null);
   useEffect(() => {
-    if (!cachedFile) { setFileOpenUrl(null); return; }
+    if (!cachedFile) { setFileOpenUrl(null); setFileOpenType(null); return; }
     const ext = (cachedFile.name.split(".").pop() ?? "").toLowerCase();
     const type = ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", avif: "image/avif", svg: "image/svg+xml", bmp: "image/bmp", pdf: "application/pdf", txt: "text/plain", md: "text/plain", csv: "text/plain", json: "application/json", html: "text/html", htm: "text/html", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4" } as Record<string, string>)[ext] ?? "application/octet-stream";
     const url = URL.createObjectURL(new Blob([cachedFile.data], { type }));
     setFileOpenUrl(url);
+    setFileOpenType(type);
     return () => URL.revokeObjectURL(url);
   }, [cachedFile]);
   // Another proof opened in place (a copy's "also looks like", a gallery tile, a tree's file): nothing of the last
@@ -2538,6 +2540,7 @@ export default function ProofPage() {
             onConfirm: confirmAgainstNodes,
             exportAction,
             openUrl: fileOpenUrl ?? photoOpenUrl,
+            openType: fileOpenUrl ? fileOpenType : photoOpenUrl ? "image/*" : null,
             fileName: cachedFile?.name ?? null,
             // the content box's pickers are on the page: the receipt's second button can open them
             canConnect: !isEth && !isInterval && !epochStart && !cachedFile && hosted.phase !== "matched",
