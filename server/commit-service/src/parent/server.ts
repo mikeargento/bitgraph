@@ -388,17 +388,26 @@ async function bindEpochFloor(epochId: string): Promise<void> {
 // record is bound), so /commit is not held while the write is pending.
 // ---------------------------------------------------------------------------
 
-async function bindTimelineGenesis(epochId: string): Promise<void> {
+async function bindTimelineGenesis(epochId: string, counter: string): Promise<void> {
   const gdir = epochGenesisDir();
   const stateDir = process.env["TIMELINE_STATE_DIR"]!;
   const safeEpoch = epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const marker = join(stateDir, `genesis-bound-${safeEpoch}`);
+  const asked = join(stateDir, `genesis-requested-${safeEpoch}`);
   if (existsSync(marker)) return;
+  // Only an epoch this timeline opened: a fresh one (counter 0), or one whose genesis it asked for before a restart.
+  // An epoch already under way that it did not open was opened by the earlier path and has its first record.
+  if (counter !== "0" && !existsSync(asked)) {
+    console.log(`[parent] timeline: epoch ${epochId.slice(0, 12)}… was opened before the timeline ran (counter ${counter}); no genesis to bind`);
+    return;
+  }
   if (!gdir) {
     console.error("[parent] timeline: EPOCH_GENESIS_DIR is not set, so this epoch has no genesis write and stays pre-genesis");
     return;
   }
   requestEpochGenesis(gdir, epochId);
+  mkdirSync(stateDir, { recursive: true });
+  if (!existsSync(asked)) writeFileSync(asked, `${new Date().toISOString()}\n`);
   genesisPendingSinceMs = Date.now();
   console.log(`[parent] timeline: genesis write requested for ${epochId.slice(0, 12)}…; reads and binds continue as pre-genesis until it lands`);
   for (let waited = 0; ; waited++) {
@@ -992,7 +1001,7 @@ server.listen(PORT, BIND_HOST, async () => {
       const st = timeline.status();
       console.log(`[parent] timeline: reading ${st.chains.map((c) => c.chain).join(" and ") || "no chain"}${st.problems.length ? ` (${st.problems.join("; ")})` : ""}`);
       timeline.start();
-      void bindTimelineGenesis(init.epochId);
+      void bindTimelineGenesis(init.epochId, init.counter);
       // Alerts by email through SNS (timeline-alerts.ts), when a topic is configured.
       const topic = process.env["TIMELINE_ALERT_SNS_TOPIC_ARN"];
       if (topic) {
