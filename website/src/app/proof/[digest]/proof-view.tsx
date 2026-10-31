@@ -411,15 +411,19 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {(commit as { prevB64?: string }).prevB64 && (
             <Row f={{ label: "Previous BitGraph", value: (commit as { prevB64?: string }).prevB64!, mono: true }} />
           )}
-          {es && <Row f={{ label: `Base block ${fmtNum(es.blockNumber)}`, value: es.blockHash, mono: true }} />}
+          {es && (
+            <div className="pv-row">
+              <div className="pv-row-label">Genesis block {fmtNum(es.blockNumber)}</div>
+              <div className="pv-row-value pv-mono">{es.blockHash} <a className="pv-link" href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan</a></div>
+            </div>
+          )}
           {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
           {m.firstRecorded && <Row f={{ label: "Same picture, first recorded", value: m.firstRecorded.recordedMs !== null ? stampTz(new Date(m.firstRecorded.recordedMs)) : "earlier" }} />}
           {floorCell}
           {ceilingCell}
         </div>
-        {(es || m.firstRecorded) && (
+        {m.firstRecorded && (
           <div className="pv-photo-actions" style={{ marginTop: 12 }}>
-            {es && <a className="bg-action-link" style={{ margin: 0 }} href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan</a>}
             {m.firstRecorded && <a className="bg-action-link" style={{ margin: 0 }} href={`/proof/${encodeURIComponent(m.firstRecorded.digest)}?counter=${encodeURIComponent(m.firstRecorded.counter)}&epoch=${encodeURIComponent(m.firstRecorded.epoch)}`}>BitGraph #{fmtNum(m.firstRecorded.counter)}</a>}
           </div>
         )}
