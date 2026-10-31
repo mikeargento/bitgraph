@@ -24,6 +24,7 @@ import { verifyStretch } from "../stretch.js";
 import { blockReadFileText, type BlockReadChain, type ChainBlock } from "../block-read.js";
 import { checkEpochGenesis, epochGenesisCalldataHex, epochGenesisFileText } from "../epoch-genesis.js";
 import { verifyTimelineBundle, TIMELINE_BUNDLE_FORMAT, type TimelineBundle, type TimelineLookups } from "../timeline-bundle.js";
+import { buildTimelineBundle, type TimelineRecordLine } from "../timeline-export.js";
 import type { BitGraphProof } from "../types.js";
 
 const b64 = (u: Uint8Array): string => Buffer.from(u).toString("base64");
@@ -97,7 +98,7 @@ async function epoch() {
     if (!r.valid) return { ...base, valid: false, reason: r.reason ?? "invalid", attestedAtMs: null };
     return { ...base, valid: true, attestedAtMs: nitroMs.get(String(o.proof.commit.counter)) ?? null };
   }
-  return { epochId, bind, attested };
+  return { epochId, bind, attested, nitroMs };
 }
 
 
@@ -428,4 +429,67 @@ test("malformed bundles are refused before anything is checked", async () => {
     assert.equal(r.status, "failed");
     assert.equal(r.reasons.length, 1);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Building a bundle from the timeline's records
+// ---------------------------------------------------------------------------
+
+/** The scenario's records as the parent's journal holds them, shuffled, with the genesis record among them. */
+function linesOf(bundle: TimelineBundle): { lines: TimelineRecordLine[]; genesis: TimelineRecordLine | null } {
+  const lines: TimelineRecordLine[] = bundle.proofs.map((proof, i) => bundle.blockFiles[String(i)] !== undefined ? { kind: "block", proof, blockFile: bundle.blockFiles[String(i)]! } : { kind: "file", proof });
+  const genesis: TimelineRecordLine | null = bundle.genesis ? { kind: "genesis", proof: bundle.genesis.proof, genesisFile: bundle.genesis.file } : null;
+  if (genesis) lines.push(genesis);
+  return { lines: lines.reverse(), genesis };
+}
+
+test("build: the bracket is cut from the records by the verifier's rules, and the bundle verifies", async () => {
+  const { e, bundle, run } = await scenario([
+    { read: "base", n: 0 }, { other: true }, { read: "ethereum", n: 0 }, { read: "base", n: 1 }, { other: true },
+    { file: true }, { other: true }, { read: "base", n: 2, lagS: 9 }, { read: "base", n: 3 }, { other: true }, { read: "base", n: 4 },
+  ]);
+  const { lines, genesis } = linesOf(bundle);
+  const target = bundle.proofs[bundle.target]!.commit.counter!;
+  const built = buildTimelineBundle({ lines, counter: target, genesis, nitroTimeMs: (p) => e.nitroMs.get(String(p.commit.counter)) ?? null });
+  assert.equal(built.ok, true, built.ok ? "" : built.reason);
+  if (!built.ok) return;
+  assert.equal(built.chain, "base");
+  assert.equal(built.bundle.proofs.length, 6, "from base block 1 to base block 3: block 2 lags, so it is no ceiling");
+  const r = await run({ bundle: built.bundle });
+  assert.equal(r.status, "verified", why(r));
+  assert.deepEqual([r.floor?.number, r.ceiling?.number], [37_500_001, 37_500_003]);
+});
+
+test("build: not ready until a qualifying ceiling read exists", async () => {
+  const { e, bundle } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1, lagS: 7 }]);
+  const { lines, genesis } = linesOf(bundle);
+  const built = buildTimelineBundle({ lines, counter: bundle.proofs[1]!.commit.counter!, genesis, nitroTimeMs: (p) => e.nitroMs.get(String(p.commit.counter)) ?? null });
+  assert.equal(built.ok, false);
+  if (built.ok) return;
+  assert.equal(built.retryable, true);
+  assert.match(built.reason, /not ready: no qualifying base ceiling after the file yet; no ethereum read before the file/);
+});
+
+test("build: with Base down after the file, the bracket falls back to Ethereum", async () => {
+  const { e, bundle, run } = await scenario([{ read: "ethereum", n: 0 }, { read: "base", n: 0 }, { file: true }, { read: "ethereum", n: 1 }]);
+  const { lines, genesis } = linesOf(bundle);
+  const built = buildTimelineBundle({ lines, counter: bundle.proofs[2]!.commit.counter!, genesis, nitroTimeMs: (p) => e.nitroMs.get(String(p.commit.counter)) ?? null });
+  assert.equal(built.ok && built.chain, "ethereum");
+  if (!built.ok) return;
+  assert.match(built.notes.join(), /bracketed on Ethereum/);
+  const r = await run({ bundle: built.bundle });
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.ceiling?.chain, "ethereum");
+});
+
+test("build: a lost record cannot be bridged; a block read is not a file", async () => {
+  const { e, bundle } = await scenario([{ read: "base", n: 0 }, { other: true }, { file: true }, { read: "base", n: 2 }]);
+  const { lines, genesis } = linesOf(bundle);
+  const nitroTimeMs = (p: BitGraphProof) => e.nitroMs.get(String(p.commit.counter)) ?? null;
+  const lost = lines.filter((l) => l.proof !== bundle.proofs[1]);
+  const built = buildTimelineBundle({ lines: lost, counter: bundle.proofs[2]!.commit.counter!, genesis, nitroTimeMs });
+  assert.equal(built.ok, false);
+  if (!built.ok) { assert.equal(built.retryable, false); assert.match(built.reason, /not one unbroken run/); }
+  const read = buildTimelineBundle({ lines, counter: bundle.proofs[0]!.commit.counter!, genesis, nitroTimeMs });
+  assert.equal(!read.ok && read.reason, "that record is a block read, not a file");
 });

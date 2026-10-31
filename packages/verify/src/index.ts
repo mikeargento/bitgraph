@@ -217,3 +217,6 @@ export type { BlockReadChain, BlockReadFile, ChainBlock, BlockReadCheck } from "
 /* bitgraph-timeline-bundle/1: a file's proof with the block reads either side of it and every proof between, verified offline; the chains give the time. */
 export { TIMELINE_BUNDLE_FORMAT, DEFAULT_LAG_LIMITS, verifyTimelineBundle } from "./timeline-bundle.js";
 export type { TimelineBundle, LagLimit, TimelineLookups, TimelineBundleOptions, TimelineBound, TimelineBundleResult } from "./timeline-bundle.js";
+/* Building a timeline bundle for a file from the timeline's records; verifyTimelineBundle settles it. */
+export { buildTimelineBundle, attestationTimeMs } from "./timeline-export.js";
+export type { TimelineRecordLine, BuildTimelineBundleResult } from "./timeline-export.js";
