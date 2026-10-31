@@ -12,7 +12,7 @@ import { CopyCode } from "@/components/copy-code";
  */
 
 const DESCRIPTION =
-  "Send a hash. Get a proof of where it stands in a counted, attested sequence. It checks offline, without your servers or ours. Time, identity and public witness bind on top.";
+  "A portable proof of where your digital record stands in a counted sequence. The proof checks offline; public block reads place it between two blockchain blocks, seconds apart, which anyone can confirm on the chains.";
 
 export const metadata: Metadata = {
   title: { absolute: "BitGraph: Order before time" },
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 
 const PROPERTIES = [
   { title: "Unpredictable position", body: "Each record takes the count right after a fresh nonce from the hardware's random number generator, drawn after the digest arrives. A position cannot be reserved ahead and filled later." },
-  { title: "Enforced binding", body: "Nonce and digest are signed together in one indivisible action. If any step fails, nothing is released and the counter does not move. No count is ever given out twice." },
+  { title: "Enforced binding", body: "Nonce and digest are signed together in one indivisible action. If any step fails, nothing is released and the counter does not move. Within an epoch, no count is given out twice." },
   { title: "Verifiable sequence", body: "Every record carries the hash of the one before it. Counts climb in order, gaps show, and anything bound between two records was bound after the first and before the second." },
   { title: "Portable evidence", body: "Each proof carries an AWS Nitro attestation naming the published, reproducible enclave build that made it. It checks offline with an open-source verifier, without asking us." },
 ];
@@ -43,7 +43,7 @@ const RELIEF = [
   { title: "One call.", body: "Send a SHA-256 over HTTP, the SDK or MCP. No new infrastructure, nothing to host." },
   { title: "Your files stay yours.", body: "Only the 32-byte digest leaves your systems. We never see the content." },
   { title: "Proofs stand on their own.", body: "Each one checks offline with an open-source verifier, with nothing of BitGraph's running." },
-  { title: "Any size.", body: "A million records bind as one in seconds, and each still checks on its own." },
+  { title: "Any size.", body: "Bind a million records in one action. Verify each item independently." },
   { title: "Your brand, your customers.", body: "BitGraph sits underneath. Nobody has to learn a new product." },
   { title: "Pay for records, not servers.", body: "Usage-based through the service, or a license to run it yourself." },
 ];
@@ -63,14 +63,40 @@ export default function HomePage() {
             in one call, with nothing to run. Competent already, stronger now. */}
         <h1 id="home-h">Order before&nbsp;time.</h1>
         <p className="sx-sub">
-          A BitGraph locks where a digital record stands in a counted sequence, after a value nobody could predict. Every record also gets
-          a public time bracket between two blockchain blocks, seconds apart, without a transaction of its own. Send a hash, get a proof
-          that checks offline, without your servers or ours.
+          A BitGraph is a portable proof of where your digital record stands in a counted sequence. Send a hash; get evidence anyone can
+          verify without your servers or ours. Its signatures, hardware attestation and sequence check offline; public block reads place
+          the record between two blockchain blocks, usually seconds apart, which anyone can confirm against the chains.
         </p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">See it work</a>
           <a className="bg-action-link" href="/technology">How it works</a>
           <a className="bg-action-link" href="/proof/MXkV_2WRyBSlQV_BdOio2gc1NSrd2Wxl8zW0OrACCDk?counter=26&epoch=NihRUA1VRsV4cqmwWDO_4viNR7YhJRdCb75lGASeV3E">View a proof</a>
+        </div>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-mech">
+        <p className="home-kicker">The mechanism</p>
+        <h2 id="home-mech">The position comes first.</h2>
+        <p>
+          A signature proves a key signed. A timestamp authority vouches for a time. Content Credentials carry a signer&rsquo;s
+          assertions. A transparency log proves a record was registered. Each provides evidence about content that already exists.
+        </p>
+        <p>
+          BitGraph works the other way round. Inside a published, measured enclave, hardware draws an unpredictable value and assigns it
+          position N. Your digest is bound at N+1. Both records are signed in one atomic operation.
+        </p>
+        <p>
+          <strong>The content never chooses its place.</strong> Hardware attestation identifies the measured code that enforced the
+          sequence, and anyone can verify the resulting proof independently.
+        </p>
+        <MechanismFigure />
+        <div className="sx-cards is-2x2">
+          {PROPERTIES.map((p) => (
+            <article key={p.title} className="tl-card">
+              <h3>{p.title}</h3>
+              <p>{p.body}</p>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -105,32 +131,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="home-section" aria-labelledby="home-mech">
-        <p className="home-kicker">The mechanism</p>
-        <h2 id="home-mech">The position comes first.</h2>
-        <p>
-          A signature proves a key signed. A timestamp authority vouches for a time. Content Credentials carry a signer&rsquo;s
-          assertions. A transparency log proves a record was registered. Each provides evidence about content that already exists.
-        </p>
-        <p>
-          BitGraph works the other way round. Inside a published, measured enclave, hardware draws an unpredictable value and assigns it
-          position N. Your digest is bound at N+1. Both records are signed in one atomic operation.
-        </p>
-        <p>
-          <strong>The content never chooses its place.</strong> Hardware attestation identifies the measured code that enforced the
-          sequence, and anyone can verify the resulting proof independently.
-        </p>
-        <MechanismFigure />
-        <div className="sx-cards is-2x2">
-          {PROPERTIES.map((p) => (
-            <article key={p.title} className="tl-card">
-              <h3>{p.title}</h3>
-              <p>{p.body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
       <section className="home-section" aria-labelledby="home-fit">
         <p className="home-kicker">Applications</p>
         <h2 id="home-fit">Where it fits in what you already&nbsp;sell.</h2>
@@ -158,7 +158,8 @@ export default function HomePage() {
             <p>
               A proof is a small JSON file. With the data it covers, anyone can check it on their own machine: the AWS signature and
               certificate chain, the enclave&rsquo;s published measurement, the digest, the signature, the position. Nothing of BitGraph
-              has to be running.
+              has to be running. Its time bracket takes one more step, with public data only: the two block reads around it are
+              confirmed against Base or Ethereum.
             </p>
             <div className="sx-cta"><a className="bg-action-link" href="/evaluate">Verify a real proof</a></div>
           </div>
@@ -221,7 +222,6 @@ TRUE
           </a>
         </div>
       </section>
-
 
       <section className="home-section" aria-labelledby="home-end">
         <h2 id="home-end">Give your customers a proof they can check&nbsp;themselves.</h2>
