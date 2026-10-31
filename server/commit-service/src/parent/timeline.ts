@@ -28,7 +28,7 @@ import { timelineSourcesFromEnv, defaultHttp, type Http } from "./chain-sources.
 import { ChainPoller, type DigestBinder, type PollerStatus } from "./timeline-poller.js";
 import { TimelineJournal, s3ObjectPut, type ObjectPut, type TimelineLine, type UploadStats } from "./timeline-journal.js";
 import { TimelineRecords, s3ObjectStore, type ObjectStore } from "./timeline-records.js";
-import { buildTimelineBundle, attestationTimeMs, type BuildTimelineBundleResult } from "@mikeargento/bitgraph-verify";
+import { buildTimelineBundle, attestationTimeMs, DEFAULT_LAG_LIMITS, type BuildTimelineBundleResult } from "@mikeargento/bitgraph-verify";
 
 /** The local harness's stand-in attestation: LOCAL-HARNESS-ATTESTATION:<user_data hex>:<ms>. */
 function harnessTimeMs(proof: BitGraphProof): number | null {
@@ -66,6 +66,7 @@ export class Timeline {
     const put = opts.put ?? (bucket ? s3ObjectPut(bucket, env["LEDGER_REGION"] || "us-east-2") : null);
     if (!put) problems.push("journal: no LEDGER_BUCKET, so batches stay on disk");
     const journal = new TimelineJournal(join(dir, "journal"), put ?? (async () => { throw new Error("no LEDGER_BUCKET"); }));
+    const nitroTimeMs = env["TIMELINE_HARNESS_TIME"] === "on" ? harnessTimeMs : attestationTimeMs;
     const pollMs = (k: string, d: number) => { const v = Number(env[k] ?? d); return Number.isFinite(v) && v >= 200 ? v : d; };
     const pollers = (["base", "ethereum"] as const).flatMap((chain) => {
       const source = sources[chain];
@@ -73,12 +74,13 @@ export class Timeline {
       return [new ChainPoller({
         source, bind: opts.bind, journal, stateDir: dir, epochId: opts.epochId,
         pollMs: pollMs(`TIMELINE_${chain.toUpperCase()}_POLL_MS`, chain === "base" ? 1000 : 3000),
+        nitroTimeMs, lagLimits: DEFAULT_LAG_LIMITS[chain],
         ...(opts.log ? { log: opts.log } : {}),
       })];
     });
     const store = opts.store !== undefined ? opts.store : bucket ? s3ObjectStore(bucket, env["LEDGER_REGION"] || "us-east-2") : null;
     const records = new TimelineRecords(join(dir, "journal"), dir, store);
-    return new Timeline(pollers, journal, problems, put ? pollMs("TIMELINE_UPLOAD_MS", 60_000) : null, records, env["TIMELINE_HARNESS_TIME"] === "on" ? harnessTimeMs : attestationTimeMs);
+    return new Timeline(pollers, journal, problems, put ? pollMs("TIMELINE_UPLOAD_MS", 60_000) : null, records, nitroTimeMs);
   }
 
   start(): void {

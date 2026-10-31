@@ -40,6 +40,16 @@ interface Cursor {
 export interface PollerStatus {
   chain: TimelineChain;
   last: { number: number; hash: string; timestamp: number; counter: string; boundAtMs: number } | null;
+  /** When the last block was bound (ms), and its lag: its attestation's time minus its block's time, signed, s. */
+  lastReadAtMs: number | null;
+  lagS: number | null;
+  /** The median lag of the reads bound in the last five minutes. */
+  medianLag5mS: number | null;
+  /** Reads whose lag was outside the chain's limits: in all, and in a row up to the last read. */
+  outOfRange: number;
+  outOfRangeStreak: number;
+  /** Times the two providers answered differently. */
+  disagreements: number;
   /** The newest head the providers agreed on. */
   head: number | null;
   /** Blocks between the cursor and that head, still to read. */
@@ -64,6 +74,10 @@ export interface PollerOptions {
   keepRecent?: number;
   now?: () => number;
   log?: (msg: string) => void;
+  /** The attestation's time of a proof, ms (for lag); null when unreadable. */
+  nitroTimeMs?: (proof: BitGraphProof) => number | null;
+  /** The chain's lag limits, s. */
+  lagLimits?: { minS: number; maxS: number };
 }
 
 export class ChainPoller {
@@ -73,6 +87,7 @@ export class ChainPoller {
   private ready = false;
   private timer: NodeJS.Timeout | undefined;
   private running = false;
+  private recentLags: { at: number; lagS: number }[] = [];
   readonly state: PollerStatus;
 
   constructor(private readonly o: PollerOptions) {
@@ -80,11 +95,13 @@ export class ChainPoller {
     mkdirSync(o.stateDir, { recursive: true });
     this.path = join(o.stateDir, `cursor-${this.chain}.json`);
     this.cursor = existsSync(this.path) ? (JSON.parse(readFileSync(this.path, "utf8")) as Cursor) : null;
-    this.state = { chain: this.chain, last: null, head: null, behind: null, reads: 0, reorgs: 0, lastError: null };
+    this.state = { chain: this.chain, last: null, lastReadAtMs: null, lagS: null, medianLag5mS: null, outOfRange: 0, outOfRangeStreak: 0, disagreements: 0, head: null, behind: null, reads: 0, reorgs: 0, lastError: null };
   }
 
   /** One pass: bind every block from the cursor to the head, in order (up to maxPerPass). True when caught up. */
   async pass(): Promise<boolean> {
+    const d = (this.o.source as { disagreements?: number }).disagreements;
+    if (typeof d === "number") this.state.disagreements = d;
     const epochId = this.o.epochId();
     if (epochId === null) return true;
     if (!this.ready) {
@@ -130,7 +147,25 @@ export class ChainPoller {
     this.cursor = { number: b.number, hash: b.hash, recent };
     this.save();
     this.state.reads++;
-    this.state.last = { number: b.number, hash: b.hash, timestamp: b.timestamp, counter: String(proof.commit?.counter ?? ""), boundAtMs: (this.o.now ?? Date.now)() };
+    const now = (this.o.now ?? Date.now)();
+    this.state.last = { number: b.number, hash: b.hash, timestamp: b.timestamp, counter: String(proof.commit?.counter ?? ""), boundAtMs: now };
+    this.state.lastReadAtMs = now;
+    this.noteLag(proof, b, now);
+  }
+
+  private noteLag(proof: BitGraphProof, b: ChainHead, now: number): void {
+    const at = this.o.nitroTimeMs?.(proof) ?? null;
+    if (at === null) { this.state.lagS = null; return; }
+    const lagS = (at - b.timestamp * 1000) / 1000;
+    this.state.lagS = lagS;
+    const lim = this.o.lagLimits;
+    if (lim && (lagS > lim.maxS || lagS < lim.minS)) { this.state.outOfRange++; this.state.outOfRangeStreak++; }
+    else this.state.outOfRangeStreak = 0;
+    this.recentLags.push({ at: now, lagS });
+    this.recentLags = this.recentLags.filter((x) => x.at > now - 5 * 60_000);
+    const sorted = this.recentLags.map((x) => x.lagS).sort((x, y) => x - y);
+    const m = sorted.length;
+    this.state.medianLag5mS = m === 0 ? null : m % 2 ? sorted[(m - 1) / 2]! : (sorted[m / 2 - 1]! + sorted[m / 2]!) / 2;
   }
 
   /** Walk back to the newest bound block the chain still has, and continue from there. */

@@ -114,9 +114,12 @@ try {
   writeFileSync(join(genesisDir, req.replace(".request.json", ".json")), epochGenesisFileText({ epochId, chainId: 8453, writer, ...g }));
   await sleep(6000);
 
-  const health = (await (await fetch(`${stack.parentUrl}/health`)).json()) as { timeline?: { chains: Array<{ chain: string; reads: number; behind: number | null; lastError: string | null }>; problems: string[] } };
-  for (const ch of health.timeline?.chains ?? []) console.log(`      /health ${ch.chain}: ${ch.reads} reads, behind ${ch.behind}, error ${ch.lastError}`);
+  const health = (await (await fetch(`${stack.parentUrl}/health`)).json()) as { timeline?: { chains: Array<{ chain: string; reads: number; behind: number | null; lastError: string | null; lastReadAtMs: number | null; lagS: number | null; medianLag5mS: number | null; outOfRange: number }>; problems: string[] } };
+  for (const ch of health.timeline?.chains ?? []) {
+    console.log(`      /health ${ch.chain}: ${ch.reads} reads, last ${ch.lastReadAtMs ? new Date(ch.lastReadAtMs).toISOString() : "none"}, lag ${ch.lagS?.toFixed(2)} s, 5-min median ${ch.medianLag5mS?.toFixed(2)} s, out of range ${ch.outOfRange}, behind ${ch.behind}, error ${ch.lastError}`);
+  }
   check((health.timeline?.chains.length ?? 0) === 2, "/health reports both chains");
+  check((health.timeline?.chains ?? []).every((c) => typeof c.lagS === "number" && typeof c.medianLag5mS === "number" && c.outOfRange === 0), "/health gives each chain's lag, 5-minute median and out-of-range count");
 
   const lines = readFileSync(join(state, "journal", "pending.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { kind: string; proof: BitGraphProof; blockFile?: string; genesisFile?: string });
   lines.sort((x, y) => Number(x.proof.commit.counter) - Number(y.proof.commit.counter));

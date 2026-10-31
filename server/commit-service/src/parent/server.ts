@@ -40,6 +40,7 @@ import { enqueueCeiling, ceilingQueueEnabled } from "./ceiling-queue.js";
 import { epochFloorFile, latestBaseBlock, sha256B64, epochGenesisDir, requestEpochGenesis, awaitEpochGenesis } from "./epoch-floor.js";
 import { BaseHeadFeed, baseFloorEnabled } from "./base-head.js";
 import { Timeline } from "./timeline.js";
+import { TimelineAlerter, snsAlertSend } from "./timeline-alerts.js";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -288,6 +289,9 @@ const enclaveClient: EnclaveClient = new VsockClient();
 // The block timeline (timeline.ts), when TIMELINE=on: block reads bound beside the files, every record journaled.
 let openEpochId: string | null = null;
 let timeline: Timeline | null = null;
+let alerter: TimelineAlerter | null = null;
+/** While the epoch's genesis write is awaited: when it was requested. */
+let genesisPendingSinceMs: number | null = null;
 
 let cachedKeyResponse: { publicKeyB64: string; measurement: string; enforcement: string; bind?: string; only?: string } | null = null;
 
@@ -395,6 +399,7 @@ async function bindTimelineGenesis(epochId: string): Promise<void> {
     return;
   }
   requestEpochGenesis(gdir, epochId);
+  genesisPendingSinceMs = Date.now();
   console.log(`[parent] timeline: genesis write requested for ${epochId.slice(0, 12)}…; reads and binds continue as pre-genesis until it lands`);
   for (let waited = 0; ; waited++) {
     const file = await awaitEpochGenesis(gdir, epochId, 60_000);
@@ -407,6 +412,7 @@ async function bindTimelineGenesis(epochId: string): Promise<void> {
           await keepMade([proof], false, file);
           mkdirSync(stateDir, { recursive: true });
           writeFileSync(marker, `${proof.commit.counter}\n`);
+          genesisPendingSinceMs = null;
           await storeEpochFloorFile(epochId, file);
           const g = JSON.parse(file) as { txHash: string; blockNumber: number };
           console.log(`[parent] timeline: genesis Base tx ${g.txHash.slice(0, 12)}… (block ${g.blockNumber}) bound at counter ${proof.commit.counter}`);
@@ -902,7 +908,7 @@ async function handleTimelineBundle(url: URL, res: ServerResponse): Promise<void
 }
 
 async function handleHealth(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  sendJson(res, 200, timeline ? { ok: true, timeline: timeline.status() } : { ok: true });
+  sendJson(res, 200, timeline ? { ok: true, epochId: openEpochId, timeline: timeline.status(), alerts: alerter?.activeKeys() ?? null } : { ok: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -987,6 +993,18 @@ server.listen(PORT, BIND_HOST, async () => {
       console.log(`[parent] timeline: reading ${st.chains.map((c) => c.chain).join(" and ") || "no chain"}${st.problems.length ? ` (${st.problems.join("; ")})` : ""}`);
       timeline.start();
       void bindTimelineGenesis(init.epochId);
+      // Alerts by email through SNS (timeline-alerts.ts), when a topic is configured.
+      const topic = process.env["TIMELINE_ALERT_SNS_TOPIC_ARN"];
+      if (topic) {
+        const tl = timeline;
+        const startedAtMs = Date.now();
+        alerter = new TimelineAlerter(snsAlertSend(topic, process.env["TIMELINE_ALERT_REGION"] || "us-east-2"), () => ({ timeline: tl.status(), genesisPendingSinceMs, startedAtMs }), undefined, Date.now, (m) => console.log(m));
+        alerter.start();
+        if (init.counter === "0") void alerter.notice("new epoch", `The enclave started a new epoch, ${init.epochId}, and this parent opened it (counter 0). If no restart was planned, the enclave restarted.`);
+        console.log("[parent] timeline: alerts go to the SNS topic in TIMELINE_ALERT_SNS_TOPIC_ARN");
+      } else {
+        console.warn("[parent] timeline: no TIMELINE_ALERT_SNS_TOPIC_ARN, so no alerts are sent");
+      }
     } else if (init.counter === "0" && process.env["EPOCH_FLOOR"] !== "off") void bindEpochFloor(init.epochId);
     else console.log(`[parent] epoch already under way (counter ${init.counter}): no epoch floor to bind`);
   } catch (err) {

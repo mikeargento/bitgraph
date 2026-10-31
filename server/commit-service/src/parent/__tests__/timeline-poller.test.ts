@@ -146,6 +146,34 @@ test("a reorg at the tip, at the same height, is caught too", async () => {
   assert.deepEqual(numbers(j.lines), [10, 10]);
 });
 
+test("lag: each read's attestation time minus its block's time, with the 5-minute median and the out-of-range streak", async () => {
+  const c = chain(10), e = enclave(), j = memJournal();
+  // The stand-in enclave's proofs carry no attestation; give each read a Nitro time by its block: block n at T0 + 2n + lag(n).
+  const lagOf: Record<number, number> = { 10: 1, 11: 1.5, 12: 6, 13: 7, 14: 0.5 };
+  let now = 5_000;
+  const p = new ChainPoller({
+    source: c.source, bind: e.bind, journal: j, stateDir: tmp(), epochId: () => EPOCH, pollMs: 1000, now: () => now,
+    lagLimits: { minS: -2, maxS: 5 },
+    nitroTimeMs: (proof) => { const f = parseBlockReadFile(j.lines.find((l) => l.proof === proof)?.blockFile ?? "") ; return f ? (f.timestamp + lagOf[f.number]!) * 1000 : null; },
+  });
+  // nitroTimeMs is asked after the journal append, so the line is there to look up.
+  await p.pass();
+  assert.deepEqual([p.state.lagS, p.state.outOfRange, p.state.outOfRangeStreak], [1, 0, 0]);
+  c.grow(13);
+  await p.pass();
+  assert.deepEqual([p.state.lagS, p.state.outOfRange, p.state.outOfRangeStreak], [7, 2, 2]);
+  assert.equal(p.state.medianLag5mS, (1.5 + 6) / 2);
+  c.grow(14);
+  await p.pass();
+  assert.deepEqual([p.state.outOfRange, p.state.outOfRangeStreak], [2, 0]);
+  assert.equal(p.state.lastReadAtMs, 5_000);
+  now += 6 * 60_000;
+  c.grow(15);
+  lagOf[15] = 2;
+  await p.pass();
+  assert.equal(p.state.medianLag5mS, 2, "reads older than five minutes leave the median");
+});
+
 test("nothing is bound while the enclave is not open for binds", async () => {
   const c = chain(10), e = enclave(), j = memJournal();
   let epoch: string | null = null;

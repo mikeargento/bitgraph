@@ -139,6 +139,8 @@ export class CrossChecked implements BlockSource {
   readonly chain: TimelineChain;
   readonly chainId: string;
   readonly origin: string;
+  /** How many times the two providers answered differently: for monitoring. */
+  disagreements = 0;
   constructor(private readonly a: BlockSource, private readonly b: BlockSource) {
     if (a.chain !== b.chain || a.chainId !== b.chainId) throw new Error("both sources must read the same chain");
     if (a.origin === b.origin) throw new Error(`both sources are ${a.origin}: a cross-check needs two providers`);
@@ -149,6 +151,7 @@ export class CrossChecked implements BlockSource {
 
   private agree(x: ChainHead, y: ChainHead): ChainHead {
     if (x.hash !== y.hash || x.parentHash !== y.parentHash || x.timestamp !== y.timestamp) {
+      this.disagreements++;
       throw new Error(`${this.chain} block ${x.number}: ${this.a.origin} says ${x.hash}, ${this.b.origin} says ${y.hash}`);
     }
     return x;
