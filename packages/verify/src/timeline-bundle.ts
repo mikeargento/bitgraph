@@ -11,11 +11,12 @@
  * The bracket is chosen by the verifier, on that chain, from reads the chain confirms (hash on its canonical chain,
  * and every field of the block file equal to the chain's answer):
  *
- *   floor     the latest confirmed read before the file. The claim is causal: the file was bound after block A was
- *             produced, because A's hash cannot be known before A exists.
- *   ceiling   the first confirmed read after the file whose block timestamp, on the canonical chain, is at or after
- *             the file's own Nitro time (less at most 1 s of clock skew), whose block number is above the floor's, and
- *             whose own lag is within the chain's limits. The claim is: the file was bound before block B's timestamp,
+ *   floor     the latest confirmed read before the file whose block timestamp, on the canonical chain, is at or
+ *             before the file's own Nitro time. A stale floor is allowed: it is looser, still true. The claim is
+ *             causal: the file was bound after block A was produced, because A's hash cannot be known before A exists.
+ *   ceiling   the first confirmed read after the file whose block timestamp, on the canonical chain, is strictly after
+ *             the file's own Nitro time (no allowance), whose block number is above the floor's, and whose own lag is
+ *             within the chain's limits. The claim is: the file was bound before block B's timestamp,
  *             by the Nitro hardware clock, cross-checked against the chain.
  *
  * Anyone can bind a block file, of any block, at any time, and a bundle need not show every read. The ceiling rule
@@ -24,8 +25,10 @@
  * are passed over and the next one qualifies (a wider bracket, still true); when none does, the ceiling is
  * unconfirmed. A floor outside the lag limits is flagged and still used.
  *
- * Lag is signed: a read's own Nitro time minus its block's timestamp. Base and Ethereum allow 2 s early (their
- * timestamps are whole seconds), Bitcoin 2 h early (miners set its block times).
+ * Only Base and Ethereum are read: their block timestamps follow real time closely. Ethereum is the fallback that keeps
+ * brackets coming while Base is down. Lag is signed: a read's own Nitro time minus its block's timestamp, from 2 s
+ * early (timestamps are whole seconds) to 5 s late on Base and 60 s late on Ethereum. A read outside that is flagged
+ * and is never a ceiling.
  *
  * Also checked, without any network: every proof in full (verifyAttested); the run unbroken (verifyStretch); every
  * block file binds to its proof and names its epoch; the floor's, the file's and the ceiling's Nitro times in order;
@@ -65,14 +68,10 @@ export interface LagLimit {
   minS: number;
 }
 
-/** Defaults: Base 2 s early to 5 s late, Ethereum 2 s early to 60 s late, Bitcoin 2 h early to 3 h late. */
-/** A ceiling block's timestamp may be this much before the file's Nitro time: the clocks' skew, at most. */
-export const CEILING_SKEW_S = 1;
-
+/** Defaults: Base 2 s early to 5 s late, Ethereum 2 s early to 60 s late. */
 export const DEFAULT_LAG_LIMITS: Readonly<Record<BlockReadChain, LagLimit>> = {
   base: { maxS: 5, minS: -2 },
   ethereum: { maxS: 60, minS: -2 },
-  bitcoin: { maxS: 3 * 3600, minS: -2 * 3600 },
 };
 
 /** The chains' answers. Each returns null when the chain does not know the hash, and throws when it could not be asked. */
@@ -225,7 +224,11 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
     for (const i of sameChain.filter((i) => i < b.target).reverse()) {
       const a = await ask(i);
       if (a.kind === "stop") break;
-      if (a.kind === "bound") { floor = a.bound; break; }
+      if (a.kind === "skip") continue;
+      if (typeof fileMs !== "number") break;
+      if (a.bound.timestamp * 1000 > fileMs) { passedOver.push(`proof ${i}: block ${a.bound.number}'s timestamp ${a.bound.timestamp} is after the file's Nitro time ${(fileMs / 1000).toFixed(3)}, so it is not a floor`); continue; }
+      floor = a.bound;
+      break;
     }
     if (floor) {
       floor.claim = `bound after ${floor.chain} block ${floor.number} (${floor.hash}) was produced`;
@@ -237,7 +240,7 @@ export async function verifyTimelineBundle(opts: TimelineBundleOptions): Promise
         if (a.kind === "skip") continue;
         const c = a.bound;
         if (typeof fileMs !== "number") break;
-        if (c.timestamp * 1000 < fileMs - CEILING_SKEW_S * 1000) { passedOver.push(`proof ${i}: block ${c.number}'s timestamp ${c.timestamp} is before the file's Nitro time ${(fileMs / 1000).toFixed(3)}, so it is not a ceiling`); continue; }
+        if (c.timestamp * 1000 <= fileMs) { passedOver.push(`proof ${i}: block ${c.number}'s timestamp ${c.timestamp} is not after the file's Nitro time ${(fileMs / 1000).toFixed(3)}, so it is not a ceiling`); continue; }
         if (c.number <= floor.number) { passedOver.push(`proof ${i}: block ${c.number} is not above the floor's ${floor.number}, so it is not a ceiling`); continue; }
         const lag = outside(c);
         if (lag) { flags.push(`proof ${i}, passed over as a ceiling: ${lag}`); passedOver.push(`proof ${i}: its lag is outside the limits, so it is not a ceiling`); continue; }

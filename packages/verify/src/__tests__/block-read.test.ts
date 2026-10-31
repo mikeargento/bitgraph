@@ -12,7 +12,7 @@ import type { BitGraphProof } from "../types.js";
 
 const EPOCH = "KKOixUTETu9LB6jJxX+k+jvLaUZNUSoITPjHfzubqCo=";
 const BASE_HASH = "0x" + "ab".repeat(32);
-const BTC_HASH = "00000000000000000001" + "cd".repeat(22);
+const PLAIN_HASH = "00000000000000000001" + "cd".repeat(22);
 
 const baseRead = { epochId: EPOCH, chain: "base" as const, chainId: "eip155:8453", number: 37_500_000, hash: BASE_HASH, timestamp: 1_793_404_750 };
 
@@ -42,10 +42,9 @@ test("the file's text is fixed byte for byte", () => {
 
 test("each chain takes its own ids and hash form", () => {
   assert.doesNotThrow(() => blockReadFileText({ ...baseRead, chain: "ethereum", chainId: "eip155:1" }));
-  assert.doesNotThrow(() => blockReadFileText({ ...baseRead, chain: "bitcoin", chainId: "bip122:000000000019d6689c085ae165831e93", hash: BTC_HASH }));
   assert.throws(() => blockReadFileText({ ...baseRead, chainId: "eip155:1" }), /chainId/);
-  assert.throws(() => blockReadFileText({ ...baseRead, chain: "bitcoin", chainId: "bip122:000000000019d6689c085ae165831e93" }), /hash/);
-  assert.throws(() => blockReadFileText({ ...baseRead, chain: "ethereum", chainId: "eip155:1", hash: BTC_HASH }), /hash/);
+  assert.throws(() => blockReadFileText({ ...baseRead, chain: "ethereum", chainId: "eip155:1", hash: PLAIN_HASH }), /hash/);
+  assert.throws(() => blockReadFileText({ ...baseRead, chain: "bitcoin" as never, chainId: "bip122:000000000019d6689c085ae165831e93", hash: PLAIN_HASH }), /unknown chain/, "Bitcoin is not read");
   assert.throws(() => blockReadFileText({ ...baseRead, chain: "solana" as never }), /unknown chain/);
 });
 

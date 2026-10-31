@@ -3,7 +3,7 @@
 /**
  * bitgraph-block-read/1: a read of a public chain's block, bound as a plain BitGraph.
  *
- * The host reads the newest block of Base, Ethereum or Bitcoin and binds the SHA-256 of a small JSON file naming
+ * The host reads the newest block of Base or Ethereum and binds the SHA-256 of a small JSON file naming
  * it, the same bind as any file: a fresh nonce at count N, the file's digest at N+1. Block reads and files share
  * one counter sequence, so a file's floor is the nearest block read before it and its ceiling the nearest block
  * read after it. The block read cannot predate its block, because a block hash cannot be known before its block.
@@ -22,13 +22,13 @@ import type { BitGraphProof } from "./types.js";
 
 export const BLOCK_READ_FORMAT = "bitgraph-block-read/1" as const;
 
-export type BlockReadChain = "base" | "ethereum" | "bitcoin";
+/** Base and Ethereum only: their block timestamps follow real time closely enough for a time check. */
+export type BlockReadChain = "base" | "ethereum";
 
 /** Each chain's CAIP-2 ids, mainnet first. The test networks are for local runs. */
 export const BLOCK_READ_CHAIN_IDS: Readonly<Record<BlockReadChain, readonly string[]>> = {
   base: ["eip155:8453", "eip155:84532"],
   ethereum: ["eip155:1", "eip155:11155111"],
-  bitcoin: ["bip122:000000000019d6689c085ae165831e93"],
 };
 
 export interface BlockReadFile {
@@ -37,7 +37,7 @@ export interface BlockReadFile {
   chain: BlockReadChain;
   chainId: string;
   number: number;
-  /** As the chain shows it: 0x and 64 lowercase hex on Base and Ethereum, 64 lowercase hex on Bitcoin. */
+  /** 0x and 64 lowercase hex. */
   hash: string;
   /** The block's own timestamp, Unix seconds. */
   timestamp: number;
@@ -45,9 +45,9 @@ export interface BlockReadFile {
 
 const enc = new TextEncoder();
 
-/** A block hash in the chain's own form. */
+/** A block hash as Base and Ethereum show it: 0x and 64 lowercase hex. */
 export function isBlockReadHash(chain: BlockReadChain, hash: string): boolean {
-  return chain === "bitcoin" ? /^[0-9a-f]{64}$/.test(hash) : /^0x[0-9a-f]{64}$/.test(hash);
+  return (chain === "base" || chain === "ethereum") && /^0x[0-9a-f]{64}$/.test(hash);
 }
 
 /** The file's text, byte for byte, as the host makes it and the BitGraph binds it. Throws on a malformed block. */
@@ -88,7 +88,7 @@ function shapeReasons(o: Record<string, unknown>): string[] {
   const epochId = o["epochId"];
   if (typeof epochId !== "string" || !isB64Of32(epochId)) reasons.push("epochId is not 32 bytes of standard base64");
   const chain = o["chain"];
-  if (chain !== "base" && chain !== "ethereum" && chain !== "bitcoin") {
+  if (chain !== "base" && chain !== "ethereum") {
     reasons.push(`unknown chain ${JSON.stringify(chain)}`);
   } else {
     if (typeof o["chainId"] !== "string" || !BLOCK_READ_CHAIN_IDS[chain].includes(o["chainId"])) reasons.push(`chainId is not one of ${chain}'s`);
@@ -99,7 +99,7 @@ function shapeReasons(o: Record<string, unknown>): string[] {
   return reasons;
 }
 
-/** What the chain says about a block hash, from the caller's lookup (eth_getBlockByHash, a Bitcoin block API). */
+/** What the chain says about a block hash, from the caller's lookup (eth_getBlockByHash). */
 export interface ChainBlock {
   /** The CAIP-2 id of the chain that answered. */
   chainId: string;

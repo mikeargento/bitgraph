@@ -102,10 +102,10 @@ async function epoch() {
 
 
 const T0 = 1_793_404_750; // a Base block time, Unix seconds
-const CHAIN_IDS: Record<BlockReadChain, string> = { base: "eip155:8453", ethereum: "eip155:1", bitcoin: "bip122:000000000019d6689c085ae165831e93" };
-const SPACING: Record<BlockReadChain, number> = { base: 2, ethereum: 12, bitcoin: 600 };
-const FIRST: Record<BlockReadChain, number> = { base: 37_500_000, ethereum: 23_700_000, bitcoin: 921_000 };
-const hashOf = (chain: BlockReadChain, n: number): string => (chain === "bitcoin" ? "" : "0x") + Buffer.from(sha256(enc.encode(`${chain} ${n}`))).toString("hex");
+const CHAIN_IDS: Record<BlockReadChain, string> = { base: "eip155:8453", ethereum: "eip155:1" };
+const SPACING: Record<BlockReadChain, number> = { base: 2, ethereum: 12 };
+const FIRST: Record<BlockReadChain, number> = { base: 37_500_000, ethereum: 23_700_000 };
+const hashOf = (chain: BlockReadChain, n: number): string => "0x" + Buffer.from(sha256(enc.encode(`${chain} ${n}`))).toString("hex");
 /** Block n (from the chain's first test block) and its time. */
 const blockAt = (chain: BlockReadChain, n: number) => ({ number: FIRST[chain] + n, timestamp: T0 + SPACING[chain] * n });
 
@@ -227,20 +227,32 @@ test("with no qualifying read after the file, the ceiling is unconfirmed, never 
 
 test("a fresh-looking read of a block stamped before the file is never a ceiling", async () => {
   // Block 1 is above the floor and read within 5 s of its time, but it was stamped 4 s before the file was bound.
-  const { run } = await scenario([{ read: "base", n: 0 }, { file: true, atS: T0 + 6 }, { read: "base", n: 1, lagS: 4.5 }, { read: "base", n: 3 }]);
+  const { run } = await scenario([{ read: "base", n: 0 }, { file: true, atS: T0 + 6 }, { read: "base", n: 1, lagS: 4.5 }, { read: "base", n: 4 }]);
   const r = await run();
   assert.equal(r.status, "verified", why(r));
   assert.equal(r.ceiling?.index, 3);
-  assert.equal(r.ceiling?.number, 37_500_003);
-  assert.match(r.passedOver.join(), /proof 2: block 37500001's timestamp 1793404752 is before the file's Nitro time 1793404756\.000/);
+  assert.equal(r.ceiling?.number, 37_500_004);
+  assert.match(r.passedOver.join(), /proof 2: block 37500001's timestamp 1793404752 is not after the file's Nitro time 1793404756\.000/);
 });
 
-test("a ceiling block stamped up to 1 s before the file's time is allowed for clock skew", async () => {
-  const ok = await (await scenario([{ read: "base", n: 0 }, { file: true, atS: T0 + 3 }, { read: "base", n: 1, lagS: 1.5 }])).run();
-  assert.equal(ok.status, "verified", why(ok));
-  assert.equal(ok.ceiling?.index, 2);
-  const late = await (await scenario([{ read: "base", n: 0 }, { file: true, atS: T0 + 3.5 }, { read: "base", n: 1, lagS: 1.6 }])).run();
-  assert.equal(late.ceiling, null);
+test("the ceiling is strict: a block stamped at the file's own Nitro time is not one, a block after it is", async () => {
+  const equal = await (await scenario([{ read: "base", n: 0 }, { file: true, atS: T0 + 2 }, { read: "base", n: 1, lagS: 1 }])).run();
+  assert.equal(equal.ceiling, null);
+  assert.equal(equal.status, "unconfirmed");
+  const after = await (await scenario([{ read: "base", n: 0 }, { file: true, atS: T0 + 1.999 }, { read: "base", n: 1, lagS: 1 }])).run();
+  assert.equal(after.status, "verified", why(after));
+  assert.equal(after.ceiling?.index, 2);
+});
+
+test("the floor's block time must be at or before the file's Nitro time; a later-stamped read gives way to an earlier one", async () => {
+  // Block 1 is stamped T0+2 and read 1.5 s early; the file is bound at T0+1, so block 1 is not a floor and block 0 is.
+  const { run } = await scenario([{ read: "base", n: 0, lagS: 0.2 }, { read: "base", n: 1, lagS: -1.5 }, { file: true, atS: T0 + 1 }, { read: "base", n: 2 }]);
+  const r = await run();
+  assert.equal(r.status, "verified", why(r));
+  assert.equal(r.floor?.index, 0);
+  assert.match(r.passedOver.join(), /proof 1: block 37500001's timestamp 1793404752 is after the file's Nitro time 1793404751\.000, so it is not a floor/);
+  const equal = await (await scenario([{ read: "base", n: 0, lagS: -1 }, { file: true, atS: T0 }, { read: "base", n: 1 }])).run();
+  assert.equal(equal.floor?.index, 0, "a floor stamped at the file's own time is allowed");
 });
 
 test("a lagging floor is flagged and still used", async () => {
@@ -261,21 +273,18 @@ test("lag is signed: Base 2 s early is fine, 3 s early is flagged", async () => 
   assert.equal(early.ceiling?.index, 3);
 });
 
-test("with Base down, an Ethereum read brackets on Ethereum; other chains' reads are ignored", async () => {
-  const { run } = await scenario([{ read: "ethereum", n: 0, lagS: 8 }, { read: "bitcoin", n: 0, lagS: 9 }, { file: true }, { read: "ethereum", n: 1, lagS: 10 }]);
+test("with Base down, an Ethereum read brackets on Ethereum; Base reads in the run are ignored", async () => {
+  const { run } = await scenario([{ read: "ethereum", n: 0, lagS: 8 }, { read: "base", n: 4, lagS: 1 }, { file: true }, { read: "ethereum", n: 1, lagS: 10 }]);
   const r = await run();
   assert.equal(r.status, "verified", why(r));
   assert.deepEqual([r.floor?.chain, r.floor?.index, r.ceiling?.chain, r.ceiling?.index], ["ethereum", 0, "ethereum", 3]);
 });
 
-test("Bitcoin: a ceiling's block time must reach the file's time, and 3 h late is the most", async () => {
-  // Block 1 was stamped before the file; block 2 was read 4 h after its time; block 3 qualifies.
-  const r = await (await scenario([{ read: "bitcoin", n: 0, lagS: 900 }, { file: true }, { read: "bitcoin", n: 1, lagS: 400 }, { read: "bitcoin", n: 2, lagS: 4 * 3600 }, { read: "bitcoin", n: 3, lagS: 60 }])).run();
+test("Ethereum: 60 s late is the most for a ceiling", async () => {
+  const r = await (await scenario([{ read: "ethereum", n: 0, lagS: 5 }, { file: true }, { read: "ethereum", n: 1, lagS: 61 }, { read: "ethereum", n: 2, lagS: 59 }])).run();
   assert.equal(r.status, "verified", why(r));
-  assert.equal(r.ceiling?.index, 4);
-  assert.equal(r.passedOver.length, 2);
-  assert.match(r.passedOver[0]!, /timestamp .* is before the file's Nitro time/);
-  assert.equal(r.flags.length, 1);
+  assert.equal(r.ceiling?.index, 3);
+  assert.match(r.flags.join(), /ethereum block 23700001 was read 61\.0 s after its timestamp \(limit 60 s\)/);
 });
 
 test("only canonical blocks bracket: an orphaned or unknown read is passed over", async () => {
@@ -308,7 +317,8 @@ test("a lookup answering from another chain id fails", async () => {
 });
 
 test("the Nitro times must run in order: floor, file, ceiling", async () => {
-  const { run } = await scenario([{ read: "base", n: 0, lagS: 1 }, { file: true, atS: T0 - 5 }, { read: "base", n: 1 }]);
+  // A stale floor (read 10 s after its block, flagged) whose Nitro time is after the file's.
+  const { run } = await scenario([{ read: "base", n: 0, lagS: 10 }, { file: true, atS: T0 + 5 }, { read: "base", n: 4 }]);
   const r = await run();
   assert.equal(r.status, "failed");
   assert.match(r.reasons.join(), /floor read's Nitro time is after the file's/);
