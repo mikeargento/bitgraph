@@ -454,7 +454,15 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <div className="pv-counter-grid">
           {/* Four pairs (2026-10-30): the number and when; the two counts on one line; the record before and the epoch;
               the floor and the ceiling last. */}
-          <Row f={{ label: "BitGraph", value: `#${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : ""}` }} />
+          {/* The file opens from the top of the card, right of the number, and shows directly beneath it. */}
+          <div className="pv-row pv-row-head">
+            <div className="pv-row-label">BitGraph</div>
+            <div className="pv-row-value">
+              {`#${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : ""}`}
+              {m.openUrl && <button type="button" className="pv-link-btn pv-open-link" aria-expanded={fileOpen} onClick={() => setFileOpen((v) => !v)}>{fileOpen ? "Close file" : "Open file"}</button>}
+            </div>
+          </div>
+          {fileOpen && m.openUrl && <FileInPlace url={m.openUrl} type={m.openType ?? null} name={m.fileName ?? null} />}
           {showTime && attested !== null && <Row f={{ label: "Recorded", value: stampTz(new Date(attested)) }} />}
           {nonceCount !== null && (
             <Row f={{ label: `#${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} />
@@ -463,10 +471,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {contentCount !== null && (
             <div className="pv-row">
               <div className="pv-row-label">#{fmtNum(contentCount)}: Content hash</div>
-              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}{m.openUrl && <> <button type="button" className="pv-link-btn pv-open-link" aria-expanded={fileOpen} onClick={() => setFileOpen((v) => !v)}>{fileOpen ? "Close file" : "Open file"}</button></>}</div>
+              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}</div>
             </div>
           )}
-          {fileOpen && m.openUrl && <FileInPlace url={m.openUrl} type={m.openType ?? null} name={m.fileName ?? null} />}
           {(commit as { prevB64?: string }).prevB64 && (
             <Row f={{ label: "Previous BitGraph", value: (commit as { prevB64?: string }).prevB64!, mono: true }} />
           )}

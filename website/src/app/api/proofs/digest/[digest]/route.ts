@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ANCHOR_ATTRIBUTION_NAME, anchorMarkOf, isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { fusedOriginDigestOf, isFusedProof } from "@/lib/fuse-core";
 import { bindSet, isSetProof, memberOf } from "@/lib/fuse-set";
-import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, LedgerUnavailableError, DISCOVERY_RETIRED, ledgerWritesOn } from "@/lib/s3";
+import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, epochHasAnchors, LedgerUnavailableError, DISCOVERY_RETIRED, ledgerWritesOn } from "@/lib/s3";
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 import { buildAnchorView, computeWindow } from "@/lib/causal-window";
 import { recordedMsOf } from "@/lib/recorded-time";
@@ -240,7 +240,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // doesn't contain) by refetching on a fresh cache key. A proof still waiting
     // on its upper anchor gets a short TTL so the pending "waiting on Ethereum"
     // window fills in promptly (the client also polls).
-    const settled = !!causalWindow?.anchorAfter?.blockTime || ceiling !== null;
+    // An epoch with no anchors has no window to wait for: its record's answer is as settled as it will get.
+    const noAnchors = selCommit?.epochId ? !(await epochHasAnchors(selCommit.epochId)) : false;
+    const settled = !!causalWindow?.anchorAfter?.blockTime || ceiling !== null || noAnchors;
     const cacheControl = settled
       ? "public, s-maxage=60, stale-while-revalidate=300"
       : "public, s-maxage=5, stale-while-revalidate=30";

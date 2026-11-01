@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 const FACTS = [
   { big: "1,000,000+", small: "files in one proof" },
   { big: "$0", small: "transaction fees per record" },
-  { big: "\u2248\u20090\u2009s", small: "to get a proof back: under 0.5\u2009s, measured" },
+  { big: "<\u20090.5\u2009s", small: "to get a proof back, measured" },
 ];
 
 /* Reads, never writes (2026-10-31): the block timeline binds a read of every Base and Ethereum block into the same
@@ -55,8 +55,8 @@ export default function HomePage() {
       </section>
 
       <section id="how" className="home-section" aria-labelledby="home-demo">
-        <p className="home-kicker">Three files, three proofs</p>
-        <h2 id="home-demo">Same picture. Different bytes. Different&nbsp;proofs.</h2>
+        <p className="home-kicker">Real files, real proofs</p>
+        <h2 id="home-demo">Same picture. Different bytes. Different&nbsp;proof.</h2>
         <p>Each proof covers its file&rsquo;s exact bytes. Open one and check it yourself.</p>
         <DemoRow />
       </section>

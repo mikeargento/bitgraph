@@ -936,6 +936,30 @@ export async function getProofsByDigest(digestB64: string, options: LookupOption
    route (2026-10-09: no public list of recordings): walking counters
    read out every record. Proofs are read by digest only. */
 
+
+/**
+ * Whether an epoch has any Ethereum anchors at all: one LIST of one key.
+ *
+ * An epoch without anchors (the block-timeline epochs, made after the anchor
+ * stream stopped) has no window to find, and the two searches above would
+ * still widen and fall back through up to five hundred proof reads to say so.
+ * An answer is kept for ten minutes per instance; a failed read answers true,
+ * so the searches run exactly as before.
+ */
+const epochAnchorsSeen = new Map<string, { has: boolean; at: number }>();
+export async function epochHasAnchors(epochId: string): Promise<boolean> {
+  const safeEpoch = toSafe(epochId);
+  const hit = epochAnchorsSeen.get(safeEpoch);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.has;
+  try {
+    const res = await getClient().send(new ListObjectsV2Command({ Bucket: getBucket(), Prefix: `anchors/${safeEpoch}/`, MaxKeys: 1 }));
+    const has = (res.Contents?.length ?? 0) > 0;
+    epochAnchorsSeen.set(safeEpoch, { has, at: Date.now() });
+    return has;
+  } catch {
+    return true;
+  }
+}
 /**
  * Get the most recent ETH anchor BEFORE a given counter on the same chain.
  * Scans backwards from the counter to find the latest anchor.

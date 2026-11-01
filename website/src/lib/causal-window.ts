@@ -16,7 +16,7 @@
  * A second implementation of this is how the old page generator drifted until
  * it had to be deleted; one copy, two callers.
  */
-import { getAnchorsAfterCounter, getAnchorBeforeCounter } from "@/lib/s3";
+import { getAnchorsAfterCounter, getAnchorBeforeCounter, epochHasAnchors } from "@/lib/s3";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { anchorMarkOf, isAnchorProof, ANCHOR_ATTRIBUTION_NAME } from "@mikeargento/bitgraph-verify";
 
@@ -110,6 +110,7 @@ export async function computeWindow(counter: number, epochId: string): Promise<{
   anchorBefore: AnchorView | null;
   anchorAfter: AnchorView | null;
 }> {
+  if (!(await epochHasAnchors(epochId))) return { anchorBefore: null, anchorAfter: null };
   const [after, beforeRaw] = await Promise.all([
     getAnchorsAfterCounter(counter, epochId, 1),
     getAnchorBeforeCounter(counter, epochId),

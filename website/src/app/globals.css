@@ -6005,3 +6005,20 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .art-figure { margin: 40px 0 0 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .art-figure img { display: block; width: 100%; height: auto; border: 1px solid var(--line); }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .art-figure figcaption { margin-top: 14px; }
+
+/* Stacked cards on phones share one height: every implicit row sizes to the tallest card. */
+@media (max-width: 720px) {
+  html:root:root body main .is-short .sx-cards {
+    grid-auto-rows: 1fr;
+  }
+}
+
+/* Open file sits at the card's top right, on the line of the BitGraph number. */
+html:root:root:root:root:root:root:root body main .pv-row-head .pv-row-value { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+html:root:root:root:root:root:root:root body main .pv-row-head .pv-open-link { margin-left: 0; }
+
+/* Phones: the hero heading fills the column (its text is 8.3 em wide in a 90vw column), and the line under it steps down. */
+@media (max-width: 600px) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero h1 { font-size: 10.65vw !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .hero-sub { font-size: 16px !important; }
+}
