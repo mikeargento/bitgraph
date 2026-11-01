@@ -26,7 +26,7 @@ export const metadata: Metadata = {
    and how long a proof takes to come back (it waits on no block). */
 const FACTS = [
   { big: "$0", small: "transaction fees per record" },
-  { big: "0", small: "servers needed to verify, ours or yours" },
+  { big: "Zero", small: "servers needed to verify, ours or yours" },
   { big: "\u2248\u20091\u2009s", small: "to get a proof back" },
 ];
 
