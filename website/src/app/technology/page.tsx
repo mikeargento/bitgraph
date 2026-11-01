@@ -169,12 +169,30 @@ export default function TechnologyPage() {
               Nitro Secure Module: the first layer, from the hardware itself. A timestamp authority, a certificate, a transparency
               log or a Content Credential can be bound the same way, by whoever already issues it.
             </p>
-            <p>Through bitgraph.ing, every BitGraph is also placed in the time of a public chain BitGraph does not operate. Base is the reference layer, bound both ways:</p>
+            <p>
+              Through bitgraph.ing, every BitGraph is also placed in the time of public chains BitGraph does not operate, by reading
+              them, never writing to them per record. Every Base and Ethereum block is read and bound into the same counted sequence
+              as the records, so each record sits between two block reads:
+            </p>
             <ul className="docs-list">
-              <li><strong>Floor.</strong> The latest Base block is read just before the bind and bound with it (in a collection, as its first leaf). A block hash cannot be known before its block exists.</li>
-              <li><strong>Ceiling.</strong> After the bind, the proof&rsquo;s hash is batched into a Merkle root and written to Base in a self-addressed transaction. The proof existed by that block.</li>
+              <li><strong>Floor.</strong> The last block read before the record. The record was bound after that block was produced.</li>
+              <li><strong>Ceiling.</strong> The first block read after it, stamped later than the record&rsquo;s hardware time. The record was bound before that block&rsquo;s timestamp, and the hardware clock was checked against the chain when the block was read.</li>
             </ul>
-            <p>No blockchain is needed to verify a proof. Base is only needed to check the floor and ceiling claims, and another witness bound the same way would serve the same purpose. The mechanism does not depend on it.</p>
+            <div className="sx-cards is-3">
+              <article className="tl-card">
+                <h3>Your hash stays off chain.</h3>
+                <p>No file, file hash or batch root is written to a blockchain. Only the epoch ID is announced on Base, once per epoch.</p>
+              </article>
+              <article className="tl-card">
+                <h3>Two public chains.</h3>
+                <p>Base provides frequent blocks. Ethereum keeps providing time brackets if Base is unavailable.</p>
+              </article>
+              <article className="tl-card">
+                <h3>Independently verifiable.</h3>
+                <p>Check the hardware attestations, signatures and counted sequence, then confirm the bracketing blocks against the public chains.</p>
+              </article>
+            </div>
+            <p>No blockchain is needed to verify a proof. The chains are only needed to check the floor and ceiling, and the mechanism does not depend on them.</p>
           </section>
 
           <section className="home-section" aria-labelledby="t-trees">

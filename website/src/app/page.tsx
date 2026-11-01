@@ -30,7 +30,8 @@ const FACTS = [
 ];
 
 /* Reads, never writes (2026-10-31): the block timeline binds a read of every Base and Ethereum block into the same
-   sequence, so each record sits between two public blocks with nothing written to any chain for it. */
+   sequence, so each record sits between two public blocks with nothing written to any chain for it. The home page shows
+   the first three; Technology carries the rest. */
 const NO_WRITES = [
   { title: "No wallet required.", body: "Send a hash. Get a proof. No wallet to connect, tokens to buy or balance to maintain." },
   { title: "No gas per record.", body: "Recording a file requires no blockchain transaction, so there\u2019s no gas fee for each record." },
@@ -53,7 +54,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="home-section" aria-labelledby="home-demo">
+      <section id="how" className="home-section" aria-labelledby="home-demo">
         <p className="home-kicker">Three files, three proofs</p>
         <h2 id="home-demo">Same picture. Different bytes. Different&nbsp;proofs.</h2>
         <p>Each proof covers its file&rsquo;s exact bytes. Download one and check it yourself.</p>
@@ -63,13 +64,9 @@ export default function HomePage() {
       <section className="home-section" aria-labelledby="home-reads">
         <p className="home-kicker">Public time, without per-record transactions</p>
         <h2 id="home-reads">Blockchain order, without the&nbsp;blockchain.</h2>
-        <p>
-          BitGraph records Base and Ethereum block reads in the same counted sequence as your records. Each record gets a public time
-          bracket: after an earlier block was produced, and before a later block&rsquo;s timestamp, checked by the enclave&rsquo;s
-          hardware clock. With Base, that bracket is usually about two seconds wide.
-        </p>
+        <p>Every record lands between two public blocks, seconds apart, with nothing written to any chain for&nbsp;it.</p>
         <div className="sx-cards is-3">
-          {NO_WRITES.map((r) => (
+          {NO_WRITES.slice(0, 3).map((r) => (
             <article key={r.title} className="tl-card">
               <h3>{r.title}</h3>
               <p>{r.body}</p>
@@ -88,7 +85,7 @@ export default function HomePage() {
         ))}
       </section>
 
-      <section id="how" className="home-section" aria-labelledby="home-mech">
+      <section className="home-section" aria-labelledby="home-mech">
         <p className="home-kicker">The mechanism</p>
         <h2 id="home-mech">The position comes first.</h2>
         <p>Hardware draws an unpredictable value at count N. Your digest is bound at N+1. Both are signed together, in one action.</p>
