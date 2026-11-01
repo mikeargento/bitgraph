@@ -5953,7 +5953,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 /* The short home page (2026-10-31): three facts in a row, big figure over a short label, no boxes. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-top: 48px !important; padding-bottom: 48px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts > * + * { margin-top: 0 !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-fact-big { font-family: var(--font-mono), 'SF Mono', SFMono-Regular, monospace !important; font-size: clamp(36px, 4.4vw, 56px) !important; font-weight: 600; line-height: 1 !important; letter-spacing: -0.02em; color: var(--ink); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-fact-big { font-size: clamp(40px, 5vw, 64px) !important; font-weight: 700; line-height: 1 !important; letter-spacing: -0.02em; color: var(--ink); }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-fact-small { margin-top: 12px; font-size: 15px !important; color: var(--dim); }
 @media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts { grid-template-columns: 1fr; gap: 28px; } }
 /* The short home page's first screen (2026-10-31): the headline and two buttons, centred in the space under the bar.
