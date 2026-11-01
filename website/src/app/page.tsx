@@ -90,7 +90,7 @@ export default function HomePage() {
       <section className="home-section home-art" aria-labelledby="home-art">
         <p className="home-kicker">Made after its proof</p>
         <h2 id="home-art">This picture couldn&rsquo;t exist before its BitGraph&nbsp;did.</h2>
-        <p>Every shape comes from a value generated inside BitGraph #12,526. Until it existed, nobody, not even us, could know the picture it would&nbsp;make.</p>
+        <p>Every shape comes from a value generated inside BitGraph #12,526. Until it existed, nobody could know the picture it would&nbsp;make.</p>
         <figure className="art-figure">
           <img src="/demo/bridge.png" width={1920} height={1080} alt="The Golden Gate Bridge drawn in rectangles, from the unpredictable value of BitGraph #12,526" loading="lazy" />
           <figcaption className="demo-links">
