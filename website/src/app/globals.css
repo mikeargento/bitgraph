@@ -5948,7 +5948,44 @@ html:root:root:root:root body main .plug-member > a { flex: none; color: var(--l
 html:root:root:root:root body main .plug-member-wait, html:root:root:root:root body main .plug-member-more { flex: none; color: var(--dim); }
 /* How it works on the home hero scrolls down to the mechanism (2026-10-31), smoothly unless reduced motion is asked
    for, landing with the section's kicker just under the sticky bar. */
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing #how { scroll-margin-top: 16px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing #how { scroll-margin-top: 48px; }
 @media (prefers-reduced-motion: no-preference) { html:has(main .is-landing) { scroll-behavior: smooth; } }
+/* The short home page (2026-10-31): three facts in a row, big figure over a short label, no boxes. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-top: 48px !important; padding-bottom: 48px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts > * + * { margin-top: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-fact-big { font-size: clamp(40px, 5vw, 64px) !important; font-weight: 700; line-height: 1 !important; letter-spacing: -0.02em; color: var(--ink); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-fact-small { margin-top: 12px; font-size: 15px !important; color: var(--dim); }
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts { grid-template-columns: 1fr; gap: 28px; } }
+/* The short home page's first screen (2026-10-31): the headline and two buttons, centred in the space under the bar.
+   The one-line description opens the page below it. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero { min-height: calc(100svh - 64px); box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; max-width: none !important; padding: 48px 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .sx-cta { justify-content: center; margin-top: 40px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-lead { padding-bottom: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-lead .sx-sub { font-size: clamp(22px, 2.4vw, 30px) !important; line-height: 1.35 !important; color: var(--ink) !important; max-width: 900px; }
 /* Content Credentials sit in the proof receipt as one more group (restored 2026-10-31): no extra rule or space above. */
 html:root:root:root:root:root:root body main .pv-c2pa { margin-top: 0; padding-top: 0; border-top: 0; }
+/* Three files, three proofs on the home page (2026-10-31): the two pictures side by side and the video full width below,
+   each at its own 3:2, then the caption, the BitGraph number and two links. One column on phones. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 24px; margin-top: 40px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-tile.is-video { grid-column: 1 / -1; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-tile { margin: 0; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-media { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; background: var(--panel); border: 1px solid var(--line); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-tile figcaption { margin-top: 14px; text-align: left; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-caption { font-size: 16px !important; font-weight: 700; color: var(--ink); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-num { margin-top: 2px; font-size: 14px !important; color: var(--dim); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-links { display: flex; gap: 18px; margin-top: 10px; font-size: 14px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-links a { color: var(--link); }
+@media (max-width: 760px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-row { grid-template-columns: 1fr; gap: 36px; } }
+/* The home hero over its video (2026-10-31): the video fills the width of the window behind the first screen, under a
+   dark wash; the headline, buttons and credit are light on it in either theme. The frame clips the full-bleed layer so
+   the page never scrolls sideways. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main:has(.is-short) { overflow-x: clip; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero { position: relative; isolation: isolate; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .hero-bg { position: absolute; top: 0; bottom: 0; left: 50%; width: 100vw; transform: translateX(-50%); z-index: -1; overflow: hidden; background: #000; margin: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .hero-bg :is(video, img) { width: 100%; height: 100%; object-fit: cover; display: block; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .hero-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.6)); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero h1 { color: #fff !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .bg-action-link:not(.is-make) { color: #fff !important; border-color: rgba(255, 255, 255, 0.6) !important; background: transparent !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .bg-action-link.is-make { background: #fff !important; color: #111 !important; border-color: #fff !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .hero-credit { position: absolute; left: 0; right: 0; bottom: 24px; margin: 0 !important; text-align: center; font-size: 13px !important; color: rgba(255, 255, 255, 0.72) !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .hero-credit a { color: #fff !important; text-decoration: underline; text-underline-offset: 3px; }
