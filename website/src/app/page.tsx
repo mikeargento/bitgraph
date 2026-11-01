@@ -54,7 +54,7 @@ export default function HomePage() {
       </section>
 
       <section id="how" className="home-section home-lead" aria-label="What a BitGraph is">
-        <p className="sx-sub">A portable proof of where your record stands in a counted sequence. Anyone can check&nbsp;it, offline.</p>
+        <p className="sx-sub">A BitGraph is proof of your file&rsquo;s place in&nbsp;line.</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-demo">
