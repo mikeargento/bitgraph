@@ -22,11 +22,12 @@ export const metadata: Metadata = {
   twitter: { title: "Order before time.", description: DESCRIPTION },
 };
 
-/* Facts the site already states elsewhere, not live counts. */
+/* Facts the site already states elsewhere, each checkable, not live counts: what leaves the customer, the measured
+   million-file run (Technology, collections), and the usual window between the two block reads around a record. */
 const FACTS = [
-  { big: "0", small: "blockchain transactions per record" },
-  { big: "\u2248\u20092\u2009s", small: "typical time bracket on Base" },
-  { big: "1M", small: "records bound in one action" },
+  { big: "32 bytes", small: "all that leaves your systems: the hash" },
+  { big: "1,000,000", small: "files in one BitGraph, proof back in 6.1 s" },
+  { big: "\u2248\u20092\u2009s", small: "public-time window, on Base" },
 ];
 
 /* Reads, never writes (2026-10-31): the block timeline binds a read of every Base and Ethereum block into the same
