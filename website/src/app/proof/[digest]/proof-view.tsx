@@ -341,8 +341,8 @@ function FileInPlace({ url, type, name }: { url: string; type: string | null; na
   else body = <div className="pv-note">This kind of file does not show in the browser. <a className="pv-link" href={url} download={name ?? undefined}>Download it</a>.</div>;
   return (
     <div className="pv-row pv-file-open" style={{ gridColumn: "1 / -1" }}>
-      {/* A tree's file is its root list of hashes, there for the verifier: nothing to open in a tab of its own. */}
-      <div className="pv-row-label">{name ?? "The file"}{name !== "merkle-root.txt" && <a className="pv-link" href={url} target="_blank" rel="noopener" style={{ marginLeft: 8 }}>Open in a new tab</a>}</div>
+      {/* The file shows here, in place; no separate tab (2026-10-31). */}
+      <div className="pv-row-label">{name ?? "The file"}</div>
       <div className="pv-row-value">{body}</div>
     </div>
   );
