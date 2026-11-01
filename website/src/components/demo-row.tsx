@@ -50,7 +50,8 @@ export function HeroVideo() {
 function Tile({ d }: { d: Demo }) {
   return (
     <figure className={`demo-tile${d.video ? " is-video" : ""}`}>
-      <Media d={d} />
+      {/* The picture opens its proof too; the View proof link below is the one in the tab order. */}
+      <a className="demo-media-link" href={d.proof} tabIndex={-1} aria-hidden="true"><Media d={d} /></a>
       <figcaption>
         <div className="demo-caption">{d.caption}</div>
         <div className="demo-num">BitGraph #{Number(d.counter).toLocaleString("en-US")}</div>
