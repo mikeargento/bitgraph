@@ -5953,7 +5953,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 /* The short home page (2026-10-31): three facts in a row, big figure over a short label, no boxes. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-top: 48px !important; padding-bottom: 48px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts > * + * { margin-top: 0 !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-fact-big { font-family: "Space Grotesk", acumin-pro, sans-serif !important; font-size: clamp(40px, 5vw, 64px) !important; font-weight: 700; line-height: 1 !important; letter-spacing: -0.02em; color: var(--ink); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-fact-big { font-size: clamp(40px, 5vw, 64px) !important; font-weight: 700; line-height: 1 !important; letter-spacing: -0.02em; color: var(--ink); }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-fact-small { margin-top: 12px; font-size: 15px !important; color: var(--dim); }
 @media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts { grid-template-columns: 1fr; gap: 28px; } }
 /* The short home page's first screen (2026-10-31): the headline and two buttons, centred in the space under the bar.
@@ -5961,7 +5961,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero { min-height: calc(100svh - 64px); box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; max-width: none !important; padding: 48px 0 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .sx-cta { justify-content: center; margin-top: 40px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-lead { padding-bottom: 0 !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-lead .sx-sub { font-size: clamp(22px, 2.4vw, 30px) !important; line-height: 1.35 !important; color: var(--ink) !important; max-width: 900px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-lead .sx-sub { font-family: "Space Grotesk", acumin-pro, sans-serif !important; font-weight: 700 !important; letter-spacing: -0.01em !important; font-size: clamp(22px, 2.4vw, 30px) !important; line-height: 1.35 !important; color: var(--ink) !important; max-width: 900px; }
 /* Content Credentials sit in the proof receipt as one more group (restored 2026-10-31): no extra rule or space above. */
 html:root:root:root:root:root:root body main .pv-c2pa { margin-top: 0; padding-top: 0; border-top: 0; }
 /* Three files, three proofs on the home page (2026-10-31): the two pictures side by side and the video full width below,
