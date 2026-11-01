@@ -19,8 +19,8 @@ type Demo = { caption: string; counter: string; proof: string; display: string; 
 const EPOCH = "HVhtPS0i7hkDWO6zI_7UJG1VLekCC3ouJaYomAqeSPc";
 export const DEMOS: Demo[] = [
   { caption: "Made with ChatGPT", counter: "2124", proof: `/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=2124&epoch=${EPOCH}`, display: "/demo/display/chatgpt.jpg" },
-  { caption: "Copied from it by Google", counter: "3452", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=3452&epoch=${EPOCH}`, display: "/demo/display/google.jpg" },
-  { caption: "Made into video by Grok", counter: "3720", proof: `/proof/VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM?counter=3720&epoch=${EPOCH}`, display: "/demo/display/grok-poster.jpg", video: { src: "/demo/display/grok.mp4" } },
+  { caption: "Copied by Google", counter: "3452", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=3452&epoch=${EPOCH}`, display: "/demo/display/google.jpg" },
+  { caption: "Animated by Grok", counter: "3720", proof: `/proof/VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM?counter=3720&epoch=${EPOCH}`, display: "/demo/display/grok-poster.jpg", video: { src: "/demo/display/grok.mp4" } },
 ];
 
 function Media({ d }: { d: Demo }) {
