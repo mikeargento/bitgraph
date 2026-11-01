@@ -5948,7 +5948,7 @@ html:root:root:root:root body main .plug-member > a { flex: none; color: var(--l
 html:root:root:root:root body main .plug-member-wait, html:root:root:root:root body main .plug-member-more { flex: none; color: var(--dim); }
 /* How it works on the home hero scrolls down to the mechanism (2026-10-31), smoothly unless reduced motion is asked
    for, landing with the section's kicker just under the sticky bar. */
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing #how { scroll-margin-top: 40px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing #how { scroll-margin-top: -8px; }
 @media (prefers-reduced-motion: no-preference) { html:has(main .is-landing) { scroll-behavior: smooth; } }
 /* The short home page (2026-10-31): three facts in a row, big figure over a short label, no boxes. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; border-bottom: 1px solid var(--line); padding-top: 0 !important; padding-bottom: 48px !important; margin-top: 28px !important; }
@@ -5999,3 +5999,5 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero + .home-section { padding-top: 72px !important; }
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-lead + .home-section { padding-top: 72px !important; }
 }
+/* The definition under the home headline, on the video (2026-10-31): light like the headline, a size under it. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .hero-sub { color: rgba(255, 255, 255, 0.88) !important; font-size: clamp(19px, 2vw, 24px) !important; line-height: 1.4 !important; margin-top: 18px !important; max-width: 640px; text-align: center; }

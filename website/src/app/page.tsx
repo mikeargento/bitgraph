@@ -3,7 +3,7 @@ import { MechanismFigure } from "@/components/mechanism-figure";
 import { DemoRow, HeroVideo } from "@/components/demo-row";
 
 /**
- * The home page (2026-10-27; made short 2026-10-31): one claim over a proven video and the one-line definition, then
+ * The home page (2026-10-27; made short 2026-10-31): the claim and a one-line definition over a proven video, then
  * evidence rather than explanation: the proven pictures, blockchain order without writes, three facts, the mechanism figure with one line, the
  * ways to adopt it. The explaining lives on Technology. The claims are the Technology page's, short; each is in the v13
  * enclave and the verifier.
@@ -45,19 +45,16 @@ export default function HomePage() {
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page is-landing is-short">
       <section className="sx-hero" aria-labelledby="home-h">
         <HeroVideo />
-        {/* The first screen is the claim alone (2026-10-31), centred; How it works scrolls to what follows. */}
+        {/* The first screen is the claim and its one-line definition (2026-10-31), centred; How it works scrolls to the proofs. */}
         <h1 id="home-h">Order before&nbsp;time.</h1>
+        <p className="sx-sub hero-sub">A BitGraph is proof of your file&rsquo;s place in&nbsp;line.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">Try it</a>
           <a className="bg-action-link" href="#how">How it works</a>
         </div>
       </section>
 
-      <section id="how" className="home-section home-lead" aria-label="What a BitGraph is">
-        <p className="sx-sub">A BitGraph is proof of your file&rsquo;s place in&nbsp;line.</p>
-      </section>
-
-      <section className="home-section" aria-labelledby="home-demo">
+      <section id="how" className="home-section" aria-labelledby="home-demo">
         <p className="home-kicker">Three files, three proofs</p>
         <h2 id="home-demo">Same picture. Different bytes. Different&nbsp;proofs.</h2>
         <p>Each proof covers its file&rsquo;s exact bytes. Open one and check it yourself.</p>
