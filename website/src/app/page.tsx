@@ -26,10 +26,10 @@ export const metadata: Metadata = {
    and how long a proof takes to come back (it waits on no block; 0.47 s and 0.41 s from hash to proof, measured on the live
    site on 2026-10-31); and how many files one proof holds (the million-file run on Technology, not a limit). */
 const FACTS = [
+  { big: "1,000,000+", small: "files in one proof" },
   { big: "$0", small: "transaction fees per record" },
   { big: "0", small: "servers needed to verify, ours or yours" },
   { big: "\u2248\u20090\u2009s", small: "to get a proof back: under 0.5\u2009s, measured" },
-  { big: "1,000,000+", small: "files in one proof" },
 ];
 
 /* Reads, never writes (2026-10-31): the block timeline binds a read of every Base and Ethereum block into the same
