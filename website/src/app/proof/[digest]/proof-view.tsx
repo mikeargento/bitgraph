@@ -343,8 +343,7 @@ function FileInPlace({ url, type, name }: { url: string; type: string | null; na
   else body = <div className="pv-note">This kind of file does not show in the browser. <a className="pv-link" href={url} download={name ?? undefined}>Download it</a>.</div>;
   return (
     <div className="pv-row pv-file-open" style={{ gridColumn: "1 / -1" }}>
-      {/* The file shows here, in place; no separate tab (2026-10-31). */}
-      <div className="pv-row-label">{name ?? "The file"}</div>
+      {/* The file shows here, in place; no separate tab (2026-10-31). No label over it: the File row names it. */}
       <div className="pv-row-value">{body}</div>
     </div>
   );
@@ -561,14 +560,14 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {/* With no file in hand the content box is only the pickers the "Search this computer" button opens (2026-10-30):
             it stays mounted, out of sight, and no empty card shows. */}
         {m.canConnect && !searching && <div hidden>{m.filePane}</div>}
-        {!(m.canConnect && !(c.state === "done" && c.verdict === "FALSE") && !m.sourceField) && ((!showTime || (c.state === "done" && c.verdict === "FALSE")) || m.filePane || m.sourceField) && (
+        {!(m.canConnect && !(c.state === "done" && c.verdict === "FALSE") && !m.sourceField) && ((c.state === "done" && c.verdict === "FALSE") || m.filePane || m.sourceField) && (
         <section className="pv-card pv-photo">
-          {/* The content card (2026-10-29): the picture or file and its buttons. The time card above says when; the
-              name leads here only when no time card names it, and a proof that fails says so in its place, never folded away. */}
-          {(!showTime || (c.state === "done" && c.verdict === "FALSE")) && (
+          {/* The content card (2026-10-29): the picture or file and its buttons, and a proof that fails says so here, never
+              folded away. The receipt names the BitGraph (2026-11-01), so this card no longer carries the name while the
+              time loads; that fallback showed a card for a moment and took it away again. */}
+          {c.state === "done" && c.verdict === "FALSE" && (
             <div className="pv-photo-strip">
-              {!showTime && <div className="pv-photo-title">{m.recordName}{m.kind === "anchor" ? " (Ethereum anchor)" : m.kind === "interval" ? " (interval)" : ""}</div>}
-              {c.state === "done" && c.verdict === "FALSE" && <div className="pv-verdict pv-verdict-false">{verdictWord}</div>}
+              <div className="pv-verdict pv-verdict-false">{verdictWord}</div>
             </div>
           )}
           {!m.canConnect && m.filePane}
