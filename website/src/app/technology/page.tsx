@@ -46,13 +46,16 @@ export default function TechnologyPage() {
       <section className="home-section" aria-labelledby="t-intro">
         <p className="home-kicker">Technology</p>
         <h2 id="t-intro">One atomic action, inside measured&nbsp;hardware.</h2>
+        <p>A BitGraph is an attested record made inside an AWS Nitro enclave running a published, reproducible build.</p>
         <p>
-          A BitGraph is made inside an AWS Nitro enclave running a published, reproducible build. In one indivisible step the enclave
-          takes two consecutive counts of its sequence: a fresh nonce from the hardware&rsquo;s random number generator at the first,
-          the SHA-256 of your data at the second. Both are signed together, attested by the hardware, and chained to the record before.
-          The result is a small JSON proof anyone can check offline.
+          In one atomic operation, the enclave records a fresh hardware-generated nonce at count N and binds your data&rsquo;s
+          SHA-256 digest at count N+1. The two records are signed into one proof, attested by the hardware and linked to the
+          previous proof.
         </p>
-        <p>The content itself never reaches BitGraph. Only its 32-byte digest does.</p>
+        <p>
+          The result is a self-contained JSON proof that anyone can verify offline. Your content stays with you; only its 32-byte
+          digest reaches BitGraph.
+        </p>
       </section>
 
       <div className="tl-body">
@@ -66,7 +69,7 @@ export default function TechnologyPage() {
             <p className="home-kicker">What it establishes</p>
             <h2 id="t-proves">Two statements, each checkable.</h2>
             <ol className="tl-steps">
-              <li><strong>Position.</strong> These exact bytes, by SHA-256, were bound at count N+1 of one enclave&rsquo;s sequence, immediately after a fresh hardware nonce at count N, in a single signed action. Nothing was counted between them, and no count is ever given out twice.</li>
+              <li><strong>Position.</strong> These exact bytes, by SHA-256, were bound at count N+1 of one enclave&rsquo;s sequence, immediately after a fresh hardware nonce at count N, in a single signed action. Nothing was counted between them. Within an epoch, no count is assigned to more than one released record.</li>
               <li><strong>Origin of the record.</strong> The binding was performed by a specific enclave build whose measurement (PCR0) is published, as AWS Nitro hardware attests in a document signed for that exact proof.</li>
             </ol>
             <p>
@@ -77,7 +80,7 @@ export default function TechnologyPage() {
             </p>
             <h3 className="tl-h3">What it does not establish</h3>
             <ul className="docs-list">
-              <li><strong>When the content was created.</strong> An old file can be bound today. The proof fixes where in the sequence it was bound; a time layer bound to that position fixes when.</li>
+              <li><strong>When the content was created.</strong> An old file can be bound today. The proof fixes where in the sequence its digest was recorded; a time layer bound to that position associates it with a timestamp or a time window. Either way, that is when the digest was recorded, not when the content was made.</li>
               <li><strong>Who made it, or whether it is true.</strong> It binds bytes, not authorship or meaning.</li>
               <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other record was.</li>
               <li><strong>Order across epochs</strong> from the enclave alone. Each epoch is its own sequence; a trust layer places epochs relative to each other. In the demo that layer is Base.</li>
@@ -158,7 +161,7 @@ export default function TechnologyPage() {
             <p className="home-kicker">Trust layers</p>
             <h2 id="t-time">Order from the enclave. Time, and the rest, bound on top.</h2>
             <p>
-              A BitGraph is a position. A trust layer is anything that says more about that position: when it happened, who stood
+              A BitGraph establishes a position in an enclave&rsquo;s sequence. A trust layer is anything that says more about that position: when it happened, who stood
               behind it, that the public saw it. The rule for every layer is the same. It must be cryptographically bound to the
               position, in one direction or both: the layer&rsquo;s own record bound inside the BitGraph (so the BitGraph came after
               it), or the BitGraph&rsquo;s hash carried inside the layer (so the BitGraph existed by it). A layer placed beside a

@@ -19,24 +19,27 @@ export default function LicensingPage() {
         <p className="home-kicker">Licensing</p>
         <h2 id="lic-h">Keep your product. Upgrade your&nbsp;proof.</h2>
         <p>
-          BitGraph is a recording mechanism, offered to companies that already sell proof: provenance, content credentials, trusted
-          capture, timestamping, audit trails. You keep your product, your customers and your brand. BitGraph adds one attested
-          recording step underneath, and the evidence it returns travels with your records and checks without you or us. BitGraph
-          establishes order; your infrastructure establishes trust, bound to that order.
+          BitGraph adds attested recording to products for provenance, content credentials, trusted capture, timestamping and
+          audit trails. You keep your product, your customers and your brand. Your system submits a digest and receives a proof
+          that travels with your records and can be verified offline.
         </p>
-        <p>Licensing is through Argento Computing Inc., the company that built and runs BitGraph.</p>
+        <p>
+          BitGraph establishes a verifiable position in an enclave&rsquo;s sequence. Your product can bind identity, timestamps and
+          other evidence to that position.
+        </p>
+        <p>Licensing is offered through Argento Computing Inc., the company that develops and operates BitGraph.</p>
 
         <div className="sx-cards">
           <article className="tl-card">
             <p className="tl-label">Managed recording</p>
             <h3>Call the BitGraph service.</h3>
             <p>
-              Your system sends SHA-256 digests; the enclave binds them and returns proofs your product stores and shows. Nothing to
-              operate, and your files never leave your systems.
+              Your system sends SHA-256 digests; the enclave binds them and returns proofs your product stores and shows. There is no
+              BitGraph infrastructure to operate, and your files never leave your systems.
             </p>
             <ul className="docs-list">
               <li>Fastest to integrate: one HTTP call, or the SDK</li>
-              <li>Batches: many records, one BitGraph, each checkable alone</li>
+              <li>Collections: one BitGraph for many items, each independently verifiable</li>
               <li>Usage-based terms</li>
             </ul>
           </article>
@@ -50,8 +53,7 @@ export default function LicensingPage() {
             <ul className="docs-list">
               <li>Your product experience, your customer relationship</li>
               <li>White-label where the agreement allows</li>
-              <li>The requirements for a deployment you operate, such as its own measured enclave build, are worked out with you</li>
-              <li>Not tied to one vendor&rsquo;s hardware: the mechanism is defined for any protected environment, including secure elements and HSMs, confidential virtual machines, a processor instruction or a dedicated circuit. It runs on AWS Nitro today.</li>
+              <li>BitGraph runs on AWS Nitro today. The mechanism is designed for implementation in other protected environments, with deployment requirements, such as a deployment&rsquo;s own measured enclave build, agreed as part of the license.</li>
             </ul>
           </article>
           <article className="tl-card">
@@ -88,7 +90,7 @@ export default function LicensingPage() {
           <div>
             <p className="home-kicker" id="lic-form">Talk with us</p>
             <h2>Start a licensing conversation.</h2>
-            <p className="sx-fine">It reaches Argento Computing directly. Nothing you send is published.</p>
+            <p className="sx-fine">Your request goes directly to Argento Computing. Nothing you send is published.</p>
             <InquiryForm topic="Licensing" />
           </div>
         </div>

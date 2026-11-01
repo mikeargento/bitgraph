@@ -39,14 +39,14 @@ export default function IntegratePage() {
         <p className="home-kicker">Integrate</p>
         <h2 id="i-intro">Send a SHA-256. Get a proof.</h2>
         <p>
-          The recording step is one call. Your system hashes what it already produces, sends the 32-byte digest, and binds the proof
-          that comes back into its own record. Your content never leaves your systems, and the proofs check without BitGraph. The
-          proof is a position; your own timestamps, certificates and logs are trust layers you bind on top of it.
+          Your system hashes a file or record locally, sends its SHA-256 digest, and stores the returned proof alongside the
+          original. Only the digest is sent to BitGraph. The proof can be verified offline with the open-source verifier.
         </p>
+        <p>Record a single item or a collection through the HTTP API, SDK or MCP.</p>
         <ol className="tl-steps">
           <li><strong>Hash</strong> the asset, credential, log entry or release you already have.</li>
-          <li><strong>Bind</strong> the digest through the API, the SDK or MCP. One item or a whole collection.</li>
-          <li><strong>Store</strong> the proof JSON with your record, and show what it establishes in your own product.</li>
+          <li><strong>Record</strong> the digest. Several digests return one proof each; a collection returns one proof that every item verifies against.</li>
+          <li><strong>Store</strong> the proof with your record, and show what it establishes in your own product.</li>
           <li><strong>Verify</strong> anywhere, with the open verifier, offline.</li>
         </ol>
       </section>
@@ -61,12 +61,12 @@ export default function IntegratePage() {
           <section className="home-section" aria-labelledby="i-api">
             <p className="home-kicker">HTTP API</p>
             <h2 id="i-api">Nothing to install.</h2>
-            <p>Bind one digest, or many in one request (base64 SHA-256):</p>
+            <p>Record one digest, or many in one request (base64 SHA-256):</p>
             <Code>{`curl -X POST https://bitgraph.ing/api/commit \\
   -H 'content-type: application/json' \\
   -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</Code>
             <p>
-              The reply holds one proof per digest sent. Each bind through this endpoint also gets the reference trust layer, a Base
+              The response contains one proof for each submitted digest. Each bind through this endpoint also gets the reference trust layer, a Base
               floor and a queued Base ceiling; a deployment you operate can bind a different witness, or none. Every proof is kept and can be fetched by the digest it bound, earliest first:
             </p>
             <Code>{`curl https://bitgraph.ing/api/proofs/<sha-256, base64url>
@@ -125,7 +125,7 @@ npx -p @mikeargento/bitgraph-sdk bitgraph check run-042.log --json`}</Code>
 
           <section className="home-section" aria-labelledby="i-verify">
             <p className="home-kicker">Verify in your product</p>
-            <h2 id="i-verify">Your users check proofs without you, or us.</h2>
+            <h2 id="i-verify">Your users can verify proofs independently, offline.</h2>
             <p>The verifier is its own MIT package. In your code:</p>
             <Code>{`npm install @mikeargento/bitgraph-verify`}</Code>
             <Code>{`import { verifyAttested } from "@mikeargento/bitgraph-verify";
