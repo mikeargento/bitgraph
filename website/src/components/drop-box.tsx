@@ -30,7 +30,7 @@ import { zipSync, strToU8 } from "fflate";
 import { attachEnvironments } from "@/lib/proof-environment";
 import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
-import { DIGEST_TREE_FORMAT, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes, withMember } from "@/lib/tree-member";
+import { DIGEST_TREE_FORMAT, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes } from "@/lib/tree-member";
 import { bindOne, digestOf, hashLeaves, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
 
 const MAX_FILES = 25;
@@ -501,11 +501,30 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           router.push(`/proof/${toUrlSafe(digest)}?counter=${encodeURIComponent(fc.counter)}&epoch=${encodeURIComponent(toUrlSafe(fc.epochId))}`);
           return;
         }
-        // New bytes are recorded, always (2026-10-29).
+        // New bytes are recorded, always (2026-10-29). One file is one BitGraph of its own SHA-256 (2026-10-31): no tree
+        // of one, so the proof's content hash is the file's, as `shasum -a 256` prints it. The ledger files every proof
+        // under its content hash, so the file is found by its hash with no index to write.
+        setStatus("Making the BitGraph\u2026");
+        const tHashed = performance.now();
+        const b = await bindOne(digest);
+        const tDone = performance.now();
+        const commit = b.commit as { counter?: string; epochId?: string } | undefined;
+        if (timer) {
+          setPlug({ dropCount: 1, tree: null, rootText: null, contentName: f.name, contentDigest: digest, b, block: null, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 } });
+          setStatus(null);
+          return;
+        }
+        setStatus("Opening the proof\u2026");
+        // The file goes with the page (the proof opens with it in hand): its save started before the bind, so this is brief.
+        try { await Promise.race([cachedLater, new Promise((r) => setTimeout(r, 1500))]); } catch { /* the page still opens; the reader can drop the file there */ }
+        const epoch = commit?.epochId ? toUrlSafe(commit.epochId) : "";
+        setFreshProof(toUrlSafe(digest), { proofs: [{ proof: b }], positions: commit?.counter ? [{ counter: commit.counter, epoch: epoch || null, lowerTime: null, upperTime: null }] : [], causalWindow: null, anchorBlock: null });
+        router.push(`/proof/${toUrlSafe(digest)}?counter=${encodeURIComponent(commit?.counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1`);
+        return;
       }
-      /* Every drop, one file or many, is one tree and one BitGraph (2026-10-20). Its floor and ceiling come from the block
-         timeline: the Base block reads bound on the same counter sequence just before and just after it, so the tree
-         holds only the files and nothing is written to any chain for it. */
+      /* Two or more files are one tree and one BitGraph (2026-10-20; one file is bound alone, above). Its floor and
+         ceiling come from the block timeline: the Base block reads bound on the same counter sequence just before and
+         just after it, so the tree holds only the files and nothing is written to any chain for it. */
       const count = list ? list.length : files.length;
       setStatus(list ? `Reading 0 of ${count.toLocaleString("en-US")} hashes…` : `Hashing 0 of ${count.toLocaleString("en-US")}…`);
       // The files are hashed. A folder is not looked up first: every folder drop is a new tree and a new BitGraph.
@@ -530,9 +549,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       const tDone = performance.now();
       const t = tree!, total = t.files;
       const blocks = memberBlocks(t, rootText);
-      // One file goes straight on to its proof page (below), so the tree's panel is never drawn for it: shown for the
-      // moment its index is written, it would flash up under "Opening the proof…" before the page changes.
-      const opensProof = !list && files.length === 1 && !timer;
       // The drop's files as a plain list, no thumbnails (2026-10-31): each opens its own proof page, which finds the file
       // by its hash once the index below is written. Each file once, as dropped.
       const members = (() => {
@@ -541,7 +557,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         return dropped.flatMap((l) => (seen.has(l[2]) || !seen.add(l[2]) ? [] : [{ name: l[0], href: `/proof/${toUrlSafe(l[2])}?counter=${counter}&epoch=${epoch}` }]));
       })();
       const dropCount = list ? t.files : files.length;
-      if (!opensProof) setPlug({ members, dropCount, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
+      setPlug({ members, dropCount, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
       // Each file is indexed under its own hash (lib/tree-member.ts): written after the proof is
       // shown, so the BitGraph never waits on it; the server checks every path to the root before it writes.
       type Lookup = { stored: number; total: number; state: "sealing" | "saving" | "done" | "failed"; note?: string };
@@ -554,23 +570,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           lookup({ stored, total, state: stored >= total ? "done" : "failed", note: stored >= total ? undefined : `${(total - stored).toLocaleString("en-US")} could not be saved` });
         } catch (e) { lookup({ stored: 0, total, state: "failed", note: (e as Error).message }); }
       })();
-      /* One file opens its own proof page, as a plain drop always has: its tree is the file alone, so its index is
-         written in a moment; the page opens with the proof in hand either way. */
-      if (opensProof) {
-        setStatus("Opening the proof…");
-        const fileDigest = dropped[0]![2], i = t.leaves.findIndex((l) => l[2] === fileDigest);
-        /* The proof opens the moment the bind is back (2026-10-30): the page is handed the proof below, so it never
-           waited on the index, which finishes behind it. The second ledger lookup is gone: the same bytes were looked up
-           before anything was recorded. */
-        // The file goes with the page (the proof opens with it in hand): its save started during the bind, so this is brief.
-        try { await Promise.race([cachedLater ?? cacheArtifactToIDB(files[0]!, fileDigest), new Promise((r) => setTimeout(r, 1500))]); } catch { /* the page still opens; the reader can drop the file there */ }
-        const commit = b.commit as { counter?: string; epochId?: string } | undefined;
-        const epoch = commit?.epochId ? toUrlSafe(commit.epochId) : "";
-        const sel = commit?.counter ? `?counter=${encodeURIComponent(commit.counter)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
-        setFreshProof(toUrlSafe(fileDigest), { proofs: [{ proof: withMember(b as Record<string, unknown>, blocks[i]!) as Proof }], positions: commit?.counter ? [{ counter: commit.counter, epoch: epoch || null, lowerTime: null, upperTime: null }] : [], causalWindow: null, anchorBlock: null });
-        router.push(`/proof/${toUrlSafe(fileDigest)}${sel ? `${sel}&` : "?"}${already ? "" : "fresh=1"}`);
-        return;
-      }
       setStatus(null);
     } catch (e) {
       setStatus(null); setPlugError((e as Error).message);

@@ -1,9 +1,10 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * One file as one BitGraph, the way Make binds a single file: the tree of the file alone (lib/plugins.ts), its root bound,
- * and the leaf indexed under its own hash (app/api/tree-members). The file is then looked up by its own SHA-256 like a
- * file bound alone. Its floor and ceiling come from the block timeline: the block reads bound before and after it.
+ * Files as BitGraphs, the way Make binds them: one file is bound alone, its own SHA-256 the proof's content hash
+ * (2026-10-31); several are one tree, its root bound and each leaf indexed under its own hash (app/api/tree-members).
+ * Either way a file is looked up by its own SHA-256. Floor and ceiling come from the block timeline: the block reads bound
+ * before and after it.
  *
  * Explicit .ts specifiers so node's test runner loads it.
  */
@@ -26,8 +27,8 @@ export async function bindFiles(items: Array<{ name: string; bytes: Uint8Array; 
   return { proofs: leaves.map((l) => withMember(p, blocks[at(l[2])]!) as Proof), digests: leaves.map((l) => l[2]) };
 }
 
-/** The root's proof with the file's member block, as the index keeps it under the file's hash; digestB64 is the file's. */
-export async function bindFile(name: string, bytes: Uint8Array, type: string): Promise<{ proof: Proof; digestB64: string }> {
-  const { proofs, digests } = await bindFiles([{ name, bytes, type }]);
-  return { proof: proofs[0]!, digestB64: digests[0]! };
+/** One file as one BitGraph of its own SHA-256 (2026-10-31): no tree of one. digestB64 is the file's, and the proof's. */
+export async function bindFile(_name: string, bytes: Uint8Array, _type: string): Promise<{ proof: Proof; digestB64: string }> {
+  const digestB64 = await digestOf(bytes);
+  return { proof: await bindOne(digestB64), digestB64 };
 }
