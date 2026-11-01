@@ -14,13 +14,13 @@ import { useEffect, useState } from "react";
  * The captions say who made each file. That is our caption, not a claim of the proof: a BitGraph proves where the
  * exact bytes stand in the sequence and when, not which tool made them.
  */
-type Demo = { caption: string; counter: string; proof: string; file: string; fileName: string; display: string; video?: { src: string } };
+type Demo = { caption: string; counter: string; proof: string; display: string; video?: { src: string } };
 
 const EPOCH = "HVhtPS0i7hkDWO6zI_7UJG1VLekCC3ouJaYomAqeSPc";
 export const DEMOS: Demo[] = [
-  { caption: "Made with ChatGPT", counter: "2124", proof: `/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=2124&epoch=${EPOCH}`, file: "/demo/chatgpt.png", fileName: "ChatGPT Image.png", display: "/demo/display/chatgpt.jpg" },
-  { caption: "Copied from it by Google", counter: "3452", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=3452&epoch=${EPOCH}`, file: "/demo/google.jpeg", fileName: "Gemini Image.jpeg", display: "/demo/display/google.jpg" },
-  { caption: "Made into video by Grok", counter: "3720", proof: `/proof/VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM?counter=3720&epoch=${EPOCH}`, file: "/demo/grok.mp4", fileName: "grok-video.mp4", display: "/demo/display/grok-poster.jpg", video: { src: "/demo/display/grok.mp4" } },
+  { caption: "Made with ChatGPT", counter: "2124", proof: `/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=2124&epoch=${EPOCH}`, display: "/demo/display/chatgpt.jpg" },
+  { caption: "Copied from it by Google", counter: "3452", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=3452&epoch=${EPOCH}`, display: "/demo/display/google.jpg" },
+  { caption: "Made into video by Grok", counter: "3720", proof: `/proof/VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM?counter=3720&epoch=${EPOCH}`, display: "/demo/display/grok-poster.jpg", video: { src: "/demo/display/grok.mp4" } },
 ];
 
 function Media({ d }: { d: Demo }) {

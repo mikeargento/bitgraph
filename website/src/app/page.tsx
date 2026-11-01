@@ -5,8 +5,8 @@ import { DemoRow, HeroVideo } from "@/components/demo-row";
 /**
  * The home page (2026-10-27; made short 2026-10-31): one claim over a proven video, then evidence rather than
  * explanation: the proven pictures, blockchain order without writes, three facts, the mechanism figure with one line, the
- * ways to adopt it. The explaining lives on
- * Technology. The claims are the Technology page's, short; each is in the v13 enclave and the verifier.
+ * ways to adopt it. The explaining lives on Technology. The claims are the Technology page's, short; each is in the v13
+ * enclave and the verifier.
  *
  * ⚠️ Claim discipline, unchanged: bound by a time and after an unpredictable value, never "created at"; it says when
  * bits were bound, not how old they are or who made them.
@@ -31,15 +31,12 @@ const FACTS = [
 ];
 
 /* Reads, never writes (2026-10-31): the block timeline binds a read of every Base and Ethereum block into the same
-   sequence, so each record sits between two public blocks with nothing written to any chain for it. The home page shows
-   the first three; Technology carries the rest. */
+   sequence, so each record sits between two public blocks with nothing written to any chain for it. Technology carries
+   three more: the hash off chain, two chains, and checking it all. */
 const NO_WRITES = [
   { title: "No wallet required.", body: "Send a hash. Get a proof. No wallet to connect, tokens to buy or balance to maintain." },
   { title: "No gas per record.", body: "Recording a file requires no blockchain transaction, so there\u2019s no gas fee for each record." },
   { title: "A bracket in seconds.", body: "Your proof arrives when the record is bound. Its time bracket closes when the next qualifying block is read\u2014usually within a few seconds." },
-  { title: "Your hash stays off chain.", body: "No file, file hash or batch root is written to a blockchain. Only the epoch ID is announced on Base, once per epoch." },
-  { title: "Two public chains.", body: "Base provides frequent blocks. Ethereum keeps providing time brackets if Base is unavailable." },
-  { title: "Independently verifiable.", body: "Check the hardware attestations, signatures and counted sequence, then confirm the bracketing blocks against the public chains." },
 ];
 
 export default function HomePage() {
@@ -67,7 +64,7 @@ export default function HomePage() {
         <h2 id="home-reads">Blockchain order, without the&nbsp;blockchain.</h2>
         <p>Every record lands between two public blocks, seconds apart, with nothing written to any chain for&nbsp;it.</p>
         <div className="sx-cards is-3">
-          {NO_WRITES.slice(0, 3).map((r) => (
+          {NO_WRITES.map((r) => (
             <article key={r.title} className="tl-card">
               <h3>{r.title}</h3>
               <p>{r.body}</p>
