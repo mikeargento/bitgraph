@@ -6043,3 +6043,6 @@ html:root:root:root:root:root body main .ft-item { margin: 0 !important; padding
 html:root:root:root:root:root body main .ft-icon { width: 100%; max-width: 64px; height: auto; display: block; overflow: visible; fill: none; stroke: var(--ink); stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-label { font-size: 15px !important; color: var(--dim) !important; text-align: center; line-height: 1.3 !important; }
 @media (max-width: 760px) { html:root:root:root:root:root body main .ft { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 32px 16px !important; } html:root:root:root:root:root body main .ft-icon { max-width: 56px; } }
+/* The heading sits right on the box (no line between them), so the box takes a heading's full gap. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short #home-any + .ft { margin-top: 40px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short #home-any + p + .ft { margin-top: 28px !important; }
