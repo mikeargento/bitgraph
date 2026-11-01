@@ -6046,3 +6046,11 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 /* The heading sits right on the box (no line between them), so the box takes a heading's full gap. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short #home-any + .ft { margin-top: 40px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short #home-any + p + .ft { margin-top: 28px !important; }
+
+/* The enclave's own light (2026-11-01): a still, soft glow of one colour used nowhere else, so the colour itself means
+   "the measured hardware". Static by rule: no motion on the site. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:not([data-theme="dark"]) { --enclave-glow: rgba(104, 86, 214, 0.24); --enclave-glow-2: rgba(104, 86, 214, 0.09); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] { --enclave-glow: rgba(124, 104, 255, 0.3); --enclave-glow-2: rgba(84, 70, 200, 0.12); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf-enclave {
+  background: radial-gradient(ellipse 70% 80% at 50% 48%, var(--enclave-glow), var(--enclave-glow-2) 55%, transparent 85%), var(--fig-enclave) !important;
+}
