@@ -2485,10 +2485,11 @@ export default function ProofPage() {
               ...(commit.slotFloor ? [{ label: "Floor at allocation", value: `Base block ${commit.slotFloor.blockNumber}` }, { label: "Floor block hash", value: commit.slotFloor.blockHash, mono: true }] : []),
               ...(commit.anchor ? [{ label: "Anchored block", value: `Ethereum block ${commit.anchor.blockNumber}`, highlight: true }, { label: "Anchored block hash", value: commit.anchor.blockHash, mono: true }] : []),
             ],
+            // In the order they come about: the epoch's key, the signature it makes, then the finished proof's hash.
             signatureRows: [
-              ...(proofHashField ? [{ label: "This BitGraph's hash", value: proofHashField, mono: true }] : []),
-              { label: "Signature", value: proof.signer.signatureB64, mono: true },
               { label: "Public key", value: proof.signer.publicKeyB64, mono: true },
+              { label: "Signature", value: proof.signer.signatureB64, mono: true },
+              ...(proofHashField ? [{ label: "This BitGraph's hash", value: proofHashField, mono: true }] : []),
             ],
             enclaveRows: [
               ...(proof.environment?.measurement ? [{ label: "PCR0 (the enclave image)", value: proof.environment.measurement, mono: true }] : []),

@@ -28,7 +28,7 @@
  * "proves when".
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { TimeChip, longDateTz, stampTz, timeTz, sameDayTz } from "@/lib/format-time";
 import type { BitGraphProof } from "@/lib/bitgraph";
 import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
@@ -442,69 +442,62 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <div className="pv-row-value">{chainName(br.chain)} block {fmtNum(br.number)}, {whenBeside(br.timestamp * 1000, attested)} <a className="pv-link" href={br.chain === "base" ? `https://basescan.org/block/${br.number}` : `https://etherscan.io/block/${br.number}`} target="_blank" rel="noopener">{br.chain === "base" ? "Basescan" : "Etherscan"}</a></div>
     </div>
   ) : null;
-  const counterCard = (
-    <>
-      {/* ── The counter: 1, the nonce itself (revealed); 2, the content's SHA-256 (the content never leaves its owner) ── */}
-      <div className="pv-receipt-group">
-        <div className="pv-section-title">Position</div>
-        {/* Four boxes, two by two on a wide screen and stacked on a phone (2026-10-29). The previous BitGraph is named
-            first, so the card reads as the chain it is (prevB64 is the key; "prevBitGraph" is the readers' name). Shown
-            by its hash: proofs are not looked up by position, so the page cannot open the BitGraph before this one;
-            whoever holds both proofs can check the link offline. */}
-        <div className="pv-counter-grid">
-          {/* Four pairs (2026-10-30): the number and when; the two counts on one line; the record before and the epoch;
-              the floor and the ceiling last. */}
-          {/* The file opens from the top of the card, right of the number, and shows directly beneath it. */}
-          <div className="pv-row pv-row-head">
-            <div className="pv-row-label">BitGraph</div>
-            <div className="pv-row-value">
-              {`#${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : ""}`}
-              {m.openUrl && <button type="button" className="pv-link-btn pv-open-link" aria-expanded={fileOpen} onClick={() => setFileOpen((v) => !v)}>{fileOpen ? "Close file" : "Open file"}</button>}
-            </div>
-          </div>
-          {fileOpen && m.openUrl && <FileInPlace url={m.openUrl} type={m.openType ?? null} name={m.fileName ?? null} />}
-          {showTime && attested !== null && <Row f={{ label: "Recorded", value: stampTz(new Date(attested)) }} />}
-          {nonceCount !== null && (
-            <Row f={{ label: `#${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} />
-          )}
-          {m.fileName && <Row f={{ label: "File", value: m.fileName }} />}
-          {contentCount !== null && (
-            <div className="pv-row">
-              <div className="pv-row-label">#{fmtNum(contentCount)}: Content hash</div>
-              <div className="pv-row-value pv-mono">{m.proof.artifact.digestB64}</div>
-            </div>
-          )}
-          {(commit as { prevB64?: string }).prevB64 && (
-            <Row f={{ label: "Previous BitGraph", value: (commit as { prevB64?: string }).prevB64!, mono: true }} />
-          )}
-          {es && (
-            <div className="pv-row">
-              <div className="pv-row-label">Genesis block {fmtNum(es.blockNumber)}</div>
-              <div className="pv-row-value pv-mono">{es.blockHash} <a className="pv-link" href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan</a></div>
-            </div>
-          )}
-          {commit.epochId && <Row f={{ label: "Epoch", value: commit.epochId, mono: true }} />}
-          {blockReadCell}
-          {floorCell}
-          {ceilingCell}
-        </div>
-      </div>
-    </>
-  );
-  /* The receipt: Position's lines, the signature, the enclave, in that order, as one list. */
+  /* The receipt in groups, each answering one question, its rows in the order things happen (2026-11-01): what this
+     BitGraph is; when, with the enclave's time between the two block reads that bracket it; the bind, the two
+     consecutive counts with nothing between them; its place in the chain; and the hardware's signature on it all. */
+  const group = (title: string, rows: ReactNode[]) => rows.some(Boolean) ? (
+    <div className="pv-receipt-group">
+      <div className="pv-section-title">{title}</div>
+      <div className="pv-counter-grid">{rows}</div>
+    </div>
+  ) : null;
+  const prevB64 = (commit as { prevB64?: string }).prevB64;
   const receipt = (
     <section className="pv-card pv-receipt">
-      {counterCard}
+      {group("This BitGraph", [
+        /* The file opens from the top of the card, right of the number, and shows directly beneath it. */
+        <div key="n" className="pv-row pv-row-head">
+          <div className="pv-row-label">BitGraph</div>
+          <div className="pv-row-value">
+            {`#${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : ""}`}
+            {m.openUrl && <button type="button" className="pv-link-btn pv-open-link" aria-expanded={fileOpen} onClick={() => setFileOpen((v) => !v)}>{fileOpen ? "Close file" : "Open file"}</button>}
+          </div>
+        </div>,
+        fileOpen && m.openUrl ? <FileInPlace key="open" url={m.openUrl} type={m.openType ?? null} name={m.fileName ?? null} /> : null,
+        m.fileName ? <Row key="file" f={{ label: "File", value: m.fileName }} /> : null,
+        blockReadCell ? <Fragment key="read">{blockReadCell}</Fragment> : null,
+      ])}
+      {group("When", [
+        floorCell ? <Fragment key="floor">{floorCell}</Fragment> : null,
+        showTime && attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
+        ceilingCell ? <Fragment key="ceil">{ceilingCell}</Fragment> : null,
+      ])}
+      {group("The bind", [
+        nonceCount !== null ? <Row key="nonce" f={{ label: `#${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} /> : null,
+        contentCount !== null ? <Row key="hash" f={{ label: `#${fmtNum(contentCount)}: Content hash`, value: m.proof.artifact.digestB64, mono: true }} /> : null,
+      ])}
+      {/* Shown by its hash: proofs are not looked up by position, so the page cannot open the BitGraph before this one;
+          whoever holds both proofs can check the link offline. */}
+      {group("Its place in line", [
+        es ? (
+          <div key="gen" className="pv-row">
+            <div className="pv-row-label">Genesis block {fmtNum(es.blockNumber)}</div>
+            <div className="pv-row-value pv-mono">{es.blockHash} <a className="pv-link" href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan</a></div>
+          </div>
+        ) : null,
+        commit.epochId ? <Row key="epoch" f={{ label: "Epoch", value: commit.epochId, mono: true }} /> : null,
+        prevB64 ? <Row key="prev" f={{ label: "Previous BitGraph", value: prevB64, mono: true }} /> : null,
+      ])}
+      {/* Attest, then sign: the enclave's image and its attestation first, then the key, the signature and the hash. */}
+      <div className="pv-receipt-group">
+        <div className="pv-section-title">{m.proof.environment?.enforcement === "measured-tee" ? "Signed by the hardware" : "Signed in software"}</div>
+        <div className="pv-counter-grid">
+          {m.enclaveRows.map((f) => <Row key={f.label} f={f} />)}
+          <EnclaveDecoded proof={m.proof} />
+          {m.signatureRows.map((f) => <Row key={f.label} f={f} />)}
+        </div>
+      </div>
       {m.c2pa?.present && <div className="pv-receipt-group"><ContentCredentials c2pa={m.c2pa} /></div>}
-      <div className="pv-receipt-group">
-        <div className="pv-section-title">Signature</div>
-        <div className="pv-counter-grid">{m.signatureRows.map((f) => <Row key={f.label} f={f} />)}</div>
-      </div>
-      <div className="pv-receipt-group">
-        <div className="pv-section-title">{m.proof.environment?.enforcement === "measured-tee" ? "Hardware enclave" : "Software"}</div>
-        <div className="pv-counter-grid">{m.enclaveRows.map((f) => <Row key={f.label} f={f} />)}</div>
-        <EnclaveDecoded proof={m.proof} />
-      </div>
       {/* The verifier's command and the JSON close the same receipt (2026-10-30): one box, every line of the record. */}
       <div className="pv-receipt-group">
         <div className="pv-section-title">Verify it yourself</div>
