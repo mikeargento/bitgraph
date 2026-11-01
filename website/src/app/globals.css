@@ -6036,3 +6036,10 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 
 /* Under the ways to adopt: the buyer's question, answered by Applications. */
 html:root:root:root:root:root body main .home-paths-more { margin-top: 28px !important; color: var(--dim); }
+
+/* Any file (2026-11-01): eight standalone line drawings, two rows of four (four rows of two on phones), each named under it. */
+html:root:root:root:root:root body main .ft { list-style: none; margin: 32px 0 0 !important; padding: 48px 32px !important; border: 1px solid var(--card-line); background: var(--card); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px 16px; }
+html:root:root:root:root:root body main .ft-item { margin: 0 !important; padding: 0 !important; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+html:root:root:root:root:root body main .ft-icon { width: 100%; max-width: 64px; height: auto; display: block; overflow: visible; fill: none; stroke: var(--ink); stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-label { font-size: 15px !important; color: var(--dim) !important; text-align: center; line-height: 1.3 !important; }
+@media (max-width: 760px) { html:root:root:root:root:root body main .ft { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 32px 16px !important; } html:root:root:root:root:root body main .ft-icon { max-width: 56px; } }
