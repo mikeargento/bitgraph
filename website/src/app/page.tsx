@@ -89,7 +89,7 @@ export default function HomePage() {
           is the recorded file itself (public/demo/bridge.png). */}
       <section className="home-section home-art" aria-labelledby="home-art">
         <p className="home-kicker">Made after its proof</p>
-        <h2 id="home-art">This picture couldn&rsquo;t exist before its position&nbsp;did.</h2>
+        <h2 id="home-art">This picture couldn&rsquo;t exist before its BitGraph&nbsp;did.</h2>
         <p>Every shape is drawn from the unpredictable value BitGraph #12,526 drew. Nobody could have made it in advance, not even us. The finished picture is BitGraph&nbsp;#12,530.</p>
         <figure className="art-figure">
           <img src="/demo/bridge.png" width={1920} height={1080} alt="The Golden Gate Bridge drawn in rectangles, from the unpredictable value of BitGraph #12,526" loading="lazy" />
