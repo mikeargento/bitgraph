@@ -37,7 +37,7 @@ const FACTS = [
 const NO_WRITES = [
   { title: "No wallet required.", body: "Send a hash. Get a proof. No wallet to connect, tokens to buy or balance to maintain." },
   { title: "No gas per record.", body: "Recording a file requires no blockchain transaction, so there\u2019s no gas fee for each record." },
-  { title: "A bracket in seconds.", body: "Your proof arrives when the record is bound. Its time bracket closes when the next qualifying block is read\u2014usually within a few seconds." },
+  { title: "A bracket in seconds.", body: "Your proof arrives when the record is bound. Its time bracket closes when the next qualifying block is read, usually within a few seconds." },
 ];
 
 export default function HomePage() {
@@ -90,7 +90,7 @@ export default function HomePage() {
       <section className="home-section home-art" aria-labelledby="home-art">
         <p className="home-kicker">Made after its proof</p>
         <h2 id="home-art">This picture couldn&rsquo;t exist before its BitGraph&nbsp;did.</h2>
-        <p>Every shape is drawn from the unpredictable value BitGraph #12,526 drew. Nobody could have made it in advance, not even us. The finished picture is BitGraph&nbsp;#12,530.</p>
+        <p>Every shape comes from a value generated inside BitGraph #12,526. Until it existed, nobody, not even us, could know the picture it would&nbsp;make.</p>
         <figure className="art-figure">
           <img src="/demo/bridge.png" width={1920} height={1080} alt="The Golden Gate Bridge drawn in rectangles, from the unpredictable value of BitGraph #12,526" loading="lazy" />
           <figcaption className="demo-links">
