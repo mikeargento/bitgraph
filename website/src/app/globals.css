@@ -5948,10 +5948,10 @@ html:root:root:root:root body main .plug-member > a { flex: none; color: var(--l
 html:root:root:root:root body main .plug-member-wait, html:root:root:root:root body main .plug-member-more { flex: none; color: var(--dim); }
 /* How it works on the home hero scrolls down to the mechanism (2026-10-31), smoothly unless reduced motion is asked
    for, landing with the section's kicker just under the sticky bar. */
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing #how { scroll-margin-top: 48px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing #how { scroll-margin-top: 40px; }
 @media (prefers-reduced-motion: no-preference) { html:has(main .is-landing) { scroll-behavior: smooth; } }
 /* The short home page (2026-10-31): three facts in a row, big figure over a short label, no boxes. */
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-top: 48px !important; padding-bottom: 48px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; border-bottom: 1px solid var(--line); padding-top: 0 !important; padding-bottom: 48px !important; margin-top: 28px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts > * + * { margin-top: 0 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-fact-big { font-size: clamp(34px, 3.5vw, 52px) !important; font-weight: 700; line-height: 1 !important; letter-spacing: -0.02em; color: var(--ink); }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-fact-small { margin-top: 12px; font-size: 15px !important; color: var(--dim); }
@@ -5991,11 +5991,11 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .hero-credit a { color: #fff !important; text-decoration: underline; text-underline-offset: 3px; }
 
 /* The short home page's rhythm (2026-10-31): 160px between sections; 120px under the video, whose edge already marks the
-   break; the facts sit 48px under the line that introduces them; a section that opens on its headline has no gap above it. */
+   break, and under the definition that follows it; a section that opens on its headline has no gap above it. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero + .home-section { padding-top: 120px !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts + .home-section { padding-top: 112px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-section > h2:first-child { margin-top: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-lead + .home-section { padding-top: 120px !important; }
 @media (max-width: 640px) {
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero + .home-section { padding-top: 72px !important; }
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts + .home-section { padding-top: 55px !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-lead + .home-section { padding-top: 72px !important; }
 }

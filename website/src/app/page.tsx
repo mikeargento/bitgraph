@@ -3,8 +3,8 @@ import { MechanismFigure } from "@/components/mechanism-figure";
 import { DemoRow, HeroVideo } from "@/components/demo-row";
 
 /**
- * The home page (2026-10-27; made short 2026-10-31): one claim over a proven video, then evidence rather than
- * explanation: the proven pictures, blockchain order without writes, three facts, the mechanism figure with one line, the
+ * The home page (2026-10-27; made short 2026-10-31): one claim over a proven video and the one-line definition, then
+ * evidence rather than explanation: the proven pictures, blockchain order without writes, three facts, the mechanism figure with one line, the
  * ways to adopt it. The explaining lives on Technology. The claims are the Technology page's, short; each is in the v13
  * enclave and the verifier.
  *
@@ -53,7 +53,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="how" className="home-section" aria-labelledby="home-demo">
+      <section id="how" className="home-section home-lead" aria-label="What a BitGraph is">
+        <p className="sx-sub">A portable proof of where your record stands in a counted sequence. Anyone can check&nbsp;it, offline.</p>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-demo">
         <p className="home-kicker">Three files, three proofs</p>
         <h2 id="home-demo">Same picture. Different bytes. Different&nbsp;proofs.</h2>
         <p>Each proof covers its file&rsquo;s exact bytes. Open one and check it yourself.</p>
@@ -74,14 +78,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="home-section home-lead" aria-label="What a BitGraph is">
-        <p className="sx-sub">A portable proof of where your record stands in a counted sequence. Anyone can check&nbsp;it, offline.</p>
-      </section>
-
-      <section className="home-section home-facts" aria-label="In numbers">
-        {FACTS.map((f) => (
-          <div key={f.small} className="home-fact"><div className="home-fact-big">{f.big}</div><div className="home-fact-small">{f.small}</div></div>
-        ))}
+      <section className="home-section home-facts-sec" aria-labelledby="home-facts">
+        <p className="home-kicker" id="home-facts">By the numbers</p>
+        <div className="home-facts">
+          {FACTS.map((f) => (
+            <div key={f.small} className="home-fact"><div className="home-fact-big">{f.big}</div><div className="home-fact-small">{f.small}</div></div>
+          ))}
+        </div>
       </section>
 
       <section className="home-section" aria-labelledby="home-mech">
