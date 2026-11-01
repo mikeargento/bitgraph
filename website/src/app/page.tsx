@@ -23,11 +23,11 @@ export const metadata: Metadata = {
 };
 
 /* Facts about the system itself, each checkable, not live counts: what a record costs on chain, what verifying needs,
-   and the usual window between the two block reads around a record. */
+   and how long a proof takes to come back (it waits on no block). */
 const FACTS = [
   { big: "$0", small: "transaction fees per record" },
   { big: "0", small: "servers needed to verify, ours or yours" },
-  { big: "\u2248\u20092\u2009s", small: "public-time window, on Base" },
+  { big: "<\u20091\u2009s", small: "to get a proof back" },
 ];
 
 /* Reads, never writes (2026-10-31): the block timeline binds a read of every Base and Ethereum block into the same
