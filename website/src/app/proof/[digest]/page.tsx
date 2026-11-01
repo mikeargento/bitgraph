@@ -68,6 +68,7 @@ import { toUrlSafeB64, fromUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf as treeMemberOf, rootTextBytes as treeRootTextBytes } from "@/lib/tree-member";
 import { Shell } from "./proof-skeleton";
 import { Wait } from "@/components/wait";
+import type { C2PAReadResult } from "@/lib/c2pa-reader";
 // QR code removed — replaced with Ethereum Seal card
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
@@ -366,6 +367,18 @@ export default function ProofPage() {
      emptiness is not a claim about these bytes. */
   const [retired, setRetired] = useState(false);
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer } | null>(null);
+  // The file in hand's Content Credentials (C2PA), read from the file itself once it is here: what its signed manifest
+  // says, shown beside the proof. The reader is a large toolkit, so it loads only when there is a file to read.
+  const [fileC2pa, setFileC2pa] = useState<C2PAReadResult | null>(null);
+  useEffect(() => {
+    if (!cachedFile) { setFileC2pa(null); return; }
+    let gone = false;
+    void import("@/lib/c2pa-reader")
+      .then(({ readC2PA }) => readC2PA(new Blob([new Uint8Array(cachedFile.data)])))
+      .then((r) => { if (!gone) setFileC2pa(r?.present ? r : null); })
+      .catch(() => { if (!gone) setFileC2pa(null); });
+    return () => { gone = true; };
+  }, [cachedFile]);
   const router = useRouter();
   // the shown photo's full-size Open link, set by its card, shown beside the downloads
   const [photoOpenUrl, setPhotoOpenUrl] = useState<string | null>(null);
@@ -2429,6 +2442,7 @@ export default function ProofPage() {
             openUrl: fileOpenUrl ?? photoOpenUrl,
             openType: fileOpenUrl ? fileOpenType : photoOpenUrl ? "image/*" : null,
             fileName: cachedFile?.name ?? null,
+            c2pa: fileC2pa,
             // the content box's pickers are on the page: the receipt's second button can open them
             canConnect: !isEth && !isInterval && !epochStart && !cachedFile && hosted.phase !== "matched",
             exportName,

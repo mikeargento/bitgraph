@@ -5950,3 +5950,5 @@ html:root:root:root:root body main .plug-member-wait, html:root:root:root:root b
    for, landing with the section's kicker just under the sticky bar. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing #how { scroll-margin-top: 16px; }
 @media (prefers-reduced-motion: no-preference) { html:has(main .is-landing) { scroll-behavior: smooth; } }
+/* Content Credentials sit in the proof receipt as one more group (restored 2026-10-31): no extra rule or space above. */
+html:root:root:root:root:root:root body main .pv-c2pa { margin-top: 0; padding-top: 0; border-top: 0; }
