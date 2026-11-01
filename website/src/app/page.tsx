@@ -84,6 +84,22 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Made after its proof (2026-10-31): the bridge is drawn (bitgraph-art/19) from the nonce the enclave drew for BitGraph
+          #12,526, and the finished PNG is recorded as #12,530. Redrawing from that nonce gives the same pixels. The image shown
+          is the recorded file itself (public/demo/bridge.png). */}
+      <section className="home-section home-art" aria-labelledby="home-art">
+        <p className="home-kicker">Made after its proof</p>
+        <h2 id="home-art">This picture couldn&rsquo;t exist before its position&nbsp;did.</h2>
+        <p>Every shape is drawn from the unpredictable value BitGraph #12,526 drew. Nobody could have made it in advance, not even us. The finished picture is BitGraph&nbsp;#12,530.</p>
+        <figure className="art-figure">
+          <img src="/demo/bridge.png" width={1920} height={1080} alt="The Golden Gate Bridge drawn in rectangles, from the unpredictable value of BitGraph #12,526" loading="lazy" />
+          <figcaption className="demo-links">
+            <a href="/proof/STRmGI7e-mk_HXjr7DREuTpPgWjjdmLQXAkZyEg_1ys?counter=12526&amp;epoch=HVhtPS0i7hkDWO6zI_7UJG1VLekCC3ouJaYomAqeSPc">#12,526, the position</a>
+            <a href="/proof/E301gTl5CQkxYjhCsn8RZJcv26nR3EeWMyohutOe4F4?counter=12530&amp;epoch=HVhtPS0i7hkDWO6zI_7UJG1VLekCC3ouJaYomAqeSPc">#12,530, the picture</a>
+          </figcaption>
+        </figure>
+      </section>
+
       <section className="home-section" aria-labelledby="home-mech">
         <p className="home-kicker">The mechanism</p>
         <h2 id="home-mech">The position comes first.</h2>

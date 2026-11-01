@@ -6001,3 +6001,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 }
 /* The definition under the home headline, on the video (2026-10-31): light like the headline, a size under it. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .hero-sub { color: rgba(255, 255, 255, 0.88) !important; font-size: clamp(19px, 2vw, 24px) !important; line-height: 1.4 !important; margin-top: 18px !important; max-width: 640px; text-align: center; }
+/* Made after its proof, on the home page (2026-10-31): the picture full width under its line, two links under it. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .art-figure { margin: 40px 0 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .art-figure img { display: block; width: 100%; height: auto; border: 1px solid var(--line); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .art-figure figcaption { margin-top: 14px; }

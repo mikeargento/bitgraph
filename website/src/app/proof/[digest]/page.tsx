@@ -134,6 +134,8 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   "-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA": { path: "/demo/chatgpt.png", name: "ChatGPT Image.png", mime: "image/png" },
   "gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8": { path: "/demo/google.jpeg", name: "Gemini Image.jpeg", mime: "image/jpeg" },
   "VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM": { path: "/demo/grok.mp4", name: "grok-video.mp4", mime: "video/mp4" },
+  // The home page's made-after picture (2026-10-31): the bridge drawn from #12,526's nonce, recorded as #12,530.
+  "E301gTl5CQkxYjhCsn8RZJcv26nR3EeWMyohutOe4F4": { path: "/demo/bridge.png", name: "bitgraph-12530.png", mime: "image/png" },
   // The Evaluate page's sample (2026-10-27): a ChatGPT image with its OpenAI-signed Content Credentials, bound with them
   // as one tree (BitGraph #26 of epoch NihRUA…). Hosted so its proof page shows the picture to every visitor.
   "MXkV_2WRyBSlQV_BdOio2gc1NSrd2Wxl8zW0OrACCDk": { path: "/evaluate/chatgpt-image.png", name: "chatgpt-image.png", mime: "image/png" },
