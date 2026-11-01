@@ -37,7 +37,7 @@ export default function IntegratePage() {
 
       <section className="home-section" aria-labelledby="i-intro">
         <p className="home-kicker">Integrate</p>
-        <h2 id="i-intro">Send a SHA-256. Get a proof.</h2>
+        <h2 id="i-intro">Send a <span className="term">SHA-256</span>. Get a proof.</h2>
         <p>
           Your system hashes a file or record locally, sends its SHA-256 digest, and stores the returned proof alongside the
           original. Only the digest is sent to BitGraph. The proof can be verified offline with the open-source verifier.
