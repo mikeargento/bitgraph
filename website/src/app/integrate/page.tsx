@@ -150,6 +150,7 @@ r.treeMember     // { index, files } for an item of a collection`}</Code>
             <div className="sx-cta">
               <a className="bg-action-link is-make" href="/evaluate">Evaluate the technology</a>
               <a className="bg-action-link" href="/licensing#lic-form">Request an API key</a>
+              <a className="bg-action-link" href="/tools">Read the docs</a>
             </div>
           </section>
         </div>

@@ -320,24 +320,25 @@ export default function TechnologyPage() {
 
           <section className="home-section" aria-labelledby="t-compare">
             <p className="home-kicker">Comparisons</p>
-            <h2 id="t-compare">Where it differs, and where it binds in.</h2>
-            <p>
-              These systems answer different questions, and most products combine several. The aim here is the difference in what is
-              enforced, not a ranking.
-            </p>
+            <h2 id="t-compare">How BitGraph fits.</h2>
+            <p>These systems provide different kinds of evidence and can be used together.</p>
             <div className="sx-table-wrap">
               <table className="sx-table">
-                <thead><tr><th>System</th><th>What it proves</th><th>What you trust</th><th>Where BitGraph differs or fits</th></tr></thead>
+                <thead><tr><th>System</th><th>What it establishes</th><th>What you trust</th><th>How BitGraph fits</th></tr></thead>
                 <tbody>
-                  <tr><td>Digital signature</td><td>A key holder signed these bytes.</td><td>The key holder, and whoever holds the key.</td><td>Says nothing about where in any sequence, or when. A BitGraph is a signature made by attested hardware at a counted position.</td></tr>
-                  <tr><td>Timestamp authority (RFC 3161)</td><td>A TSA signed this hash with this time.</td><td>The TSA&rsquo;s key, clock and honesty; it could issue a token with any time.</td><td>BitGraph&rsquo;s issuer is measured hardware whose code is published, and its records are counted and chained. The time it carries is the hardware attestation&rsquo;s, a layer. A TSA token bound to the position becomes another layer on it.</td></tr>
-                  <tr><td>Transparency log (CT, Sigstore, SCITT)</td><td>An entry is included in an append-only log; consistency proofs expose rewrites to anyone monitoring.</td><td>The log operator&rsquo;s signing, plus monitors and witnesses.</td><td>The log proves inclusion after the fact; BitGraph constrains the issuing step itself inside an enclave. A BitGraph proof can itself be a log entry.</td></tr>
-                  <tr><td>Blockchain anchoring</td><td>A hash existed by a block.</td><td>The chain&rsquo;s consensus.</td><td>Block time is coarse and each anchor costs a transaction. BitGraph proves each record at once and offline; a chain is one trust layer it can bind to, and Base is the reference one.</td></tr>
-                  <tr><td>Content Credentials (C2PA)</td><td>A signer made these assertions about an asset.</td><td>The signer&rsquo;s certificate, and its clock or TSA.</td><td>Complementary: binding the asset and its manifest gives the credential an independent recording.</td></tr>
-                  <tr><td>Remote attestation alone</td><td>Certain code is running in an enclave.</td><td>The hardware vendor.</td><td>Attestation is the root; BitGraph is a specific mechanism on it that produces counted, chained, per-record evidence.</td></tr>
+                  <tr><td><a href="https://csrc.nist.gov/pubs/fips/186-5/final" target="_blank" rel="noopener">Digital signature</a></td><td>These bytes were signed with a particular private key.</td><td>The key&rsquo;s security and any claimed link between that key and an identity.</td><td>BitGraph adds a counted position enforced by measured enclave code, with hardware attestation bound to each proof.</td></tr>
+                  <tr><td><a href="https://www.rfc-editor.org/rfc/rfc3161.html" target="_blank" rel="noopener">Timestamp authority (RFC&nbsp;3161)</a></td><td>A TSA issued a signed token associating a digest with a stated time.</td><td>The TSA&rsquo;s signing key, time source and operating practices.</td><td>BitGraph provides counted, chained records and carries Nitro&rsquo;s signed attestation time. A TSA token can be bound as additional time evidence.</td></tr>
+                  <tr><td><a href="https://docs.sigstore.dev/logging/overview/" target="_blank" rel="noopener">Transparency log (CT, Sigstore&rsquo;s Rekor, SCITT)</a></td><td>An entry is included in a signed log state. Consistency proofs allow checks of append-only growth.</td><td>The log&rsquo;s signing key, consistency checks, and the monitors or witnesses used to detect conflicting views.</td><td>BitGraph enforces each binding inside an attested enclave. Its proofs can also be published in a transparency log.</td></tr>
+                  <tr><td><a href="https://opentimestamps.org/" target="_blank" rel="noopener">Blockchain anchoring</a></td><td>A digest, directly or through a batch commitment, is linked to a commitment included in a particular block.</td><td>The chain&rsquo;s consensus, finality and rules for interpreting block time.</td><td>BitGraph issues proofs without a blockchain transaction per record. Its service binds public block observations into the sequence as additional time evidence.</td></tr>
+                  <tr><td><a href="https://spec.c2pa.org/specifications/specifications/2.5/specs/C2PA_Specification.html" target="_blank" rel="noopener">Content Credentials (C2PA)</a></td><td>A signer signed assertions cryptographically bound to an asset.</td><td>The signer, certificate trust chain and any timestamp authority used.</td><td>BitGraph can bind the asset and its manifest to a counted position, adding independently verifiable recording evidence.</td></tr>
+                  <tr><td><a href="https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html" target="_blank" rel="noopener">Remote attestation</a></td><td>A platform signed evidence identifying measured software and associated attested data.</td><td>The platform&rsquo;s security and the hardware vendor&rsquo;s attestation root.</td><td>BitGraph uses attestation for a specific recording protocol: atomic binding, fresh nonces, consecutive counts and linked proofs.</td></tr>
                 </tbody>
               </table>
             </div>
+            <p className="sx-fine">
+              All comparisons assume sound cryptography and correct verification. BitGraph&rsquo;s own trust assumptions include AWS
+              Nitro, the accepted enclave build and the cryptography used in its proofs.
+            </p>
           </section>
 
           <section className="home-section" aria-labelledby="t-next">

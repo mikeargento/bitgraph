@@ -128,6 +128,7 @@ export default function HomePage() {
             <p>Engineering work for your workflow.</p>
           </a>
         </div>
+        <p className="home-paths-more">Not sure where it fits your product? <a href="/applications">See the products it sits&nbsp;under</a>.</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-end">

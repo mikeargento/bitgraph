@@ -6033,3 +6033,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 
 /* A term that never breaks at its hyphen, on any screen (unlike .nb, which lets go on phones). */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .term { white-space: nowrap !important; font: inherit !important; letter-spacing: inherit !important; color: inherit !important; }
+
+/* Under the ways to adopt: the buyer's question, answered by Applications. */
+html:root:root:root:root:root body main .home-paths-more { margin-top: 28px !important; color: var(--dim); }

@@ -19,8 +19,8 @@ export default function LicensingPage() {
         <p className="home-kicker">Licensing</p>
         <h2 id="lic-h">Keep your product. Upgrade your&nbsp;proof.</h2>
         <p>
-          BitGraph adds attested recording to products for provenance, content credentials, trusted capture, timestamping and
-          audit trails. You keep your product, your customers and your brand. Your system submits a digest and receives a proof
+          BitGraph adds attested recording to <a href="/applications">products for provenance, content credentials, trusted
+          capture, timestamping and audit trails</a>. You keep your product, your customers and your brand. Your system submits a digest and receives a proof
           that travels with your records and can be verified offline.
         </p>
         <p>

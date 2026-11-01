@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 
 /**
  * Applications (2026-10-27): where the recording step fits in products that already exist, by category. These are
- * integration patterns, not partnerships: no company is named. Watermark discovery and Content Credentials in one tree
- * run on this site today (Check, Make); the others are designs on the same interface.
+ * integration patterns, not partnerships: no company is named. Finding the original by looks, and Content Credentials
+ * recorded with their file, run on this site today (Check, Make); the others are designs on the same interface.
  */
 export const metadata: Metadata = {
   title: "Applications",
@@ -17,9 +17,9 @@ const PATTERNS: Pattern[] = [
     id: "c2pa", label: "Content Credentials", title: "Signed history, plus an attested recording.",
     today: "A C2PA manifest carries signed assertions about an asset: who signed it, what tool made it, the edits.",
     adds: "An independent record that these exact bytes, asset and manifest together, were bound at a counted position, right after a value nobody could predict. The credential's own clock becomes one trust layer on that position, and a public witness another.",
-    binds: "The asset's SHA-256 and the manifest store's, as two leaves of one tree, bound as one BitGraph. Nothing in the asset changes, so the manifest's own hashes stay valid.",
-    evidence: "A BitGraph proof bound to the asset and its manifest, kept with them or referenced from your system; each leaf checks on its own.",
-    live: { href: "/evaluate#e-ai", text: "a ChatGPT image and its OpenAI-signed credential, bound together and verifiable offline" },
+    binds: "The asset's SHA-256, as it is. The manifest travels inside the file, so binding the file binds both, and nothing in the asset changes, so the manifest's own hashes stay valid.",
+    evidence: "A BitGraph proof of the asset, credential included, kept with it or referenced from your system.",
+    live: { href: "/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=2124&epoch=HVhtPS0i7hkDWO6zI_7UJG1VLekCC3ouJaYomAqeSPc", text: "a ChatGPT image recorded as is, its OpenAI-signed credential read from the file on its proof page" },
   },
   {
     id: "watermark", label: "Finding the original", title: "A copy finds the record. The record proves the bytes.",

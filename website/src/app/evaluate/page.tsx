@@ -63,38 +63,8 @@ export default function EvaluatePage() {
         <p className="sx-fine">Disconnect from the network after the first run, which installs the verifier; it still checks.</p>
       </section>
 
-      <section className="home-section" aria-labelledby="e-ai">
-        <p className="home-kicker">Step 2</p>
-        <h2 id="e-ai">A generated image, with its Content Credentials.</h2>
-        <p>
-          An image made with ChatGPT carries a C2PA manifest signed by OpenAI, naming the tool that made it. Dropped on Make, the image
-          and its manifest became two leaves of one tree, bound in one action: the credential now has an independent recording of where
-          these exact bytes, picture and manifest together, were bound in a counted sequence.
-        </p>
-        <figure className="sx-sample">
-          <img src="/evaluate/chatgpt-image-preview.jpg" alt="The sample image, generated with ChatGPT (a preview; the proof covers the PNG below)" width={1440} height={960} loading="lazy" />
-        </figure>
-        <ul className="docs-list">
-          <li><strong>The image:</strong> <a href="/evaluate/chatgpt-image.png" download>chatgpt-image.png</a> and <a href="/evaluate/chatgpt-image.png.bitgraph.json" download>its proof</a>, file 2 of the tree.</li>
-          <li><strong>Its manifest store,</strong> the exact C2PA bytes inside the PNG: <a href="/evaluate/chatgpt-image.png.c2pa" download>chatgpt-image.png.c2pa</a> and <a href="/evaluate/chatgpt-image.png.c2pa.bitgraph.json" download>its proof</a>, file 3 of the same tree.</li>
-          <li><strong>Its proof page:</strong> <a href="/proof/MXkV_2WRyBSlQV_BdOio2gc1NSrd2Wxl8zW0OrACCDk?counter=26&amp;epoch=NihRUA1VRsV4cqmwWDO_4viNR7YhJRdCb75lGASeV3E">BitGraph #26</a>.</li>
-        </ul>
-        <Code>{`${V} chatgpt-image.png --proof chatgpt-image.png.bitgraph.json
-${V} chatgpt-image.png.c2pa --proof chatgpt-image.png.c2pa.bitgraph.json`}</Code>
-        <Code>{`TRUE
-  These exact bytes are file 2 of a tree of 4, whose root was bound by BitGraph's published enclave
-  image v13, as the AWS Nitro hardware attests, at 2026-10-28T03:09:03.881Z.
-TRUE
-  These exact bytes are file 3 of a tree of 4, … at 2026-10-28T03:09:03.881Z.`}</Code>
-        <p className="sx-fine">
-          The two proofs share one root and one position. Check the credential itself, OpenAI&rsquo;s signature and the tool it
-          names, with any C2PA tool such as <span className="nb"><code>c2patool</code>.</span> The two answers are independent: OpenAI&rsquo;s credential says what
-          made the image; BitGraph says where in its sequence these exact bytes were bound; the hardware attestation adds when.
-        </p>
-      </section>
-
       <section className="home-section" aria-labelledby="e-2">
-        <p className="home-kicker">Step 3</p>
+        <p className="home-kicker">Step 2</p>
         <h2 id="e-2">Try to break it.</h2>
         <p>Edit the proof or the file and verify again. Each change fails, for its own reason, with exit code 2.</p>
         <div className="sx-table-wrap">
@@ -109,7 +79,7 @@ ${V} sample.txt --proof moved.json`}</Code>
       </section>
 
       <section className="home-section" aria-labelledby="e-3">
-        <p className="home-kicker">Step 4</p>
+        <p className="home-kicker">Step 3</p>
         <h2 id="e-3">Make your own BitGraph.</h2>
         <p>Bind any file on the live service. It is hashed on your machine and only the digest is sent; the proof is saved beside it.</p>
         <Code>{`npx -p @mikeargento/bitgraph-sdk bitgraph make yourfile
@@ -121,7 +91,7 @@ ${V} yourfile --proof yourfile.bitgraph.json`}</Code>
       </section>
 
       <section className="home-section" aria-labelledby="e-4">
-        <p className="home-kicker">Step 5</p>
+        <p className="home-kicker">Step 4</p>
         <h2 id="e-4">Rebuild the enclave&rsquo;s measurement.</h2>
         <p>
           The PCR0 every proof is checked against comes from public source. Build it twice from a clean state and compare; Nitro hardware
@@ -136,7 +106,7 @@ ${V} yourfile --proof yourfile.bitgraph.json`}</Code>
       </section>
 
       <section className="home-section" aria-labelledby="e-5">
-        <p className="home-kicker">Step 6</p>
+        <p className="home-kicker">Step 5</p>
         <h2 id="e-5">Run the tests.</h2>
         <Code>{`npm install
 npm test --workspace=packages/verify`}</Code>
@@ -151,7 +121,7 @@ npm test --workspace=packages/verify`}</Code>
       <section className="home-section" aria-labelledby="e-6">
         <div className="sx-split">
           <div>
-            <p className="home-kicker">Step 7</p>
+            <p className="home-kicker">Step 6</p>
             <h2 id="e-6">Go further with us.</h2>
             <p>
               For a deeper evaluation: a proof-of-concept on your own data, keyed access above the public limits, the threat model in
