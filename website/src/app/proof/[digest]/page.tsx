@@ -2448,6 +2448,7 @@ export default function ProofPage() {
             exportAction,
             openUrl: fileOpenUrl ?? photoOpenUrl,
             openType: fileOpenUrl ? fileOpenType : photoOpenUrl ? "image/*" : null,
+            openSize: cachedFile ? cachedFile.data.byteLength : null,
             fileName: cachedFile?.name ?? null,
             c2pa: fileC2pa,
             // the content box's pickers are on the page: the receipt's second button can open them

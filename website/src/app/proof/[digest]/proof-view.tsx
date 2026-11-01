@@ -127,6 +127,8 @@ export interface ProofViewModel {
   openUrl?: string | null;
   /** The open file's type (from its name), so it shows in place: a picture, a PDF, text, video or audio. */
   openType?: string | null;
+  /** The file's size in bytes, when it is in hand: past a size it opens only on request. */
+  openSize?: number | null;
   /** The file in hand, by name (2026-10-30): a receipt line beside its hash. */
   fileName?: string | null;
   /** The file in hand's Content Credentials (C2PA), read from the file itself: what its signed manifest says. */
@@ -335,8 +337,8 @@ function FileInPlace({ url, type, name }: { url: string; type: string | null; na
   if (t.startsWith("image/")) body = <img src={url} alt={name ?? "The file"} style={{ display: "block", maxWidth: "100%", maxHeight: "75vh", margin: "0 auto" }} />;
   else if (t === "application/pdf") body = <iframe src={url} title={name ?? "The file"} style={frame} />;
   else if (t === "text/html") body = <iframe src={url} title={name ?? "The file"} sandbox="" style={{ ...frame, background: "#fff" }} />;
-  else if (t.startsWith("video/")) body = <video src={url} controls style={{ display: "block", maxWidth: "100%", maxHeight: "75vh", margin: "0 auto" }} />;
-  else if (t.startsWith("audio/")) body = <audio src={url} controls style={{ width: "100%" }} />;
+  else if (t.startsWith("video/")) body = <video src={url} controls preload="metadata" style={{ display: "block", maxWidth: "100%", maxHeight: "75vh", margin: "0 auto" }} />;
+  else if (t.startsWith("audio/")) body = <audio src={url} controls preload="metadata" style={{ width: "100%" }} />;
   else if (isText) body = <pre className="pv-mono" style={{ margin: 0, maxHeight: "60vh", overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 13 }}>{text ?? "Reading the file\u2026"}</pre>;
   else body = <div className="pv-note">This kind of file does not show in the browser. <a className="pv-link" href={url} download={name ?? undefined}>Download it</a>.</div>;
   return (
@@ -348,8 +350,20 @@ function FileInPlace({ url, type, name }: { url: string; type: string | null; na
   );
 }
 
+/* A file in hand shows open (2026-11-01) when the browser can display it and it is not large; the rest wait for Open
+   file. Media never plays on its own: the player shows, the visitor presses play. */
+const OPEN_BY_DEFAULT_MAX = 25 * 1024 * 1024;
+function showsOpen(type: string | null | undefined, size: number | null | undefined): boolean {
+  const t = type ?? "";
+  const displayable = t.startsWith("image/") || t.startsWith("video/") || t.startsWith("audio/") || t === "application/pdf" || t.startsWith("text/plain") || t === "application/json";
+  return displayable && (size == null || size <= OPEN_BY_DEFAULT_MAX);
+}
+
 export function ProofView({ m }: { m: ProofViewModel }) {
-  const [fileOpen, setFileOpen] = useState(false);
+  // The visitor's own choice wins once made; until then the file follows showsOpen.
+  const [fileChoice, setFileChoice] = useState<boolean | null>(null);
+  const fileOpen = fileChoice ?? showsOpen(m.openType, m.openSize);
+  const setFileOpen = (f: (v: boolean) => boolean) => setFileChoice(f(fileOpen));
   /* Stripped to the primitive (2026-10-17), with the Base floor and ceiling back (2026-10-18). Anchors, export
      packages and the position lists stay off the page; every old proof still opens, and all of it is in the raw JSON. */
   // Where it sits in time, on Base (2026-10-18: the Base write is back beside the floor and ceiling times, as before):
