@@ -22,13 +22,12 @@ export const metadata: Metadata = {
   twitter: { title: "Order before time.", description: DESCRIPTION },
 };
 
-/* Facts about the system itself, each checkable, not live counts: what a record costs on chain, what verifying needs,
-   and how long a proof takes to come back (it waits on no block; 0.47 s and 0.41 s from hash to proof, measured on the live
-   site on 2026-10-31); and how many files one proof holds (the million-file run on Technology, not a limit). */
+/* Facts about the system itself, each checkable, not live counts: how many files one proof holds (the million-file run
+   on Technology, not a limit), what a record costs on chain, and how long a proof takes to come back (it waits on no
+   block; 0.47 s, 0.41 s and 0.34 s from hash to proof, measured on the live site on 2026-10-31). */
 const FACTS = [
   { big: "1,000,000+", small: "files in one proof" },
   { big: "$0", small: "transaction fees per record" },
-  { big: "0", small: "servers needed to verify, ours or yours" },
   { big: "\u2248\u20090\u2009s", small: "to get a proof back: under 0.5\u2009s, measured" },
 ];
 
