@@ -6054,3 +6054,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .mf-enclave {
   background: radial-gradient(ellipse 70% 80% at 50% 48%, var(--enclave-glow), var(--enclave-glow-2) 55%, transparent 85%), var(--fig-enclave) !important;
 }
+/* Proof rows stopped copying on click (2026-10-30); the pointer stayed and promised a click that does nothing. Links and
+   buttons inside a row keep their own pointer. */
+html:root:root:root:root body .pv-row { cursor: auto; }
