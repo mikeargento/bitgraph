@@ -57,7 +57,7 @@ export default function HomePage() {
       <section id="how" className="home-section" aria-labelledby="home-demo">
         <p className="home-kicker">Three files, three proofs</p>
         <h2 id="home-demo">Same picture. Different bytes. Different&nbsp;proofs.</h2>
-        <p>Each proof covers its file&rsquo;s exact bytes. Download one and check it yourself.</p>
+        <p>Each proof covers its file&rsquo;s exact bytes. Open one and check it yourself.</p>
         <DemoRow />
       </section>
 

@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
  * Three files, three BitGraphs (2026-10-31): one picture made with ChatGPT, copied by Google, then turned into a video by
  * Grok. They look alike and are different bytes, so each has its own proof. The video plays behind the home hero from
  * the first moment, captioned with its own proof; the two pictures sit side by side further down. The page shows light
- * display copies (resized pictures, a re-encoded silent video); each download is the exact file its proof covers
+ * display copies (resized pictures, a re-encoded silent video); each proof page shows the exact file its proof covers
  * (public/demo/, unchanged from the bytes recorded).
  *
  * The captions say who made each file. That is our caption, not a claim of the proof: a BitGraph proves where the
@@ -56,7 +56,6 @@ function Tile({ d }: { d: Demo }) {
         <div className="demo-num">BitGraph #{Number(d.counter).toLocaleString("en-US")}</div>
         <div className="demo-links">
           <a href={d.proof}>View proof</a>
-          <a href={d.file} download={d.fileName}>Download file</a>
         </div>
       </figcaption>
     </figure>
