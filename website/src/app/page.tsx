@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 const FACTS = [
   { big: "$0", small: "transaction fees per record" },
   { big: "0", small: "servers needed to verify, ours or yours" },
-  { big: "<\u20091\u2009s", small: "to get a proof back" },
+  { big: "\u2248\u20091\u2009s", small: "to get a proof back" },
 ];
 
 /* Reads, never writes (2026-10-31): the block timeline binds a read of every Base and Ethereum block into the same
