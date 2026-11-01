@@ -56,8 +56,8 @@ export default function HomePage() {
 
       <section id="how" className="home-section" aria-labelledby="home-demo">
         <p className="home-kicker">Real files, real proofs</p>
-        <h2 id="home-demo">Same picture. Different bytes. Different&nbsp;proof.</h2>
-        <p>Each proof covers its file&rsquo;s exact bytes. Open one and check it yourself.</p>
+        <h2 id="home-demo">Same picture. Different bytes. Different&nbsp;proofs.</h2>
+        <p>What you see isn&rsquo;t proof. Each BitGraph binds a file&rsquo;s exact bytes to a verifiable place in line. Open either proof and check for&nbsp;yourself.</p>
         <DemoRow />
       </section>
 
