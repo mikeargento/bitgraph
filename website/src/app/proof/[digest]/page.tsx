@@ -129,8 +129,9 @@ const staged = (text: string) => <>{text}</>; // approved 2026-10-11; was red wh
 /** A hosted original this large or smaller is fetched and shown unasked (2026-10-29); above it, the strip offers the download. */
 
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
-  // The home page's three files, three proofs (2026-10-31): a picture made with ChatGPT (#2,124), Google's copy of it
-  // (#3,452) and Grok's video of it (#3,720), epoch HVhtPS…. Hosted so each proof page shows its file to every visitor.
+  // The home page's three files, three proofs: a picture made with ChatGPT, Google's copy of it and Grok's video of it,
+  // first recorded 2026-10-31 (#2,124, #3,452, #3,720, epoch HVhtPS…) and again 2026-11-02 with Base writes (#8, #10,
+  // #12, epoch KmoE…). Hosted so each proof page shows its file to every visitor.
   "-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA": { path: "/demo/chatgpt.png", name: "ChatGPT Image.png", mime: "image/png" },
   "gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8": { path: "/demo/google.jpeg", name: "Gemini Image.jpeg", mime: "image/jpeg" },
   "VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM": { path: "/demo/grok.mp4", name: "grok-video.mp4", mime: "video/mp4" },
