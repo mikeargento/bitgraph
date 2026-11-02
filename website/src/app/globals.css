@@ -6107,10 +6107,19 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* The proof page's text links and link-style buttons (Basescan, the downloads, Close file) take the same faint underline. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main :is(a.pv-link, .pv-link-btn:not(:disabled)) { text-decoration-line: underline !important; text-decoration-color: #4d4d4d !important; text-decoration-thickness: 1px !important; text-underline-offset: 3px !important; }
 @media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main :is(a.pv-link, .pv-link-btn:not(:disabled)):hover { text-decoration-color: currentColor !important; } }
-/* Blue means the trusted hardware (2026-11-02): the enclave's border and its label in Vercel's blue, here and in the
-   Technology figures. The boxes inside keep the site's own lines. */
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.mf-enclave, .pf-enclave, .pf-f-enclave) { border-color: #0a72ef !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.mf-label, .pf-enclave-label) { color: #3291ff !important; }
-/* The drop box takes the same blue only while a file is over it, the moment it is about to go to the enclave; a plain
-   mouse hover keeps the site's grey. */
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .db-zone.db-zone.db-zone[data-over="1"] { border-color: #0a72ef !important; background: rgba(10, 114, 239, 0.06) !important; }
+/* Home reads left-aligned throughout (2026-11-02): the hero's headline, line and buttons start at the left edge like
+   every section below. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero { align-items: flex-start !important; text-align: left !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero h1 { text-align: left !important; max-width: 920px; font-size: clamp(32px, 4.4vw, 56px) !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .hero-sub { text-align: left !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .sx-cta { justify-content: flex-start !important; }
+/* No video behind the hero (2026-11-02): the hero is text on black, sized to its content; the demos are three up. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero { min-height: 0 !important; padding: 120px 0 96px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 760px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-row { grid-template-columns: 1fr; } html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero { padding: 64px 0 48px !important; } }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero + .home-section { padding-top: 48px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-tile.is-video { grid-column: auto; }
+/* Home spacing (2026-11-02): the hero's line sits clear of a two-line headline, and the mechanism figure ends its section
+   like any other last element, so every section break is the same 160px. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .hero-sub { margin-top: 28px !important; font-size: 20px !important; line-height: 1.5 !important; max-width: 600px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-section > .mf:last-child { margin-bottom: 0 !important; }

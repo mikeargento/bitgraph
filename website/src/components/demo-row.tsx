@@ -25,6 +25,8 @@ export const DEMOS: Demo[] = [
 ];
 
 function Media({ d }: { d: Demo }) {
+  // The video plays muted on a loop in its tile (2026-11-02: moved out of the hero), its poster as the still.
+  if (d.video) return <video className="demo-media" src={d.video.src} poster={d.display} autoPlay loop muted playsInline aria-label={d.caption} />;
   return <img className="demo-media" src={d.display} alt={d.caption} loading="lazy" />;
 }
 
@@ -67,7 +69,7 @@ function Tile({ d }: { d: Demo }) {
 export function DemoRow() {
   return (
     <div className="demo-row">
-      {DEMOS.filter((d) => !d.video).map((d) => <Tile key={d.counter} d={d} />)}
+      {DEMOS.map((d) => <Tile key={d.counter} d={d} />)}
     </div>
   );
 }
