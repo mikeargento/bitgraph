@@ -104,7 +104,15 @@ export const CARRIER_VERSION_4 = "bitgraph-carrier/4";
  * Checked by carrier5.ts.
  */
 export const CARRIER_VERSION_5 = "bitgraph-carrier/5";
-export type CarrierVersion = typeof CARRIER_VERSION | typeof CARRIER_VERSION_2 | typeof CARRIER_VERSION_3 | typeof CARRIER_VERSION_4 | typeof CARRIER_VERSION_5;
+/**
+ * v6 (2026-11-02): v5 and the file's own Base floor. Every drop on bitgraph.ing now binds the newest Base block (a
+ * bitgraph-block-read/1 file) on the counts right before the file, and the file's signed prevB64 is that read's hash.
+ * The block carries the read's proof and its block file beside the file's proof, so the floor checks offline too:
+ * { carrier, proof, ceilingInTime, floorInTime }, floorInTime { status: "present", proof, blockFile } or { status:
+ * "none" } for a record bound without one. Checked by carrier5.ts.
+ */
+export const CARRIER_VERSION_6 = "bitgraph-carrier/6";
+export type CarrierVersion = typeof CARRIER_VERSION | typeof CARRIER_VERSION_2 | typeof CARRIER_VERSION_3 | typeof CARRIER_VERSION_4 | typeof CARRIER_VERSION_5 | typeof CARRIER_VERSION_6;
 /** The sidecar and pointer formats a v2 block carries; their shapes are checked by their own modules. */
 export const CEILING_SIDECAR_VERSION = "bitgraph-ceiling/1";
 export const SETTLEMENT_POINTER_VERSION = "bitgraph-settlement/1";
@@ -316,9 +324,14 @@ function treeShapeError(t: unknown): string | null {
 function payloadShapeError(p: unknown): string | null {
   const o = record(p);
   if (o === null) return "payload is not an object";
-  if (o["carrier"] === CARRIER_VERSION_5) {
-    // v5: exactly the proof and its ceiling in time; whether either holds is verifyCarrier's question.
-    if (Object.keys(o).sort().join(",") !== "carrier,ceilingInTime,proof") return `a ${CARRIER_VERSION_5} block holds exactly carrier, proof and ceilingInTime`;
+  if (o["carrier"] === CARRIER_VERSION_5 || o["carrier"] === CARRIER_VERSION_6) {
+    // v5: exactly the proof and its ceiling in time; v6 adds the floor in time. Whether any holds is verifyCarrier's question.
+    const v6 = o["carrier"] === CARRIER_VERSION_6;
+    if (Object.keys(o).sort().join(",") !== (v6 ? "carrier,ceilingInTime,floorInTime,proof" : "carrier,ceilingInTime,proof")) return v6 ? `a ${CARRIER_VERSION_6} block holds exactly carrier, proof, ceilingInTime and floorInTime` : `a ${CARRIER_VERSION_5} block holds exactly carrier, proof and ceilingInTime`;
+    if (v6) {
+      const f = record(o["floorInTime"]);
+      if (f === null || !(f["status"] === "none" || (f["status"] === "present" && record(f["proof"]) !== null && typeof f["blockFile"] === "string"))) return "floorInTime must be present (with its proof and block file) or none";
+    }
     if (record(o["proof"]) === null) return "payload carries no proof object";
     const c = record(o["ceilingInTime"]);
     if (c === null || !(c["status"] === "unfetched" || (c["status"] === "present" && record(c["sidecar"]) !== null))) return "ceilingInTime must be present (with its sidecar) or unfetched";
@@ -386,8 +399,8 @@ function payloadShapeError(p: unknown): string | null {
 }
 
 /** 1, 2, 3 or 4, from a parsed payload. */
-export function carrierVersionOf(payload: CarrierPayload): 1 | 2 | 3 | 4 | 5 {
-  return payload.carrier === CARRIER_VERSION_5 ? 5 : payload.carrier === CARRIER_VERSION_4 ? 4 : payload.carrier === CARRIER_VERSION_3 ? 3 : payload.carrier === CARRIER_VERSION_2 ? 2 : 1;
+export function carrierVersionOf(payload: CarrierPayload): 1 | 2 | 3 | 4 | 5 | 6 {
+  return payload.carrier === CARRIER_VERSION_6 ? 6 : payload.carrier === CARRIER_VERSION_5 ? 5 : payload.carrier === CARRIER_VERSION_4 ? 4 : payload.carrier === CARRIER_VERSION_3 ? 3 : payload.carrier === CARRIER_VERSION_2 ? 2 : 1;
 }
 
 export function parseCarrier(bytes: Uint8Array): CarrierParse {

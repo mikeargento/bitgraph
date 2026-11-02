@@ -41,7 +41,7 @@ export interface CarrierWindowView {
   settled_by: { chain: "ethereum"; block: number; hash: string; time: string } | null;
   /** "none" on carrier/3: no ceiling in position exists; order is the chain of proof hashes. */
   ceiling: "present" | "unfetched" | "none" | null;
-  version: 1 | 2 | 3 | 4 | 5 | null;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | null;
   /** carrier/4: the tree member the file's bytes are, once its path reached the signed root; null otherwise. */
   member: { index: number; count: number; placement: string } | null;
   reasons: string[];
@@ -80,11 +80,11 @@ export function carrierLine(view: CarrierWindowView): string {
   if (view.floor_time_withheld) parts.push(`floor time not used as a bound (${view.floor_time_withheld})`);
   if (view.existed_by) parts.push(`existed by Base block ${view.existed_by.block} (${view.existed_by.time})`);
   else if (view.base_time_withheld) parts.push(`in a Base block whose time is not used as a bound (${view.base_time_withheld})`);
-  else if (view.version === 5) parts.push("Base ceiling NOT IN THIS FILE (it was made before the Base write landed; run bitgraph bitgraphed again on the original)");
+  else if (view.version === 5 || view.version === 6) parts.push("Base ceiling NOT IN THIS FILE (it was made before the Base write landed; run bitgraph bitgraphed again on the original)");
   else if (view.version !== null && view.version >= 2) parts.push("Base ceiling NOT FETCHED (run: bitgraph complete <file>)");
   if (view.settled_by) parts.push(`batch data on Ethereum in block ${view.settled_by.block} (${view.settled_by.time})`);
-  // carrier/5 (an atomic proof, its floor a leaf of its tree): no anchors exist, so no closing anchor is owed (2026-10-20).
-  if (view.version !== 5) parts.push(
+  // carrier/5 and /6 (atomic proofs; /6 carries its own Base floor): no anchors exist, so no closing anchor is owed (2026-10-20).
+  if (view.version !== 5 && view.version !== 6) parts.push(
     view.not_after
       ? `before the anchoring of block ${view.not_after.block}${view.not_after.time ? ` (block mined ${view.not_after.time})` : ""}`
       : view.ceiling === "none"

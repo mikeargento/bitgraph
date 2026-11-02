@@ -1,0 +1,9 @@
+{
+  "format": "bitgraph-block-read/1",
+  "epochId": "KmoEizbgaaeMeM+RMn6VuHvghxj9ZfyR9MV+hEpCrbs=",
+  "chain": "base",
+  "chainId": "eip155:8453",
+  "number": 53405648,
+  "hash": "0x9cfcdc0da8d054aa07d9953b7b45e51e594bfdbf4e8de41163e7d3140aca3163",
+  "timestamp": 1793600643
+}

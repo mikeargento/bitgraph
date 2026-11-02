@@ -21,7 +21,9 @@
  */
 
 import { sha256 } from "@noble/hashes/sha256";
-import { CARRIER_VERSION_5, buildCarrier, type CarrierPayload, type CarrierBounds } from "./carrier.js";
+import { CARRIER_VERSION_5, CARRIER_VERSION_6, buildCarrier, type CarrierPayload, type CarrierBounds } from "./carrier.js";
+import { parseBlockReadFile } from "./block-read.js";
+import { computeChainHash } from "./proof-hash.js";
 import { verifyAttested } from "./attested.js";
 import { verifyCeiling, type CeilingSidecar } from "./ceiling.js";
 import { checkTreeFloor, treeMemberOf } from "./tree-member.js";
@@ -32,14 +34,29 @@ export const BITGRAPH_CEILING_WRITER_V5 = "0xf3972408D853c975F86351C311f4310220b
 const BASE_CHAIN_ID = 8453;
 
 export interface CarrierV5Payload {
-  carrier: typeof CARRIER_VERSION_5;
+  carrier: typeof CARRIER_VERSION_5 | typeof CARRIER_VERSION_6;
   proof: Record<string, unknown>;
   ceilingInTime: { status: "unfetched" } | { status: "present"; sidecar: Record<string, unknown> };
+  /** v6 only: the file's own Base floor, the block read bound on the counts right before it. */
+  floorInTime?: CarrierV6Floor;
 }
+
+/** A drop's floor as v6 carries it: the block read's proof and the bitgraph-block-read/1 file it binds. */
+export type CarrierV6Floor = { status: "none" } | { status: "present"; proof: Record<string, unknown>; blockFile: string };
 
 /** The v5 payload for a proof (as the ledger serves it for these bytes) and its ceiling sidecar, if written yet. */
 export function assembleCarrierV5Payload(proof: Record<string, unknown>, ceilingSidecar: Record<string, unknown> | null): CarrierV5Payload {
   return { carrier: CARRIER_VERSION_5, proof, ceilingInTime: ceilingSidecar ? { status: "present", sidecar: ceilingSidecar } : { status: "unfetched" } };
+}
+
+/** The v6 payload: v5's, and the file's own floor (the block read before it), or none. */
+export function assembleCarrierV6Payload(proof: Record<string, unknown>, ceilingSidecar: Record<string, unknown> | null, floor: { proof: Record<string, unknown>; blockFile: string } | null): CarrierV5Payload {
+  return { ...assembleCarrierV5Payload(proof, ceilingSidecar), carrier: CARRIER_VERSION_6, floorInTime: floor ? { status: "present", proof: floor.proof, blockFile: floor.blockFile } : { status: "none" } };
+}
+
+/** The BitGraphed file, v6: the bound bytes, unchanged, followed by the v6 block. */
+export function buildBitGraphedFileV6(bytes: Uint8Array, proof: Record<string, unknown>, ceilingSidecar: Record<string, unknown> | null, floor: { proof: Record<string, unknown>; blockFile: string } | null): Uint8Array {
+  return buildCarrier(bytes, assembleCarrierV6Payload(proof, ceilingSidecar, floor) as unknown as CarrierPayload);
 }
 
 /** The BitGraphed file: the bound bytes, unchanged, followed by the v5 block. */
@@ -79,6 +96,29 @@ export async function verifyCarrierV5(payloadIn: CarrierPayload, inner: Uint8Arr
     }
   }
 
+  // 3b. v6: the file's own floor. The block read bound on the counts right before the file: its proof is BitGraph's,
+  // it binds its block file, and the file's signed prevB64 is its hash, so nothing was bound between them. The block's
+  // hash could not be known before the block, so the file was bound after it. Whether the block is on Base's canonical
+  // chain is a check against Base.
+  const fl = payload.floorInTime;
+  if (fl?.status === "present") {
+    const fp = fl.proof as unknown as BitGraphProof;
+    const text = new TextEncoder().encode(fl.blockFile);
+    const fr = await verifyAttested({ proof: fp, bytes: text, ...(opts.pcr0 ? { pcr0: opts.pcr0 } : {}), ...(opts.rootDer ? { rootDer: opts.rootDer } : {}) });
+    const f = parseBlockReadFile(fl.blockFile);
+    const sameEpoch = fp.commit?.epochId === proof.commit?.epochId && f?.epochId === proof.commit?.epochId;
+    const next = !!fp.commit?.counter && !!proof.commit?.slotCounter && BigInt(fp.commit.counter) + 1n === BigInt(proof.commit.slotCounter);
+    const chained = proof.commit?.prevB64 === computeChainHash(fp);
+    const ok = fr.valid && f !== null && f.chain === "base" && f.chainId === "eip155:8453" && sameEpoch && next && chained;
+    const why = !fr.valid ? `the floor's proof does not verify: ${fr.reason ?? "invalid"}` : f === null ? "the floor's block file is not a bitgraph-block-read/1 file" : f.chain !== "base" || f.chainId !== "eip155:8453" ? "the floor is not a Base mainnet block" : !sameEpoch ? "the floor is not of this file's epoch" : !next ? "the floor is not the record right before this file" : "this file's prevB64 is not the floor's hash";
+    add("floor.read", "The floor is the Base block read bound right before this file", ok ? "TRUE" : "FALSE", "BitGraph's previous record, chained by prevB64", ok ? `BitGraph #${fp.commit.counter} bound Base block ${f!.number} (${f!.hash.slice(0, 12)}…), and this file's signed prevB64 is that record's hash: the bind came after the block existed` : why);
+    if (ok) {
+      const after = r.attestedAtMs !== null && r.attestedAtMs >= f!.timestamp * 1000;
+      add("floor.time", "The bind came after the floor block's time", after ? "TRUE" : "FALSE", "the AWS Nitro attestation's time", after ? `bound ${iso(Math.floor(r.attestedAtMs! / 1000))}, block ${iso(f!.timestamp)}` : "the attested bind time is not after the block's time");
+      notBefore = { chain: "base", blockNumber: f!.number, blockHash: f!.hash, timestamp: f!.timestamp };
+    }
+  } else if (fl?.status === "none") add("floor.read", "A Base floor", "NOT_CARRIED", "", "this record was bound without a Base block read before it");
+
   // 4. The ceiling: this proof's hash is in the batch the Base transaction carries, and that transaction is in its block.
   let existedBy: CarrierBounds["existedBy"] = null;
   if (payload.ceilingInTime.status === "present") {
@@ -95,7 +135,7 @@ export async function verifyCarrierV5(payloadIn: CarrierPayload, inner: Uint8Arr
     ? `BitGraph #${proof.commit?.counter}: ${where}, bound by BitGraph's published enclave image ${r.image?.version ?? ""}${notBefore ? ` after Base block ${notBefore.blockNumber}` : ""}${existedBy ? ` and written to Base by block ${existedBy.blockNumber}` : ""}. Check those blocks on Base to place it in real time.`
     : `This BitGraphed file does not check: ${failed.map((c) => c.detail).join("; ") || "the proof did not verify"}.`;
   return {
-    verdict, carrier: "ok", version: 5, reasons: claims.filter((c) => c.result !== "TRUE" && c.result !== "NOT_CARRIED").map((c) => c.detail),
+    verdict, carrier: "ok", version: payload.carrier === CARRIER_VERSION_6 ? 6 : 5, reasons: claims.filter((c) => c.result !== "TRUE" && c.result !== "NOT_CARRIED").map((c) => c.detail),
     bounds: notBefore ? { notBefore, notAfter: null, existedBy, settledBy: null } : null,
     ceiling: null, claims, reading, payload: payloadIn, inner,
   };

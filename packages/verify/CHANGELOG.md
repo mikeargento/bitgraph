@@ -2,6 +2,11 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.29.0 (2026-11-02)
+
+- **A floor for every drop.** bitgraph.ing now binds the newest Base block (a `bitgraph-block-read/1` file) on the counts right before each file, and the file's signed `prevB64` is that read's hash. `buildTimelineBundle` takes such a read, the record right before the file, as the file's own floor: the bundle is the read and the file, with no ceiling read needed (the ceiling is the file's own Base write).
+- **The BitGraphed file, `bitgraph-carrier/6`.** v5 and the file's own floor: `{ carrier, proof, ceilingInTime, floorInTime }`, `floorInTime` either `{ status: "present", proof, blockFile }` or `{ status: "none" }`. `verifyCarrier` checks the floor offline: the read's proof is BitGraph's and binds its block file, a Base mainnet block of this file's epoch; it is the record right before the file (its count plus one is the file's nonce count) and the file's `prevB64` is its hash; the attested bind time is after the block's. v5 files check exactly as before. `buildBitGraphedFileV6`, `assembleCarrierV6Payload`, `CARRIER_VERSION_6`, `CarrierV6Floor`.
+
 ## 1.28.0 (2026-11-02)
 
 - **BitGraph's writer is pinned.** `PUBLISHED_WRITERS` lists the Base addresses BitGraph writes from (`0xf3972408d853c975f86351c311f4310220bbf2a3`), each with an optional last block for a rotated key; `isPublishedWriter`. `verifyCeiling` takes `writerAddress` as optional: left out, only a published writer passes. `checkEpochGenesis` refuses a mainnet genesis from any other writer unless the caller names the `writers` it trusts. An enclave image says what code ran; the writer says who ran it.

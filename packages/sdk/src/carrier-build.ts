@@ -39,7 +39,7 @@ import {
   type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierCeiling, type CarrierCeilingInTime,
   type CarrierV2Parts, type CarrierV3Parts, type RpcBlockHeader, type SignedFloor,
 } from "@mikeargento/bitgraph-verify";
-import { settlementFromSidecar, completeCarrierSettlement, buildBitGraphedFileV5, checkTreeMember, treeMemberOf } from "@mikeargento/bitgraph-verify";
+import { settlementFromSidecar, completeCarrierSettlement, buildBitGraphedFileV6, checkTreeMember, treeMemberOf } from "@mikeargento/bitgraph-verify";
 import { ApiError, getProofDetail, type ApiConfig } from "./api.js";
 import { toUrlSafeB64 } from "./encoding.js";
 import type { BitGraphProof } from "./types.js";
@@ -312,7 +312,29 @@ async function buildBaseFloorFile(
   return { bytes: buildCarrier(committedBytes, payload), fileName: carrierFileName(fileName), ceiling: "none", ceilingInTime: ceilingInTime.status, witness };
 }
 
-/** /5: the proof as served for these bytes and its Base ceiling, waited for up to waitForCeilingMs. */
+/**
+ * The file's own Base floor (2026-11-02): the block read bound on the counts right before it, as the site serves it
+ * (its proof, and the bitgraph-block-read/1 file from the timeline). Null when the record before is not one, or it
+ * cannot be read: the file is then made without a floor and says so.
+ */
+async function fetchOwnFloor(config: ApiConfig, proof: BitGraphProof): Promise<{ proof: Record<string, unknown>; blockFile: string } | null> {
+  const c = proof.commit as { counter?: string; slotCounter?: string; epochId?: string };
+  if (!c.counter || !c.slotCounter || !c.epochId) return null;
+  const epoch = toUrlSafeB64(c.epochId);
+  try {
+    const b = await fetch(`${config.baseUrl}/api/timeline/bracket?epoch=${epoch}&counter=${c.counter}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
+    const f = b.ok ? ((await b.json()) as { floor?: { counter?: string; digestB64?: string } | null }).floor : null;
+    if (!f?.counter || !f.digestB64 || BigInt(f.counter) + 1n !== BigInt(c.slotCounter)) return null;
+    const r = await fetch(`${config.baseUrl}/api/proofs/digest/${toUrlSafeB64(f.digestB64)}?counter=${f.counter}&epoch=${epoch}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
+    const j = r.ok ? ((await r.json()) as { proofs?: Array<{ proof: Record<string, unknown> }>; timelineRecord?: { kind?: string; blockFile?: string } }) : null;
+    const fp = j?.proofs?.[0]?.proof;
+    return fp && j?.timelineRecord?.kind === "block" && j.timelineRecord.blockFile ? { proof: fp, blockFile: j.timelineRecord.blockFile } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** /6: the proof as served for these bytes, its own Base floor, and its Base ceiling, waited for up to waitForCeilingMs. */
 async function buildAtomicFile(config: ApiConfig, committedBytes: Uint8Array, fileName: string, proof: BitGraphProof, opts: { waitForCeilingMs?: number }): Promise<BuiltCarrier> {
   let sidecar: Record<string, unknown> | null = null;
   const deadline = Date.now() + (opts.waitForCeilingMs ?? 0);
@@ -321,7 +343,7 @@ async function buildAtomicFile(config: ApiConfig, committedBytes: Uint8Array, fi
     if (sidecar !== null || Date.now() + 2_000 > deadline) break;
     await sleep(2_000);
   }
-  const bytes = buildBitGraphedFileV5(committedBytes, proof as unknown as Record<string, unknown>, sidecar);
+  const bytes = buildBitGraphedFileV6(committedBytes, proof as unknown as Record<string, unknown>, sidecar, await fetchOwnFloor(config, proof));
   return { bytes, fileName: carrierFileName(fileName), ceiling: "none", ceilingInTime: sidecar ? "present" : "unfetched", witness: false, v5: true };
 }
 

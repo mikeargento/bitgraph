@@ -58,7 +58,7 @@ import { sha256 } from "@noble/hashes/sha256";
 import { verifyCarrierV5 } from "./carrier5.js";
 import {
   parseCarrier, checkFloorBinding, checkCeilingBinding, anchorMessageBytes,
-  verifyWitnessHeader, carrierBounds, innerDigestMatches, carrierVersionOf, CARRIER_VERSION_4, CARRIER_VERSION_5,
+  verifyWitnessHeader, carrierBounds, innerDigestMatches, carrierVersionOf, CARRIER_VERSION_4, CARRIER_VERSION_5, CARRIER_VERSION_6,
   type CarrierBounds, type CarrierPayload,
 } from "./carrier.js";
 
@@ -116,7 +116,7 @@ export interface CarrierVerifyResult {
   floorTimeWithheld?: string | null;
   /** "ok" | "none" | "corrupt" — whether the bytes carried a readable block at all. */
   carrier: "ok" | "none" | "corrupt";
-  version: 1 | 2 | 3 | 4 | 5 | null;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | null;
   /** v4: the leaf the committed bytes are, once its path reached the signed root; null otherwise (and on v1 to v3). */
   member?: TreeVerifyResult["member"];
   /** v4: "content" when the bytes carry the commitment (a placed leaf), "record" when kept as is; null when the bytes were not matched or not in hand. */
@@ -170,8 +170,8 @@ function envelopeSentence(outer: Uint8Array, inner: Uint8Array, member = false):
  * as not carried, and everything else is judged exactly as for a file.
  */
 export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8Array | null, opts: CarrierVerifyOptions = {}): Promise<CarrierVerifyResult> {
-  // v5: its own path (carrier5.ts), with no floor anchor to look for.
-  if (payload.carrier === CARRIER_VERSION_5) return verifyCarrierV5(payload, inner, { ...(opts.pins?.pcr0 ? { pcr0: opts.pins.pcr0 } : {}), ...(opts.pins?.rootDer ? { rootDer: opts.pins.rootDer } : {}) });
+  // v5 and v6: their own path (carrier5.ts), with no floor anchor to look for.
+  if (payload.carrier === CARRIER_VERSION_5 || payload.carrier === CARRIER_VERSION_6) return verifyCarrierV5(payload, inner, { ...(opts.pins?.pcr0 ? { pcr0: opts.pins.pcr0 } : {}), ...(opts.pins?.rootDer ? { rootDer: opts.pins.rootDer } : {}) });
   const claims: CarrierClaim[] = [];
   const add = (id: string, name: string, result: ClaimResult, restsOn: string, detail: string, level: "offline" | "confirmed" = "offline") =>
     claims.push({ id, name, result, restsOn, detail, level });
@@ -182,7 +182,7 @@ export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8
   } catch (e) {
     const detail = `a part of this proof block is malformed: ${e instanceof Error ? e.message : String(e)}`;
     add("wellformed", "Every part of the proof block is well formed", "FALSE", "", detail);
-    let version: 1 | 2 | 3 | 4 | 5 | null = null;
+    let version: 1 | 2 | 3 | 4 | 5 | 6 | null = null;
     try { version = carrierVersionOf(payload); } catch { /* unreadable */ }
     const ceilingStatus = (payload as { ceiling?: { status?: unknown } } | null)?.ceiling?.status;
     return {

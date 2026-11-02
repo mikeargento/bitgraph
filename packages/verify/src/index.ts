@@ -150,8 +150,8 @@ export type { CarrierV3Parts } from "./carrier-assemble.js";
 /* bitgraph-carrier/4 (2026-10-11): one member of a tree/1 BitGraph carries its own proof: the bytes are the leaf's, the block walks them to the signed root document. */
 export { CARRIER_VERSION_4, memberArtifactDigest } from "./carrier.js";
 // The BitGraphed file for atomic proofs: the proof (with its tree path and floor leaf) and its Base ceiling (2026-10-20).
-export { CARRIER_VERSION_5 } from "./carrier.js";
-export { assembleCarrierV5Payload, buildBitGraphedFileV5, verifyCarrierV5, type CarrierV5Payload } from "./carrier5.js";
+export { CARRIER_VERSION_5, CARRIER_VERSION_6 } from "./carrier.js";
+export { assembleCarrierV5Payload, buildBitGraphedFileV5, assembleCarrierV6Payload, buildBitGraphedFileV6, verifyCarrierV5, type CarrierV5Payload, type CarrierV6Floor } from "./carrier5.js";
 export { checkTreeFloor, BASE_BLOCK_FORMAT, type TreeFloor, type TreeFloorBlock } from "./tree-member.js";
 export type { CarrierTree } from "./carrier.js";
 export { assembleCarrierV4Payload } from "./carrier-assemble.js";
