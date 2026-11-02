@@ -65,14 +65,21 @@ export default function HomePage() {
 
       <section id="how" className="home-section" aria-labelledby="home-demo">
         <p className="home-kicker">Real files, real proofs</p>
-        <h2 id="home-demo">Same picture. Different bytes. Different&nbsp;proofs.</h2>
-        <p>What you see isn&rsquo;t proof. Each BitGraph binds a file&rsquo;s exact bytes to a verifiable place in line. Open either proof and check for&nbsp;yourself.</p>
+        <h2 id="home-demo">Everything digital is already a&nbsp;copy&hellip;</h2>
+        <p>Same picture. Different bytes. Different proofs. Open either proof and check for&nbsp;yourself.</p>
         <DemoRow />
+      </section>
+
+      <section className="home-section" aria-labelledby="home-any">
+        <p className="home-kicker">Any file</p>
+        <h2 id="home-any">Not just images.</h2>
+        <p>Video, music, designs, contracts, medical scans, code. If it&rsquo;s a file, it gets a place in&nbsp;line.</p>
+        <FileTypes kinds={FILE_KINDS} />
       </section>
 
       <section className="home-section home-scale-sec" aria-labelledby="home-scale">
         <p className="home-kicker">At planetary scale</p>
-        <h2 id="home-scale">BitGraph every photo taken on Earth. Every&nbsp;day.</h2>
+        <h2 id="home-scale">BitGraph could record every photo taken on Earth. Every&nbsp;day.</h2>
         <div className="scale">
           <div className="scale-top">
             <div className="scale-huge">6 billion photos</div>
@@ -88,6 +95,13 @@ export default function HomePage() {
           </div>
         </div>
         <p className="scale-note">Photos a day: about 6 billion, the highest current estimate (Photutorial,&nbsp;2026).</p>
+      </section>
+
+      <section className="home-section" aria-labelledby="home-mech">
+        <p className="home-kicker">The mechanism</p>
+        <h2 id="home-mech">The position comes first.</h2>
+        <p>Hardware draws an unpredictable value at count N. Your digest is bound at N+1. Both are signed together, in one action. <a href="/technology">Read the technology.</a></p>
+        <MechanismFigure />
       </section>
 
       <section className="home-section" aria-labelledby="home-reads">
@@ -126,21 +140,6 @@ export default function HomePage() {
           (public/demo/bridge-44.png); other recordings (#12,526 and #12,530, bridge.png; #122 and #124, bridge-124.png;
           #126 and #128, bridge-128.png) stay
           for their own proof pages. */}
-
-      <section className="home-section" aria-labelledby="home-any">
-        <p className="home-kicker">Any file</p>
-        <h2 id="home-any">Not just images.</h2>
-        <p>Video, music, designs, contracts, medical scans, code. If it&rsquo;s a file, it gets a place in&nbsp;line.</p>
-        <FileTypes kinds={FILE_KINDS} />
-      </section>
-
-      <section className="home-section" aria-labelledby="home-mech">
-        <p className="home-kicker">The mechanism</p>
-        <h2 id="home-mech">The position comes first.</h2>
-        <p>Hardware draws an unpredictable value at count N. Your digest is bound at N+1. Both are signed together, in one action.</p>
-        <MechanismFigure />
-        <div className="sx-cta"><a className="bg-action-link" href="/technology">Read the technology</a></div>
-      </section>
 
       <section className="home-section" aria-labelledby="home-paths">
         <p className="home-kicker">Ways to adopt it</p>
