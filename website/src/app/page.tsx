@@ -128,8 +128,8 @@ export default function HomePage() {
 
       <section className="home-section" aria-labelledby="home-any">
         <p className="home-kicker">Any file</p>
-        <h2 id="home-any">Film. Tape. Ink. BitGraph.</h2>
-        <p>Film is there before the light. Tape is there before the sound. Paper is there before the ink. A BitGraph is there before the&nbsp;bits.</p>
+        <h2 id="home-any">Not just images.</h2>
+        <p>Video, music, designs, contracts, medical scans, code. If it&rsquo;s a file, it gets a place in&nbsp;line.</p>
         <FileTypes kinds={FILE_KINDS} />
       </section>
 
