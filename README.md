@@ -4,12 +4,12 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
-**A BitGraph is proof of your file's place in line.**
+**Upgrade your proof.**
 
 BitGraph is a recording mechanism for companies that already sell proof: content provenance, Content Credentials, trusted
 capture, timestamping, audit trails. Inside a measured AWS Nitro enclave, one atomic action binds a SHA-256 at a counted
 position, right after a fresh hardware nonce, signed and attested. The proof is a small JSON file that checks offline, without
-BitGraph. Keep your product. Upgrade your proof.
+BitGraph.
 
 [Technology](https://bitgraph.ing/technology) · [Evaluate](https://bitgraph.ing/evaluate) · [Integrate](https://bitgraph.ing/integrate) · [Licensing](https://bitgraph.ing/licensing)
 

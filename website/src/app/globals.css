@@ -6110,7 +6110,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* Home reads left-aligned throughout (2026-11-02): the hero's headline, line and buttons start at the left edge like
    every section below. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero { align-items: flex-start !important; text-align: left !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero h1 { text-align: left !important; max-width: 920px; font-size: clamp(32px, 4.4vw, 56px) !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero h1 { text-align: left !important; max-width: 920px; font-size: clamp(36px, 4.8vw, 64px) !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .hero-sub { text-align: left !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .sx-cta { justify-content: flex-start !important; }
 /* No video behind the hero (2026-11-02): the hero is text on black, sized to its content; the demos are three up. */

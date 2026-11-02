@@ -13,13 +13,13 @@ import { DemoRow } from "@/components/demo-row";
  */
 
 const DESCRIPTION =
-  "BitGraph is proof infrastructure for provenance and capture platforms. It binds a file's SHA-256 at a counted position inside attested hardware, and the proof checks offline, without BitGraph.";
+  "BitGraph binds a file's SHA-256 hash to a counted position inside attested hardware. The result is a portable proof your customers can verify offline, without relying on your service or BitGraph.";
 
 export const metadata: Metadata = {
-  title: { absolute: "BitGraph: Attested proof records for provenance and capture platforms" },
+  title: { absolute: "BitGraph: Upgrade your proof." },
   description: DESCRIPTION,
-  openGraph: { title: "BitGraph", description: DESCRIPTION },
-  twitter: { title: "BitGraph", description: DESCRIPTION },
+  openGraph: { title: "Upgrade your proof.", description: DESCRIPTION },
+  twitter: { title: "Upgrade your proof.", description: DESCRIPTION },
 };
 
 export default function HomePage() {
@@ -27,11 +27,11 @@ export default function HomePage() {
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page is-landing is-short">
       <section className="sx-hero" aria-labelledby="home-h">
         {/* The first screen is the claim and its one-line definition (2026-10-31), centred; How it works scrolls to the proofs. */}
-        <h1 id="home-h">Keep your product. Upgrade your&nbsp;proof.</h1>
+        <h1 id="home-h">Upgrade your proof.</h1>
         <p className="sx-sub hero-sub">BitGraph binds a file&rsquo;s SHA-256 hash to a counted position inside attested hardware. The result is a portable proof your customers can verify offline, without relying on your service or&nbsp;BitGraph.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/evaluate">Evaluate it</a>
-          <a className="bg-action-link" href="#how">Learn more</a>
+          <a className="bg-action-link" href="/technology">Learn more</a>
         </div>
       </section>
 

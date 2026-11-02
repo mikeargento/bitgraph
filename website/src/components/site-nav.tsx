@@ -47,7 +47,8 @@ export function SiteNav() {
     <div id="site-nav" style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", boxSizing: "border-box", position: "relative", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
         {/* The record dot tried beside the wordmark and removed the same day (2026-10-20). */}
-        <Link href="/" className="nav-wordmark" style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", textDecoration: "none", letterSpacing: "-0.01em" }}>
+        {/* On home itself the route does not change, so the wordmark scrolls back to the top instead. */}
+        <Link href="/" className="nav-wordmark" onClick={(e) => { if (pathname === "/") { e.preventDefault(); e.currentTarget.blur(); window.scrollTo({ top: 0 }); } }} style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", textDecoration: "none", letterSpacing: "-0.01em" }}>
           BitGraph
         </Link>
         <nav aria-label="Site" className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
