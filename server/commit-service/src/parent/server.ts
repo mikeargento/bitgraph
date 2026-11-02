@@ -368,8 +368,7 @@ async function bindDropFloor(): Promise<void> {
     return;
   }
   const { proof } = r.data as { proof: BitGraphProof };
-  try { timeline?.recordBlock(proof, text); } catch (e) { console.error(`[parent] drop floor: journal append failed: ${e instanceof Error ? e.message : String(e)}`); }
-  await keepMade([proof], false);
+  await keepMade([proof], false, undefined, text);
 }
 
 async function bindEpochFloor(epochId: string): Promise<void> {
@@ -782,10 +781,11 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
 /**
  * Every proof the enclave made: its proofHash added, persisted to the immutable S3 ledger (with the by-digest
  * index), and queued for its Base write when `ceiling` is set (no-op unless CEILING_QUEUE_PATH). Every file bound
- * through /commit is written to Base, whatever the caller sends; block reads and genesis records are not.
+ * through /commit is written to Base, whatever the caller sends; block reads and genesis records are not. A drop's
+ * floor passes its block file, so the journal keeps it as a block read.
  * Persisting and queueing are fire-and-forget, as before.
  */
-async function keepMade(proofs: BitGraphProof[], ceiling: boolean, genesisFile?: string): Promise<void> {
+async function keepMade(proofs: BitGraphProof[], ceiling: boolean, genesisFile?: string, blockFile?: string): Promise<void> {
   try {
     const { computeProofHash } = await import("bitgraph");
     for (const p of proofs) {
@@ -795,7 +795,7 @@ async function keepMade(proofs: BitGraphProof[], ceiling: boolean, genesisFile?:
   // The timeline's journal holds every record of the sequence; the per-proof ledger objects below are kept as well.
   if (timeline) {
     for (const p of proofs) {
-      try { timeline.record(p, genesisFile); } catch (e) { console.error(`[parent] timeline journal append failed: ${e instanceof Error ? e.message : String(e)}`); }
+      try { if (blockFile !== undefined) timeline.recordBlock(p, blockFile); else timeline.record(p, genesisFile); } catch (e) { console.error(`[parent] timeline journal append failed: ${e instanceof Error ? e.message : String(e)}`); }
     }
   }
   void persistToLedger(proofs);

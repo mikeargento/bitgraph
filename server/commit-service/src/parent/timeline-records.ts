@@ -67,7 +67,13 @@ export class TimelineRecords {
     }
     // The same record can be both local and uploaded: keep one of each count.
     const byCount = new Map<string, TimelineLine>();
-    for (const l of out) byCount.set(l.proof.commit.counter!, l);
+    // A drop's floor journaled first as its block read and then again as a plain file (2026-11-02, before keepMade took
+    // its block file) stays the block read: the same proof, and the block file is what makes it a floor.
+    for (const l of out) {
+      const c = l.proof.commit.counter!;
+      if (l.kind === "file" && byCount.get(c)?.kind === "block") continue;
+      byCount.set(c, l);
+    }
     return [...byCount.values()];
   }
 

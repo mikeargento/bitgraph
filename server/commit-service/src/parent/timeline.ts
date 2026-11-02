@@ -131,7 +131,8 @@ export class Timeline {
         return r;
       })
       .sort((a, b) => a.counter - b.counter);
-    const byCount = new Map(out.map((r) => [r.counter, r]));
+    const byCount = new Map<number, (typeof out)[number]>();
+    for (const r of out) if (!(r.kind === "file" && byCount.get(r.counter)?.kind === "block")) byCount.set(r.counter, r);
     return { epochId, records: [...byCount.values()].slice(-limit) };
   }
 
