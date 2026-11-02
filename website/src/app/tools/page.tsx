@@ -122,7 +122,7 @@ export default function ToolsPage() {
               To check a file, drop it on the Proofs page by itself. When the tree is made, each file gets a sealed entry that only its own
               bytes can open; the page finds it, walks the file up the tree to the root, and checks the root against its BitGraph. With{" "}
               <code>merkle-tree.json</code> and <code>merkle-root.txt</code> it works without any entry. By hand: hash the file as a leaf,
-              combine it with its neighbours up the levels, compare with the root in <span className="nb"><code>merkle-root.txt</code>,</span> and verify{" "}
+              combine it with its neighbors up the levels, compare with the root in <span className="nb"><code>merkle-root.txt</code>,</span> and verify{" "}
               <code>merkle-root.txt</code> against its proof like any file.
             </p>
 

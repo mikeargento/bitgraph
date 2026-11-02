@@ -91,7 +91,7 @@ export default function TechnologyPage() {
             <p className="home-kicker">The mechanism</p>
             <h2 id="t-mech">What happens when a digest arrives.</h2>
             <ol className="tl-steps">
-              <li><strong>Gate.</strong> The enclave refuses to bind until the host has initialised it, and accepts only a canonical 32-byte&nbsp;SHA-256.</li>
+              <li><strong>Gate.</strong> The enclave refuses to bind until the host has initialized it, and accepts only a canonical 32-byte&nbsp;SHA-256.</li>
               <li><strong>Nonce.</strong> 32 bytes are drawn from the Nitro Secure Module&rsquo;s hardware RNG, after the digest arrives and inside the enclave. Nobody, the host included, sees it before the proof is released.</li>
               <li><strong>Count N: the slot.</strong> A slot record (nonce, count N, epoch, key) is signed with the enclave&rsquo;s Ed25519 key and hashed.</li>
               <li><strong>Count N+1: the content.</strong> The commit names the digest, count N+1, the slot&rsquo;s count and hash, the epoch, and the hash of the previous proof.</li>
@@ -112,7 +112,7 @@ export default function TechnologyPage() {
             <p>
               Every step that can fail (the random draw, the signature, the attestation) comes before the counter moves. If any fails,
               nothing is released, the counter stays where it was, and the drawn nonce is discarded without ever leaving the enclave.
-              Requests are serialised inside the enclave, so two binds cannot interleave.
+              Requests are serialized inside the enclave, so two binds cannot interleave.
             </p>
             <p className="sx-fine">
               Tested on the unmodified enclave code with injected faults in the RNG, the signer and the attestation:{" "}
@@ -249,7 +249,7 @@ export default function TechnologyPage() {
   "slotAllocation": { "version": "bitgraph/slot/1", "nonceB64": "…", "counter": "15", … }
 }`}</Code>
             <p className="sx-fine">
-              The signature covers a canonical serialisation of the body. A collection member also carries its inclusion path, as
+              The signature covers a canonical serialization of the body. A collection member also carries its inclusion path, as
               unsigned metadata that is checked, not trusted. <a href="/evaluate/sample.txt.bitgraph.json" download>Download a real proof</a>, or <a href="/evaluate">verify it</a>.
             </p>
           </section>
@@ -282,7 +282,7 @@ export default function TechnologyPage() {
                   <tr>
                     <td>The host operator (BitGraph included)</td>
                     <td>Forge a proof that passes the attested check; see or choose a nonce; reuse a count; insert or reorder proofs inside a sequence without breaking the counts and hash links; change a proof&rsquo;s attested time by releasing it late.</td>
-                    <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbours); restart the enclave to begin a new epoch; delay or decline a record&rsquo;s Base write (its proof then shows none).</td>
+                    <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbors); restart the enclave to begin a new epoch; delay or decline a record&rsquo;s Base write (its proof then shows none).</td>
                   </tr>
                   <tr>
                     <td>A client</td>
