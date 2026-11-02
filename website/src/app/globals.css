@@ -6083,3 +6083,18 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* The footer's sun and moon in the footer links' own blue (2026-11-02), so it reads as one of them. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body footer .theme-toggle { color: var(--link) !important; }
 @media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body footer .theme-toggle:hover { color: var(--link) !important; opacity: 0.7; } }
+/* Black (2026-11-02): the dark mode on a true black ground, Vercel-style. Near-white headings, grey body copy,
+   cards one step off black with hairline borders, links in ink with an underline. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] {
+  --bg: #000000; --bar: #000000; --paper: #0a0a0a; --panel: #0a0a0a; --panel-2: #111111; --code-bg: #0a0a0a;
+  --ink: #ededed; --text: #a1a1a1; --dim: #8f8f8f; --faint: #6b6b6b;
+  --line: #262626; --line-2: #1a1a1a; --hair: #1a1a1a;
+  --link: #ededed; --fig-fill: #0a0a0a; --fig-enclave: #000000; --fig-line: #6b6b6b;
+  --btn-primary: #ededed; --btn-primary-hover: #ffffff; --btn-primary-text: #000000;
+  --card: #0a0a0a; --card-line: #262626;
+}
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] :is(body, main, .section-grey) { background: #000000 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] :is(#site-nav, #site-nav.scrolled) { background: #000000 !important; border-bottom: 1px solid #1a1a1a !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+/* Every text link carries at least a faint underline; buttons, cards and image links stay bare. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body :is(main, footer) a:not([class]) { text-decoration-line: underline !important; text-decoration-color: #4d4d4d !important; text-decoration-thickness: 1px !important; text-underline-offset: 3px !important; }
+@media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body :is(main, footer) a:not([class]):hover { text-decoration-color: currentColor !important; } }
