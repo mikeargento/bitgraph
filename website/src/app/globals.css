@@ -6049,3 +6049,9 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* Proof rows stopped copying on click (2026-10-30); the pointer stayed and promised a click that does nothing. Links and
    buttons inside a row keep their own pointer. */
 html:root:root:root:root body .pv-row { cursor: auto; }
+
+/* Ledger day buttons on phones: the previous day, the next day and Today on one row of equal pills. */
+@media (max-width: 560px) {
+  html:root:root:root:root:root:root:root body main .ledger-days { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px !important; }
+  html:root:root:root:root:root:root:root body main .ledger-days .bg-action-link { justify-content: center; padding-left: 8px !important; padding-right: 8px !important; white-space: nowrap; min-width: 0; }
+}
