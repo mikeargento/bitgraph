@@ -19,7 +19,7 @@ const PATTERNS: Pattern[] = [
     adds: "An independent record that these exact bytes, asset and manifest together, were bound at a counted position, right after a value nobody could predict. The credential's own clock becomes one trust layer on that position, and a public witness another.",
     binds: "The asset's SHA-256, as it is. The manifest travels inside the file, so binding the file binds both, and nothing in the asset changes, so the manifest's own hashes stay valid.",
     evidence: "A BitGraph proof of the asset, credential included, kept with it or referenced from your system.",
-    live: { href: "/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=8&epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs", text: "a ChatGPT image recorded as is, its OpenAI-signed credential read from the file on its proof page" },
+    live: { href: "/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=304&epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs", text: "a ChatGPT image recorded as is, its OpenAI-signed credential read from the file on its proof page" },
   },
   {
     id: "watermark", label: "Finding the original", title: "A copy finds the record. The record proves the bytes.",
