@@ -20,7 +20,6 @@
    rejected; see project_company_site_2026_08_27. */
 
 
-import { ThemeToggle } from "@/components/theme-toggle";
 
 const links: Array<{ href: string; label: string }> = [
   // The source (2026-10-17): the site had no GitHub link, and the footer is its place.
@@ -54,7 +53,6 @@ export function SiteFooter() {
             <a key={l.href} href={l.href} style={linkStyle} {...(l.href.startsWith("http") ? { target: "_blank", rel: "noopener" } : {})}>{l.label}</a>
           ))}
           {/* The sun/moon, at the footer's right, on every screen (2026-10-28). */}
-          <span className="bg-footer-theme"><ThemeToggle /></span>
         </div>
       </div>
     </footer>

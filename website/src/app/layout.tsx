@@ -71,7 +71,7 @@ const inter = Inter({
 
 /* The tab strip and the phone's chrome take the page colour: white, Google's ground,
    since 2026-09-18 (dark before that). Keep it equal to --bg. */
-export const viewport: Viewport = { themeColor: "#ffffff" };
+export const viewport: Viewport = { themeColor: "#000000" };
 
 /* The site's one-line description (2026-10-29): what BitGraph is to the companies it is sold to, on every page without a
    line of its own and in link previews. */
@@ -117,9 +117,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: the head script below marks <html> data-js before React loads.
     <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${newsreader.variable}`}>
       <head>
-        {/* Day or night before the first paint: a saved choice from the sun and moon toggle sets data-theme on <html>;
-            with none, the site is dark, whatever the device's setting (2026-11-02). */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var d=document.documentElement,t=null;try{t=localStorage.getItem("bg-theme")}catch(e){}d.dataset.theme=t==="light"?"light":"dark"})()` }} />
+        {/* One mode (2026-11-02): the site is always dark (true black), set before the first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: `document.documentElement.dataset.theme="dark"` }} />
         {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
             700 and italics). PREVIEW 2026-09-16: --font-term in globals.css
             points at it. */}
