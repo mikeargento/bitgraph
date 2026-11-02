@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { verifyAttested, createVerificationContext } from "@mikeargento/bitgraph-verify";
 import { recordedMsOf } from "@/lib/recorded-time";
-import { cacheArtifactToIDB } from "@/lib/file-cache";
+import { cacheArtifactToIDB, putTreeNamesToIDB } from "@/lib/file-cache";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { useRouter } from "next/navigation";
 import { zipSync, strToU8 } from "fflate";
@@ -561,12 +561,14 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       const t = tree!, total = t.files;
       const blocks = memberBlocks(t, rootText);
       // The drop's files as a plain list, no thumbnails (2026-10-31): each opens its own proof page, which finds the file
-      // by its hash once the index below is written. Each file once, as dropped.
+      // by its hash once the index below is written. Each file once, in tree order (sorted by path, 2026-11-02).
       const members = (() => {
         if (list || files.length < 2 || !b.commit?.counter || !b.commit?.epochId) return undefined;
         const seen = new Set<string>(), counter = encodeURIComponent(String(b.commit.counter)), epoch = encodeURIComponent(toUrlSafe(String(b.commit.epochId)));
-        return dropped.flatMap((l) => (seen.has(l[2]) || !seen.add(l[2]) ? [] : [{ name: l[0], href: `/proof/${toUrlSafe(l[2])}?counter=${counter}&epoch=${epoch}` }]));
+        return fileLeaves.flatMap((l) => (seen.has(l[2]) || !seen.add(l[2]) ? [] : [{ name: l[0], href: `/proof/${toUrlSafe(l[2])}?counter=${counter}&epoch=${epoch}` }]));
       })();
+      // The names in tree order, kept on this device for the root's proof page (components/tree-file-list.tsx).
+      if (!list && b.commit?.counter) void putTreeNamesToIDB(contentDigest, String(b.commit.counter), t.leaves.map((l) => l[0]));
       const dropCount = list ? t.files : files.length;
       setPlug({ members, dropCount, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
       // Each file is indexed under its own hash (lib/tree-member.ts): written after the proof is

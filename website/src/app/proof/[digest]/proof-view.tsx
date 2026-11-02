@@ -28,11 +28,12 @@
  * "proves when".
  */
 
+import { TreeFileList } from "@/components/tree-file-list";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { TimeChip, longDateTz, stampTz, timeTz, sameDayTz } from "@/lib/format-time";
 import type { BitGraphProof } from "@/lib/bitgraph";
 import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
-import { baseTimeIsBound, decodeNitroAttestation, floorTimeIsBound } from "@mikeargento/bitgraph-verify";
+import { baseTimeIsBound, decodeNitroAttestation, floorTimeIsBound, treeMemberOf } from "@mikeargento/bitgraph-verify";
 import { CopyIcon, useCopied } from "@/components/copy-icon";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { CopyCode } from "@/components/copy-code";
@@ -485,6 +486,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         </div>,
         fileOpen && m.openUrl ? <FileInPlace key="open" url={m.openUrl} type={m.openType ?? null} name={m.fileName ?? null} /> : null,
         m.fileName ? <Row key="file" f={{ label: "File", value: m.fileName }} /> : null,
+        commit.epochId && commit.counter && !treeMemberOf(m.proof) ? <TreeFileList key="tree" digestB64={m.proof.artifact.digestB64} epochId={commit.epochId} counter={commit.counter} /> : null,
         blockReadCell ? <Fragment key="read">{blockReadCell}</Fragment> : null,
       ])}
       {group("When", [

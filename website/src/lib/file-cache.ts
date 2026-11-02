@@ -188,3 +188,35 @@ export async function putBitGraphedToIDB(key: string, file: SavedBitGraphed): Pr
     db.close();
   } catch { /* a file that is not kept is made again next time */ }
 }
+
+/* ── A tree's file names, on this device only (2026-11-02) ──
+ * The drop keeps the names of a tree's files in tree order under the root's digest and count, so the root's proof
+ * page lists them by name here. The server keeps only their hashes (api/tree-members); names never leave the device. */
+
+const treeNamesKey = (rootDigestB64: string, counter: string) => `treenames:${rootDigestB64}:${counter}`;
+
+export async function putTreeNamesToIDB(rootDigestB64: string, counter: string, names: string[]): Promise<void> {
+  try {
+    const db = await openFilesDB();
+    const tx = db.transaction("files", "readwrite");
+    tx.objectStore("files").put(names, treeNamesKey(rootDigestB64, counter));
+    await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
+    db.close();
+  } catch { /* the list shows hashes instead */ }
+}
+
+export async function getTreeNamesFromIDB(rootDigestB64: string, counter: string): Promise<string[] | null> {
+  try {
+    const db = await openFilesDB();
+    const tx = db.transaction("files", "readonly");
+    const v = await new Promise<unknown>((resolve) => {
+      const req = tx.objectStore("files").get(treeNamesKey(rootDigestB64, counter));
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(undefined);
+    });
+    db.close();
+    return Array.isArray(v) ? (v as string[]) : null;
+  } catch {
+    return null;
+  }
+}

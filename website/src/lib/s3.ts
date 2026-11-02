@@ -1244,6 +1244,48 @@ export async function putTreeFloorOnce(digestB64: string, epochId: string, count
   }
 }
 
+/* ── A tree's file list (2026-11-02) ──
+   The hashes of a tree's files, in tree order, kept under the root's position so the root's proof page can list them.
+   Written by /api/tree-members as each batch of members checks (the same hashes it indexes, so nothing new is made
+   public); one object per batch, named by the batch's first index. File names are never sent and never kept. */
+const treeListPrefix = (digestB64: string, epochId: string, counter: string) =>
+  `tree-lists/${toSafe(digestB64)}/${toSafe(epochId)}-${String(counter).padStart(12, "0")}/`;
+
+export async function putTreeListChunk(digestB64: string, epochId: string, counter: string, first: number, digests: string[]): Promise<void> {
+  if (!ledgerWritesOn() || digests.length === 0) return;
+  await getClient().send(new PutObjectCommand({
+    Bucket: getBucket(), Key: `${treeListPrefix(digestB64, epochId, counter)}${String(first).padStart(9, "0")}.json`,
+    Body: JSON.stringify({ format: "bitgraph-tree-list/1", first, digests }), ContentType: "application/json",
+  }));
+}
+
+/** The first indexes of the batches kept for a tree, in order. Empty for a tree made before the lists were kept. */
+export async function listTreeListChunks(digestB64: string, epochId: string, counter: string): Promise<number[]> {
+  const prefix = treeListPrefix(digestB64, epochId, counter);
+  const out: number[] = [];
+  let token: string | undefined;
+  try {
+    do {
+      const r = await getClient().send(new ListObjectsV2Command({ Bucket: getBucket(), Prefix: prefix, ContinuationToken: token }));
+      for (const o of r.Contents ?? []) { const n = Number(o.Key?.slice(prefix.length).replace(/\.json$/, "")); if (Number.isSafeInteger(n)) out.push(n); }
+      token = r.IsTruncated ? r.NextContinuationToken : undefined;
+    } while (token);
+  } catch (err) { throw new LedgerUnavailableError("tree list", err); }
+  return out.sort((a, b) => a - b);
+}
+
+export async function getTreeListChunk(digestB64: string, epochId: string, counter: string, first: number): Promise<{ first: number; digests: string[] } | null> {
+  try {
+    const r = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: `${treeListPrefix(digestB64, epochId, counter)}${String(first).padStart(9, "0")}.json` }));
+    const j = JSON.parse((await r.Body?.transformToString()) ?? "null") as { first?: number; digests?: string[] } | null;
+    return j && typeof j.first === "number" && Array.isArray(j.digests) ? { first: j.first, digests: j.digests } : null;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw new LedgerUnavailableError("tree list", err);
+  }
+}
+
 /** The floor link written for BitGraph 2 at its position, or null. */
 export async function getFloorLinkText(digestB64: string, epochId: string, counter: string): Promise<string | null> {
   try {
