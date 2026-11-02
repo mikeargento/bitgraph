@@ -6055,3 +6055,28 @@ html:root:root:root:root body .pv-row { cursor: auto; }
   html:root:root:root:root:root:root:root body main .ledger-days { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px !important; }
   html:root:root:root:root:root:root:root body main .ledger-days .bg-action-link { justify-content: center; padding-left: 8px !important; padding-right: 8px !important; white-space: nowrap; min-width: 0; }
 }
+
+/* Planet scale on the home page (2026-11-02): one huge figure, then the three steps that bring it down to a day's cost.
+   Static by rule. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale { margin-top: 36px !important; border-bottom: 1px solid var(--line); padding-bottom: 44px; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale > * + * { margin-top: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-top { padding-bottom: 36px; border-bottom: 1px solid var(--line); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-huge { font-size: clamp(32px, 8.4vw, 124px) !important; font-weight: 700; line-height: 0.95 !important; letter-spacing: -0.035em; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-cell { padding: 32px 24px 0; border-left: 1px solid var(--line); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-cell:first-child { padding-left: 0; border-left: 0; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-cell > * + * { margin-top: 0 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-op { font-size: 13px !important; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); margin-bottom: 14px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-big { font-size: clamp(36px, 4vw, 60px) !important; font-weight: 700; line-height: 1 !important; letter-spacing: -0.02em; color: var(--ink); white-space: nowrap; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-small { margin-top: 12px !important; font-size: 15px !important; color: var(--dim); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-note { margin-top: 24px !important; font-size: 14px !important; color: var(--dim); }
+@media (max-width: 640px) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-row { grid-template-columns: 1fr; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-cell, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-cell:first-child { padding: 24px 0 0; border-left: 0; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-cell + .scale-cell { margin-top: 24px !important; border-top: 1px solid var(--line); }
+}
+/* Phones: the day's photo count stays the largest figure in the section (about 43px on a 375px screen, one line). */
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-huge { font-size: 11.4vw !important; } }
+/* The planetary-scale section's dividers a little stronger than the site's lines (20% of the ink, in either theme), so
+   the three steps stay apart on a dim screen. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale { --line: color-mix(in srgb, var(--ink) 20%, transparent); }

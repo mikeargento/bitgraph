@@ -103,11 +103,11 @@ export default function ToolsPage() {
 
           <section className="home-section" aria-labelledby="d-plugins">
             <p className="home-kicker">Trees and trust layers</p>
-            <h2 id="d-plugins">Built from ordinary BitGraphs.</h2>
+            <h2 id="d-plugins">Built on ordinary BitGraphs.</h2>
             <p>
-              Two things build on a BitGraph without changing it: a drop of many files becomes one tree, and through bitgraph.ing, Base, the reference trust layer,
-              places each BitGraph in public time. Each is made of ordinary BitGraphs, every one the same two counts; nothing about either
-              one enters the enclave or the proof format.
+              Two things build on a BitGraph without changing it: a drop of many files becomes one tree, bound as one ordinary BitGraph,
+              and through bitgraph.ing, Base, the reference trust layer, places each BitGraph in public time by carrying its proof&rsquo;s
+              hash. Nothing about either one enters the enclave or the proof format.
             </p>
 
             <h3 className="tl-h3">Many files, one BitGraph</h3>
@@ -130,33 +130,28 @@ export default function ToolsPage() {
             <p>
               The sequence is a closed system. Inside it, order is certain: every BitGraph names the one before it, the counter only goes
               up, and the hardware&rsquo;s time is signed into each proof. What a closed system cannot do is place itself in the world&rsquo;s
-              time on its own word; a clock inside the box is still the box&rsquo;s clock. So BitGraph reads a public chain it does not
-              operate, before and after each bind, and the window between the two reads is time nobody inside the box could have chosen.
-              Every BitGraph made through this site gets it. Base is the reference layer for this site, not a dependency; another
-              witness bound the same way would serve. Three steps, two BitGraphs:
+              time on its own word; a clock inside the box is still the box&rsquo;s clock. So every BitGraph made through this site is
+              written to a public chain BitGraph does not operate. Base is the reference layer for this site, not a dependency; another
+              witness bound the same way would serve. Three steps:
             </p>
             <ol className="tl-steps">
-              <li><strong>BitGraph 1 is the floor.</strong> The latest Base block (number, hash, time) is written to <code>base-floor.json</code> and bound, in the same request as the content. A block hash cannot be known before its block exists. (A tree carries the block as its first leaf instead, <span className="nb"><code>base-block.json</code>,</span> so the root itself holds the floor.)</li>
-              <li><strong>BitGraph 2 is the content,</strong> bound right after BitGraph 1 in the same sequence.</li>
-              <li><strong>The ceiling.</strong> BitGraph 2&rsquo;s proof hash is written to Base by BitGraph&rsquo;s writer, in a later block. The proof existed by then.</li>
+              <li><strong>The bind.</strong> The enclave draws a fresh nonce and binds your file&rsquo;s SHA-256 at the very next count, and the hardware signs its time into the proof.</li>
+              <li><strong>The write.</strong> Seconds later, the proof&rsquo;s hash goes into a Base transaction from BitGraph&rsquo;s published writer, under one Merkle root with any others made in the same moment. The transaction carries 84 bytes: the tag <code>BGC1</code>, the root, the previous write&rsquo;s hash, and the counts it covers.</li>
+              <li><strong>The block.</strong> The block that holds the transaction is public proof the record existed by its time.</li>
             </ol>
-            <p>
-              The content was bound after the first block and before the second: a window in real time, read from a public chain, around a
-              position. The site checks the pair before it records BitGraph 1 as BitGraph 2&rsquo;s floor: <code>base-floor.json</code>{" "}
-              hashes to BitGraph 1&rsquo;s digest, Base has that block with that hash and time, both proofs verify in full, and BitGraph 2
-              comes after BitGraph 1 in the same epoch. The record is kept with the ledger and shown on both proof pages.
-            </p>
-            <p>To check a window yourself, with the download from the Proofs page:</p>
+            <p>To check a write yourself:</p>
             <ol className="tl-steps">
-              <li>Verify both files against their proofs with the offline check above.</li>
-              <li>Open the block in <code>base-floor.json</code> on any Base explorer and compare its hash and time.</li>
-              <li>Compare the two proofs&rsquo; <code>commit.epochId</code> (the same) and counts (BitGraph 2&rsquo;s after BitGraph 1&rsquo;s).</li>
-              <li>Find BitGraph 2&rsquo;s Base transaction from its proof page and check that it carries the proof hash.</li>
+              <li>Verify the file against its proof with the offline check above.</li>
+              <li>Hash the proof and walk it up its Merkle path (from its proof page, or <code>/api/ceilings/&lt;proof hash&gt;</code>) to the root. A write that covers one record has the proof&rsquo;s own leaf hash as its root.</li>
+              <li>Open the transaction from the proof page&rsquo;s Basescan link: it is sent by BitGraph&rsquo;s writer to itself, and its data carries that root and a range of counts that includes the proof&rsquo;s.</li>
+              <li>Read the block&rsquo;s time on Base. The proof existed by then.</li>
             </ol>
             <p>
-              Base adds nothing to the bind and takes nothing from it. Strip the window away and a BitGraph is still a position: where your
-              bits were bound in the sequence, with the hardware attestation&rsquo;s timestamp bound in as its first layer, and no public claim about clock time. The window
-              is what lets someone who trusts neither BitGraph nor its clock still place the bind between two public blocks.
+              Base adds nothing to the bind and takes nothing from it. Strip the write away and a BitGraph is still a position: where your
+              bits were bound in the sequence, with the hardware attestation&rsquo;s timestamp bound in as its first layer. The write is what
+              lets someone who trusts neither BitGraph nor its clock still say the bind existed by a public block. Proofs made from
+              2026-10-21 to 2026-10-31 also carry a Base floor (<code>base-floor.json</code>, bound just before them), and those from
+              2026-10-31 to 2026-11-02 block reads before and after them; their proof pages still show them.
             </p>
           </section>
 
@@ -171,7 +166,7 @@ export default function ToolsPage() {
             </p>
             <p>
               Epochs are not chained to one another; each stands on its own key and its own attestation. Instead, each epoch opens with a
-              write to Base: the ceiling writer sends a transaction carrying the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph
+              write to Base: BitGraph&rsquo;s writer sends a transaction carrying the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph
               binds a record of that mined transaction (<code>epoch-genesis.json</code>). The transaction could not exist before the
               epoch&rsquo;s key, since the id is derived from it, and no BitGraph of the epoch could exist before the transaction&rsquo;s
               block, so epochs order by their genesis blocks. Base is the witness here because this deployment binds it; the rule is

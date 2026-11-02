@@ -139,6 +139,8 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   "E301gTl5CQkxYjhCsn8RZJcv26nR3EeWMyohutOe4F4": { path: "/demo/bridge.png", name: "bitgraph-12530.png", mime: "image/png" },
   // Its re-recording (2026-11-02): the bridge drawn from #42's nonce, recorded as #44.
   "M_VIzEkRow0oomvDkaZ7iuiYm5bFhOXzgMd3Lr4U-bs": { path: "/demo/bridge-44.png", name: "bitgraph-44.png", mime: "image/png" },
+  // The one the home page shows (2026-11-02): drawn from #122's nonce, recorded as #124.
+  "rQKRGOoLSh2hkaf1nZVCVg3dlvbAcInqQCj_Uy0et-E": { path: "/demo/bridge-124.png", name: "bitgraph-124.png", mime: "image/png" },
   // The Evaluate page's sample (2026-10-27): a ChatGPT image with its OpenAI-signed Content Credentials, bound with them
   // as one tree (BitGraph #26 of epoch NihRUA…). Hosted so its proof page shows the picture to every visitor.
   "MXkV_2WRyBSlQV_BdOio2gc1NSrd2Wxl8zW0OrACCDk": { path: "/evaluate/chatgpt-image.png", name: "chatgpt-image.png", mime: "image/png" },
