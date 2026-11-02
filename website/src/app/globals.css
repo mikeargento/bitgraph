@@ -6107,3 +6107,10 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* The proof page's text links and link-style buttons (Basescan, the downloads, Close file) take the same faint underline. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main :is(a.pv-link, .pv-link-btn:not(:disabled)) { text-decoration-line: underline !important; text-decoration-color: #4d4d4d !important; text-decoration-thickness: 1px !important; text-underline-offset: 3px !important; }
 @media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main :is(a.pv-link, .pv-link-btn:not(:disabled)):hover { text-decoration-color: currentColor !important; } }
+/* Blue means the trusted hardware (2026-11-02): the enclave's border and its label in Vercel's blue, here and in the
+   Technology figures. The boxes inside keep the site's own lines. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.mf-enclave, .pf-enclave, .pf-f-enclave) { border-color: #0a72ef !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.mf-label, .pf-enclave-label) { color: #3291ff !important; }
+/* The drop box takes the same blue only while a file is over it, the moment it is about to go to the enclave; a plain
+   mouse hover keeps the site's grey. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .db-zone.db-zone.db-zone[data-over="1"] { border-color: #0a72ef !important; background: rgba(10, 114, 239, 0.06) !important; }
