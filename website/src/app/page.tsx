@@ -106,13 +106,13 @@ export default function HomePage() {
 
       <section className="home-section home-art" aria-labelledby="home-art">
         <p className="home-kicker">Made after its proof</p>
-        <h2 id="home-art">This picture couldn&rsquo;t exist before BitGraph&nbsp;#122.</h2>
-        <p>Every shape is drawn from a random value created inside #122. Until #122 existed, nobody could know what the picture would look&nbsp;like.</p>
+        <h2 id="home-art">This picture couldn&rsquo;t exist before BitGraph&nbsp;#126.</h2>
+        <p>Every shape is drawn from a random value created inside #126. Until #126 existed, nobody could know what the picture would look&nbsp;like.</p>
         <figure className="art-figure">
-          <img src="/demo/bridge-124.png" width={1920} height={1080} alt="The Golden Gate Bridge drawn in rectangles, from the unpredictable value of BitGraph #122" loading="lazy" />
+          <img src="/demo/bridge-128.png" width={1920} height={1080} alt="The Golden Gate Bridge drawn in rectangles, from the unpredictable value of BitGraph #126" loading="lazy" />
           <figcaption className="demo-links">
-            <a href="/proof/S1dfGEeynO7IL3acGc5SSlKxLHLMn7CtTAbPUqoKZ38?counter=122&amp;epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs">#122, the seed</a>
-            <a href="/proof/rQKRGOoLSh2hkaf1nZVCVg3dlvbAcInqQCj_Uy0et-E?counter=124&amp;epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs">#124, the picture</a>
+            <a href="/proof/3Kt6ZzahoWhxEL2VSbwFEo4OjC0--_AYEVG-enISZ4A?counter=126&amp;epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs">#126, the seed</a>
+            <a href="/proof/kNL62zwp_UDYvB7f0id0ut8RshPGJDoLp_BekiJ_R60?counter=128&amp;epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs">#128, the picture</a>
             <a href="https://github.com/mikeargento/bitgraph/blob/main/website/src/lib/commitment-art-v19.ts" target="_blank" rel="noopener">The code</a>
           </figcaption>
         </figure>
@@ -121,9 +121,10 @@ export default function HomePage() {
 
 
       {/* Made after its proof (re-recorded 2026-11-02, with Base writes): the bridge is drawn (bitgraph-art/19) from the
-          nonce the enclave drew for BitGraph #122, the request, and the finished PNG is recorded as #124. Redrawing from that
-          nonce gives the same bytes. The image shown is the recorded file itself (public/demo/bridge-124.png); earlier
-          recordings (#12,526 and #12,530, bridge.png; #42 and #44, bridge-44.png) stay for their own proof pages. */}
+          nonce the enclave drew for BitGraph #126, the request, and the finished PNG is recorded as #128. Redrawing from that
+          nonce gives the same bytes. The image shown is the recorded file itself (public/demo/bridge-128.png); earlier
+          recordings (#12,526 and #12,530, bridge.png; #42 and #44, bridge-44.png; #122 and #124, bridge-124.png) stay
+          for their own proof pages. */}
 
       <section className="home-section" aria-labelledby="home-any">
         <p className="home-kicker">Any file</p>
