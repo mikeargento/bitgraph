@@ -35,7 +35,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="how" className="home-section" aria-labelledby="home-demo">
+      <section className="home-section" aria-labelledby="home-demo">
         <p className="home-kicker">Real files, real proofs</p>
         <h2 id="home-demo">Everything digital is already a&nbsp;copy&hellip;</h2>
         <p>Same picture. Different bytes. Different proofs. Open any proof and check for&nbsp;yourself.</p>
