@@ -277,6 +277,9 @@ export default function ProofPage() {
       // record in hand, so it asks again for a little while; an older proof outside the timeline stops after that.
       if (!j || j.state === "none") { if (since < 30_000) timer = setTimeout(ask, 3000); return; }
       setTimeline({ ...j, epochUrl: ep });
+      // A drop's own floor (the read on the counts right before it) is settled: its ceiling is the Base write, not a read.
+      const sc = (proof.commit as { slotCounter?: string }).slotCounter;
+      if (j.floor && sc && Number(j.floor.counter) + 1 === Number(sc)) return;
       // The ceiling is the next block read stamped after this record: a few seconds after a bind.
       if ((j.state === "pending" || j.state === "unconfirmed") && since < 120_000) timer = setTimeout(ask, 3000);
     };

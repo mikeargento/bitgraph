@@ -461,9 +461,10 @@ test("build: the bracket is cut from the records by the verifier's rules, and th
 });
 
 test("build: not ready until a qualifying ceiling read exists", async () => {
-  const { e, bundle } = await scenario([{ read: "base", n: 0 }, { file: true }, { read: "base", n: 1, lagS: 7 }]);
+  // Another record between the read and the file: the read is not this file's own floor (a drop's floor, below).
+  const { e, bundle } = await scenario([{ read: "base", n: 0 }, { other: true }, { file: true }, { read: "base", n: 1, lagS: 7 }]);
   const { lines, genesis } = linesOf(bundle);
-  const built = buildTimelineBundle({ lines, counter: bundle.proofs[1]!.commit.counter!, genesis, nitroTimeMs: (p) => e.nitroMs.get(String(p.commit.counter)) ?? null });
+  const built = buildTimelineBundle({ lines, counter: bundle.proofs[2]!.commit.counter!, genesis, nitroTimeMs: (p) => e.nitroMs.get(String(p.commit.counter)) ?? null });
   assert.equal(built.ok, false);
   if (built.ok) return;
   assert.equal(built.retryable, true);
@@ -492,4 +493,35 @@ test("build: a lost record cannot be bridged; a block read is not a file", async
   if (!built.ok) { assert.equal(built.retryable, false); assert.match(built.reason, /not one unbroken run/); }
   const read = buildTimelineBundle({ lines, counter: bundle.proofs[0]!.commit.counter!, genesis, nitroTimeMs });
   assert.equal(!read.ok && read.reason, "that record is a block read, not a file");
+});
+
+/* A drop's own floor (2026-11-02): the host binds a Base read right before each file, so the file's prevB64 is that
+   read's hash and no ceiling read follows. */
+const dropLines = (bundle: TimelineBundle): TimelineRecordLine[] =>
+  bundle.proofs.map((proof, i): TimelineRecordLine => {
+    const blockFile = bundle.blockFiles[String(i)];
+    return blockFile !== undefined ? { kind: "block", proof, blockFile } : { kind: "file", proof };
+  });
+
+test("a drop's floor: a Base read right before the file is the whole bundle, the floor checked and the ceiling left to the Base write", async () => {
+  const { e, bundle, lookups } = await scenario([{ read: "base", n: 0 }, { file: true }]);
+  const genesis: TimelineRecordLine = { kind: "genesis", proof: bundle.genesis!.proof, genesisFile: bundle.genesis!.file };
+  const built = buildTimelineBundle({ lines: dropLines(bundle), counter: bundle.proofs[1]!.commit.counter!, genesis, nitroTimeMs: (p) => e.nitroMs.get(String(p.commit.counter)) ?? null });
+  assert.ok(built.ok, built.ok ? "" : built.reason);
+  assert.equal(built.bundle.proofs.length, 2);
+  assert.equal(built.bundle.target, 1);
+  assert.equal(built.bundle.proofs[1]!.commit.prevB64, computeChainHash(built.bundle.proofs[0]!));
+  const r = await verifyTimelineBundle({ bundle: built.bundle, lookups, attested: e.attested });
+  assert.equal(r.status, "unconfirmed");
+  assert.deepEqual(r.reasons, []);
+  assert.equal(r.floor?.index, 0);
+  assert.equal(r.floor?.number, 37_500_000);
+  assert.equal(r.ceiling, null);
+});
+
+test("a drop's floor must be the record right before the file: one more record between them and the bundle waits for a ceiling read", async () => {
+  const { e, bundle } = await scenario([{ read: "base", n: 0 }, { other: true }, { file: true }]);
+  const built = buildTimelineBundle({ lines: dropLines(bundle), counter: bundle.proofs[2]!.commit.counter!, nitroTimeMs: (p) => e.nitroMs.get(String(p.commit.counter)) ?? null });
+  assert.equal(built.ok, false);
+  assert.equal(!built.ok && built.retryable, true);
 });

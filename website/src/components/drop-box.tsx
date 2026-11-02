@@ -546,6 +546,17 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       const contentName = "merkle-root.txt", contentDigest = await digestOf(new TextEncoder().encode(rootText));
       const b = already ?? await bindOne(contentDigest);
       void cacheArtifactToIDB(new File([rootText], contentName, { type: "text/plain" }), contentDigest).catch(() => {});
+      /* Each dropped file is saved for its own proof page too (2026-11-02: a member's page showed its picture only when
+         the file had once been dropped alone). On this device only, one after another behind the proof; a large folder
+         saves its first files up to the caps, and the rest open without the file in hand, as before. */
+      if (!list) void (async () => {
+        let bytes = 0;
+        for (let i = 0; i < files.length && i < 500; i++) {
+          bytes += files[i]!.size;
+          if (bytes > 1024 ** 3) break;
+          await cacheArtifactToIDB(files[i]!, dropped[i]![2]).catch(() => {});
+        }
+      })();
       const tDone = performance.now();
       const t = tree!, total = t.files;
       const blocks = memberBlocks(t, rootText);

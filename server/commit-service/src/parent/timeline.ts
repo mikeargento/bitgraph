@@ -93,6 +93,11 @@ export class Timeline {
     this.journal.stop();
   }
 
+  /** A drop's Base floor (server.ts, bindDropFloor): a block read bound just before the file, with its block file. */
+  recordBlock(proof: BitGraphProof, blockFile: string): void {
+    this.journal.append({ kind: "block", proof, blockFile });
+  }
+
   /** A file bind's proof, or the genesis record with its file. */
   record(proof: BitGraphProof, genesisFile?: string): void {
     const line: TimelineLine = genesisFile !== undefined ? { kind: "genesis", proof, genesisFile } : { kind: "file", proof };

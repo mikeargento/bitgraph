@@ -12,6 +12,11 @@
  * Not ready yet (retryable) when the file has no qualifying ceiling read after it in the records given: a ceiling
  * needs a block stamped after the file, read within the lag limits, so a bundle can be made a few seconds after the
  * file is bound. A gap in the records (a lost record) cannot be bridged and is not retryable.
+ *
+ * A drop's own floor (2026-11-02): when the record right before the file is a Base block read, it is the floor the
+ * host bound for that drop, and the file's prevB64 is that read's hash. Such a file needs no ceiling read (its
+ * ceiling is its own Base write, ceiling.ts): the bundle is the read and the file, and verifyTimelineBundle reports it
+ * unconfirmed only for the missing ceiling read, with the floor checked.
  */
 
 import type { BitGraphProof } from "./types.js";
@@ -92,17 +97,19 @@ export function buildTimelineBundle(args: {
   };
 
   const notes: string[] = [];
-  let chosen: { chain: BlockReadChain; floor: number; ceiling: number } | null = null;
+  let chosen: { chain: BlockReadChain; floor: number; ceiling: number | null } | null = null;
   for (const chain of ["base", "ethereum"] as const) {
     const p = pick(chain);
     if (p.ceiling !== null) { chosen = { chain, floor: p.floor!, ceiling: p.ceiling }; break; }
     notes.push(p.floor === null ? `no ${chain} read before the file in these records` : `no qualifying ${chain} ceiling after the file yet`);
   }
+  const own = reads.get(t - 1);
+  if (!chosen && own && own.chain === "base" && own.timestamp * 1000 <= fileMs) chosen = { chain: "base", floor: t - 1, ceiling: null };
   if (!chosen) return { ok: false, retryable: true, reason: `not ready: ${notes.join("; ")}` };
   if (chosen.chain !== "base") notes.unshift("bracketed on Ethereum: Base had no qualifying ceiling");
   else notes.length = 0;
 
-  const run = lines.slice(chosen.floor, chosen.ceiling + 1);
+  const run = lines.slice(chosen.floor, (chosen.ceiling ?? t) + 1);
   const s = verifyStretch(run.map((l) => l.proof));
   if (!s.ok) return { ok: false, retryable: false, reason: `the records are not one unbroken run: ${s.reasons[0]}` };
 

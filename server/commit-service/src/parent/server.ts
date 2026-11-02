@@ -43,6 +43,7 @@ import { Timeline } from "./timeline.js";
 import { TimelineAlerter, snsAlertSend } from "./timeline-alerts.js";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { blockReadFileText, blockReadDigestB64 } from "@mikeargento/bitgraph-verify";
 
 const PORT = Number(
   process.argv.find((a) => a.startsWith("--port="))?.split("=")[1]
@@ -332,6 +333,45 @@ async function initEnclave(): Promise<{ counter: string; epochId: string }> {
 
 let epochStarting = false;
 
+// ---------------------------------------------------------------------------
+// A floor for every drop (2026-11-02): before each file is bound, the newest Base block is read and bound as its own
+// BitGraph (a bitgraph-block-read/1 file, packages/verify/src/block-read.ts), and the file is bound on the very next
+// counts. The file's signed prevB64 is the hash of that block read, so the floor is chained into the file's proof:
+// the file was bound after that block existed, because a block hash cannot be known before its block. bindExclusive
+// keeps the pair back to back; nothing else is bound between them. The block read itself is not written to Base;
+// the file is.
+//
+// A block that cannot be read is no reason to refuse a drop: the file is then bound without a floor, and its proof
+// shows none (the record before it is not a block read of its own epoch).
+// ---------------------------------------------------------------------------
+
+let bindChain: Promise<unknown> = Promise.resolve();
+/** Run `f` with no other bind in the enclave until it finishes. */
+function bindExclusive<T>(f: () => Promise<T>): Promise<T> {
+  const run = bindChain.then(f, f);
+  bindChain = run.catch(() => undefined);
+  return run;
+}
+
+async function bindDropFloor(): Promise<void> {
+  const epochId = openEpochId;
+  if (!epochId) return;
+  let block;
+  try { block = await latestBaseBlock(); } catch (e) {
+    console.warn(`[parent] drop floor: no Base block read (${e instanceof Error ? e.message : String(e)}); the file is bound without one`);
+    return;
+  }
+  const text = blockReadFileText({ epochId, chain: "base", chainId: "eip155:8453", number: block.number, hash: block.hash, timestamp: block.timestamp });
+  const r = await enclaveClient.send({ type: "bind", digestB64: blockReadDigestB64(text) });
+  if (!r.ok || !r.data) {
+    console.warn(`[parent] drop floor: the block read was not bound (${r.error ?? "no answer"}); the file is bound without one`);
+    return;
+  }
+  const { proof } = r.data as { proof: BitGraphProof };
+  try { timeline?.recordBlock(proof, text); } catch (e) { console.error(`[parent] drop floor: journal append failed: ${e instanceof Error ? e.message : String(e)}`); }
+  await keepMade([proof], false);
+}
+
 async function bindEpochFloor(epochId: string): Promise<void> {
   epochStarting = true;
   const deadline = Date.now() + 90_000;
@@ -346,7 +386,7 @@ async function bindEpochFloor(epochId: string): Promise<void> {
         const waitMs = Number(process.env["EPOCH_GENESIS_WAIT_MS"] ?? 180_000);
         const file = await awaitEpochGenesis(gdir, epochId, waitMs);
         if (file) {
-          const r = await bindWithFloor({ digestB64: sha256B64(file) });
+          const r = await bindExclusive(() => bindWithFloor({ digestB64: sha256B64(file) }));
           if (!r.ok || !r.data) throw new Error(r.error ?? "bind failed");
           const { proof } = r.data as { proof: BitGraphProof };
           await keepMade([proof], false);
@@ -364,7 +404,7 @@ async function bindEpochFloor(epochId: string): Promise<void> {
       try {
         const block = await latestBaseBlock();
         const file = epochFloorFile(epochId, block);
-        const r = await bindWithFloor({ digestB64: sha256B64(file) });
+        const r = await bindExclusive(() => bindWithFloor({ digestB64: sha256B64(file) }));
         if (!r.ok || !r.data) throw new Error(r.error ?? "bind failed");
         const { proof } = r.data as { proof: BitGraphProof };
         await keepMade([proof], false);
@@ -415,7 +455,7 @@ async function bindTimelineGenesis(epochId: string, counter: string): Promise<vo
     if (file) {
       for (let attempt = 1; ; attempt++) {
         try {
-          const r = await bindWithFloor({ digestB64: sha256B64(file) });
+          const r = await bindExclusive(() => bindWithFloor({ digestB64: sha256B64(file) }));
           if (!r.ok || !r.data) throw new Error(r.error ?? "bind failed");
           const { proof } = r.data as { proof: BitGraphProof };
           await keepMade([proof], false, file);
@@ -653,7 +693,10 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
     if (heldSlotId === undefined && await atomicBind()) {
       // Enclave v11: one call, nonce at N and this digest at N+1. No slotId
       // ever exists outside the enclave.
-      commitResult = await bindWithFloor({
+      // The drop's floor, then the file on the next counts (bindDropFloor). Enclave v12+ only: it binds a digest and
+      // nothing else, so the floor is a BitGraph of its own.
+      const only = await onlyBind();
+      commitResult = await bindExclusive(async () => { if (only) await bindDropFloor(); return bindWithFloor({
         digestB64: d.digestB64,
         ...(body.chainId !== undefined ? { chainId: body.chainId } : {}),
         ...(agencyForDigest !== undefined ? { agency: agencyForDigest } : {}),
@@ -661,7 +704,7 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
         ...(body.policy !== undefined ? { policy: body.policy } : {}),
         ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
         ...(body.anchor !== undefined ? { anchor: body.anchor } : {}),
-      });
+      }); });
     } else {
       // Step 1: the slot. Either the caller's held slot (its chain was bound at
       // allocation; body.chainId is not consulted) or a fresh one allocated
@@ -1000,7 +1043,7 @@ server.listen(PORT, BIND_HOST, async () => {
       timeline = Timeline.fromEnv({
         bind: async (digestB64) => {
           // Straight to the enclave: never through /api/commit, so nothing is put in front of a block read.
-          const r = await enclaveClient.send({ type: "bind", digestB64 });
+          const r = await bindExclusive(() => enclaveClient.send({ type: "bind", digestB64 }));
           if (!r.ok || !r.data) throw new Error(r.error ?? "bind failed");
           return (r.data as { proof: BitGraphProof }).proof;
         },

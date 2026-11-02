@@ -390,7 +390,11 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   // start and the return to per-record Base writes, and a later record of the same epoch would otherwise show the last
   // read before the switch as a floor, and a ceiling read that never comes.
   const tl = !ct && m.timeline && m.timeline.state !== "failed" ? m.timeline : null;
-  const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null || tl !== null;
+  // A drop's own floor (2026-11-02): the Base read bound on the counts right before this file, which its signed prevB64
+  // names. Shown beside the Base write; a read further back (from before the switch) is not this file's floor.
+  const own = m.timeline && m.timeline.state !== "failed" && m.timeline.floor && m.proof.commit.slotCounter
+    && BigInt(m.timeline.floor.counter) + BigInt(1) === BigInt(m.proof.commit.slotCounter) ? m.timeline.floor : null;
+  const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null || tl !== null || own !== null;
   const c = m.checks;
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
   const badCount = c.claims.filter((x) => x.result === "FALSE").length;
@@ -438,14 +442,14 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   // The block timeline, when it has this record: each time links to the block read's own BitGraph, whose page links
   // the block on the chain's explorer.
   const chainName = (c: "base" | "ethereum") => (c === "base" ? "Base" : "Ethereum");
-  const readHref = (b: { digestB64: string; counter: string }) => `/proof/${b.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${b.counter}&epoch=${tl!.epochUrl}`;
+  const readHref = (b: { digestB64: string; counter: string }) => `/proof/${b.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${b.counter}&epoch=${m.timeline!.epochUrl}`;
   const readCell = (label: string, b: { chain: "base" | "ethereum"; timestamp: number; counter: string; digestB64: string }) => (
     <div className="pv-row pv-row-window">
       <div className="pv-row-label">{chainName(b.chain)} {label}</div>
       <div className="pv-row-value pv-window">{whenBeside(b.timestamp * 1000, attested)} <a className="pv-link" href={readHref(b)}>#{fmtNum(b.counter)}</a></div>
     </div>
   );
-  const floorCell = tl?.floor ? readCell("floor", tl.floor) : showTime ? timeCell("Base floor", floorShown, floorHref) : null;
+  const floorCell = own ? readCell("floor", own) : tl?.floor ? readCell("floor", tl.floor) : showTime ? timeCell("Base floor", floorShown, floorHref) : null;
   // No "reading the next block" row: records bound now are written to Base, and their write row says when it lands.
   const ceilingCell = tl?.ceiling ? readCell("ceiling", tl.ceiling) : showTime ? timeCell("Written to Base", ceilingShown, ceilingHref) : null;
   const br = m.blockRead ?? null;
