@@ -250,9 +250,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // It is never written to Base; when the record at this position is a block read, its block file goes with it, as
     // for a block read with no ledger object, so its page names the block.
     let timelineRecord: { kind: string; blockFile: string } | undefined;
-    if (ceiling === null && selCommit?.counter && selCommit.epochId) {
+    // Only for a link naming its position (every floor link does), and never for long: an older epoch has no timeline,
+    // and asking it cost every such proof page seconds (2026-11-02).
+    if (ceiling === null && selCounter && selEpoch && selCommit?.counter && selCommit.epochId) {
       const ep = selCommit.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const rec = await timelineRecordAt(ep, Number(selCommit.counter)).catch(() => null);
+      const rec = await Promise.race([timelineRecordAt(ep, Number(selCommit.counter)).catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 2000))]);
       if (rec?.kind === "block" && rec.blockFile && rec.proof.artifact.digestB64 === standardB64) timelineRecord = { kind: "block", blockFile: rec.blockFile };
     }
     return NextResponse.json({ proofs: [{ proof }],
