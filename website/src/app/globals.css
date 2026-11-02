@@ -6080,3 +6080,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root 
 /* The planetary-scale section's dividers a little stronger than the site's lines (20% of the ink, in either theme), so
    the three steps stay apart on a dim screen. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale { --line: color-mix(in srgb, var(--ink) 20%, transparent); }
+/* The footer's sun and moon in the footer links' own blue (2026-11-02), so it reads as one of them. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body footer .theme-toggle { color: var(--link) !important; }
+@media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body footer .theme-toggle:hover { color: var(--link) !important; opacity: 0.7; } }

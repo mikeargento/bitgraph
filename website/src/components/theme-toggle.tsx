@@ -5,15 +5,12 @@
 import { useEffect, useState } from "react";
 
 /**
- * Day or night (2026-10-17): a sun and moon toggle in the upper right. The site follows the
- * device until someone presses this; the choice is saved and set on <html> as data-theme before the
- * first paint (the head script in layout.tsx). The button shows where it would take you: a sun at
- * night, a moon by day.
+ * Day or night: a sun and moon toggle in the footer. The site is dark until someone presses this
+ * (2026-11-02); the choice is saved and set on <html> as data-theme before the first paint (the head
+ * script in layout.tsx). The button shows where it would take you: a sun at night, a moon by day.
  */
 function currentMode(): "light" | "dark" {
-  const forced = document.documentElement.dataset.theme;
-  if (forced === "light" || forced === "dark") return forced;
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
 }
 
 export function ThemeToggle() {
@@ -21,10 +18,6 @@ export function ThemeToggle() {
 
   useEffect(() => {
     setMode(currentMode());
-    const mq = window.matchMedia("(prefers-color-scheme: light)");
-    const follow = () => setMode(currentMode());
-    mq.addEventListener("change", follow);
-    return () => mq.removeEventListener("change", follow);
   }, []);
 
   const flip = () => {

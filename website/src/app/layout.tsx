@@ -117,9 +117,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: the head script below marks <html> data-js before React loads.
     <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${newsreader.variable}`}>
       <head>
-        {/* Day or night before the first paint (2026-10-17, for the sun and moon toggle): a saved choice
-            sets data-theme on <html>; with none, the device's light or dark setting (2026-10-30), and it follows a change. */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var d=document.documentElement,m=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)"),dev=function(){return m&&m.matches?"dark":"light"},t=null;try{t=localStorage.getItem("bg-theme")}catch(e){}d.dataset.theme=(t==="light"||t==="dark")?t:dev();if(m&&m.addEventListener)m.addEventListener("change",function(){var s=null;try{s=localStorage.getItem("bg-theme")}catch(e){}if(s!=="light"&&s!=="dark")d.dataset.theme=dev()})})()` }} />
+        {/* Day or night before the first paint: a saved choice from the sun and moon toggle sets data-theme on <html>;
+            with none, the site is dark, whatever the device's setting (2026-11-02). */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var d=document.documentElement,t=null;try{t=localStorage.getItem("bg-theme")}catch(e){}d.dataset.theme=t==="light"?"light":"dark"})()` }} />
         {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
             700 and italics). PREVIEW 2026-09-16: --font-term in globals.css
             points at it. */}
