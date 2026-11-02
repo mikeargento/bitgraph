@@ -5,8 +5,8 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 
 /**
  * Evaluate (2026-10-27): a technical buyer reproduces the guarantees without a call. The sample in /evaluate is a real
- * v13 production proof (the verifier's carrier5 fixture: file 2 of a tree of 2, counter 16). Every command and every
- * failure line below was run against it with @mikeargento/bitgraph-sdk 0.7.4 on 2026-10-27.
+ * v13 production proof: the home page's ChatGPT picture, BitGraph #304 (2026-11-02, with its Base floor at #302). Every
+ * command and every failure line below was run against it with @mikeargento/bitgraph-sdk 0.8.0 on 2026-11-02.
  */
 export const metadata: Metadata = {
   title: "Evaluate",
@@ -25,7 +25,7 @@ function Code({ children }: { children: string }) {
 const V = "npx @mikeargento/bitgraph-sdk verify";
 
 const CASES: Array<{ what: string; how: string; result: string }> = [
-  { what: "Different bytes", how: "Change one character of sample.txt", result: "FALSE: the file is not in the tree this proof binds" },
+  { what: "Different bytes", how: "Change one byte of chatgpt.png", result: "FALSE: the provided bytes do not match the committed digest" },
   { what: "Moved position", how: "Edit commit.counter", result: "FALSE: user_data is not this proof's signed-body hash" },
   { what: "Rewritten history", how: "Edit commit.prevB64", result: "FALSE: user_data is not this proof's signed-body hash" },
   { what: "Different image claimed", how: "Edit environment.measurement", result: "FALSE: PCR0 … is not the proof's measurement" },
@@ -51,15 +51,16 @@ export default function EvaluatePage() {
         <p className="home-kicker">Step 1</p>
         <h2 id="e-1">Verify a real proof, offline.</h2>
         <p>
-          Download a production proof and the file it covers: <a href="/evaluate/sample.txt" download>sample.txt</a> and{" "}
-          <a href="/evaluate/sample.txt.bitgraph.json" download>sample.txt.bitgraph.json</a>. It is BitGraph count 16 of a v13 epoch,
-          the second file of a two-file collection.
+          Download a production proof and the file it covers: <a href="/evaluate/chatgpt.png" download>chatgpt.png</a> and{" "}
+          <a href="/evaluate/chatgpt.png.bitgraph.json" download>chatgpt.png.bitgraph.json</a>. It is BitGraph #304, the ChatGPT
+          picture on the home page.
         </p>
-        <Code>{`${V} sample.txt --proof sample.txt.bitgraph.json --pcr0 ${PUBLISHED_PCR0}`}</Code>
+        <Code>{`${V} chatgpt.png --proof chatgpt.png.bitgraph.json --pcr0 ${PUBLISHED_PCR0}`}</Code>
         <Code>{`TRUE
 
-  These exact bytes are file 2 of a tree of 2, whose root was bound by BitGraph's published enclave
-  image v13, as the AWS Nitro hardware attests, at 2026-10-21T01:37:40.960Z.`}</Code>
+  These exact bytes were bound by BitGraph's published enclave image v13, as the AWS Nitro hardware
+  attests, at 2026-11-02T06:24:05.154Z. This says where and when the bytes were bound, not when or how
+  they were made.`}</Code>
         <p className="sx-fine">Disconnect from the network after the first run, which installs the verifier; it still checks.</p>
       </section>
 
@@ -74,8 +75,8 @@ export default function EvaluatePage() {
           </table>
         </div>
         <p>For example, moving the proof to another position:</p>
-        <Code>{`node -e 'const f="sample.txt.bitgraph.json",p=JSON.parse(require("fs").readFileSync(f));p.commit.counter="18";require("fs").writeFileSync("moved.json",JSON.stringify(p))'
-${V} sample.txt --proof moved.json`}</Code>
+        <Code>{`node -e 'const f="chatgpt.png.bitgraph.json",p=JSON.parse(require("fs").readFileSync(f));p.commit.counter="306";require("fs").writeFileSync("moved.json",JSON.stringify(p))'
+${V} chatgpt.png --proof moved.json`}</Code>
       </section>
 
       <section className="home-section" aria-labelledby="e-3">

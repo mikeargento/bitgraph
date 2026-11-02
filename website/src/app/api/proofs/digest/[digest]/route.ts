@@ -246,8 +246,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     const cacheControl = settled
       ? "public, s-maxage=60, stale-while-revalidate=300"
       : "public, s-maxage=5, stale-while-revalidate=30";
+    // A drop's floor (2026-11-02) is a block read with a ledger object of its own, so it is found above like a file.
+    // It is never written to Base; when the record at this position is a block read, its block file goes with it, as
+    // for a block read with no ledger object, so its page names the block.
+    let timelineRecord: { kind: string; blockFile: string } | undefined;
+    if (ceiling === null && selCommit?.counter && selCommit.epochId) {
+      const ep = selCommit.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      const rec = await timelineRecordAt(ep, Number(selCommit.counter)).catch(() => null);
+      if (rec?.kind === "block" && rec.blockFile && rec.proof.artifact.digestB64 === standardB64) timelineRecord = { kind: "block", blockFile: rec.blockFile };
+    }
     return NextResponse.json({ proofs: [{ proof }],
-        lookupKind, positions, causalWindow, anchorBlock, floor, ceiling }, { headers: { "Cache-Control": cacheControl } });
+        lookupKind, positions, causalWindow, anchorBlock, floor, ceiling, ...(timelineRecord ? { timelineRecord } : {}) }, { headers: { "Cache-Control": cacheControl } });
   } catch (e) {
     // Never cached, and never confusable with the `{ proofs: [] }` miss above:
     // that answer means the ledger has nothing, this one means we could not
