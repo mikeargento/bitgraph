@@ -3,10 +3,6 @@
     {
       "path": "/api/digest-index/compact",
       "schedule": "17 * * * *"
-    },
-    {
-      "path": "/api/cron/timeline-health",
-      "schedule": "*/5 * * * *"
     }
   ],
   "git": {
