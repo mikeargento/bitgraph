@@ -69,14 +69,14 @@ export default function HomePage() {
 
       <section className="home-section home-art" aria-labelledby="home-art">
         <p className="home-kicker">Made after its proof</p>
-        <h2 id="home-art">This generative art couldn&rsquo;t exist before its BitGraph&nbsp;did.</h2>
-        <p>Every shape comes from a value generated inside BitGraph #42. Until it existed, nobody could know the picture it would&nbsp;make.</p>
+        <h2 id="home-art">This picture couldn&rsquo;t exist before BitGraph&nbsp;#42.</h2>
+        <p>Every shape is drawn from a random value created inside #42. Until #42 existed, nobody could know what the picture would look&nbsp;like.</p>
         <figure className="art-figure">
           <img src="/demo/bridge-44.png" width={1920} height={1080} alt="The Golden Gate Bridge drawn in rectangles, from the unpredictable value of BitGraph #42" loading="lazy" />
           <figcaption className="demo-links">
-            <a href="/proof/_Tb41FbQdvZ4JmpZexSV34pu5wlvTNuW8KHfKfJikzc?counter=42&amp;epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs">#42, the request</a>
+            <a href="/proof/_Tb41FbQdvZ4JmpZexSV34pu5wlvTNuW8KHfKfJikzc?counter=42&amp;epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs">#42, the seed</a>
             <a href="/proof/M_VIzEkRow0oomvDkaZ7iuiYm5bFhOXzgMd3Lr4U-bs?counter=44&amp;epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs">#44, the picture</a>
-            <a href="https://github.com/mikeargento/bitgraph/blob/main/website/src/lib/commitment-art-v19.ts" target="_blank" rel="noopener">bitgraph-art/19, the code</a>
+            <a href="https://github.com/mikeargento/bitgraph/blob/main/website/src/lib/commitment-art-v19.ts" target="_blank" rel="noopener">The code</a>
           </figcaption>
         </figure>
       </section>
