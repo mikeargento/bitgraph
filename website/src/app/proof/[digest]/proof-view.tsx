@@ -433,10 +433,12 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const floorShown = floorMs !== null ? whenBeside(floorMs, attested) : tf ? whenBeside(tf.blockTimestamp * 1000, attested) : fo ? whenBeside(fo.floor.blockTimestamp * 1000, attested) : null;
   const ceilingShown = ct && ct.anchor && ctMs !== null ? (ctStampOk ? whenBeside(ctMs, attested) : "Written to Base") : ct && !ct.anchor ? "Waiting for the next Base block" : null;
   const ceilingHref = ct?.anchor ? `https://basescan.org/tx/${ct.anchor.txHash}` : null;
-  const timeCell = (label: string, shown: string | null, href: string | null) => shown ? (
+  // A floor that is a BitGraph of its own links to it too (2026-11-02: every floor reads as a link to its BitGraph);
+  // one signed into the proof itself, or a leaf of its tree, has no BitGraph of its own and links to the block only.
+  const timeCell = (label: string, shown: string | null, href: string | null, own?: { href: string; counter: string }) => shown ? (
     <div className="pv-row pv-row-window">
       <div className="pv-row-label">{label}</div>
-      <div className="pv-row-value pv-window">{shown}{href && <> <a className="pv-link" href={href} target="_blank" rel="noopener">Basescan</a></>}</div>
+      <div className="pv-row-value pv-window">{shown}{own && <> <a className="pv-link" href={own.href}>#{fmtNum(own.counter)}</a></>}{href && <> <a className="pv-link" href={href} target="_blank" rel="noopener">Basescan</a></>}</div>
     </div>
   ) : null;
   // The block timeline, when it has this record: each time links to the block read's own BitGraph, whose page links
@@ -449,7 +451,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <div className="pv-row-value pv-window">{whenBeside(b.timestamp * 1000, attested)} <a className="pv-link" href={readHref(b)}>#{fmtNum(b.counter)}</a></div>
     </div>
   );
-  const floorCell = own ? readCell("floor", own) : tl?.floor ? readCell("floor", tl.floor) : showTime ? timeCell("Base floor", floorShown, floorHref) : null;
+  const flOwn = fl ? { href: `/proof/${fl.bitgraph.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${fl.bitgraph.counter}&epoch=${fl.bitgraph.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`, counter: fl.bitgraph.counter } : undefined;
+  const floorCell = own ? readCell("floor", own) : tl?.floor ? readCell("floor", tl.floor) : showTime ? timeCell("Base floor", floorShown, floorHref, flOwn) : null;
   // No "reading the next block" row: records bound now are written to Base, and their write row says when it lands.
   const ceilingCell = tl?.ceiling ? readCell("ceiling", tl.ceiling) : showTime ? timeCell("Written to Base", ceilingShown, ceilingHref) : null;
   const br = m.blockRead ?? null;
