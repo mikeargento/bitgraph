@@ -4,7 +4,7 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
-**A new primitive for digital proof.**
+**A BitGraph is proof of your file's place in line.**
 
 BitGraph is a recording mechanism for companies that already sell proof: content provenance, Content Credentials, trusted
 capture, timestamping, audit trails. Inside a measured AWS Nitro enclave, one atomic action binds a SHA-256 at a counted
@@ -59,8 +59,9 @@ the counter does not move, and the nonce never leaves the enclave
    before it, so gaps show.
 2. **Origin of the record.** The binding was done by a specific enclave build whose measurement (PCR0) is published and
    reproducible, as AWS Nitro hardware attests in a document signed for that exact proof.
-3. **Time.** It happened by the time in the hardware's signed attestation. Through bitgraph.ing it also falls inside a window
-   of public time: after a named Base block, and before the block where the proof's hash was written.
+3. **Time.** It happened by the time in the hardware's signed attestation. Through bitgraph.ing it also falls between two
+   public Base blocks seconds apart: the newest block, read and bound as its own BitGraph at the count just before the file
+   and chained into the file's proof, and the block where the proof's hash was written.
 
 It does not establish when content was created, who made it, or that it is true. It binds bytes. No blockchain is needed to
 verify a proof; Base is only needed to check the time window.
@@ -73,23 +74,25 @@ Full mechanism, threat model and comparisons with signatures, RFC 3161, transpar
 
 ## Evaluate it in fifteen minutes
 
-Verify a real v13 production proof offline, pinned to the published measurement:
+Verify a real v13 production proof offline, pinned to the published measurement. It is BitGraph #304, the ChatGPT picture on
+the home page:
 
 ```bash
-curl -O https://bitgraph.ing/evaluate/sample.txt -O https://bitgraph.ing/evaluate/sample.txt.bitgraph.json
-npx @mikeargento/bitgraph-sdk verify sample.txt --proof sample.txt.bitgraph.json \
+curl -O https://bitgraph.ing/evaluate/chatgpt.png -O https://bitgraph.ing/evaluate/chatgpt.png.bitgraph.json
+npx @mikeargento/bitgraph-sdk verify chatgpt.png --proof chatgpt.png.bitgraph.json \
   --pcr0 adaad0bef62292d35197ae8db19e40685229f1a1e6070a7c77a148c4ada88ee66a1ca50819eebc2017c6716a49f2692f
 ```
 
 ```
 TRUE
 
-  These exact bytes are file 2 of a tree of 2, whose root was bound by BitGraph's published enclave image v13,
-  as the AWS Nitro hardware attests, at 2026-10-21T01:37:40.960Z.
+  These exact bytes were bound by BitGraph's published enclave image v13, as the AWS Nitro hardware
+  attests, at 2026-11-02T06:24:05.154Z. This says where and when the bytes were bound, not when or how
+  they were made.
 ```
 
 Then edit any field of the proof, or one byte of the file, and verify again: each change fails, for its own reason, with
-exit code 2. A second sample is a ChatGPT image whose OpenAI-signed Content Credentials were bound in the same tree.
+exit code 2.
 
 Rebuild the enclave's measurement from source (Docker on linux/amd64; no Nitro hardware needed):
 
