@@ -39,7 +39,7 @@ import { browserRecoveryQueue } from "@/lib/recovery-queue";
 import { SPEC_FILE_NAME, specFileFor, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, rootOnlyTree, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource, type BoundTree } from "@/lib/fuse-tree";
 import { buildCarrierForProof, buildMemberCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence, fetchBaseFloorHeader } from "@/lib/carrier-site";
 import { memberCarrierFormat, memberCommittedBytes } from "@/lib/carrier-member";
-import { verifyCarrierPayload, verifyAttested, assembleCarrierV4Payload, buildBitGraphedFileV5, type CarrierClaim, type CarrierLookups, blobSource, } from "@mikeargento/bitgraph-verify";
+import { verifyCarrierPayload, verifyAttested, assembleCarrierV4Payload, buildBitGraphedFileV6, type CarrierClaim, type CarrierLookups, blobSource, } from "@mikeargento/bitgraph-verify";
 import { ProofView, type ProofViewModel, type FieldView, type PositionRowView, type SetRowView, type DownloadView } from "./proof-view";
 import { PUBLISHED_PCR0S, PUBLISHED_ENCLAVE_MEASUREMENTS } from "@/lib/enclave-measurements";
 import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_CARRIER_DIR, PKG_README, PKG_BASE_FLOOR_FILE, floorHeaderFile, packageReadme } from "@/lib/package-layout";
@@ -726,7 +726,7 @@ export default function ProofPage() {
   const [treeExportMsg, setTreeExportMsg] = useState<string | null>(null);
   // The carrier download: the file with its proof inside (lib/carrier-site).
   const [carrierBusy, setCarrierBusy] = useState(false);
-  // A proof made in one atomic action (enclave v11 on, no signed floor of its own) leaves as bitgraph-carrier/5.
+  // A proof made in one atomic action (enclave v11 on, no signed floor of its own) leaves as bitgraph-carrier/6 (/5 before 2026-11-02).
   const atomicCarrier = !!proof && (proof.commit as { atomic?: boolean } | undefined)?.atomic === true
     && !(proof.commit as { slotAnchor?: unknown } | undefined)?.slotAnchor && baseFloorOfProof(proof) === null;
   const [carrierMsg, setCarrierMsg] = useState<string | null>(null);
@@ -2028,13 +2028,26 @@ export default function ProofPage() {
     setCarrierBusy(true);
     setCarrierMsg(null);
     try {
-      // A proof made in one atomic action signs no floor of its own: its BitGraphed file is bitgraph-carrier/5, the file,
-      // then the proof as the ledger serves it (its tree path and floor leaf inside) and its Base ceiling (2026-10-20).
+      // A proof made in one atomic action signs no floor of its own: its BitGraphed file is bitgraph-carrier/6 (2026-11-02;
+      // /5 before), the file, then the proof as the ledger serves it (its tree path and floor leaf inside), its Base ceiling,
+      // and its own Base floor: the block read bound on the counts right before it, with the block file it binds.
       if (atomicCarrier) {
         const ph = String((proof as { proofHash?: string }).proofHash ?? "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
         let sidecar: Record<string, unknown> | null = null;
         try { const res = await fetch(`/api/ceilings/${ph}`, { cache: "no-store" }); sidecar = res.ok ? ((await res.json()) as Record<string, unknown>) : null; } catch { sidecar = null; }
-        const bytes = buildBitGraphedFileV5(new Uint8Array(cachedFile.data), proof as unknown as Record<string, unknown>, sidecar);
+        let floor: { proof: Record<string, unknown>; blockFile: string } | null = null;
+        try {
+          const c = proof.commit as { counter?: string; slotCounter?: string; epochId?: string };
+          const ep = String(c.epochId ?? "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+          const br = c.counter && c.slotCounter && ep ? await fetch(`/api/timeline/bracket?epoch=${ep}&counter=${c.counter}`, { cache: "no-store" }) : null;
+          const f = br?.ok ? ((await br.json()) as { floor?: { counter?: string; digestB64?: string } | null }).floor : null;
+          if (f?.counter && f.digestB64 && Number(f.counter) + 1 === Number(c.slotCounter)) {
+            const fr = await fetch(`/api/proofs/digest/${f.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${f.counter}&epoch=${ep}`, { cache: "no-store" });
+            const j = fr.ok ? ((await fr.json()) as { proofs?: Array<{ proof: Record<string, unknown> }>; timelineRecord?: { kind?: string; blockFile?: string } }) : null;
+            if (j?.proofs?.[0]?.proof && j.timelineRecord?.kind === "block" && j.timelineRecord.blockFile) floor = { proof: j.proofs[0].proof, blockFile: j.timelineRecord.blockFile };
+          }
+        } catch { floor = null; }
+        const bytes = buildBitGraphedFileV6(new Uint8Array(cachedFile.data), proof as unknown as Record<string, unknown>, sidecar, floor);
         const dot = cachedFile.name.lastIndexOf(".");
         const name = dot > 0 ? `${cachedFile.name.slice(0, dot)}.bitgraph${cachedFile.name.slice(dot)}` : `${cachedFile.name}.bitgraph`;
         const url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type: "application/octet-stream" }));
