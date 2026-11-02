@@ -39,10 +39,10 @@ const FACTS = [
 ];
 
 /* Every record is written to Base: the hash of its proof goes into a Base transaction from BitGraph's writer, seconds
-   after the bind, and that block is the record's public ceiling. BitGraph sends the transaction and pays for it. */
+   after the bind, and that block is the record's public ceiling. The caller signs and sends nothing. */
 const ON_BASE = [
   { title: "No wallet required.", body: "Send a hash. Get a proof. No wallet to connect, tokens to buy or balance to maintain." },
-  { title: "No gas to pay.", body: "BitGraph writes every record to Base and covers the fee. On Base, that\u2019s a fraction of a cent." },
+  { title: "No fees to manage.", body: "Every record is written to Base for you. No transactions to sign or send." },
   { title: "On Base in seconds.", body: "Your proof arrives when the record is bound. Its Base write lands seconds later, and anyone can look it up on Basescan." },
 ];
 
@@ -70,12 +70,12 @@ export default function HomePage() {
       <section className="home-section home-art" aria-labelledby="home-art">
         <p className="home-kicker">Made after its proof</p>
         <h2 id="home-art">This generative art couldn&rsquo;t exist before its BitGraph&nbsp;did.</h2>
-        <p>Every shape comes from a value generated inside BitGraph #12,526. Until it existed, nobody could know the picture it would&nbsp;make.</p>
+        <p>Every shape comes from a value generated inside BitGraph #42. Until it existed, nobody could know the picture it would&nbsp;make.</p>
         <figure className="art-figure">
-          <img src="/demo/bridge.png" width={1920} height={1080} alt="The Golden Gate Bridge drawn in rectangles, from the unpredictable value of BitGraph #12,526" loading="lazy" />
+          <img src="/demo/bridge-44.png" width={1920} height={1080} alt="The Golden Gate Bridge drawn in rectangles, from the unpredictable value of BitGraph #42" loading="lazy" />
           <figcaption className="demo-links">
-            <a href="/proof/STRmGI7e-mk_HXjr7DREuTpPgWjjdmLQXAkZyEg_1ys?counter=12526&amp;epoch=HVhtPS0i7hkDWO6zI_7UJG1VLekCC3ouJaYomAqeSPc">#12,526, the position</a>
-            <a href="/proof/E301gTl5CQkxYjhCsn8RZJcv26nR3EeWMyohutOe4F4?counter=12530&amp;epoch=HVhtPS0i7hkDWO6zI_7UJG1VLekCC3ouJaYomAqeSPc">#12,530, the picture</a>
+            <a href="/proof/_Tb41FbQdvZ4JmpZexSV34pu5wlvTNuW8KHfKfJikzc?counter=42&amp;epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs">#42, the request</a>
+            <a href="/proof/M_VIzEkRow0oomvDkaZ7iuiYm5bFhOXzgMd3Lr4U-bs?counter=44&amp;epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs">#44, the picture</a>
             <a href="https://github.com/mikeargento/bitgraph/blob/main/website/src/lib/commitment-art-v19.ts" target="_blank" rel="noopener">bitgraph-art/19, the code</a>
           </figcaption>
         </figure>
@@ -84,7 +84,7 @@ export default function HomePage() {
       <section className="home-section" aria-labelledby="home-reads">
         <p className="home-kicker">Every record, on chain</p>
         <h2 id="home-reads">Blockchain order, using&nbsp;Base.</h2>
-        <p>Every BitGraph is written to Base, the Ethereum network incubated by Coinbase. Its Base block is public proof the record existed by&nbsp;then.</p>
+        <p>Every BitGraph is written to Base, Coinbase's Ethereum network. Its Base block is public proof the record existed by&nbsp;then.</p>
         <div className="sx-cards is-3">
           {ON_BASE.map((r) => (
             <article key={r.title} className="tl-card">
@@ -104,9 +104,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Made after its proof (2026-10-31): the bridge is drawn (bitgraph-art/19) from the nonce the enclave drew for BitGraph
-          #12,526, and the finished PNG is recorded as #12,530. Redrawing from that nonce gives the same pixels. The image shown
-          is the recorded file itself (public/demo/bridge.png). */}
+      {/* Made after its proof (re-recorded 2026-11-02, with Base writes): the bridge is drawn (bitgraph-art/19) from the
+          nonce the enclave drew for BitGraph #42, the request, and the finished PNG is recorded as #44. Redrawing from that
+          nonce gives the same bytes. The image shown is the recorded file itself (public/demo/bridge-44.png); the first
+          recording (#12,526, #12,530, public/demo/bridge.png) stays for its own proof pages. */}
 
       <section className="home-section" aria-labelledby="home-any">
         <p className="home-kicker">Any file</p>
