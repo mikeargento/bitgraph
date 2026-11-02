@@ -31,10 +31,9 @@ export default function TermsPage() {
           A sealed environment mints a single-use position, then binds your
           file&apos;s SHA-256 fingerprint to it in one indivisible step.
           Positions form a counted, forward-only chain. Through bitgraph.ing,
-          the reference trust layer binds each position to Base: the latest
-          Base block is bound with it as a floor, and afterwards a Merkle root
-          over recent records&apos; proof hashes is written to Base as a
-          ceiling; no file and no fingerprint is written. The ordering does
+          the reference trust layer writes each position to Base: seconds
+          after the bind, a Merkle root over recent records&apos; proof hashes
+          is written to Base; no file and no fingerprint is written. The ordering does
           not depend on any blockchain.
         </p>
         <p>
@@ -50,8 +49,8 @@ export default function TermsPage() {
         <p>
           BitGraph records the position exact bytes took in a BitGraph
           sequence. A proof establishes that position, and nothing more. Time
-          bounds come only from trust layers bound to it, such as the Base
-          floor and ceiling. It does not verify,
+          bounds come only from trust layers bound to it, such as the hardware
+          attestation&apos;s time and the Base write. It does not verify,
           endorse, or make any claim about the truth, accuracy, legality,
           originality, authorship, or identity behind any file. It does not
           establish when a file was first created or that it did not exist

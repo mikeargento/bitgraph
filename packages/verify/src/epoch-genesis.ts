@@ -20,6 +20,7 @@
 
 import { sha256 } from "@noble/hashes/sha256";
 import type { BitGraphProof } from "./types.js";
+import { isPublishedWriter } from "./measurements.js";
 
 export const EPOCH_GENESIS_FORMAT = "bitgraph-epoch-genesis/1" as const;
 export const EPOCH_GENESIS_REQUEST_FORMAT = "bitgraph-epoch-genesis-request/1" as const;
@@ -157,10 +158,13 @@ export interface EpochGenesisCheck {
  * epoch's id, mined in the block the file names; the block, when supplied, must be that block with that time.
  * Without `tx` and `block` only the file and the proof are checked (offline).
  *
+ * The writer must be one of BitGraph's published writers on Base mainnet, unless the caller names the writers it trusts
+ * (`writers`): an epoch opened from any other address is not BitGraph's, though its enclave image may be.
+ *
  * `position: "any"` drops the counts-1-and-2 rule, for a timeline epoch that read blocks and bound files while the
  * Base write was still pending: its genesis record is the first record that ends pre-genesis, wherever it falls.
  */
-export function checkEpochGenesis(args: { file: string; proof: BitGraphProof; tx?: EpochGenesisTx | null; block?: EpochGenesisBlock | null; position?: "first" | "any" }): EpochGenesisCheck {
+export function checkEpochGenesis(args: { file: string; proof: BitGraphProof; tx?: EpochGenesisTx | null; block?: EpochGenesisBlock | null; position?: "first" | "any"; writers?: readonly string[] }): EpochGenesisCheck {
   const reasons: string[] = [];
   const genesis = parseEpochGenesisFile(args.file);
   if (!genesis) return { ok: false, reasons: ["the file is not a bitgraph-epoch-genesis/1 record"], genesis: null };
@@ -168,6 +172,9 @@ export function checkEpochGenesis(args: { file: string; proof: BitGraphProof; tx
   if (digest !== args.proof.artifact?.digestB64) reasons.push("the file does not hash to the proof's digest");
   const commit = args.proof.commit as { counter?: string; slotCounter?: string; epochId?: string };
   if (commit.epochId !== genesis.epochId) reasons.push("the proof is not of the epoch the file names");
+  if (args.writers ? !args.writers.map((w) => w.toLowerCase()).includes(genesis.writer) : genesis.chainId === 8453 && !isPublishedWriter(genesis.writer, 8453, genesis.blockNumber)) {
+    reasons.push(`the writer ${genesis.writer} is not ${args.writers ? "one this verifier trusts" : "a BitGraph writer"}`);
+  }
   if (args.position !== "any" && (commit.slotCounter !== "1" || commit.counter !== "2")) reasons.push("the proof is not the epoch's first BitGraph (counts 1 and 2)");
   if (args.tx) {
     const t = args.tx;

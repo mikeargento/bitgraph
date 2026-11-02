@@ -386,7 +386,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   // The content box comes into view once a search starts (2026-10-30), so its reading count shows the work.
   const [searching, setSearching] = useState(false);
   const fo = m.floorOf ?? null;
-  const tl = m.timeline && m.timeline.state !== "failed" ? m.timeline : null;
+  // A record written to Base shows that write and nothing from the block timeline: the timeline ran only between its
+  // start and the return to per-record Base writes, and a later record of the same epoch would otherwise show the last
+  // read before the switch as a floor, and a ceiling read that never comes.
+  const tl = !ct && m.timeline && m.timeline.state !== "failed" ? m.timeline : null;
   const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null || tl !== null;
   const c = m.checks;
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
@@ -424,7 +427,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   /* Floor and ceiling share one cell in Position (2026-10-30): the window in time, each time with its explorer link. */
   const floorHref = fl ? `https://basescan.org/block/${fl.blockNumber}` : tf ? `https://basescan.org/block/${tf.blockNumber}` : fo ? `https://basescan.org/block/${fo.floor.blockNumber}` : bf ? `https://basescan.org/block/${bf.blockNumber}` : ef?.etherscanUrl ?? null;
   const floorShown = floorMs !== null ? whenBeside(floorMs, attested) : tf ? whenBeside(tf.blockTimestamp * 1000, attested) : fo ? whenBeside(fo.floor.blockTimestamp * 1000, attested) : null;
-  const ceilingShown = ct && ct.anchor && ctMs !== null ? (ctStampOk ? whenBeside(ctMs, attested) : "Written to Base") : ct && !ct.anchor ? "Waiting to be written to Base" : null;
+  const ceilingShown = ct && ct.anchor && ctMs !== null ? (ctStampOk ? whenBeside(ctMs, attested) : "Written to Base") : ct && !ct.anchor ? "Waiting for the next Base block" : null;
   const ceilingHref = ct?.anchor ? `https://basescan.org/tx/${ct.anchor.txHash}` : null;
   const timeCell = (label: string, shown: string | null, href: string | null) => shown ? (
     <div className="pv-row pv-row-window">
@@ -443,11 +446,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
     </div>
   );
   const floorCell = tl?.floor ? readCell("floor", tl.floor) : showTime ? timeCell("Base floor", floorShown, floorHref) : null;
-  const ceilingCell = tl?.ceiling
-    ? readCell("ceiling", tl.ceiling)
-    : tl && tl.state === "pending"
-      ? <div className="pv-row pv-row-window"><div className="pv-row-label">Base ceiling</div><div className="pv-row-value pv-window">Reading the next block</div></div>
-      : showTime ? timeCell("Base ceiling", ceilingShown, ceilingHref) : null;
+  // No "reading the next block" row: records bound now are written to Base, and their write row says when it lands.
+  const ceilingCell = tl?.ceiling ? readCell("ceiling", tl.ceiling) : showTime ? timeCell("Written to Base", ceilingShown, ceilingHref) : null;
   const br = m.blockRead ?? null;
   const blockReadCell = br ? (
     <div className="pv-row">

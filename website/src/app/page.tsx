@@ -14,7 +14,7 @@ import { FileTypes, type FileKind } from "@/components/file-types";
  */
 
 const DESCRIPTION =
-  "A portable proof of where your digital record stands in a counted sequence. The proof checks offline; public block reads place it between two blockchain blocks, seconds apart, which anyone can confirm on the chains.";
+  "A portable proof of where your digital record stands in a counted sequence. The proof checks offline, and every one is written to Base, where anyone can confirm it existed by that block.";
 
 export const metadata: Metadata = {
   title: { absolute: "BitGraph: Order before time" },
@@ -38,13 +38,12 @@ const FACTS = [
   { big: "<\u20090.5\u2009s", small: "to get a proof back, measured" },
 ];
 
-/* Reads, never writes (2026-10-31): the block timeline binds a read of every Base and Ethereum block into the same
-   sequence, so each record sits between two public blocks with nothing written to any chain for it. Technology carries
-   three more: the hash off chain, two chains, and checking it all. */
-const NO_WRITES = [
+/* Every record is written to Base: the hash of its proof goes into a Base transaction from BitGraph's writer, seconds
+   after the bind, and that block is the record's public ceiling. BitGraph sends the transaction and pays for it. */
+const ON_BASE = [
   { title: "No wallet required.", body: "Send a hash. Get a proof. No wallet to connect, tokens to buy or balance to maintain." },
-  { title: "No gas per record.", body: "Recording a file requires no blockchain transaction, so there\u2019s no gas fee for each record." },
-  { title: "A bracket in seconds.", body: "Your proof arrives when the record is bound. Its time bracket closes when the next qualifying block is read, usually within a few seconds." },
+  { title: "No gas to pay.", body: "BitGraph writes every record to Base and covers the fee. On Base, that\u2019s a fraction of a cent." },
+  { title: "On Base in seconds.", body: "Your proof arrives when the record is bound. Its Base write lands seconds later, and anyone can look it up on Basescan." },
 ];
 
 export default function HomePage() {
@@ -83,11 +82,11 @@ export default function HomePage() {
       </section>
 
       <section className="home-section" aria-labelledby="home-reads">
-        <p className="home-kicker">Public time, without per-record transactions</p>
-        <h2 id="home-reads">Blockchain order, without the&nbsp;blockchain.</h2>
-        <p>Every record lands between two public blocks, seconds apart, with nothing written to any chain for&nbsp;it.</p>
+        <p className="home-kicker">Every record, on chain</p>
+        <h2 id="home-reads">Blockchain order, using&nbsp;Base.</h2>
+        <p>Every BitGraph is written to Base, the Ethereum network incubated by Coinbase. Its Base block is public proof the record existed by&nbsp;then.</p>
         <div className="sx-cards is-3">
-          {NO_WRITES.map((r) => (
+          {ON_BASE.map((r) => (
             <article key={r.title} className="tl-card">
               <h3>{r.title}</h3>
               <p>{r.body}</p>

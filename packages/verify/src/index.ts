@@ -204,8 +204,8 @@ export { baseTimeIsBound, BASE_STAMP_TOLERANCE_SECONDS } from "./ceiling.js";
 export { checkFloorHeader, floorTimeIsBound, onBaseSchedule, headerRlpFromRpc, BASE_MAINNET_GENESIS_TIME, BASE_BLOCK_TIME_SECONDS } from "./ceiling.js";
 export type { RpcBlockHeader } from "./ceiling.js";
 /* The enclave images BitGraph has published: the default measurement policy (SPEC section 16). */
-export { PUBLISHED_ENCLAVE_MEASUREMENTS, PUBLISHED_PCR0S, publishedMeasurement } from "./measurements.js";
-export type { PublishedMeasurement } from "./measurements.js";
+export { PUBLISHED_ENCLAVE_MEASUREMENTS, PUBLISHED_PCR0S, publishedMeasurement, imageIsAtomic, imageRetiredAfterMs, IMAGE_RETIREMENT_GRACE_DAYS, PUBLISHED_WRITERS, isPublishedWriter } from "./measurements.js";
+export type { PublishedMeasurement, PublishedWriter } from "./measurements.js";
 export type { BitGraphExport, ExportClaim, ExportClaimResult, ExportLookups, ExportVerifyOptions, ExportVerifyResult } from "./export.js";
 /* bitgraph-epoch-genesis/1 (2026-10-23): an epoch opens with a Base write carrying its id; the epoch's first BitGraph binds the mined transaction's record. */
 export { EPOCH_GENESIS_FORMAT, EPOCH_GENESIS_REQUEST_FORMAT, EPOCH_GENESIS_MAGIC, epochGenesisCalldata, epochGenesisCalldataHex, epochIdOfCalldata, epochGenesisFileText, parseEpochGenesisFile, checkEpochGenesis } from "./epoch-genesis.js";

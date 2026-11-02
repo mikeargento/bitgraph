@@ -14,7 +14,8 @@
  *      AWS Nitro root, every certificate valid at the document's own instant, the PCR0 the proof declares, and
  *      user_data equal to SHA-256 of the signed body, so the document is about this proof and no other;
  *   3. the image: the PCR0 inside the hardware-signed document must be one the caller accepts, by default an image
- *      BitGraph published (measurements.ts). A valid attestation from some other enclave is not BitGraph's.
+ *      BitGraph published (measurements.ts). A valid attestation from some other enclave is not BitGraph's, nor is one
+ *      from a retired image that the hardware dated after the image's window closed.
  *
  * Valid means: these bytes (when given) were bound at this position by the published BitGraph enclave image, as the
  * AWS hardware attests. It says nothing about when or how the content was made.
@@ -23,8 +24,8 @@
 import type { BitGraphProof, VerificationPolicy } from "./types.js";
 import { verify, verifyProofIntegrity, createVerificationContext, type VerificationContext } from "./verifier.js";
 import { verifyNitroAttestation, type NitroCheck } from "./nitro.js";
-import { computeSignedBodyHash } from "./proof-hash.js";
-import { PUBLISHED_PCR0S, publishedMeasurement } from "./measurements.js";
+import { buildSignedBody, computeSignedBodyHash } from "./proof-hash.js";
+import { PUBLISHED_ENCLAVE_MEASUREMENTS, PUBLISHED_PCR0S, publishedMeasurement, imageIsAtomic, imageRetiredAfterMs } from "./measurements.js";
 import { sha256 } from "@noble/hashes/sha256";
 import { checkTreeMember, treeMemberOf, treeRootTextBytes } from "./tree-member.js";
 
@@ -50,8 +51,8 @@ export interface AttestedResult {
   checks: NitroCheck[];
   /** The PCR0 inside the hardware-signed document (lowercase hex), when it could be read. */
   pcr0: string | null;
-  /** The published image that PCR0 names, when it is one of BitGraph's. */
-  image: { version: string; since: string } | null;
+  /** The published image that PCR0 names, when it is one of BitGraph's; atomic from v11 on. */
+  image: { version: string; since: string; atomic: boolean } | null;
   /** The document's own signed time (ms since the epoch): when the enclave bound this proof. */
   attestedAtMs: number | null;
   /** Whether the bytes were compared with the proof's digest. */
@@ -61,8 +62,25 @@ export interface AttestedResult {
   treeMember?: { index: number; files: number };
 }
 
-/** Images from v11 on make every proof atomic; a proof from one must be in the atomic form. */
-const ATOMIC_FROM = new Set(["v11", "v12", "v13"]);
+/**
+ * From v13 on, the enclave builds the whole signed body itself, and it holds only strings, booleans and objects, with
+ * printable ASCII in every key and string. A body outside that is refused before its hash is trusted, so every
+ * canonical-JSON implementation (this one, spec/tools/check.py) hashes it to the same bytes.
+ */
+const STRICT_BODY_FROM = PUBLISHED_ENCLAVE_MEASUREMENTS.findIndex((m) => m.version === "v13");
+const PRINTABLE_ASCII = /^[\x20-\x7e]*$/;
+
+function strictBodyProblem(value: unknown, path: string): string | null {
+  if (typeof value === "boolean") return null;
+  if (typeof value === "string") return PRINTABLE_ASCII.test(value) ? null : `${path} holds a character outside printable ASCII`;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return `${path} is not a string, boolean or object`;
+  for (const [k, v] of Object.entries(value)) {
+    if (!PRINTABLE_ASCII.test(k)) return `${path} has a key outside printable ASCII`;
+    const p = strictBodyProblem(v, `${path}.${k}`);
+    if (p) return p;
+  }
+  return null;
+}
 
 export async function verifyAttested(opts: AttestedOptions): Promise<AttestedResult> {
   const { proof } = opts;
@@ -74,7 +92,7 @@ export async function verifyAttested(opts: AttestedOptions): Promise<AttestedRes
   let treeMember: AttestedResult["treeMember"];
   const out = (valid: boolean, reason: string | undefined, checks: NitroCheck[], pcr0: string | null, attestedAtMs: number | null): AttestedResult => {
     const pub = pcr0 ? publishedMeasurement(pcr0) : null;
-    return { valid, ...(reason !== undefined ? { reason } : {}), checks, pcr0, image: pub ? { version: pub.version, since: pub.since } : null, attestedAtMs, artifactBinding, ...(treeMember ? { treeMember } : {}) };
+    return { valid, ...(reason !== undefined ? { reason } : {}), checks, pcr0, image: pub ? { version: pub.version, since: pub.since, atomic: imageIsAtomic(pub.version) } : null, attestedAtMs, artifactBinding, ...(treeMember ? { treeMember } : {}) };
   };
 
   // 2 first, because it decides 1's atomic rule: the hardware's word about which image made this proof.
@@ -102,6 +120,18 @@ export async function verifyAttested(opts: AttestedOptions): Promise<AttestedRes
   if (!accepted.includes(pcr0)) {
     return out(false, opts.pcr0 ? `PCR0 ${pcr0.slice(0, 16)}… is not an image this verifier accepts` : `PCR0 ${pcr0.slice(0, 16)}… is not an enclave image BitGraph published`, n.checks, pcr0, attestedAtMs);
   }
+  // A retired image, by default: accepted only for proofs the hardware dated inside its window (measurements.ts).
+  // A caller that names its own images decides for itself.
+  const retiredAfter = opts.pcr0 ? null : imageRetiredAfterMs(pcr0);
+  if (retiredAfter !== null && attestedAtMs !== null && attestedAtMs > retiredAfter) {
+    const v = publishedMeasurement(pcr0)?.version ?? "this image";
+    return out(false, `${v} was retired; the hardware dated this proof ${new Date(attestedAtMs).toISOString()}, after its window closed ${new Date(retiredAfter).toISOString()}`, n.checks, pcr0, attestedAtMs);
+  }
+  const imageAt = PUBLISHED_ENCLAVE_MEASUREMENTS.findIndex((m) => m.pcr0 === pcr0);
+  if (STRICT_BODY_FROM >= 0 && imageAt >= STRICT_BODY_FROM) {
+    const problem = strictBodyProblem(buildSignedBody(proof), "the signed body");
+    if (problem) return out(false, problem, n.checks, pcr0, attestedAtMs);
+  }
 
   if (member && bytes !== undefined) {
     if (!checkTreeMember(proof, sha256(bytes), member)) return out(false, "the file is not in the tree this proof binds", n.checks, pcr0, attestedAtMs);
@@ -111,7 +141,7 @@ export async function verifyAttested(opts: AttestedOptions): Promise<AttestedRes
 
   // 1. The proof's own consistency, with the atomic rule where it applies.
   const image = publishedMeasurement(pcr0);
-  const atomic = proof.commit?.atomic === true || (image !== null && ATOMIC_FROM.has(image.version));
+  const atomic = proof.commit?.atomic === true || (image !== null && imageIsAtomic(image.version));
   const trustAnchors: VerificationPolicy = { ...(opts.trustAnchors ?? {}), ...(atomic ? { requireAtomic: true } : {}) };
   const context = opts.context ?? createVerificationContext();
   const r = bytes !== undefined

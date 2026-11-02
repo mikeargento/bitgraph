@@ -37,10 +37,9 @@ export async function POST(req: NextRequest) {
     // legacy default chain, outside that sequence.
     if (body && typeof body === "object" && !Array.isArray(body) && body.chainId === undefined) body.chainId = "bitgraph:main";
 
-    // The block timeline supplies every record's floor and ceiling (block reads bound beside it on the same counter
-    // sequence, read from Base and Ethereum), so nothing is bound in front of a caller's digest and no Base write is
-    // asked for. `floorLeaf` and `ceiling` from older clients are accepted and dropped.
-    if (body && typeof body === "object" && !Array.isArray(body)) { delete body.floorLeaf; delete body.ceiling; }
+    // Every BitGraph is written to Base: the host queues each proof's hash for the ceiling writer when asked, so every
+    // bind asks. Nothing is bound in front of a caller's digest (no floor). `floorLeaf` from older clients is dropped.
+    if (body && typeof body === "object" && !Array.isArray(body)) { delete body.floorLeaf; body.ceiling = true; }
 
     // Snapshot what the legacy by-digest key holds BEFORE committing. The EC2
     // parent overwrites that key fire-and-forget as soon as the TEE responds,

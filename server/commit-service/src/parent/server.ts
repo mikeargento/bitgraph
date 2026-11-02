@@ -716,7 +716,7 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
       // Proofs already made in this request are kept and returned (2026-10-18 audit): they were bound, counted and
       // signed; dropping them left gaps in the sequence with nobody holding the proofs.
       if (proofs.length > 0) {
-        await keepMade(proofs, body.ceiling === true);
+        await keepMade(proofs, true);
         sendJson(res, 500, { error: commitResult.error ?? "commit failed", code: "partial", failedIndex: i, made: proofs });
         return;
       }
@@ -732,14 +732,15 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
   // and TSA services rate-limit at scale. The ETH block hash in the causal
   // chain is an unforgeable timestamp that doesn't depend on third parties.
 
-  await keepMade(proofs, body.ceiling === true);
+  await keepMade(proofs, true);
   sendJson(res, 200, proofs);
 }
 
 /**
  * Every proof the enclave made: its proofHash added, persisted to the immutable S3 ledger (with the by-digest
- * index), and queued for its Base ceiling when the caller asked for one (no-op unless CEILING_QUEUE_PATH; the Base
- * plugin's write, Mike 2026-10-18). Persisting and queueing are fire-and-forget, as before.
+ * index), and queued for its Base write when `ceiling` is set (no-op unless CEILING_QUEUE_PATH). Every file bound
+ * through /commit is written to Base, whatever the caller sends; block reads and genesis records are not.
+ * Persisting and queueing are fire-and-forget, as before.
  */
 async function keepMade(proofs: BitGraphProof[], ceiling: boolean, genesisFile?: string): Promise<void> {
   try {

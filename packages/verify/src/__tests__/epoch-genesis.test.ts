@@ -14,7 +14,7 @@ import {
 import type { BitGraphProof } from "../types.js";
 
 const epochId = Buffer.from(Array.from({ length: 32 }, (_, i) => (i * 7 + 3) & 0xff)).toString("base64");
-const writer = "0x" + "ab".repeat(20);
+const writer = "0xf3972408d853c975f86351c311f4310220bbf2a3"; // BitGraph's published writer (measurements.ts)
 const txHash = "0x" + "cd".repeat(32);
 const blockHash = "0x" + "ef".repeat(32);
 const file = epochGenesisFileText({ epochId, chainId: 8453, writer, txHash, blockNumber: 52_000_000, blockHash, blockTimestamp: 1_790_000_000 });
@@ -68,4 +68,12 @@ test("the online check: the transaction and the block as Base reports them", () 
   assert.match(checkEpochGenesis({ file, proof: proofFor(file), tx: { ...tx, to: "0x" + "11".repeat(20) }, block }).reasons.join(), /self-addressed/);
   assert.match(checkEpochGenesis({ file, proof: proofFor(file), tx: { ...tx, blockHash: "0x" + "00".repeat(32) }, block }).reasons.join(), /not in the block/);
   assert.match(checkEpochGenesis({ file, proof: proofFor(file), tx, block: { ...block, timestamp: 1 } }).reasons.join(), /block time/);
+});
+
+test("the writer: BitGraph's by default, or one the caller names", () => {
+  const other = "0x" + "ab".repeat(20);
+  const foreign = epochGenesisFileText({ epochId, chainId: 8453, writer: other, txHash, blockNumber: 52_000_000, blockHash, blockTimestamp: 1_790_000_000 });
+  assert.match(checkEpochGenesis({ file: foreign, proof: proofFor(foreign) }).reasons.join(), /not a BitGraph writer/);
+  assert.deepEqual(checkEpochGenesis({ file: foreign, proof: proofFor(foreign), writers: [other] }).reasons, []);
+  assert.match(checkEpochGenesis({ file, proof: proofFor(file), writers: [other] }).reasons.join(), /not one this verifier trusts/);
 });

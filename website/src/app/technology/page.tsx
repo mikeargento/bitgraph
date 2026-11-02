@@ -173,29 +173,29 @@ export default function TechnologyPage() {
               log or a Content Credential can be bound the same way, by whoever already issues it.
             </p>
             <p>
-              Through bitgraph.ing, every BitGraph is also placed in the time of public chains BitGraph does not operate, by reading
-              them, never writing to them per record. Every Base and Ethereum block is read and bound into the same counted sequence
-              as the records, so each record sits between two block reads:
+              Through bitgraph.ing, every BitGraph is also written to Base, a public chain BitGraph does not operate. Seconds after
+              the bind, the hash of the proof goes into a Base transaction from BitGraph&rsquo;s published writer address, with any
+              others made in the same moment under one Merkle root. Each record then carries two times:
             </p>
             <ul className="docs-list">
-              <li><strong>Floor.</strong> The last block read before the record. The record was bound after that block was produced.</li>
-              <li><strong>Ceiling.</strong> The first block read after it, stamped later than the record&rsquo;s hardware time. The record was bound before that block&rsquo;s timestamp, and the hardware clock was checked against the chain when the block was read.</li>
+              <li><strong>Recorded.</strong> The hardware time the AWS attestation signs into the proof.</li>
+              <li><strong>Written to Base.</strong> The block that holds the transaction. The record existed before that block was produced, and that rests on Base, not on any clock of AWS&rsquo;s or BitGraph&rsquo;s.</li>
             </ul>
             <div className="sx-cards is-3">
               <article className="tl-card">
-                <h3>Your hash stays off chain.</h3>
-                <p>No file, file hash or batch root is written to a blockchain. Only the epoch ID is announced on Base, once per epoch.</p>
+                <h3>Your file stays off chain.</h3>
+                <p>Only the proof&rsquo;s hash goes to Base, inside a Merkle root. The file itself is never written anywhere.</p>
               </article>
               <article className="tl-card">
-                <h3>Two public chains.</h3>
-                <p>Base provides frequent blocks. Ethereum keeps providing time brackets if Base is unavailable.</p>
+                <h3>One published writer.</h3>
+                <p>Every write comes from one Base address, pinned in the verifier. A write from any other address is not BitGraph&rsquo;s.</p>
               </article>
               <article className="tl-card">
                 <h3>Independently verifiable.</h3>
-                <p>Check the hardware attestations, signatures and counted sequence, then confirm the bracketing blocks against the public chains.</p>
+                <p>Check the hardware attestation, signatures and counted sequence, then find the Base transaction and check that it carries the proof&rsquo;s hash.</p>
               </article>
             </div>
-            <p>No blockchain is needed to verify a proof. The chains are only needed to check the floor and ceiling, and the mechanism does not depend on them.</p>
+            <p>No blockchain is needed to verify a proof. Base is only needed to check when it existed by, and the mechanism does not depend on it.</p>
           </section>
 
           <section className="home-section" aria-labelledby="t-trees">
@@ -282,7 +282,7 @@ export default function TechnologyPage() {
                   <tr>
                     <td>The host operator (BitGraph included)</td>
                     <td>Forge a proof that passes the attested check; see or choose a nonce; reuse a count; insert or reorder proofs inside a sequence without breaking the counts and hash links; change a proof&rsquo;s attested time by releasing it late.</td>
-                    <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbours); restart the enclave to begin a new epoch; choose which recent Base block is read as the floor; decline to write ceilings.</td>
+                    <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbours); restart the enclave to begin a new epoch; delay or decline a record&rsquo;s Base write (its proof then shows none).</td>
                   </tr>
                   <tr>
                     <td>A client</td>
@@ -329,7 +329,7 @@ export default function TechnologyPage() {
                   <tr><td><a href="https://csrc.nist.gov/pubs/fips/186-5/final" target="_blank" rel="noopener">Digital signature</a></td><td>These bytes were signed with a particular private key.</td><td>The key&rsquo;s security and any claimed link between that key and an identity.</td><td>BitGraph adds a counted position enforced by measured enclave code, with hardware attestation bound to each proof.</td></tr>
                   <tr><td><a href="https://www.rfc-editor.org/rfc/rfc3161.html" target="_blank" rel="noopener">Timestamp authority (RFC&nbsp;3161)</a></td><td>A TSA issued a signed token associating a digest with a stated time.</td><td>The TSA&rsquo;s signing key, time source and operating practices.</td><td>BitGraph provides counted, chained records and carries Nitro&rsquo;s signed attestation time. A TSA token can be bound as additional time evidence.</td></tr>
                   <tr><td><a href="https://docs.sigstore.dev/logging/overview/" target="_blank" rel="noopener">Transparency log (CT, Sigstore&rsquo;s Rekor, SCITT)</a></td><td>An entry is included in a signed log state. Consistency proofs allow checks of append-only growth.</td><td>The log&rsquo;s signing key, consistency checks, and the monitors or witnesses used to detect conflicting views.</td><td>BitGraph enforces each binding inside an attested enclave. Its proofs can also be published in a transparency log.</td></tr>
-                  <tr><td><a href="https://opentimestamps.org/" target="_blank" rel="noopener">Blockchain anchoring</a></td><td>A digest, directly or through a batch commitment, is linked to a commitment included in a particular block.</td><td>The chain&rsquo;s consensus, finality and rules for interpreting block time.</td><td>BitGraph issues proofs without a blockchain transaction per record. Its service binds public block observations into the sequence as additional time evidence.</td></tr>
+                  <tr><td><a href="https://opentimestamps.org/" target="_blank" rel="noopener">Blockchain anchoring</a></td><td>A digest, directly or through a batch commitment, is linked to a commitment included in a particular block.</td><td>The chain&rsquo;s consensus, finality and rules for interpreting block time.</td><td>BitGraph writes every proof to Base this way too. What it adds is the position: a counted place in line, bound with a fresh hardware nonce, before anything reaches the chain.</td></tr>
                   <tr><td><a href="https://spec.c2pa.org/specifications/specifications/2.5/specs/C2PA_Specification.html" target="_blank" rel="noopener">Content Credentials (C2PA)</a></td><td>A signer signed assertions cryptographically bound to an asset.</td><td>The signer, certificate trust chain and any timestamp authority used.</td><td>BitGraph can bind the asset and its manifest to a counted position, adding independently verifiable recording evidence.</td></tr>
                   <tr><td><a href="https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html" target="_blank" rel="noopener">Remote attestation</a></td><td>A platform signed evidence identifying measured software and associated attested data.</td><td>The platform&rsquo;s security and the hardware vendor&rsquo;s attestation root.</td><td>BitGraph uses attestation for a specific recording protocol: atomic binding, fresh nonces, consecutive counts and linked proofs.</td></tr>
                 </tbody>

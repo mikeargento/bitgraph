@@ -26,13 +26,14 @@
  * What stays OUTSIDE this function, and is reported, not assumed:
  *   - whether that header is really a Base block (check it against any Base
  *     RPC; see checkCeilingOnline), and
- *   - who the writer is (the caller names the address it trusts; BitGraph
- *     publishes its own on bitgraph.ing).
+ *   - who the writer is: the caller may name the address it trusts; by default
+ *     only BitGraph's published writers (measurements.ts) are accepted.
  */
 
 import { sha256 } from "@noble/hashes/sha256";
 import { verifyProofIntegrity, createVerificationContext } from "./verifier.js";
 import { computeProofHash } from "./proof-hash.js";
+import { isPublishedWriter } from "./measurements.js";
 import { merkleLeafHash, merkleRootFromPath } from "./fuse-merkle.js";
 import { base64ToBytes, signedFloorOf, type SignedFloor } from "./fuse.js";
 import {
@@ -159,8 +160,8 @@ export interface CeilingVerifyResult {
 }
 
 export interface CeilingVerifyOptions {
-  /** The declared writer address. A sidecar from any other sender is refused. */
-  writerAddress: string;
+  /** The writer address trusted. Omitted: BitGraph's published writers (PUBLISHED_WRITERS). Any other sender is refused. */
+  writerAddress?: string;
   /** 8453 Base mainnet, 84532 Base Sepolia. */
   chainId: number;
   /** Skip the proof's own signature check (only when the caller already ran verify()). */
@@ -280,8 +281,10 @@ async function verifyCeilingChecks(
   try {
     rawTx = hexToBytes(a.rawTx);
     const tx = decodeEip1559(rawTx);
-    const writer = opts.writerAddress.toLowerCase();
-    if (tx.from !== writer) return fail("sender", `the transaction was signed by ${tx.from}, not the declared writer ${writer}`);
+    const writer = opts.writerAddress !== undefined ? opts.writerAddress.toLowerCase() : tx.from;
+    if (opts.writerAddress !== undefined && tx.from !== writer) return fail("sender", `the transaction was signed by ${tx.from}, not the declared writer ${writer}`);
+    // The block number is the sidecar's here; the header step below refuses a sidecar whose number is not the header's.
+    if (opts.writerAddress === undefined && !isPublishedWriter(tx.from, opts.chainId, a.blockNumber)) return fail("sender", `the transaction was signed by ${tx.from}, which is not a BitGraph writer`);
     if (tx.to !== writer) return fail("sender", `the transaction is addressed to ${tx.to ?? "a contract creation"}, not to the writer`);
     if (tx.chainId !== BigInt(opts.chainId)) return fail("chain", `the transaction is for chain ${tx.chainId}, expected ${opts.chainId}`);
     if (a.chainId !== opts.chainId) return fail("chain", `the sidecar names chain ${a.chainId}, expected ${opts.chainId}`);

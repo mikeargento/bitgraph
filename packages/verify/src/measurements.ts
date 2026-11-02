@@ -50,3 +50,54 @@ export function publishedMeasurement(pcr0: unknown): PublishedMeasurement | null
   const want = pcr0.toLowerCase();
   return PUBLISHED_ENCLAVE_MEASUREMENTS.find((m) => m.pcr0 === want) ?? null;
 }
+
+/** Images from v11 on bind atomically: the nonce at N and the digest at N+1 in one action. Earlier images could hand
+ *  out a position before its content arrived. */
+const ATOMIC_IMAGES: ReadonlySet<string> = new Set(["v11", "v12", "v13"]);
+
+export function imageIsAtomic(version: string): boolean {
+  return ATOMIC_IMAGES.has(version);
+}
+
+/**
+ * Days an image stays accepted after the next image went live. A switch was never instant, so an image's last proofs
+ * can trail its successor's first by a little; past that, a proof attested by the older image is refused. Anyone can
+ * still boot a retired image on their own AWS account, and without this its new proofs would pass.
+ */
+export const IMAGE_RETIREMENT_GRACE_DAYS = 7;
+
+/** The last instant (ms since the epoch) at which a proof attested by this image is accepted; null for the newest. */
+export function imageRetiredAfterMs(pcr0: unknown): number | null {
+  const m = publishedMeasurement(pcr0);
+  if (!m) return null;
+  const i = PUBLISHED_ENCLAVE_MEASUREMENTS.indexOf(m);
+  const next = PUBLISHED_ENCLAVE_MEASUREMENTS[i + 1];
+  if (!next) return null;
+  return Date.parse(`${next.since}T00:00:00Z`) + (IMAGE_RETIREMENT_GRACE_DAYS + 1) * 86_400_000 - 1;
+}
+
+/**
+ * The Base addresses BitGraph writes from: every Base write of a proof (bitgraph-ceiling/1) and every epoch genesis
+ * transaction. A write from any other address is not BitGraph's, though the enclave image that made the proof may be
+ * the published one: the image says what code ran, the writer says who ran it. A leaked key gets `untilBlock`, the
+ * last block its writes are accepted in, and a new address is added; older writes stay valid.
+ */
+export interface PublishedWriter {
+  /** Lowercase 0x hex. */
+  address: string;
+  /** 8453, Base mainnet. */
+  chainId: number;
+  untilBlock?: number;
+}
+
+export const PUBLISHED_WRITERS: readonly PublishedWriter[] = Object.freeze([
+  { address: "0xf3972408d853c975f86351c311f4310220bbf2a3", chainId: 8453 },
+].map((w) => Object.freeze(w)));
+
+/** Whether a write from `address` on `chainId` in block `blockNumber` (when known) is one of BitGraph's. */
+export function isPublishedWriter(address: unknown, chainId: number, blockNumber?: number | null): boolean {
+  if (typeof address !== "string") return false;
+  const a = address.toLowerCase();
+  return PUBLISHED_WRITERS.some((w) => w.address === a && w.chainId === chainId
+    && (w.untilBlock === undefined || blockNumber === undefined || blockNumber === null || blockNumber <= w.untilBlock));
+}
