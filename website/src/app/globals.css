@@ -6098,3 +6098,12 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* Every text link carries at least a faint underline; buttons, cards and image links stay bare. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body :is(main, footer) a:not([class]) { text-decoration-line: underline !important; text-decoration-color: #4d4d4d !important; text-decoration-thickness: 1px !important; text-underline-offset: 3px !important; }
 @media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body :is(main, footer) a:not([class]):hover { text-decoration-color: currentColor !important; } }
+/* Link cards on hover, Vercel-style: the card itself lifts to a lighter black; the border stays a hairline and the title
+   is not underlined. */
+@media (hover: hover) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main a.tl-card.sx-link:hover { background: #1a1a1a !important; border-color: #2e2e2e !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main a.tl-card.sx-link:hover h3 { text-decoration: none !important; }
+}
+/* The proof page's text links and link-style buttons (Basescan, the downloads, Close file) take the same faint underline. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main :is(a.pv-link, .pv-link-btn:not(:disabled)) { text-decoration-line: underline !important; text-decoration-color: #4d4d4d !important; text-decoration-thickness: 1px !important; text-underline-offset: 3px !important; }
+@media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main :is(a.pv-link, .pv-link-btn:not(:disabled)):hover { text-decoration-color: currentColor !important; } }
