@@ -2,6 +2,12 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.28.0 (2026-11-02)
+
+- **BitGraph's writer is pinned.** `PUBLISHED_WRITERS` lists the Base addresses BitGraph writes from (`0xf3972408d853c975f86351c311f4310220bbf2a3`), each with an optional last block for a rotated key; `isPublishedWriter`. `verifyCeiling` takes `writerAddress` as optional: left out, only a published writer passes. `checkEpochGenesis` refuses a mainnet genesis from any other writer unless the caller names the `writers` it trusts. An enclave image says what code ran; the writer says who ran it.
+- **Retired images.** `verifyAttested` accepts a published image only for proofs the AWS attestation dates no later than seven days after the next image went live (`imageRetiredAfterMs`, `IMAGE_RETIREMENT_GRACE_DAYS`), so a retired image booted today mints nothing that passes. A caller passing its own `pcr0` list decides for itself. The result's `image` says whether it binds atomically (`imageIsAtomic`, v11 on).
+- **A strict signed body from v13 on.** A v13 proof's signed body must hold only printable-ASCII strings, booleans and objects, so every canonical-JSON implementation hashes it to the same bytes. `canonicalize` is unchanged.
+
 ## 1.27.0 (2026-10-31)
 
 - **The block timeline.** Block reads of Base and Ethereum are BitGraphs: the host binds a small `bitgraph-block-read/1` file (CAIP-2 chain id, block number, hash, timestamp, epoch) on the same counter sequence as files, so every file has a block read before it and after it. `blockReadFileText`, `parseBlockReadFile`, `blockReadDigestB64`, `checkBlockRead` (the block's number and timestamp are taken from the chain's answer about its hash, never from the file; a hash off the canonical chain fails).

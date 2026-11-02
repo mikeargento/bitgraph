@@ -814,6 +814,31 @@ def _cbor_head(mt, n):
     raise ValueError("cbor length")
 
 
+# --------------------------------------------------------------------------- published images and their windows
+
+PUBLISHED = None  # [(version, since, pcr0)], oldest first, read from the verify package's published list
+GRACE_DAYS = 7    # an image stays accepted until this many days after the next image went live
+
+
+def published_images():
+    global PUBLISHED
+    if PUBLISHED is None:
+        import re
+        src = open(os.path.join(ROOT, "packages", "verify", "src", "measurements.ts")).read()
+        PUBLISHED = re.findall(r'\{ version: "([^"]+)", since: "(\d{4}-\d{2}-\d{2})", pcr0: "([0-9a-f]{96})" \}', src)
+    return PUBLISHED
+
+
+def image_window_end_ms(pcr0):
+    """The last instant (ms) a proof attested by this image is accepted; None for the newest or an unknown image."""
+    images = published_images()
+    for i, (_, _, p0) in enumerate(images):
+        if p0 == pcr0 and i + 1 < len(images):
+            nxt = datetime.strptime(images[i + 1][1], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            return int(nxt.timestamp() * 1000) + (GRACE_DAYS + 1) * 86_400_000 - 1
+    return None
+
+
 def check_attestation(p):
     """Returns a list of (check, ok)."""
     global AWS_ROOT_PEM
@@ -852,6 +877,10 @@ def check_attestation(p):
     t = datetime.fromtimestamp(doc["timestamp"] / 1000, tz=timezone.utc)
     res.append(("validity at the document's instant", all(c.not_valid_before_utc <= t <= c.not_valid_after_utc for c in chain)))
     res.append(("pcr0", doc["pcrs"][0].hex() == p["environment"]["measurement"].lower()))
+    pcr0 = doc["pcrs"][0].hex()
+    res.append(("a published image", any(p0 == pcr0 for _, _, p0 in published_images())))
+    end = image_window_end_ms(pcr0)
+    res.append(("inside the image's window", end is None or doc["timestamp"] <= end))
     res.append(("user_data binding", doc.get("user_data") == sha256(canonical(signed_body(p)))))
     return res
 
@@ -1021,6 +1050,18 @@ def main():
     except ValueError:
         m2 = "refused"
     expect("v2: a fuse/2 marker over a Base floor is refused", m2, "refused")
+
+    # Published images and their windows (2026-11-02): an image is accepted until a week after the next went live.
+    imgs = published_images()
+    expect("images: the published list reads in order, v13 last", (imgs[0][0], imgs[-1][0], len(imgs)), ("genesis", "v13", 12))
+    v12 = next(p0 for v, _, p0 in imgs if v == "v12")
+    expect("images: v12's window closes a week after v13 went live", datetime.fromtimestamp(image_window_end_ms(v12) / 1000, tz=timezone.utc).isoformat(), "2026-10-26T23:59:59.999000+00:00")
+    expect("images: the newest image has no end", image_window_end_ms(imgs[-1][2]), None)
+
+    # A production v13 proof (enclave v13, 2026-10): its attestation, its published image, inside its window.
+    p13 = json.load(open(os.path.join(ROOT, "packages", "verify", "src", "__tests__", "fixtures", "v13", "proof-2.json")))
+    for name, ok in check_attestation(p13):
+        expect(f"v13: attestation {name}", ok, True)
 
     print()
     print(f"{'FAILED' if FAILS else 'All checks match'}: {len(FAILS)} failure(s)")
