@@ -59,7 +59,7 @@ export default function HomePage() {
         <p className="sx-sub hero-sub">A BitGraph is proof of your file&rsquo;s place in&nbsp;line.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">Try it</a>
-          <a className="bg-action-link" href="#how">How it works</a>
+          <a className="bg-action-link" href="#how">Learn more</a>
         </div>
       </section>
 
