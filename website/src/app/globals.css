@@ -5354,21 +5354,18 @@ html:root:root:root:root:root body .pv-details-fold > .pv-fold-head .pv-chevron 
 
 /* ── The site's one wait (components/wait.tsx) and the fades between pages ──
    The wait holds the page's height with its label and bar a little above centre. It fades in after 150ms, so a fast
-   load never flashes it. Each page's content fades up as it arrives, both on a route change (app/template.tsx
-   remounts) and when a page replaces its wait (a new child of .bg-page-in animates as it is inserted). The fades
-   leave no transform behind, so fixed and sticky children behave once they end. */
+   load never flashes it. Pages themselves appear at once, with no fade or slide, and the site never scrolls smoothly,
+   so a refresh or a click on the wordmark simply shows the page at the top. */
 @keyframes bg-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes bg-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .bg-wait { min-height: 62vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 56px 0 96px; box-sizing: border-box; opacity: 0; animation: bg-fade-in 260ms ease-out 150ms forwards; }
 .bg-wait.is-inline { min-height: 180px; padding: 24px 0; animation-delay: 0ms; }
 html:root:root:root:root:root body .bg-wait-label { margin: 0 !important; width: 100%; max-width: none !important; text-align: center !important; font-size: 15px; color: var(--dim); letter-spacing: 0.01em; }
 .bg-wait .bg-working { margin-top: 14px; }
-.bg-page-in > * { animation: bg-page-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1); }
 .bg-page-in > .bg-wait { animation: bg-fade-in 260ms ease-out 150ms forwards; }
 .pv-photo img { animation: bg-fade-in 360ms ease-out; }
 @media (prefers-reduced-motion: reduce) {
   .bg-wait, .bg-page-in > .bg-wait { opacity: 1; animation: none; }
-  .bg-page-in > *, .pv-photo img { animation: none; }
+  .pv-photo img { animation: none; }
 }
 html:root:root:root:root:root:root:root:root:root:root body .pv-lightbox .pv-lightbox-close { top: 16px; right: 16px; width: 56px; height: 56px; opacity: 0.85; transition: opacity 140ms ease; }
 @media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root body .pv-lightbox .pv-lightbox-close:hover { opacity: 1; } }
@@ -5949,7 +5946,6 @@ html:root:root:root:root body main .plug-member-wait, html:root:root:root:root b
 /* How it works on the home hero scrolls down to the mechanism (2026-10-31), smoothly unless reduced motion is asked
    for, landing with the section's kicker just under the sticky bar. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-landing #how { scroll-margin-top: -8px; }
-@media (prefers-reduced-motion: no-preference) { html:has(main .is-landing) { scroll-behavior: smooth; } }
 /* The short home page (2026-10-31): three facts in a row, big figure over a short label, no boxes. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; border-bottom: 1px solid var(--line); padding-top: 0 !important; padding-bottom: 48px !important; margin-top: 28px !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-facts > * + * { margin-top: 0 !important; }
@@ -6266,3 +6262,4 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 @media (max-width: 760px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-row { grid-template-columns: 1fr !important; gap: 36px !important; } }
 /* The phone menu ends with Make a BitGraph as a white pill button. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-sheet .nav-sheet-cta { display: inline-flex; align-items: center; justify-content: center; margin-top: 28px; height: 52px; padding: 0 32px; border-radius: 999px !important; background: var(--ink); color: #000 !important; font-size: 18px !important; font-weight: 700; text-decoration: none !important; }
+

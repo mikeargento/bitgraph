@@ -61,8 +61,8 @@ export function SiteNav() {
   return (
     <div id="site-nav" style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", boxSizing: "border-box", position: "relative", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-        {/* The record dot tried beside the wordmark and removed the same day (2026-10-20). */}
-        <Link href="/" className="nav-wordmark" style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", textDecoration: "none", letterSpacing: "-0.01em" }}>
+        {/* The wordmark goes home; on home itself it returns to the top. */}
+        <Link href="/" className="nav-wordmark" onClick={() => { if (pathname === "/") window.scrollTo(0, 0); }} style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", textDecoration: "none", letterSpacing: "-0.01em" }}>
           BitGraph
         </Link>
         <nav aria-label="Site" className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>

@@ -54,6 +54,7 @@ export default function HomePage() {
         <HeroVideo />
         {/* The first screen is the claim, centred; How it works scrolls to the demo proofs. */}
         <h1 id="home-h">Digital&nbsp;film.</h1>
+        <p className="sx-sub hero-sub">Every photo gets its place in&nbsp;line.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">Make a BitGraph</a>
           <a className="bg-action-link" href="#how">How it works</a>
@@ -99,7 +100,7 @@ export default function HomePage() {
       <section className="home-section" aria-labelledby="home-reads">
         <p className="home-kicker">In the background</p>
         <h2 id="home-reads">Privately on the blockchain. No&nbsp;wallets. No&nbsp;tokens.</h2>
-        <p>Every BitGraph is quietly written to Base, Coinbase&rsquo;s Ethereum network. Its block is public proof the record existed by&nbsp;then.</p>
+        <p>Every BitGraph is quietly written to Base, Coinbase&rsquo;s Ethereum network. Anyone can check it. No one can see your&nbsp;file.</p>
         <div className="sx-cards is-3 is-plain">
           {ON_BASE.map((r) => (
             <article key={r.title} className="tl-card">
