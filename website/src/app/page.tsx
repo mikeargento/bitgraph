@@ -79,7 +79,7 @@ export default function HomePage() {
 
       <section className="home-section home-scale-sec" aria-labelledby="home-scale">
         <p className="home-kicker">At planetary scale</p>
-        <h2 id="home-scale">BitGraph is built to record every photo taken on Earth. Every&nbsp;day.</h2>
+        <h2 id="home-scale">Built to BitGraph every photo taken on Earth. Every&nbsp;day.</h2>
         <div className="scale">
           <div className="scale-top">
             <div className="scale-huge">6 billion photos</div>

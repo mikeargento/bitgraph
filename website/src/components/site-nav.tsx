@@ -41,6 +41,19 @@ export function SiteNav() {
   // Phones: the links fold into a menu under the bar; a new page closes it, Esc closes it, and the page under it stays still.
   const [open, setOpen] = useState(false);
   useEffect(() => { setInfo(false); setOpen(false); }, [pathname]);
+  // Home: the bar is clear over the hero video and solid once the page scrolls past it.
+  const [overHero, setOverHero] = useState(false);
+  useEffect(() => {
+    if (pathname !== "/") { setOverHero(false); return; }
+    const check = () => {
+      const hero = document.querySelector<HTMLElement>("main .sx-hero");
+      setOverHero(!!hero && window.scrollY < hero.offsetHeight - 64);
+    };
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check);
+    return () => { window.removeEventListener("scroll", check); window.removeEventListener("resize", check); };
+  }, [pathname]);
   useEffect(() => {
     if (!open) return;
     const overflow = document.body.style.overflow;
@@ -59,7 +72,7 @@ export function SiteNav() {
   }, [info]);
 
   return (
-    <div id="site-nav" style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
+    <div id="site-nav" className={overHero && !open ? "is-clear" : undefined} style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", boxSizing: "border-box", position: "relative", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
         {/* The wordmark goes home; on home itself it returns to the top. */}
         <Link href="/" className="nav-wordmark" onClick={() => { if (pathname === "/") window.scrollTo(0, 0); }} style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", textDecoration: "none", letterSpacing: "-0.01em" }}>

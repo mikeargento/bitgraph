@@ -6263,3 +6263,8 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* The phone menu ends with Make a BitGraph as a white pill button. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-sheet .nav-sheet-cta { display: inline-flex; align-items: center; justify-content: center; margin-top: 28px; height: 52px; padding: 0 32px; border-radius: 999px !important; background: var(--ink); color: #000 !important; font-size: 18px !important; font-weight: 700; text-decoration: none !important; }
 
+
+/* Home: the hero runs up under the bar to the top of the screen, and the bar is clear over it (SiteNav adds .is-clear
+   while the hero is under the bar); past the hero the bar is solid black again. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav.is-clear { background: transparent !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero { margin-top: -64px !important; height: 100svh !important; min-height: 100svh !important; padding-top: 112px !important; }
