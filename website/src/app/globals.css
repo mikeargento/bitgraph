@@ -6132,10 +6132,11 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] :is(#site-nav, #site-nav.scrolled) { background: #0b0b0c !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero h1 { color: #e8e8e8 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .hero-sub { color: #b4b4b4 !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link:not(.is-make) { color: #e8e8e8 !important; border-color: #3d3d3d !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link:not(.is-make) { color: #e8e8e8 !important; border-color: rgba(240, 238, 230, 0.3) !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link.is-make { background: #e8e8e8 !important; border-color: #e8e8e8 !important; color: #0b0b0c !important; }
-/* The hero's buttons hover like every other button on the site (the hero's own rules had pinned their colors). */
+/* The hero's buttons look and hover exactly like every other button on the site (the hero's own rules had pinned
+   their colors): outline at 30% warm white, hovering to a near-white border on #171718; filled hovering to white. */
 @media (hover: hover) {
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link:not(.is-make):hover { background: #1f1f20 !important; border-color: #8f8f8f !important; color: #ffffff !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link:not(.is-make):hover { background: #171718 !important; border-color: #ededed !important; color: #e8e8e8 !important; }
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link.is-make:hover { background: #ffffff !important; border-color: #ffffff !important; }
 }
