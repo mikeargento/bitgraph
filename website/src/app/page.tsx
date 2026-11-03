@@ -26,12 +26,12 @@ export const metadata: Metadata = {
    checkable. Photos a day: about 6 billion, the highest current estimate (Photutorial, 2.2 trillion for 2026,
    photutorial.com/photos-statistics; Rise Above Research has 1.95 trillion). A BitGraph holds a million files (the
    million-file run on Technology, not a limit), so 6,000 BitGraphs, which one enclave makes at a few percent of its pace. Each is one Base
-   write of about $0.0003 (quoted from Base, 2026-11-02), so about $2 a day: "under $3" leaves room for gas to move. A proof
+   write of about $0.0003 (quoted from Base, 2026-11-02), so about $2 a day, which BitGraph pays; the person recording pays nothing. A proof
    comes back in under half a second (0.47 s, 0.41 s and 0.34 s, measured on the live site on 2026-10-31). */
 const SCALE_STEPS = [
   { op: "1 million per BitGraph", big: "6,000", small: "BitGraphs hold them all" },
   { op: "speed", big: "<\u20090.5\u2009s", small: "to make each proof" },
-  { op: "all written to Base", big: "<\u2009$3", small: "a day in fees, at today\u2019s prices" },
+  { op: "all written to Base", big: "Free", small: "Built into BitGraph" },
 ];
 /* The demos are all pictures; this row shows the same proof covers every other kind of file. */
 const FILE_KINDS: FileKind[] = [
