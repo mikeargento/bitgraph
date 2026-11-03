@@ -43,7 +43,7 @@ export function HeroVideo() {
           : <video src={d.video!.src} poster={d.display} autoPlay loop muted playsInline />}
       </div>
       <p className="hero-credit">
-        {d.caption} &middot; BitGraph #{Number(d.counter).toLocaleString("en-US")} &middot; <a href={d.proof}>View proof</a>
+        {d.caption} &middot; <a href={d.proof}>View proof</a>
       </p>
     </>
   );
