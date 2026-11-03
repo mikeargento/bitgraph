@@ -6250,3 +6250,16 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 @media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-cards.is-plain { gap: 28px !important; } }
 /* The three blockchain points lead with one big word each. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-cards.is-plain .tl-label { font-size: clamp(36px, 4vw, 56px) !important; line-height: 1 !important; font-weight: 700 !important; letter-spacing: -0.03em !important; text-transform: none !important; color: var(--ink) !important; margin: 0 0 14px !important; }
+
+/* Proof pages match the site: the proof card is a rounded grey fill with no outline, its rows divided by a faint line,
+   the picture and the raw proof rounded inside it (the raw proof a lighter grey, as a box inside a box). */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card { background: #1c1c1e !important; border: 0 !important; border-radius: 14px !important; box-shadow: none !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card .pv-row { border-bottom-color: #2c2c2e !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card img, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card video { border-radius: 10px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card .pv-raw { background: #2c2c2e !important; border: 0 !important; border-radius: 10px !important; }
+
+/* Which one came first: the three versions in a row, in the order they were made; stacked on phones. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-row { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 32px 20px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-row .demo-media { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-tile.is-video { grid-column: auto !important; }
+@media (max-width: 760px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-row { grid-template-columns: 1fr !important; gap: 36px !important; } }

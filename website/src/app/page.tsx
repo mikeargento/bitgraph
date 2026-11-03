@@ -63,7 +63,7 @@ export default function HomePage() {
       <section id="how" className="home-section" aria-labelledby="home-demo">
         <p className="home-kicker">Real files, real proofs</p>
         <h2 id="home-demo">Which one came&nbsp;first?</h2>
-        <p>Same picture. Different bytes. Different proofs. Open either proof and check for&nbsp;yourself.</p>
+        <p>Same picture. Different bytes. Different proofs. Open any proof and check for&nbsp;yourself.</p>
         <DemoRow />
         <p className="home-what">BitGraph captures the<br />order of anything&nbsp;digital.</p>
         <p className="home-what-sub">So anyone can see it existed, and&nbsp;when.</p>
@@ -78,7 +78,7 @@ export default function HomePage() {
 
       <section className="home-section home-scale-sec" aria-labelledby="home-scale">
         <p className="home-kicker">At planetary scale</p>
-        <h2 id="home-scale">BitGraph could record every photo taken on Earth. Every&nbsp;day.</h2>
+        <h2 id="home-scale">BitGraph is built to record every photo taken on Earth. Every&nbsp;day.</h2>
         <div className="scale">
           <div className="scale-top">
             <div className="scale-huge">6 billion photos</div>

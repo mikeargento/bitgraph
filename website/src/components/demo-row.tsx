@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 /**
  * Three files, three BitGraphs (2026-10-31): one picture made with ChatGPT, copied by Google, then turned into a video by
  * Grok. They look alike and are different bytes, so each has its own proof. The video plays behind the home hero from
- * the first moment, captioned with its own proof; the two pictures sit side by side further down. The page shows light
+ * the first moment, captioned with its own proof; all three sit side by side further down, in the order they were made. The page shows light
  * display copies (resized pictures, a re-encoded silent video); each proof page shows the exact file its proof covers
  * (public/demo/, unchanged from the bytes recorded).
  *
@@ -19,12 +19,13 @@ type Demo = { caption: string; counter: string; proof: string; display: string; 
 // Re-recorded 2026-11-02 in the first epoch of per-record Base writes, so each proof shows its own Base write.
 const EPOCH = "KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs";
 export const DEMOS: Demo[] = [
-  { caption: "Made with ChatGPT", counter: "304", proof: `/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=304&epoch=${EPOCH}`, display: "/demo/display/chatgpt.jpg" },
-  { caption: "Made with Google", counter: "308", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=308&epoch=${EPOCH}`, display: "/demo/display/google.jpg" },
+  { caption: "Created by ChatGPT", counter: "304", proof: `/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=304&epoch=${EPOCH}`, display: "/demo/display/chatgpt.jpg" },
+  { caption: "Copied by Google", counter: "308", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=308&epoch=${EPOCH}`, display: "/demo/display/google.jpg" },
   { caption: "Animated by Grok", counter: "312", proof: `/proof/VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM?counter=312&epoch=${EPOCH}`, display: "/demo/display/grok-poster.jpg", video: { src: "/demo/display/grok.mp4" } },
 ];
 
 function Media({ d }: { d: Demo }) {
+  if (d.video) return <video className="demo-media" src={d.video.src} poster={d.display} autoPlay loop muted playsInline aria-label={d.caption} />;
   return <img className="demo-media" src={d.display} alt={d.caption} loading="lazy" />;
 }
 
@@ -66,7 +67,7 @@ function Tile({ d }: { d: Demo }) {
 export function DemoRow() {
   return (
     <div className="demo-row">
-      {DEMOS.filter((d) => !d.video).map((d) => <Tile key={d.counter} d={d} />)}
+      {DEMOS.map((d) => <Tile key={d.counter} d={d} />)}
     </div>
   );
 }
