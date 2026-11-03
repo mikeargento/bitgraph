@@ -6122,3 +6122,20 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
    like any other last element, so every section break is the same 160px. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .hero-sub { margin-top: 28px !important; font-size: 20px !important; line-height: 1.5 !important; max-width: 600px; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-section > .mf:last-child { margin-bottom: 0 !important; }
+/* Softer black (2026-11-02): still black, but a hair off pure #000 and with no pure-white text, so bright letters do
+   not glare against the ground. Headings #e8e8e8, the hero line a light grey, body copy one step brighter for reading. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] {
+  --bg: #0b0b0c; --bar: #0b0b0c; --paper: #121213; --panel: #121213; --panel-2: #171718; --code-bg: #121213;
+  --ink: #e8e8e8; --text: #ababab; --fig-fill: #121213; --fig-enclave: #0b0b0c; --card: #121213;
+}
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] :is(body, main, .section-grey) { background: #0b0b0c !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] :is(#site-nav, #site-nav.scrolled) { background: #0b0b0c !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero h1 { color: #e8e8e8 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .hero-sub { color: #b4b4b4 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link:not(.is-make) { color: #e8e8e8 !important; border-color: #3d3d3d !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link.is-make { background: #e8e8e8 !important; border-color: #e8e8e8 !important; color: #0b0b0c !important; }
+/* The hero's buttons hover like every other button on the site (the hero's own rules had pinned their colors). */
+@media (hover: hover) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link:not(.is-make):hover { background: #1f1f20 !important; border-color: #8f8f8f !important; color: #ffffff !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link.is-make:hover { background: #ffffff !important; border-color: #ffffff !important; }
+}
