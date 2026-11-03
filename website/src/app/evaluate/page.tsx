@@ -34,17 +34,6 @@ const CASES: Array<{ what: string; how: string; result: string }> = [
   { what: "Forged with a new key", how: "Re-sign a body with a key you generate (the verifier's test)", result: "Passes a signature-only check; FALSE with attestation" },
 ];
 
-/** Questions any proof system should answer, and BitGraph's answers; each answer restates a claim from Technology. */
-const QUESTIONS: Array<{ q: string; a: string }> = [
-  { q: "Can anything other than the bind produce a proof that passes?", a: "No. A proof passes only with an AWS attestation over its exact signed body from a published image. The key never leaves the enclave." },
-  { q: "Can the host have the key sign any statement it chooses?", a: "No. Anyone can submit a digest, but the enclave signs only the whole step: a fresh nonce at count N, the digest at N+1, chained to the previous proof. Nobody outside picks the count, the nonce or the body." },
-  { q: "Can an existing file be given an earlier place?", a: "No. A file can be bound now, at the next count, after a fresh nonce. The proof says when it was bound, not how old the file is." },
-  { q: "Can one step be completed, observed or replayed apart from the rest?", a: "No. Every step that can fail comes before the counter moves, and a failure releases nothing. Tested with injected faults." },
-  { q: "Can the counter be rolled back to reuse a count?", a: "No. The key and counter live only in enclave memory. A restart is a new epoch, with a new key and a counter from zero." },
-  { q: "Does the verifier take the proof\u2019s word about its hardware?", a: "No. It checks the AWS certificate chain and the measurement against the published images. A signature-only check is weaker, and the verifier says so." },
-  { q: "Does it claim more than the hardware enforces?", a: "No. A BitGraph says where in line and when bytes were bound. Not who made them, when they were made, or that they are true." },
-];
-
 export default function EvaluatePage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page">
@@ -130,22 +119,10 @@ npm test --workspace=packages/verify`}</Code>
         </ul>
       </section>
 
-      <section className="home-section" aria-labelledby="e-q">
-        <p className="home-kicker">Step 6</p>
-        <h2 id="e-q">Seven questions for any proof system.</h2>
-        <p>Ask them of BitGraph, and of anyone else selling proof.</p>
-        <div className="sx-table-wrap">
-          <table className="sx-table">
-            <thead><tr><th>Question</th><th>BitGraph</th></tr></thead>
-            <tbody>{QUESTIONS.map((x) => <tr key={x.q}><td>{x.q}</td><td>{x.a}</td></tr>)}</tbody>
-          </table>
-        </div>
-      </section>
-
       <section className="home-section" aria-labelledby="e-6">
         <div className="sx-split">
           <div>
-            <p className="home-kicker">Step 7</p>
+            <p className="home-kicker">Step 6</p>
             <h2 id="e-6">Go further with us.</h2>
             <p>
               For a deeper evaluation: a proof-of-concept on your own data, keyed access above the public limits, the threat model in

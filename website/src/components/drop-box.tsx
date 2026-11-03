@@ -306,11 +306,11 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       const proofs = Array.isArray(raw) ? raw : raw.proofs ?? [];
       for (const r of todo) {
         const p = proofs.find((x) => x.artifact?.digestB64 === r.digestB64);
-        if (!p || !r.bytes) { end(r, { state: "error", note: "No proof came back for this file. Look it up on the ledger before trying again." }); continue; }
+        if (!p || !r.bytes) { end(r, { state: "error", note: "No proof came back for this file. Look it up on the Roll before trying again." }); continue; }
         end(r, { state: "made", proof: p, valid: await check(p, r.bytes) });
       }
     } catch {
-      for (const r of todo) end(r, { state: "error", note: "The request did not finish. Look the file up on the ledger before trying again: it may already be a BitGraph." });
+      for (const r of todo) end(r, { state: "error", note: "The request did not finish. Look the file up on the Roll before trying again: it may already be a BitGraph." });
     } finally {
       setBusy(false);
     }
@@ -483,14 +483,14 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
          with the file in hand. A folder is always a new tree, and a hash list is bulk. */
       if (!list && files.length === 1) {
         const f = files[0]!;
-        setStatus("Checking the ledger…");
+        setStatus("Checking the Roll…");
         const bytes = new Uint8Array(await f.arrayBuffer());
         const digest = await digestOf(bytes);
         // The file is saved for its proof page now too, during the bind rather than after it.
         cachedLater = cacheArtifactToIDB(f, digest).catch(() => {});
         const res = await fetch(`/api/proofs/${toUrlSafe(digest)}`).catch(() => null);
         // never recorded blind: there is one BitGraph per file, and that cannot be known while the ledger is unreachable
-        if (!res?.ok) { setStatus(null); setPlugError("Could not check the ledger just now. Try again in a moment."); return; }
+        if (!res?.ok) { setStatus(null); setPlugError("Could not check the Roll just now. Try again in a moment."); return; }
         const before = (await res.json().catch(() => null)) as { proofs?: Array<{ proof: Proof; writeTime?: number | null; kind?: string }> } | null;
         const already = earliestOf((before?.proofs ?? []).filter((e) => !e.kind || e.kind === "recorded"));
         const fc = already?.commit as { counter?: string; epochId?: string } | undefined;
@@ -698,7 +698,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         const digestB64 = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
         patch(row.key, { bytes, digestB64, state: "looking" });
         const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
-        if (!res.ok) return end({ bytes, digestB64, state: "error", note: "Could not check the ledger just now. Try again in a moment." });
+        if (!res.ok) return end({ bytes, digestB64, state: "error", note: "Could not check the Roll just now. Try again in a moment." });
         const body = (await res.json()) as { proofs?: Array<{ proof: Proof; writeTime?: number | null }> };
         // the file's first BitGraph, the one that counts; any later ones are listed on its proof page
         const first = earliestOf(body.proofs ?? []);
@@ -912,7 +912,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
             <div className="db-state">
               {batch.rootState === "absent" && <>Add the batch&rsquo;s merkle-root.txt to check that the root is a BitGraph.</>}
               {batch.rootState === "mismatch" && <span className="db-bad">merkle-root.txt does not carry this tree&rsquo;s root</span>}
-              {batch.rootState === "looking" && "Checking the ledger…"}
+              {batch.rootState === "looking" && "Checking the Roll…"}
               {batch.rootState === "missing" && <>{batch.rootFile} is not a BitGraph yet</>}
               {batch.rootState === "found" && batch.rootDigest && (
                 <>
@@ -950,7 +950,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
             <div className="db-row">
               <div className="db-state">
                 <button type="button" className="db-link" onClick={downloadAll}>Download all {bulk.proofs.length.toLocaleString("en-US")} proofs</button>
-                <a href="/ledger">See them on the ledger</a>
+                <a href="/ledger">See them on the Roll</a>
               </div>
             </div>
           )}
@@ -975,7 +975,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               </div>
               <div className="db-state">
                 {r.state === "hashing" && "Hashing…"}
-                {r.state === "looking" && "Checking the ledger…"}
+                {r.state === "looking" && "Checking the Roll…"}
                 {r.state === "new" && mode === "check" && "Not a BitGraph yet"}
                 {r.state === "new" && mode === "make" && (r.note ?? "Not a BitGraph yet")}
                 {r.state === "in-tree" && r.tree && (

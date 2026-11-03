@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CopyCode } from "@/components/copy-code";
+import { MechanismFigure } from "@/components/mechanism-figure";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 
 /**
@@ -90,6 +91,7 @@ export default function TechnologyPage() {
           <section className="home-section" aria-labelledby="t-mech">
             <p className="home-kicker">The mechanism</p>
             <h2 id="t-mech">What happens when a digest arrives.</h2>
+            <MechanismFigure />
             <ol className="tl-steps">
               <li><strong>Gate.</strong> The enclave refuses to bind until the host has initialized it, and accepts only a canonical 32-byte&nbsp;SHA-256.</li>
               <li><strong>Nonce.</strong> 32 bytes are drawn from the Nitro Secure Module&rsquo;s hardware RNG, after the digest arrives and inside the enclave. Nobody, the host included, sees it before the proof is released.</li>

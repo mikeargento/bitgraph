@@ -25,7 +25,7 @@ export async function ShortLink({ code, bare = false }: { code: string; bare?: b
       ) : failed ? (
         <p className="lede">The ledger could not be read just now. Try the link again in a moment.</p>
       ) : found.length === 0 ? (
-        <p className="lede">No BitGraph on the ledger has a digest beginning <code>{code}</code>.</p>
+        <p className="lede">No BitGraph on the Roll has a digest beginning <code>{code}</code>.</p>
       ) : (
         <>
           <p className="lede">More than one BitGraph has a digest beginning <code>{code}</code>. Each one:</p>

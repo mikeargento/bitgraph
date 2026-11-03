@@ -1,6 +1,6 @@
 import { MENU_ICON_NAMES } from "@/components/menu-icons";
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro, IBM_Plex_Mono, IBM_Plex_Sans, Newsreader } from "next/font/google";
+import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro, IBM_Plex_Mono, Newsreader } from "next/font/google";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
@@ -62,15 +62,6 @@ const newsreader = Newsreader({
   display: "swap",
 });
 
-/* The site's face since the 2026-11-03 redesign: IBM Plex Sans, with Plex Mono for hashes and code. */
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  style: ["normal", "italic"],
-  variable: "--font-plex-sans",
-  display: "swap",
-});
-
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -80,7 +71,7 @@ const inter = Inter({
 
 /* The tab strip and the phone's chrome take the page colour: white, Google's ground,
    since 2026-09-18 (dark before that). Keep it equal to --bg. */
-export const viewport: Viewport = { themeColor: "#0c1118" };
+export const viewport: Viewport = { themeColor: "#000000" };
 
 /* The site's one-line description (2026-10-29): what BitGraph is to the companies it is sold to, on every page without a
    line of its own and in link previews. */
@@ -124,10 +115,10 @@ import { Analytics } from "@vercel/analytics/next";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // suppressHydrationWarning: the head script below marks <html> data-js before React loads.
-    <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${plexSans.variable} ${newsreader.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${newsreader.variable}`}>
       <head>
-        {/* The 2026-11-03 redesign, set before the first paint: the redesign's layer (data-theme) in its dark tone (data-tone). */}
-        <script dangerouslySetInnerHTML={{ __html: `document.documentElement.dataset.theme="light";document.documentElement.dataset.tone="dark"` }} />
+        {/* One mode (2026-11-02): the site is always dark (true black), set before the first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: `document.documentElement.dataset.theme="dark"` }} />
         {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
             700 and italics). PREVIEW 2026-09-16: --font-term in globals.css
             points at it. */}
@@ -136,8 +127,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Acumin Pro from the Adobe Fonts kit (2026-10-18), the face the site wore until 2026-09-11. */}
         <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
         {/* Google's Material Symbols, only the icons the Menu uses. */}
-        {/* Space Grotesk for headings and the wordmark (2026-10-30). */}
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" />
         <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=${MENU_ICON_NAMES}&display=block`} />
         {/* Runs during parse, before the browser restores scroll. On a reload
             the browser re-applies your saved offset as the page grows, and our

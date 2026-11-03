@@ -15,7 +15,7 @@ import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-led
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Proofs",
+  title: "The Roll",
   description: "Every BitGraph, as it is made: its number, its two counts and the SHA-256 it bound. Open any one for its proof.",
 };
 
@@ -85,13 +85,13 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
         }
       `}</style>
       {/* No visible h1: it repeated the nav (2026-10-17). */}
-        <h1 className="sr-only">Proofs.</h1>
+        <h1 className="sr-only">The Roll.</h1>
 
       {/* The ledger itself: every BitGraph by day. Making is on Make, checking on Check. */}
       {/* Calendar sits up and to the right, beside the title, at every width; the day buttons follow on their own row. */}
       <div className="ledger-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "0 0 16px" }}>
         <div>
-          <p className="home-kicker" style={{ margin: 0 }}>Ledger</p>
+          <p className="home-kicker" style={{ margin: 0 }}>The Roll</p>
           {day && <p style={{ color: "var(--dim)", margin: "4px 0 0" }}>{`${longLabel(day)} (UTC)`}</p>}
         </div>
         <a href="/ledger/calendar" className="bg-action-link" style={{ margin: 0, flex: "none" }}>Calendar</a>
@@ -111,7 +111,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       </div>
 
       {failed || !page ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>The ledger could not be read. Try again in a moment.</div>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>The Roll could not be read. Try again in a moment.</div>
       ) : (
         <LedgerRows key={shown} day={shown} live={!day} initial={page.rows} newestKey={page.newestKey} hasOlder={page.hasOlder} />
       )}

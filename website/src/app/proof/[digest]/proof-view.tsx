@@ -491,9 +491,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       ])}
       {group("When", [
         floorCell ? <Fragment key="floor">{floorCell}</Fragment> : null,
-        /* An epoch's first BitGraph binds the epoch's own Base write, made just before it (2026-11-02): that write is
-           its time on Base, so it reads here like a floor, linked to the transaction. */
-        es && !floorCell ? <Fragment key="gen">{timeCell("Written to Base", whenBeside(es.blockTimestamp * 1000, attested), es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`)}</Fragment> : null,
         showTime && attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
         ceilingCell ? <Fragment key="ceil">{ceilingCell}</Fragment> : null,
       ])}
