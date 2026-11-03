@@ -4,14 +4,14 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
-**Upgrade your proof.**
+**Digital film.**
 
-BitGraph is a recording mechanism for companies that already sell proof: content provenance, Content Credentials, trusted
-capture, timestamping, audit trails. Inside a measured AWS Nitro enclave, one atomic action binds a SHA-256 at a counted
-position, right after a fresh hardware nonce, signed and attested. The proof is a small JSON file that checks offline, without
-BitGraph.
+BitGraph gives every photo, video or file its place in line, so anyone can see which came first. The file is never uploaded:
+only its SHA-256 is sent. Inside a measured AWS Nitro enclave, one atomic action binds that hash at a counted position, right
+after a fresh hardware nonce, signed and attested, and every record is written to Base seconds later. The proof is a small
+JSON file that checks offline, without BitGraph.
 
-[Technology](https://bitgraph.ing/technology) · [Evaluate](https://bitgraph.ing/evaluate) · [Integrate](https://bitgraph.ing/integrate) · [Licensing](https://bitgraph.ing/licensing)
+[Make a BitGraph](https://bitgraph.ing/demos) · [The Roll](https://bitgraph.ing/ledger) · [Demos](https://bitgraph.ing/examples) · [Technology](https://bitgraph.ing/technology) · [Developers](https://bitgraph.ing/integrate) · [Licensing](https://bitgraph.ing/licensing)
 
 ## The mechanism
 

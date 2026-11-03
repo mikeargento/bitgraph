@@ -73,10 +73,10 @@ const inter = Inter({
    since 2026-09-18 (dark before that). Keep it equal to --bg. */
 export const viewport: Viewport = { themeColor: "#000000" };
 
-/* The site's one-line description (2026-10-29): what BitGraph is to the companies it is sold to, on every page without a
-   line of its own and in link previews. */
+/* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
+   and in link previews. */
 const SITE_DESCRIPTION =
-  "BitGraph is proof infrastructure for companies that sell proof. One call binds a SHA-256 at a counted position inside attested hardware; the proof checks offline, by anyone, without BitGraph.";
+  "Digital film. BitGraph gives every photo, video or file its place in line, without uploading it. Anyone can check which came first, offline, in seconds.";
 
 export const metadata: Metadata = {
   title: {
@@ -87,18 +87,18 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   keywords: [
-    "BitGraph", "proof infrastructure", "order before time", "Content Credentials", "C2PA", "provenance",
-    "hardware enclave", "offline verification", "position commitment",
+    "BitGraph", "digital film", "photo proof", "which came first", "provenance", "Content Credentials", "C2PA",
+    "hardware enclave", "offline verification", "Base",
   ],
   openGraph: {
-    title: "BitGraph",
+    title: "BitGraph: Digital film",
     description: SITE_DESCRIPTION,
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary",
-    title: "BitGraph",
+    title: "BitGraph: Digital film",
     description: SITE_DESCRIPTION,
   },
   robots: { index: true, follow: true },
