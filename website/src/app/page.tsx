@@ -36,7 +36,7 @@ const SCALE_STEPS = [
 /* The demos are all pictures; this row shows the same proof covers every other kind of file. */
 const FILE_KINDS: FileKind[] = [
   { label: "Photo", glyph: "photo" }, { label: "Video", glyph: "video" }, { label: "Music", glyph: "music" }, { label: "Design", glyph: "design" },
-  { label: "AI", glyph: "ai" }, { label: "Contract", glyph: "contract" }, { label: "Medical scan", glyph: "scan" }, { label: "Software", glyph: "code" },
+  { label: "AI", glyph: "ai" }, { label: "Contract", glyph: "contract" }, { label: "Medical scan", glyph: "scan" }, { label: "Code", glyph: "code" },
 ];
 
 /* Every record is written to Base: the hash of its proof goes into a Base transaction from BitGraph's writer, seconds
