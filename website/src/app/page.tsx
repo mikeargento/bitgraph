@@ -52,7 +52,8 @@ export default function HomePage() {
       <section className="home-section" aria-labelledby="home-reads">
         <p className="home-kicker">Public time</p>
         <h2 id="home-reads">A time window on&nbsp;Base.</h2>
-        <p>A proof verifies on its own, with no blockchain. Through bitgraph.ing, each file is also placed between two Base blocks seconds apart: the newest block, bound just before the file, and the block its proof is written into. Your customers never handle a wallet or a&nbsp;fee.</p>
+        <p>A proof verifies on its own, with no blockchain. Through bitgraph.ing, each file is also placed between two Base blocks seconds apart: the newest block, bound just before the file, and the block its proof is written into.</p>
+        <p><strong>You never handle a wallet or a&nbsp;fee.</strong></p>
       </section>
 
       <section className="home-section" aria-labelledby="home-paths">

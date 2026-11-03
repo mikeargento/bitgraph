@@ -6140,3 +6140,9 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link:not(.is-make):hover { background: #171718 !important; border-color: #ededed !important; color: #e8e8e8 !important; }
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] body main .is-short .sx-hero .bg-action-link.is-make:hover { background: #ffffff !important; border-color: #ffffff !important; }
 }
+/* Home's reading measure (2026-11-02): paragraphs about 70 characters a line, the hero's line about 60; headings,
+   cards, the demos and the figure keep the full width. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-section > p:not(.home-kicker) { max-width: 520px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero .hero-sub { max-width: 600px !important; }
+/* One face (2026-11-02, trial): headings in Acumin Pro like everything else, in place of Space Grotesk. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(h1, h2, h3) { font-family: "acumin-pro", sans-serif !important; letter-spacing: -0.01em !important; }
