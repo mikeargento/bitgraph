@@ -40,8 +40,8 @@ export default function HomePage() {
           <p className="hz-sub">A fixed place in a sequence for every record, enforced by attested hardware.</p>
           <p className="hz-lead">Built for provenance, content credentials and audit trails. Your customers keep the proof and can verify it offline, without your servers or&nbsp;ours.</p>
           <div className="hz-cta">
-            <a className="bg-action-link is-make" href="/evaluate">Run the evaluation</a>
-            <a className="bg-action-link" href="/technology">Read the technology</a>
+            <a className="bg-action-link is-make" href="/demos">Try BitGraph</a>
+            <a className="bg-action-link" href="/evaluate">Run the evaluation</a>
           </div>
         </div>
         {/* A picture and its proof, shown like the demos below: a bridge drawn from BitGraph #42's nonce, bound as #44. */}
