@@ -24,6 +24,8 @@
 const links: Array<{ href: string; label: string }> = [
   // The source (2026-10-17): the site had no GitHub link, and the footer is its place.
   // Tools and Demos live in the bar; Contact (the form) lives here (2026-10-20).
+  { href: "/demos", label: "Try it" },
+  { href: "/ledger", label: "Ledger" },
   { href: "/contact", label: "Contact" },
   { href: "https://github.com/mikeargento/bitgraph", label: "GitHub" },
   { href: "/terms", label: "Terms" },

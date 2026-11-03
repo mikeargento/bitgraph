@@ -57,7 +57,6 @@ function Tile({ d }: { d: Demo }) {
       <a className="demo-media-link" href={d.proof} tabIndex={-1} aria-hidden="true"><Media d={d} /></a>
       <figcaption>
         <div className="demo-caption">{d.caption}</div>
-        <div className="demo-num">BitGraph #{Number(d.counter).toLocaleString("en-US")}</div>
         <div className="demo-links">
           <a href={d.proof}>View proof</a>
         </div>

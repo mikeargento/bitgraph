@@ -17,13 +17,14 @@ const LINKS: Array<{ href: string; label: string; also?: string[] }> = [
   // on it, how to license it. Make, Check, the ledger and the demos are its evidence, under Try it.
   // Five things, flat (2026-10-31): what it is, how to build on it, the live evidence, how to license it, and Try it.
   // Applications is reached from Technology and the home page; the reference from Developers; Evaluate from Licensing.
+  // The 2026-11-03 redesign: the bar is for a buyer at a proof platform. What it is, how to check it, how to build on
+  // it, how to license it; the one button starts a conversation. The ledger and the demos are reached from the page.
   { href: "/technology", label: "Technology", also: ["/applications"] },
+  { href: "/evaluate", label: "Evaluate" },
   { href: "/integrate", label: "Developers", also: ["/tools"] },
-  { href: "/ledger", label: "Ledger" },
-  { href: "/licensing", label: "Licensing", also: ["/evaluate"] },
+  { href: "/licensing", label: "Licensing" },
 ];
-// The button is the one action a visitor should take: Try it, where a drop proves the product in a minute.
-const CTA = { href: "/demos", label: "Try it", also: ["/make", "/jev", "/generate", "/exam"] };
+const CTA = { href: "/contact", label: "Talk to us", also: [] as string[] };
 
 export function SiteNav() {
   const pathname = usePathname();
