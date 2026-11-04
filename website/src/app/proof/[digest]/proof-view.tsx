@@ -36,7 +36,6 @@ import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
 import { baseTimeIsBound, decodeNitroAttestation, floorTimeIsBound, treeMemberOf } from "@mikeargento/bitgraph-verify";
 import { CopyIcon, useCopied } from "@/components/copy-icon";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
-import { CopyCode } from "@/components/copy-code";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
 /** The first Base ceiling write (2026-09-29 22:43 UTC). Records made before it have no ceiling in time. */
@@ -407,7 +406,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const nonceCount = commit.slotCounter ?? null;
   const contentCount = commit.counter ?? null;
   const proofFile = `bitgraph-${contentCount ?? safe(m.proof.artifact.digestB64).slice(0, 12)}.json`;
-  const command = `npx @mikeargento/bitgraph-sdk verify <file> --proof ${proofFile}`;
   const download = () => {
     const blob = new Blob([JSON.stringify(m.proof, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -551,13 +549,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         </div>
       </div>
       {m.c2pa?.present && <div className="pv-receipt-group"><ContentCredentials c2pa={m.c2pa} /></div>}
-      {/* The verifier's command and the JSON close the same receipt (2026-10-30): one box, every line of the record. */}
+      {/* Checking a proof without BitGraph is a step for people who want it: a link to how the open verifier works,
+          not a command on a photo's page. */}
       <div className="pv-receipt-group">
-        <div className="pv-section-title">Verify it yourself</div>
-        <div className="code-block mk-code">
-          <pre className="hiw-code">{command}</pre>
-          <CopyCode />
-        </div>
+        <a className="pv-link pv-details-btn" href="/technology#t-verify"><span className="pv-details-word">Check it offline</span> <span className="pv-details-chev" aria-hidden="true">&rsaquo;</span></a>
       </div>
       <div className="pv-receipt-group pv-details">
         <div className="pv-section-title">Raw JSON</div>
