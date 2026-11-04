@@ -53,7 +53,7 @@ export default function HomePage() {
         </div>
         <DemoRow />
         <p className="home-what">BitGraph captures the<br />order of anything&nbsp;digital.</p>
-        <p className="home-what-sub">Every file gets a place in line. <span className="home-break">Anyone can check&nbsp;it.</span></p>
+        <p className="home-what-sub">A proof that verifies offline,&nbsp;forever.</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-any">
