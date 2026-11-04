@@ -225,20 +225,30 @@ async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
  *  offers to make the ones that are new (/make). */
 /** canMake (the Proofs page): a check that offers to make a BitGraph of whatever is not on record yet, one press each
  *  drop, instead of making it at once as "make" does. */
-/** Each file's first BitGraph, by its SHA-256 (standard base64), in one request per 2,000. */
-async function firstsOf(digests: string[]): Promise<Map<string, Proof>> {
+/** Each file's first BitGraph, by its SHA-256 (standard base64), in one request per 2,000, three at a time. Throws when
+ *  any part of the Roll could not be read: a drop is never bound blind, since a file it could not look up may already
+ *  be a BitGraph. */
+async function firstsOf(digests: string[], onProgress?: (done: number) => void): Promise<Map<string, Proof>> {
   const out = new Map<string, Proof>();
-  for (let i = 0; i < digests.length; i += 2000) {
-    const batch = digests.slice(i, i + 2000), keys = batch.map(toUrlSafe);
-    try {
-      const res = await fetch("/api/proofs/batch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ digests: keys }) });
-      if (!res.ok) continue;
-      const body = (await res.json()) as { results?: Record<string, { proofs?: Array<{ proof: Proof; envRef?: string }> }>; environments?: Record<string, Record<string, unknown>> };
-      const results = body.results ?? {};
-      attachEnvironments(results as never, body.environments);
-      batch.forEach((d, k) => { const f = earliestOf(results[keys[k]!]?.proofs ?? []); if (f) out.set(d, f); });
-    } catch { /* that batch opens the new BitGraph */ }
-  }
+  const batches: string[][] = [];
+  for (let i = 0; i < digests.length; i += 2000) batches.push(digests.slice(i, i + 2000));
+  let done = 0;
+  await pool(batches, 3, async (batch) => {
+    const keys = batch.map(toUrlSafe);
+    const res = await fetch("/api/proofs/batch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ digests: keys }) });
+    if (!res.ok) throw new Error(`the Roll answered ${res.status}`);
+    const body = (await res.json()) as { results?: Record<string, { proofs?: Array<{ proof: Proof; writeTime?: number | null; kind?: string }>; unavailable?: boolean }>; environments?: Record<string, Record<string, unknown>> };
+    const results = body.results ?? {};
+    attachEnvironments(results as never, body.environments);
+    batch.forEach((d, k) => {
+      const r = results[keys[k]!];
+      if (!r || r.unavailable) throw new Error("part of the Roll could not be read");
+      const f = earliestOf((r.proofs ?? []).filter((e) => !e.kind || e.kind === "recorded"));
+      if (f) out.set(d, f);
+    });
+    done += batch.length;
+    onProgress?.(done);
+  });
   return out;
 }
 
@@ -280,7 +290,11 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     members?: Array<{ name: string; href: string }>;
     /** How many files were dropped. */
     dropCount?: number;
+    /** Files of the drop that were already BitGraphs: left out of this one, each linking to its first proof. */
+    repeats?: Array<{ name: string; href: string; counter: string }>;
   } | null>(null);
+  /** A drop whose files were all BitGraphs already: nothing was bound, and each links to its first proof. */
+  const [allSeen, setAllSeen] = useState<Array<{ name: string; href: string; counter: string }> | null>(null);
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
 
@@ -472,7 +486,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
   }, []);
 
   const takePlugins = useCallback(async (files: File[], list?: Array<{ hex: string; name: string }>) => {
-    setRows([]); setBulk(null); setBatch(null); setPairing(null); setPlug(null); setPlugError(null); setBusy(true);
+    setRows([]); setBulk(null); setBatch(null); setPairing(null); setPlug(null); setAllSeen(null); setPlugError(null); setBusy(true);
     // ?timer times the run from the drop to the proof (2026-10-18: for timing the 100,000-file tree).
     const t0 = performance.now();
     const secs = () => ((performance.now() - t0) / 1000).toFixed(1);
@@ -543,9 +557,59 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           await cacheArtifactToIDB(files[i]!, dropped[i]![2]).catch(() => {});
         }
       })();
+      /* Files already on the Roll are left out (2026-11-03): a later record of the same bytes says less than the first,
+         as with one file. The whole drop is looked up first, and nothing is bound if any of it could not be checked.
+         A hash list is bulk and is bound as it is. */
+      let fresh = dropped;
+      let repeats: Array<{ name: string; href: string; counter: string }> = [];
+      if (!list) {
+        setStatus("Checking the Roll\u2026");
+        let firsts: Map<string, Proof>;
+        try {
+          firsts = await firstsOf([...new Set(dropped.map((l) => l[2]))], (n) => { if (count > 2000) setStatus(`Checking the Roll: ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}\u2026`); });
+        } catch {
+          setStatus(null);
+          setPlugError("Could not check the Roll just now, so nothing was made. Try again in a moment.");
+          return;
+        }
+        const seen = new Set<string>();
+        for (const l of dropped) {
+          const f = firsts.get(l[2]);
+          if (!f || seen.has(l[2])) continue;
+          seen.add(l[2]);
+          const c = f.commit as { counter?: string; epochId?: string } | undefined;
+          repeats.push({ name: l[0], counter: String(c?.counter ?? ""), href: `/proof/${toUrlSafe(l[2])}?counter=${encodeURIComponent(String(c?.counter ?? ""))}${c?.epochId ? `&epoch=${encodeURIComponent(toUrlSafe(c.epochId))}` : ""}` });
+        }
+        fresh = dropped.filter((l) => !firsts.has(l[2]));
+        repeats = repeats.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+      }
+      const freshDistinct = new Set(fresh.map((l) => l[2]));
+      // Every file was a BitGraph already: nothing is bound. One file opens its proof, as a single drop does.
+      if (freshDistinct.size === 0) {
+        setStatus(null);
+        if (repeats.length === 1) {
+          setStatus("Already a BitGraph. Opening its proof\u2026");
+          try { await Promise.race([filesSaved, new Promise((r) => setTimeout(r, 3000))]); } catch { /* the page still opens */ }
+          router.push(repeats[0]!.href);
+          return;
+        }
+        setAllSeen(repeats);
+        return;
+      }
+      // One new file is bound alone, its own SHA-256 the proof's content hash (2026-10-31: no tree of one).
+      if (freshDistinct.size === 1) {
+        const one = fresh[0]!;
+        setStatus("Making the BitGraph\u2026");
+        const tOne = performance.now();
+        const b = await bindOne(one[2]);
+        const tDone = performance.now();
+        setPlug({ dropCount: 1, tree: null, rootText: null, contentName: one[0], contentDigest: one[2], b, block: null, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tOne - t0, bind: tDone - tOne, total: tDone - t0 }, repeats });
+        setStatus(null);
+        return;
+      }
       // Files sorted by path, so the same folder always makes the same tree (2026-10-20). The tree holds the dropped
-      // files' leaves and nothing else.
-      const fileLeaves = sortedLeaves(dropped);
+      // files' leaves that are not BitGraphs yet, and nothing else.
+      const fileLeaves = sortedLeaves(fresh);
       let tree: PluginTree | null = null, rootText = "";
       const block: BaseBlock | null = null;
       const already: Proof | null = null;
@@ -564,14 +628,14 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       // The drop's files as a plain list, no thumbnails (2026-10-31): each opens its own proof page, which finds the file
       // by its hash once the index below is written. Each file once, in tree order (sorted by path, 2026-11-02).
       const members = (() => {
-        if (list || files.length < 2 || !b.commit?.counter || !b.commit?.epochId) return undefined;
+        if (list || fresh.length < 2 || !b.commit?.counter || !b.commit?.epochId) return undefined;
         const seen = new Set<string>(), counter = encodeURIComponent(String(b.commit.counter)), epoch = encodeURIComponent(toUrlSafe(String(b.commit.epochId)));
         return fileLeaves.flatMap((l) => (seen.has(l[2]) || !seen.add(l[2]) ? [] : [{ name: l[0], href: `/proof/${toUrlSafe(l[2])}?counter=${counter}&epoch=${epoch}` }]));
       })();
       // The names in tree order, kept on this device for the root's proof page (components/tree-file-list.tsx).
       if (!list && b.commit?.counter) void putTreeNamesToIDB(contentDigest, String(b.commit.counter), t.leaves.map((l) => l[0]));
-      const dropCount = list ? t.files : files.length;
-      setPlug({ members, dropCount, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list });
+      const dropCount = list ? t.files : fresh.length;
+      setPlug({ members, dropCount, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list, repeats });
       // Each file is indexed under its own hash (lib/tree-member.ts): written after the proof is
       // shown, so the BitGraph never waits on it; the server checks every path to the root before it writes.
       type Lookup = { stored: number; total: number; state: "sealing" | "saving" | "done" | "failed"; note?: string };
@@ -824,6 +888,21 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       {plugError && <div className="db-reveal"><div><div className="db-rows"><div className="db-row"><div className="db-state"><span className="db-bad">{plugError}</span></div></div></div></div></div>}
       {/* The result, plainly (2026-10-18: the first version was cluttered): one row per BitGraph, a name and
           number, one quiet line under it, one link to its proof; the download lined up with the rows. It eases open. */}
+      {/* Every file of the drop was a BitGraph already: nothing was bound (2026-11-03). */}
+      {allSeen && (<div className="db-reveal"><div>
+        <div className="plug-result">
+          <div className="plug-row"><div className="plug-sub">{`All ${allSeen.length.toLocaleString("en-US")} files are already BitGraphs, so nothing new was made. Each opens its first proof.`}</div></div>
+          <ul className="plug-members">
+            {allSeen.slice(0, MEMBERS_SHOWN).map((r) => (
+              <li key={r.href} className="plug-member">
+                <span className="plug-member-name">{r.name}</span>
+                <a href={r.href}>BitGraph #{Number(r.counter).toLocaleString("en-US")}</a>
+              </li>
+            ))}
+            {allSeen.length > MEMBERS_SHOWN && <li className="plug-member plug-member-more">and {(allSeen.length - MEMBERS_SHOWN).toLocaleString("en-US")} more</li>}
+          </ul>
+        </div>
+      </div></div>)}
       {plug && (<div className="db-reveal" key={String(plug.b.commit?.counter ?? "")}><div>
         <div className="plug-result">
           {plug.a && plug.block && (
@@ -874,6 +953,19 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               )}
             </ul>
           )}
+          {/* Files already on the Roll were left out of this BitGraph (2026-11-03); each opens its first proof. */}
+          {plug.repeats && plug.repeats.length > 0 && (<>
+            <div className="plug-row"><div className="plug-sub">{plug.repeats.length === 1 ? "1 file was already a BitGraph, so it was left out:" : `${plug.repeats.length.toLocaleString("en-US")} files were already BitGraphs, so they were left out:`}</div></div>
+            <ul className="plug-members">
+              {plug.repeats.slice(0, MEMBERS_SHOWN).map((r) => (
+                <li key={r.href} className="plug-member">
+                  <span className="plug-member-name">{r.name}</span>
+                  <a href={r.href} target="_blank" rel="noopener">BitGraph #{Number(r.counter).toLocaleString("en-US")}</a>
+                </li>
+              ))}
+              {plug.repeats.length > MEMBERS_SHOWN && <li className="plug-member plug-member-more">and {(plug.repeats.length - MEMBERS_SHOWN).toLocaleString("en-US")} more</li>}
+            </ul>
+          </>)}
           {timer && plug.ms && (
             <div className="plug-row">
               <div className="plug-sub">

@@ -6343,3 +6343,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* The line under Develop your first photo.: grey, a step below the heading, before its cards. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-paths-sub { margin: 14px 0 0 !important; font-size: clamp(18px, 1.8vw, 22px) !important; line-height: 1.4 !important; color: #8e8e93 !important; }
 @media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-break { display: block; } }
+
+/* One size for the home's three big lines on wider screens: Digital film., BitGraph captures the order of anything
+   digital., and 6 billion photos all take the size of the middle one. Phones keep the larger hero. */
+@media (min-width: 641px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-open h1, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-huge { font-size: clamp(36px, 6.4vw, 96px) !important; } }
