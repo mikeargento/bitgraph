@@ -6339,3 +6339,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card :is(.dropbox, .db-zone) { background: #2c2c2e !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-dim { word-break: normal !important; overflow-wrap: normal !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-name { font-size: 20px !important; font-weight: 700 !important; color: var(--ink) !important; }
+
+/* The line under Develop your first photo.: grey, a step below the heading, before its cards. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-paths-sub { margin: 14px 0 0 !important; font-size: clamp(18px, 1.8vw, 22px) !important; line-height: 1.4 !important; color: #8e8e93 !important; }
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-break { display: block; } }

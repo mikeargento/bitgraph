@@ -82,6 +82,7 @@ export default function HomePage() {
 
       <section className="home-section" aria-labelledby="home-paths">
         <h2 id="home-paths">Develop your first&nbsp;photo.</h2>
+        <p className="home-paths-sub">Every photo is undeveloped <span className="home-break">until it&rsquo;s&nbsp;BitGraphed.</span></p>
         <div className="sx-cards">
           <a className="tl-card sx-link" href="/demos">
             <p className="tl-label">Try it</p>
