@@ -57,6 +57,14 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
     } catch { /* stays failed */ }
   }
 
+  const dayLinks = (
+    <div className="rl-more">
+      {prev >= LEDGER_FIRST_DAY && <a href={`/ledger?day=${prev}`}>&lsaquo; {shortLabel(prev)}</a>}
+      {next && <a href={next >= todayUTC ? "/ledger" : `/ledger?day=${next}`}>{next >= todayUTC ? "Today" : shortLabel(next)} &rsaquo;</a>}
+      <Link href="/ledger/calendar">Calendar</Link>
+    </div>
+  );
+
   return (
     <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>
       <style>{`
@@ -69,7 +77,9 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
         .rl-link { color: inherit; text-decoration: none !important; transition: background-color 0.15s; }
         .rl-link:hover { background: #2a2a2c; }
         .rl-link:hover .rl-go { color: var(--ink); }
-        .rl-more { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 28px; font-size: 15px; }
+        .rl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; }
+        .rl-more { display: flex; gap: 20px; flex-wrap: wrap; font-size: 15px; }
+        .rl-foot { margin-top: 28px; }
         .rl-more a { color: var(--dim); }
         @media (max-width: 640px) {
           .rl-row { padding: 16px 18px; gap: 14px; }
@@ -82,18 +92,19 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
 
       {/* The Roll is the ledger and nothing else: every BitGraph, newest first, one card each. Finding or making one is
           the Make box's job (a file already on the Roll opens its frame). */}
-      <h2 style={{ margin: 0 }}>{day ? longLabel(day) : "The Roll"}</h2>
+      {/* The day links sit beside the title, so moving between days never needs a scroll to the end of a long day; they
+          repeat under the list for whoever reaches it. */}
+      <div className="rl-head">
+        <h2 style={{ margin: 0 }}>{day ? longLabel(day) : "The Roll"}</h2>
+        {dayLinks}
+      </div>
 
       {failed || !page ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>The Roll could not be read. Try again in a moment.</div>
       ) : (
         <LedgerRows key={shown} day={shown} live={!day} initial={page.rows} newestKey={page.newestKey} hasOlder={page.hasOlder} />
       )}
-      <div className="rl-more">
-        {prev >= LEDGER_FIRST_DAY && <a href={`/ledger?day=${prev}`}>Older: {shortLabel(prev)}</a>}
-        {next && <a href={next >= todayUTC ? "/ledger" : `/ledger?day=${next}`}>{next >= todayUTC ? "Back to today" : `Newer: ${shortLabel(next)}`}</a>}
-        <Link href="/ledger/calendar">Calendar</Link>
-      </div>
+      <div className="rl-foot">{dayLinks}</div>
     </div>
   );
 }
