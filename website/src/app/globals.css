@@ -6283,31 +6283,11 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows :is(.rl-what, .rl-when) { font-size: 15px !important; }
 }
 
-/* The Roll as a strip of film: a dark strip with sprocket holes down both edges, each BitGraph a frame on it. */
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows { position: relative; gap: 10px !important; margin-top: 28px !important; padding: 14px 48px !important; background: #161617 !important; border-radius: 10px !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::before, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::after { content: ""; position: absolute; top: 0; bottom: 0; width: 14px; background-image: linear-gradient(to bottom, #000 0 12px, transparent 12px 24px); background-size: 14px 24px; background-repeat: repeat-y; background-position: 0 8px; border-radius: 0 !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::before { left: 17px; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::after { right: 17px; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows > .rl-row { background: #242426 !important; border-radius: 6px !important; padding: 26px 28px !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows > .rl-link:hover { background: #2e2e30 !important; }
-@media (max-width: 640px) {
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows { padding: 10px 34px !important; gap: 8px !important; }
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::before, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::after { width: 10px; background-image: linear-gradient(to bottom, #000 0 9px, transparent 9px 18px); background-size: 10px 18px; }
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::before { left: 12px; }
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::after { right: 12px; }
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows > .rl-row { padding: 20px 18px !important; }
-}
 
 /* Home headings in two tones: the setup grey (the question, the scale), the answer and the call to act white. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short h2.is-quiet { color: #8e8e93 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short h2 .is-quiet { color: #8e8e93 !important; }
 
-/* Sprocket holes always end whole: each tile is a hole with equal space above and below, and "round" fits a whole
-   number of tiles into the strip's height, so the first and last holes sit the same distance from the ends. */
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::before, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::after { top: 10px !important; bottom: 10px !important; background-image: linear-gradient(to bottom, transparent 0 25%, #000 25% 75%, transparent 75% 100%) !important; background-size: 14px 24px !important; background-repeat: no-repeat round !important; background-position: 0 0 !important; }
-@media (max-width: 640px) {
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::before, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::after { top: 8px !important; bottom: 8px !important; background-size: 10px 18px !important; }
-}
 /* A frame on the Roll lights up on hover; nothing in it underlines. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows a.rl-link, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows a.rl-link:hover, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows a.rl-link * { text-decoration: none !important; border-bottom: 0 !important; }
 

@@ -17,7 +17,7 @@ import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-led
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "The Roll",
-  description: "Every BitGraph ever made, in order, as frames on a roll of film. Open any one for its proof.",
+  description: "Every BitGraph ever made, in order. Open any one for its proof.",
 };
 
 function shiftDay(day: string, delta: number): string {
@@ -80,8 +80,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       {/* No visible h1: it repeated the nav (2026-10-17). */}
         <h1 className="sr-only">The Roll.</h1>
 
-      {/* The Roll is the ledger and nothing else: every BitGraph, newest first, as frames on a strip of film. Finding or
-          making one is the Make box's job (a file already on the Roll opens its frame). */}
+      {/* The Roll is the ledger and nothing else: every BitGraph, newest first, one card each. Finding or making one is
+          the Make box's job (a file already on the Roll opens its frame). */}
       <h2 style={{ margin: 0 }}>{day ? longLabel(day) : "The Roll"}</h2>
 
       {failed || !page ? (

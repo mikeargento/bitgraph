@@ -14,15 +14,21 @@ import { proofFeedKey, warm } from "@/lib/warm";
  * 200 come with the page; Show older fetches the 200 before the oldest shown.
  */
 const fmt = (n: number | string) => Number(n).toLocaleString("en-US");
-/** How long ago, in plain words: "just now", "5 minutes ago", "3 hours ago", then the date. */
+/** When, the way a phone's camera roll says it, in the viewer's own time: "just now" and "12 minutes ago" within the
+ *  hour, then "Today, 8:12 PM", "Yesterday, 3:40 PM", "Nov 1, 3:42 PM", and the year once it is not this one. */
 function ago(ms: number, now: number): string {
   const s = Math.max(0, Math.round((now - ms) / 1000));
-  if (s < 45) return "just now";
+  if (s < 60) return "Just now";
   const m = Math.round(s / 60);
   if (m < 60) return `${m} minute${m === 1 ? "" : "s"} ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
-  return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const d = new Date(ms), today = new Date(now);
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((dayStart(today) - dayStart(d)) / 86_400_000);
+  if (days === 0) return `Today, ${time}`;
+  if (days === 1) return `Yesterday, ${time}`;
+  const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(d.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}) });
+  return `${date}, ${time}`;
 }
 /** A clock for "ago" that ticks once a minute. */
 function useNow(): number {
