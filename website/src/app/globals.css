@@ -5724,7 +5724,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body 
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(p, li, dd, dt, blockquote, figcaption, .lede, .note, td, th):not(.kicker, .home-kicker, .tl-label, .tl-toc *, nav *, footer *, .sx-sub, .sx-fine) { font-size: 16px !important; line-height: 1.6 !important; font-weight: 400 !important; letter-spacing: 0 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.sx-cards > * p, .sx-cards > * span, .sx-fine, .note, figcaption, .mf-sub, .mf-note, .mf-keep, .db-sub, .db-zone-sub, .dropbox-line, .drop-browse, .pv-choose-list, .pv-source-credit, footer div, footer a, .tl-toc a) { font-size: 14.5px !important; line-height: 1.5 !important; letter-spacing: 0 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-hero .sx-sub { font-size: 20px !important; line-height: 1.45 !important; letter-spacing: -0.005em !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:not([data-theme="light"]) body :is(p, li, dd, dt, blockquote, .lede, .sx-sub):not(.kicker, .home-kicker, .tl-label, .tl-toc *, nav *, footer *) { color: #e3e0d8 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:not([data-theme="light"]) body :is(p, li, dd, dt, blockquote, .lede, .sx-sub):not(.kicker, .home-kicker, .tl-label, .tl-toc *, nav *, footer *) { color: #d0d0d0 !important; }
 /* headings: bold, tight */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-hero h1 { font-size: clamp(34px, 5.4vw, 60px) !important; font-weight: 700 !important; letter-spacing: -0.03em !important; line-height: 1.04 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(h2, .pv-title) { font-size: 30px !important; font-weight: 700 !important; letter-spacing: -0.025em !important; line-height: 1.15 !important; }
@@ -6083,9 +6083,9 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
    cards one step off black with hairline borders, links in ink with an underline. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root[data-theme="dark"] {
   --bg: #000000; --bar: #000000; --paper: #0a0a0a; --panel: #0a0a0a; --panel-2: #111111; --code-bg: #0a0a0a;
-  --ink: #ededed; --text: #a1a1a1; --dim: #8f8f8f; --faint: #6b6b6b;
+  --ink: #dedede; --text: #a1a1a1; --dim: #8f8f8f; --faint: #6b6b6b;
   --line: #262626; --line-2: #1a1a1a; --hair: #1a1a1a;
-  --link: #ededed; --fig-fill: #0a0a0a; --fig-enclave: #000000; --fig-line: #6b6b6b;
+  --link: #dedede; --fig-fill: #0a0a0a; --fig-enclave: #000000; --fig-line: #6b6b6b;
   --btn-primary: #ededed; --btn-primary-hover: #ffffff; --btn-primary-text: #000000;
   --card: #0a0a0a; --card-line: #262626;
 }
@@ -6306,3 +6306,18 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* Optical alignment: at this size the D's own side bearing (about 0.08em) shows as an indent, so the headline is
    pulled left to line its ink up with the line, buttons and pictures below. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-open h1 { margin-left: -0.064em !important; }
+/* The grey half of a two-tone heading keeps the heading's own size and weight; only its color differs. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short h2 span.is-quiet { font: inherit !important; letter-spacing: inherit !important; color: #8e8e93 !important; }
+
+/* White is softened site-wide (ink #dedede, body copy #d0d0d0); full white is kept for hover, so whatever can be
+   clicked brightens under the pointer. */
+@media (hover: hover) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(main, footer, #site-nav) a:not(.bg-action-link):not(.nav-cta-sx):not(.tl-card):hover { color: #ffffff !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav :is(.nav-btn, .nav-info-btn, .nav-info-link):hover { color: #ffffff !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(main .bg-action-link.is-make:not(:disabled), #site-nav a.nav-cta-sx):hover { background-color: #ffffff !important; border-color: #ffffff !important; filter: none !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .bg-action-link:not(.is-make):not(:disabled):hover { color: #ffffff !important; border-color: #ffffff !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover :is(h3, .tl-label) { color: #ffffff !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows a.rl-link:hover :is(.rl-num, .rl-go) { color: #ffffff !important; }
+}
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav a.nav-cta-sx { background-color: #dedede !important; border-color: #dedede !important; }
+@media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav a.nav-cta-sx:hover { background-color: #ffffff !important; border-color: #ffffff !important; filter: none !important; } }
