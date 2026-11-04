@@ -6268,3 +6268,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
    while the hero is under the bar); past the hero the bar is solid black again. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav.is-clear { background: transparent !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .sx-hero { margin-top: -64px !important; height: 100svh !important; min-height: 100svh !important; padding-top: 112px !important; }
+
+/* Code inside the proof card is a box inside a box, so it takes the lighter grey. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card :is(.code-block, pre) { background: #2c2c2e !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card .code-block pre { background: transparent !important; }

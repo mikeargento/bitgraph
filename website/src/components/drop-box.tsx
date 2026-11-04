@@ -531,6 +531,18 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       const dropped = list
         ? await leavesOfDigests(list, (n) => setStatus(`Reading ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")} hashes…${timer ? ` ${secs()} s` : ""}`))
         : await hashLeaves(files, (n) => setStatus(`Hashing ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}…${timer ? ` ${secs()} s` : ""}`));
+      /* Each dropped file is saved on this device for its own proof page, starting as soon as it is hashed so the
+         saving runs while the BitGraph is made. The index below is not reported done until this finishes, so a page
+         opened from the drop (or from the tree's file list) finds its file. A large folder saves its first files up to
+         the caps, and the rest open without the file in hand, as before. */
+      const filesSaved: Promise<void> = list ? Promise.resolve() : (async () => {
+        let bytes = 0;
+        for (let i = 0; i < files.length && i < 500; i++) {
+          bytes += files[i]!.size;
+          if (bytes > 1024 ** 3) break;
+          await cacheArtifactToIDB(files[i]!, dropped[i]![2]).catch(() => {});
+        }
+      })();
       // Files sorted by path, so the same folder always makes the same tree (2026-10-20). The tree holds the dropped
       // files' leaves and nothing else.
       const fileLeaves = sortedLeaves(dropped);
@@ -546,17 +558,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       const contentName = "merkle-root.txt", contentDigest = await digestOf(new TextEncoder().encode(rootText));
       const b = already ?? await bindOne(contentDigest);
       void cacheArtifactToIDB(new File([rootText], contentName, { type: "text/plain" }), contentDigest).catch(() => {});
-      /* Each dropped file is saved for its own proof page too (2026-11-02: a member's page showed its picture only when
-         the file had once been dropped alone). On this device only, one after another behind the proof; a large folder
-         saves its first files up to the caps, and the rest open without the file in hand, as before. */
-      if (!list) void (async () => {
-        let bytes = 0;
-        for (let i = 0; i < files.length && i < 500; i++) {
-          bytes += files[i]!.size;
-          if (bytes > 1024 ** 3) break;
-          await cacheArtifactToIDB(files[i]!, dropped[i]![2]).catch(() => {});
-        }
-      })();
       const tDone = performance.now();
       const t = tree!, total = t.files;
       const blocks = memberBlocks(t, rootText);
@@ -580,6 +581,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         try {
           const stored = await postTreeMembers({ rootDigestB64: contentDigest, epochId: String(b.commit!.epochId), counter: String(b.commit!.counter), rootText, ...(blocks[0]?.floor ? { floor: blocks[0].floor } : {}) },
             t.leaves.map((l, i) => ({ digestB64: l[2], index: i, path: blocks[i]!.path })), (n) => lookup({ stored: n, total, state: "saving" }));
+          await filesSaved;
           lookup({ stored, total, state: stored >= total ? "done" : "failed", note: stored >= total ? undefined : `${(total - stored).toLocaleString("en-US")} could not be saved` });
         } catch (e) { lookup({ stored: 0, total, state: "failed", note: (e as Error).message }); }
       })();
