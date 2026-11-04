@@ -52,12 +52,12 @@ export default function HomePage() {
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page is-landing is-short">
       <section className="sx-hero" aria-labelledby="home-h">
         <HeroVideo />
-        {/* The first screen is the claim, centred; How it works scrolls to the demo proofs. */}
+        {/* The first screen is the claim, centred: make a BitGraph, or see every one on the Roll. */}
         <h1 id="home-h">Digital&nbsp;film.</h1>
-        <p className="sx-sub hero-sub">Every photo gets its place in&nbsp;line.</p>
+        <p className="sx-sub hero-sub">Prove your photo came&nbsp;first.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">Make a BitGraph</a>
-          <a className="bg-action-link" href="#how">How it works</a>
+          <a className="bg-action-link" href="/ledger">See the Roll</a>
         </div>
       </section>
 
@@ -72,7 +72,6 @@ export default function HomePage() {
       <section className="home-section" aria-labelledby="home-any">
         <p className="home-kicker">Any file</p>
         <h2 id="home-any">Not just images.</h2>
-        <p>Video, music, designs, contracts, medical scans, code. If it&rsquo;s a file, it gets a place in&nbsp;line.</p>
         <FileTypes kinds={FILE_KINDS} />
       </section>
 
