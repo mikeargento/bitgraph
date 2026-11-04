@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 /**
- * The bar: the wordmark, then the Roll and the Info menu, Make a BitGraph at the right. It fits on every screen; on
+ * The bar: the wordmark, then the Info menu and the Roll, Make a BitGraph at the right. It fits on every screen; on
  * phones the button reads Make.
  */
 type NavLink = { href: string; label: string; also?: string[] };
@@ -66,11 +66,6 @@ export function SiteNav() {
           BitGraph
         </Link>
         <nav aria-label="Site" className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
-          {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="nav-btn nav-box nav-desk" aria-current={current(l.href, l.also)} style={{ textDecoration: "none" }}>
-              {l.label}
-            </Link>
-          ))}
           <div ref={infoRef} className="nav-info nav-desk" onMouseEnter={() => setInfo(true)} onMouseLeave={() => setInfo(false)}>
             <button type="button" className="nav-btn nav-box nav-info-btn" aria-expanded={info} aria-controls="nav-info-menu" onClick={(e) => { if ((e.nativeEvent as PointerEvent).pointerType !== "mouse") setInfo((o) => !o); }}>
               Info
@@ -84,6 +79,11 @@ export function SiteNav() {
               </div>
             )}
           </div>
+          {LINKS.map((l) => (
+            <Link key={l.href} href={l.href} className="nav-btn nav-box nav-desk" aria-current={current(l.href, l.also)} style={{ textDecoration: "none" }}>
+              {l.label}
+            </Link>
+          ))}
           {/* The bar is the links and the one button; the sun/moon lives in the footer, on every screen (2026-10-28). */}
           <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}><span className="nav-cta-long">{CTA.label}</span><span className="nav-cta-short" aria-hidden="true">Make</span></Link>
         </nav>

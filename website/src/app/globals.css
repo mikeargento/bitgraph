@@ -6321,3 +6321,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav a.nav-cta-sx { background-color: #dedede !important; border-color: #dedede !important; }
 @media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav a.nav-cta-sx:hover { background-color: #ffffff !important; border-color: #ffffff !important; filter: none !important; } }
+
+/* The demos show a nonce or a request as plain large text (.jev-code), not as a code box: no fill, no rounding. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main pre.jev-code { background: none !important; border-radius: 0 !important; padding: 0 !important; }
