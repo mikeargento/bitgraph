@@ -53,7 +53,7 @@ export default function HomePage() {
         </div>
         <DemoRow />
         <p className="home-what">BitGraph captures the<br />order of anything&nbsp;digital.</p>
-        <p className="home-what-sub">So anyone can see it existed, and&nbsp;when.</p>
+        <p className="home-what-sub">Digital photos never had a negative. Now they&nbsp;do.</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-any">
