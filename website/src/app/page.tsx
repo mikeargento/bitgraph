@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DemoRow, HeroVideo } from "@/components/demo-row";
+import { DemoRow } from "@/components/demo-row";
 import { FileTypes, type FileKind } from "@/components/file-types";
 
 /**
@@ -42,19 +42,15 @@ const FILE_KINDS: FileKind[] = [
 export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page is-landing is-short">
-      <section className="sx-hero" aria-labelledby="home-h">
-        <HeroVideo />
-        {/* The first screen is the claim, centred: make a BitGraph, or see every one on the Roll. */}
+      {/* The first screen is the claim and its proof together: the headline and the two actions, left aligned, over
+          the three versions of one picture; then what BitGraph does about them. */}
+      <section id="how" className="home-section home-open" aria-labelledby="home-h">
         <h1 id="home-h">Digital&nbsp;film.</h1>
-        <p className="sx-sub hero-sub">Prove your photo came&nbsp;first.</p>
+        <p className="home-open-sub">Prove your photo came&nbsp;first.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">Make a BitGraph</a>
           <a className="bg-action-link" href="/ledger">See the Roll</a>
         </div>
-      </section>
-
-      <section id="how" className="home-section" aria-labelledby="home-demo">
-        <h2 id="home-demo" className="is-quiet">Which one came&nbsp;first?</h2>
         <DemoRow />
         <p className="home-what">BitGraph captures the<br />order of anything&nbsp;digital.</p>
         <p className="home-what-sub">So anyone can see it existed, and&nbsp;when.</p>
