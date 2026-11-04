@@ -478,21 +478,21 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   /* The receipt in groups, each answering one question, its rows in the order things happen (2026-11-01): what this
      BitGraph is; when, with the enclave's time between the two block reads that bracket it; the bind, the two
      consecutive counts with nothing between them; its place in the chain; and the hardware's signature on it all. */
-  const group = (title: string, rows: ReactNode[]) => rows.some(Boolean) ? (
+  const group = (title: string | null, rows: ReactNode[]) => rows.some(Boolean) ? (
     <div className="pv-receipt-group">
-      <div className="pv-section-title">{title}</div>
+      {title && <div className="pv-section-title">{title}</div>}
       <div className="pv-counter-grid">{rows}</div>
     </div>
   ) : null;
   const prevB64 = (commit as { prevB64?: string }).prevB64;
   const receipt = (
     <section className="pv-card pv-receipt">
-      {group("This BitGraph", [
+      {/* The card opens on its name, "BitGraph #38", with no eyebrow over it. */}
+      {group(null, [
         /* The file opens from the top of the card, right of the number, and shows directly beneath it. */
         <div key="n" className="pv-row pv-row-head">
-          <div className="pv-row-label">BitGraph</div>
-          <div className="pv-row-value">
-            {`#${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : br ? ` · ${chainName(br.chain)} block read` : ""}`}
+          <div className="pv-row-value pv-name">
+            {`BitGraph #${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : br ? ` · ${chainName(br.chain)} block read` : ""}`}
             {m.openUrl && <button type="button" className="pv-link-btn pv-open-link" aria-expanded={fileOpen} onClick={() => setFileOpen((v) => !v)}>{fileOpen ? "Close file" : "Open file"}</button>}
           </div>
         </div>,
