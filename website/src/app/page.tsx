@@ -81,21 +81,18 @@ export default function HomePage() {
       </section>
 
       <section className="home-section" aria-labelledby="home-paths">
-        <h2 id="home-paths">Develop your first&nbsp;photo.</h2>
-        <p className="home-paths-sub">Every photo is undeveloped <span className="home-break">until it&rsquo;s&nbsp;BitGraphed.</span></p>
+        <h2 id="home-paths">Make a&nbsp;BitGraph.</h2>
+        <p className="home-paths-sub">Every digital photo is undeveloped <span className="home-break">until it&rsquo;s&nbsp;BitGraphed.</span></p>
         <div className="sx-cards">
           <a className="tl-card sx-link" href="/demos">
-            <p className="tl-label">Try it</p>
             <h3>Drag and develop.</h3>
             <p>Any photo, video or file. Your proof comes back in under a&nbsp;second.</p>
           </a>
           <a className="tl-card sx-link" href="/ledger">
-            <p className="tl-label">The Roll</p>
             <h3>See every frame.</h3>
             <p>Every BitGraph ever made, in order, open to&nbsp;anyone.</p>
           </a>
           <a className="tl-card sx-link" href="/integrate">
-            <p className="tl-label">For developers</p>
             <h3>Build it in.</h3>
             <p>Add BitGraph to your app or camera with a few lines of&nbsp;code.</p>
           </a>

@@ -6352,3 +6352,10 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app { display: grid !important; place-items: center !important; width: min(84px, 100%) !important; aspect-ratio: 1 !important; border-radius: 22.5% !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app svg { width: 56% !important; height: 56% !important; stroke: none !important; }
 @media (max-width: 760px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app { width: min(64px, 100%) !important; } }
+
+/* The home's three cards: no eyebrow, each title a step larger. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .sx-cards .tl-card h3 { font-size: 22px !important; line-height: 1.25 !important; margin-top: 0 !important; }
+
+/* The app tiles in one grey, like the cards, each app's mark in white. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app { background: #2c2c2e !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app svg path { fill: #dedede !important; }
