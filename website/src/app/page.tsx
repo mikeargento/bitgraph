@@ -46,7 +46,7 @@ export default function HomePage() {
           the three versions of one picture; then what BitGraph does about them. */}
       <section id="how" className="home-section home-open" aria-labelledby="home-h">
         <h1 id="home-h">Digital&nbsp;film.</h1>
-        <p className="home-open-sub">Everything digital is already a copy.<br />Prove which one came&nbsp;first.</p>
+        <p className="home-open-sub">Everything digital is already a copy.<br />BitGraph just puts things in&nbsp;order.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">Make a BitGraph</a>
           <a className="bg-action-link" href="/ledger">See the Roll</a>
