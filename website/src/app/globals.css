@@ -6347,3 +6347,8 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* One size for the home's three big lines on wider screens: Digital film., BitGraph captures the order of anything
    digital., and 6 billion photos all take the size of the middle one. Phones keep the larger hero. */
 @media (min-width: 641px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short .home-open h1, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .scale-huge { font-size: clamp(36px, 6.4vw, 96px) !important; } }
+
+/* Any file, as app tiles: a rounded square like a phone's home screen, the app's mark in its middle. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app { display: grid !important; place-items: center !important; width: min(84px, 100%) !important; aspect-ratio: 1 !important; border-radius: 22.5% !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app svg { width: 56% !important; height: 56% !important; stroke: none !important; }
+@media (max-width: 760px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app { width: min(64px, 100%) !important; } }
