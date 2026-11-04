@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { DropBox } from "@/components/drop-box";
 import { LedgerRows } from "@/components/ledger-rows";
 import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-ledger";
 
@@ -18,7 +17,7 @@ import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-led
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "The Roll",
-  description: "Every BitGraph ever made, in order. Drop a file to find its frame, or open any one for its proof.",
+  description: "Every BitGraph ever made, in order, as frames on a roll of film. Open any one for its proof.",
 };
 
 function shiftDay(day: string, delta: number): string {
@@ -81,10 +80,9 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       {/* No visible h1: it repeated the nav (2026-10-17). */}
         <h1 className="sr-only">The Roll.</h1>
 
-      {/* The Roll for everyone: what it is, a box that finds your file's frame (or offers to make one), then the frames, newest first. */}
-      <p className="home-kicker" style={{ margin: 0 }}>The Roll</p>
-      <h2 style={{ margin: "12px 0 0" }}>{day ? longLabel(day) : "Every BitGraph ever made, in order."}</h2>
-      <div className="page-box" style={{ marginTop: 28 }}><DropBox mode="check" canMake /></div>
+      {/* The Roll is the ledger and nothing else: every BitGraph, newest first, as frames on a strip of film. Finding or
+          making one is the Make box's job (a file already on the Roll opens its frame). */}
+      <h2 style={{ margin: 0 }}>{day ? longLabel(day) : "The Roll"}</h2>
 
       {failed || !page ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>The Roll could not be read. Try again in a moment.</div>

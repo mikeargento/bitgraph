@@ -54,22 +54,19 @@ export default function HomePage() {
       </section>
 
       <section id="how" className="home-section" aria-labelledby="home-demo">
-        <p className="home-kicker">Real files, real proofs</p>
-        <h2 id="home-demo">Which one came&nbsp;first?</h2>
+        <h2 id="home-demo" className="is-quiet">Which one came&nbsp;first?</h2>
         <DemoRow />
         <p className="home-what">BitGraph captures the<br />order of anything&nbsp;digital.</p>
         <p className="home-what-sub">So anyone can see it existed, and&nbsp;when.</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-any">
-        <p className="home-kicker">Any file</p>
-        <h2 id="home-any">Not just images.</h2>
+        <h2 id="home-any"><span className="is-quiet">Not just images.</span> Any&nbsp;file.</h2>
         <FileTypes kinds={FILE_KINDS} />
       </section>
 
       <section className="home-section home-scale-sec" aria-labelledby="home-scale">
-        <p className="home-kicker">At planetary scale</p>
-        <h2 id="home-scale">Built to BitGraph every photo taken on Earth. Every&nbsp;day.</h2>
+        <h2 id="home-scale" className="is-quiet">Built to BitGraph every photo taken on Earth. Every&nbsp;day.</h2>
         <div className="scale">
           <div className="scale-top">
             <div className="scale-huge">6 billion photos</div>
@@ -88,7 +85,6 @@ export default function HomePage() {
       </section>
 
       <section className="home-section" aria-labelledby="home-paths">
-        <p className="home-kicker">Get started</p>
         <h2 id="home-paths">Develop your first&nbsp;photo.</h2>
         <div className="sx-cards">
           <a className="tl-card sx-link" href="/demos">

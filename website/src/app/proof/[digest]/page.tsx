@@ -3580,8 +3580,8 @@ function nativeImageMime(name: string, data: ArrayBuffer): string {
 /**
  * RAW camera files (CR2, NEF, ARW, DNG, RAF, etc.) embed one or more
  * JPEG previews for the camera's LCD screen. This function scans the
- * raw bytes for JPEG start (0xFF 0xD8) and end (0xFF 0xD9) markers and
- * returns the largest *browser-renderable* JPEG block.
+ * raw bytes for each JPEG, reads where it ends from its own structure, and
+ * returns the largest *browser-renderable* one.
  *
  * The renderable check matters for DNG: DNGs store the raw sensor data
  * as a lossless JPEG (Start-Of-Frame marker 0xC3) that is far larger
@@ -3593,67 +3593,57 @@ function nativeImageMime(name: string, data: ArrayBuffer): string {
  * No external dependency. Works for every major DSLR RAW format.
  */
 function extractJpegFromRaw(data: Uint8Array): Blob | null {
-  // Collect every JPEG SOI (Start Of Image) offset.
-  const starts: number[] = [];
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[i] === 0xFF && data[i + 1] === 0xD8) starts.push(i);
-  }
-  if (starts.length === 0) return null;
-
-  // Walk a JPEG's marker segments to read its Start-Of-Frame type.
-  // Browsers decode only baseline (C0), extended-sequential (C1), and
-  // progressive (C2); lossless (C3) and arithmetic (C9–CB) fail.
-  const frameType = (start: number, end: number): number | null => {
-    let i = start + 2;
-    while (i < end - 1) {
-      if (data[i] !== 0xFF) { i++; continue; }
-      let marker = data[i + 1];
-      while (marker === 0xFF && i + 2 < end) { i++; marker = data[i + 1]; } // skip fill bytes
-      // Standalone markers (SOI, TEM, RSTn, EOI) carry no length payload.
-      if (marker === 0xD8 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD9)) { i += 2; continue; }
-      // Start-Of-Frame markers are 0xC0–0xCF except DHT(C4), JPG(C8), DAC(CC).
-      if (marker >= 0xC0 && marker <= 0xCF && marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC) {
-        return marker;
-      }
-      if (i + 3 >= end) break;
-      const len = (data[i + 2] << 8) | data[i + 3];
-      if (len < 2) break;
+  const n = data.length;
+  /* Walk one JPEG from its SOI by its own structure: each segment by its length, each scan's entropy-coded data up to
+     the next real marker (FF 00 and the restart markers are data). Returns where it ends and its Start-Of-Frame type,
+     or null when the bytes at `start` are not a well-formed JPEG. Reading the structure, rather than taking the next
+     FF D8 as the end, keeps a thumbnail stored inside a preview's EXIF from cutting the preview short. */
+  const walk = (start: number): { end: number; sof: number | null } | null => {
+    let i = start + 2, sof: number | null = null, scans = 0;
+    while (i < n - 1) {
+      if (data[i] !== 0xFF) return null;
+      let m = data[i + 1]!;
+      while (m === 0xFF && i + 2 < n) { i++; m = data[i + 1]!; }
+      if (m === 0xD9) return scans > 0 ? { end: i + 2, sof } : null;
+      if (m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }
+      if (i + 3 >= n) return null;
+      const len = (data[i + 2]! << 8) | data[i + 3]!;
+      if (len < 2) return null;
+      if (sof === null && m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) sof = m;
       i += 2 + len;
+      if (m === 0xDA) {
+        scans++;
+        // Entropy-coded data runs to the next marker that is not stuffing or a restart.
+        while (i < n - 1) {
+          if (data[i] === 0xFF) {
+            const x = data[i + 1]!;
+            if (x === 0x00 || (x >= 0xD0 && x <= 0xD7) || x === 0xFF) { i += x === 0xFF ? 1 : 2; continue; }
+            break;
+          }
+          i++;
+        }
+      }
     }
     return null;
   };
 
-  let bestStart = -1, bestEnd = -1, bestSize = 0;   // largest renderable JPEG
-  let fbStart = -1, fbEnd = -1, fbSize = 0;          // fallback: largest of any type
-
-  for (let s = 0; s < starts.length; s++) {
-    const start = starts[s];
-    // Search boundary: next JPEG SOI or end of file.
-    const boundary = s + 1 < starts.length ? starts[s + 1] : data.length;
-
-    // Last JPEG EOI (End Of Image) before the boundary.
-    let end = -1;
-    for (let j = boundary - 2; j >= start + 2; j--) {
-      if (data[j] === 0xFF && data[j + 1] === 0xD9) { end = j + 2; break; }
+  let best: { start: number; end: number } | null = null;   // largest JPEG a browser can draw
+  let fallback: { start: number; end: number } | null = null; // largest well-formed JPEG of any kind
+  for (let i = 0; i < n - 3; i++) {
+    // An SOI followed by a marker: FF D8 FF.
+    if (data[i] !== 0xFF || data[i + 1] !== 0xD8 || data[i + 2] !== 0xFF) continue;
+    const j = walk(i);
+    if (!j) continue;
+    const size = j.end - i;
+    if (size > 10000) {
+      if (!fallback || size > fallback.end - fallback.start) fallback = { start: i, end: j.end };
+      // Browsers draw baseline, extended and progressive JPEGs (C0, C1, C2), not the lossless sensor data (C3).
+      if ((j.sof === 0xC0 || j.sof === 0xC1 || j.sof === 0xC2) && (!best || size > best.end - best.start)) best = { start: i, end: j.end };
     }
-
-    if (end < 0) continue;
-    const size = end - start;
-    if (size <= 10000) continue; // skip tiny thumbnails — we want the full-res preview
-
-    if (size > fbSize) { fbStart = start; fbEnd = end; fbSize = size; }
-
-    const sof = frameType(start, end);
-    const renderable = sof === 0xC0 || sof === 0xC1 || sof === 0xC2;
-    if (renderable && size > bestSize) { bestStart = start; bestEnd = end; bestSize = size; }
+    i = j.end - 1; // a JPEG's insides (its EXIF thumbnail among them) are not searched again
   }
-
-  // Prefer the largest renderable JPEG; if none was confirmed (odd container),
-  // fall back to the largest block found — still better than no preview.
-  const outStart = bestStart >= 0 ? bestStart : fbStart;
-  const outEnd = bestStart >= 0 ? bestEnd : fbEnd;
-  if (outStart < 0) return null;
-  return new Blob([data.slice(outStart, outEnd)], { type: "image/jpeg" });
+  const pick = best ?? fallback;
+  return pick ? new Blob([data.slice(pick.start, pick.end)], { type: "image/jpeg" }) : null;
 }
 
 /* ── Attestation Verifier (modal) ── */
