@@ -467,12 +467,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       <div className="pv-row-value">{chainName(br.chain)} block {fmtNum(br.number)}, <span className="pv-nowrap">{whenBeside(br.timestamp * 1000, attested)} <a className="pv-link" href={br.chain === "base" ? `https://basescan.org/block/${br.number}` : `https://etherscan.io/block/${br.number}`} target="_blank" rel="noopener">{br.chain === "base" ? "Basescan" : "Etherscan"}</a></span></div>
     </div>
   ) : null;
-  // A block read has no file of anyone's: it binds the block it read, so its page says what it is in a line.
-  const blockReadNote = br ? (
-    <div className="pv-row">
-      <div className="pv-row-value pv-dim">{`A ${chainName(br.chain)} block read. Before a file is bound, BitGraph reads the newest ${chainName(br.chain)} block and puts it on the Roll, so everything bound after it was provably bound after that block.`}</div>
-    </div>
-  ) : null;
   // Its content is the block file itself, served with the page, so it downloads instead of asking for a file.
   const blockFileHref = br?.file ? `data:application/json;charset=utf-8,${encodeURIComponent(br.file)}` : null;
   /* The receipt in groups, each answering one question, its rows in the order things happen (2026-11-01): what this
@@ -500,7 +494,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         m.fileName ? <Row key="file" f={{ label: "File", value: m.fileName }} /> : null,
         commit.epochId && commit.counter && !treeMemberOf(m.proof) ? <TreeFileList key="tree" digestB64={m.proof.artifact.digestB64} epochId={commit.epochId} counter={commit.counter} /> : null,
         blockReadCell ? <Fragment key="read">{blockReadCell}</Fragment> : null,
-        blockReadNote ? <Fragment key="readnote">{blockReadNote}</Fragment> : null,
       ])}
       {group("When", [
         floorCell ? <Fragment key="floor">{floorCell}</Fragment> : null,
