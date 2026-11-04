@@ -45,15 +45,15 @@ export default function HomePage() {
       {/* The first screen is the claim and its proof together: the headline and the two actions, left aligned, over
           the three versions of one picture; then what BitGraph does about them. */}
       <section id="how" className="home-section home-open" aria-labelledby="home-h">
-        <h1 id="home-h">Digital&nbsp;film.</h1>
-        <p className="home-open-sub">Everything digital is already a copy.<br />BitGraph just puts things in&nbsp;order.</p>
+        <h1 id="home-h">BitGraph just puts<br />things in&nbsp;order.</h1>
+        <p className="home-open-sub">With proof that verifies offline,&nbsp;forever.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">Make a BitGraph</a>
           <a className="bg-action-link" href="/ledger">See the Roll</a>
         </div>
         <DemoRow />
-        <p className="home-what">BitGraph captures the<br />order of anything&nbsp;digital.</p>
-        <p className="home-what-sub">A proof that verifies offline,&nbsp;forever.</p>
+        <p className="home-what">Everything digital is already a&nbsp;copy.</p>
+        <p className="home-what-sub">BitGraph captures the order of everything&nbsp;digital.</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-any">
