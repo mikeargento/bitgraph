@@ -39,14 +39,6 @@ const FILE_KINDS: FileKind[] = [
   { label: "AI", glyph: "ai" }, { label: "Contract", glyph: "contract" }, { label: "Medical scan", glyph: "scan" }, { label: "Code", glyph: "code" },
 ];
 
-/* Every record is written to Base: the hash of its proof goes into a Base transaction from BitGraph's writer, seconds
-   after the bind, and that block is the record's public ceiling. The person recording signs and sends nothing. */
-const ON_BASE = [
-  { tag: "Private", title: "Nothing revealed.", body: "Proof without uploading your file." },
-  { tag: "Free", title: "Nothing to sign.", body: "BitGraph writes every record to Base for you." },
-  { tag: "Fast", title: "Nothing to wait for.", body: "Instant proof. On Base within seconds." },
-];
-
 export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page is-landing is-short">
@@ -93,21 +85,6 @@ export default function HomePage() {
           </div>
         </div>
         <p className="scale-note">Photos a day: about 6 billion, the highest current estimate (Photutorial,&nbsp;2026).</p>
-      </section>
-
-      <section className="home-section" aria-labelledby="home-reads">
-        <p className="home-kicker">In the background</p>
-        <h2 id="home-reads">Privately on the blockchain. No&nbsp;wallets. No&nbsp;tokens.</h2>
-        <p>Every BitGraph is quietly written to Base, Coinbase&rsquo;s Ethereum network. Anyone can check it. No one can see your&nbsp;file.</p>
-        <div className="sx-cards is-3 is-plain">
-          {ON_BASE.map((r) => (
-            <article key={r.title} className="tl-card">
-              <p className="tl-label">{r.tag}</p>
-              <h3>{r.title}</h3>
-              <p>{r.body}</p>
-            </article>
-          ))}
-        </div>
       </section>
 
       <section className="home-section" aria-labelledby="home-paths">

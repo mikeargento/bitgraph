@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { DropBox } from "@/components/drop-box";
 import { LedgerRows } from "@/components/ledger-rows";
 import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-ledger";
 
@@ -16,7 +18,7 @@ import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-led
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "The Roll",
-  description: "Every BitGraph, as it is made: its number, its two counts and the SHA-256 it bound. Open any one for its proof.",
+  description: "Every BitGraph ever made, in order. Drop a file to find its frame, or open any one for its proof.",
 };
 
 function shiftDay(day: string, delta: number): string {
@@ -34,16 +36,6 @@ function parseDay(raw: string | undefined, todayUTC: string): string | null {
   if (raw >= todayUTC || raw < LEDGER_FIRST_DAY) return null;
   return raw;
 }
-function when(ms: number): string {
-  const d = new Date(ms);
-  const md = d.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
-  const t = d.toLocaleTimeString("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit", second: "2-digit" });
-  return `${md}, ${t} UTC`;
-}
-function clock(ms: number): string {
-  return new Date(ms).toLocaleTimeString("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit", second: "2-digit" });
-}
-const fmt = (n: number | string) => Number(n).toLocaleString("en-US");
 
 export default async function LedgerPage({ searchParams }: { searchParams: Promise<{ day?: string }> }) {
   const { day: rawDay } = await searchParams;
@@ -57,64 +49,53 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
   try {
     page = await ledgerPage(shown);
   } catch { failed = true; }
+  // Development only: a local server cannot read the Roll, so it shows today's live rows to preview the layout.
+  if (failed && process.env.NODE_ENV === "development" && !day) {
+    try {
+      const j = (await (await fetch("https://bitgraph.ing/api/ledger/rows", { cache: "no-store" })).json()) as { rows: LedgerPage["rows"]; newestKey: string | null };
+      page = { rows: j.rows, newestKey: j.newestKey, hasOlder: false };
+      failed = false;
+    } catch { /* stays failed */ }
+  }
 
   return (
     <div className="frame" style={{ padding: "56px 0 96px", maxWidth: "var(--measure)" }}>
       <style>{`
-        .rl-rows { display: flex; flex-direction: column; }
-        .rl-row { display: flex; align-items: center; gap: 14px; }
-        .rl-num { flex-shrink: 0; min-width: 92px; font-size: 15px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
-        .rl-counts { flex-shrink: 0; font-size: 12.5px; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
-        .rl-hash { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .rl-when { flex-shrink: 0; font-size: 12.5px; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
-        .rl-when-short { display: none; }
-        .rl-link { color: inherit; text-decoration: none !important; }
-        .rl-link:hover .rl-num { text-decoration: underline; }
-        .rl-reads-head { width: 100%; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
-        .rl-reads-head .rl-num, .rl-read .rl-num { color: var(--dim); font-weight: 600; }
-        .rl-reads-head .rl-hash { font-family: inherit; }
-        .rl-reads-missing .rl-reads-head .rl-hash { color: var(--err); }
-        .rl-reads-list { padding-left: 18px; }
-        .rl-read .rl-hash { font-family: inherit; }
-        .rl-reads-note { font-size: 12.5px; color: var(--faint); padding: 6px 0; }
+        .rl-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 32px; }
+        .rl-row { display: flex; align-items: center; gap: 20px; padding: 20px 24px; background: #1c1c1e; border-radius: 14px; }
+        .rl-num { flex-shrink: 0; min-width: 96px; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+        .rl-what { flex: 1; min-width: 0; font-size: 16px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rl-when { flex-shrink: 0; font-size: 16px; color: var(--dim); white-space: nowrap; }
+        .rl-go { flex-shrink: 0; font-size: 26px; line-height: 1; color: var(--dim); }
+        .rl-link { color: inherit; text-decoration: none !important; transition: background-color 0.15s; }
+        .rl-link:hover { background: #2a2a2c; }
+        .rl-link:hover .rl-go { color: var(--ink); }
+        .rl-more { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 28px; font-size: 15px; }
+        .rl-more a { color: var(--dim); }
         @media (max-width: 640px) {
-          .rl-hash, .rl-when-long { display: none; }
-          .rl-when-short { display: inline; }
-          .rl-when { margin-left: auto; }
-          .rl-num { min-width: 0; }
+          .rl-row { padding: 16px 18px; gap: 14px; }
+          .rl-num { min-width: 0; font-size: 24px; }
+          .rl-when { font-size: 15px; }
         }
       `}</style>
       {/* No visible h1: it repeated the nav (2026-10-17). */}
         <h1 className="sr-only">The Roll.</h1>
 
-      {/* The ledger itself: every BitGraph by day. Making is on Make, checking on Check. */}
-      {/* Calendar sits up and to the right, beside the title, at every width; the day buttons follow on their own row. */}
-      <div className="ledger-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "0 0 16px" }}>
-        <div>
-          <p className="home-kicker" style={{ margin: 0 }}>The Roll</p>
-          {day && <p style={{ color: "var(--dim)", margin: "4px 0 0" }}>{`${longLabel(day)} (UTC)`}</p>}
-        </div>
-        <a href="/ledger/calendar" className="bg-action-link" style={{ margin: 0, flex: "none" }}>Calendar</a>
-      </div>
-      <div className="ledger-days" style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "0 0 20px" }}>
-        {prev >= LEDGER_FIRST_DAY && (
-          <a href={`/ledger?day=${prev}`} className="bg-action-link" style={{ margin: 0 }}>
-            <span className="arrow" aria-hidden>&larr;</span> {shortLabel(prev)}
-          </a>
-        )}
-        {next && (
-          <a href={next >= todayUTC ? "/ledger" : `/ledger?day=${next}`} className="bg-action-link" style={{ margin: 0 }}>
-            {next >= todayUTC ? "Today" : shortLabel(next)} <span className="arrow" aria-hidden>&rarr;</span>
-          </a>
-        )}
-        {day && next && next < todayUTC && <a href="/ledger" className="bg-action-link" style={{ margin: 0 }}>Today</a>}
-      </div>
+      {/* The Roll for everyone: what it is, a box that finds your file's frame (or offers to make one), then the frames, newest first. */}
+      <p className="home-kicker" style={{ margin: 0 }}>The Roll</p>
+      <h2 style={{ margin: "12px 0 0" }}>{day ? longLabel(day) : "Every BitGraph ever made, in order."}</h2>
+      <div className="page-box" style={{ marginTop: 28 }}><DropBox mode="check" canMake /></div>
 
       {failed || !page ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>The Roll could not be read. Try again in a moment.</div>
       ) : (
         <LedgerRows key={shown} day={shown} live={!day} initial={page.rows} newestKey={page.newestKey} hasOlder={page.hasOlder} />
       )}
+      <div className="rl-more">
+        {prev >= LEDGER_FIRST_DAY && <a href={`/ledger?day=${prev}`}>Older: {shortLabel(prev)}</a>}
+        {next && <a href={next >= todayUTC ? "/ledger" : `/ledger?day=${next}`}>{next >= todayUTC ? "Back to today" : `Newer: ${shortLabel(next)}`}</a>}
+        <Link href="/ledger/calendar">Calendar</Link>
+      </div>
     </div>
   );
 }

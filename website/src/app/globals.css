@@ -6203,14 +6203,13 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* Hovering Info opens it: an invisible strip spans the gap between the button and the menu so the pointer can cross it. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-info-menu::before { content: ""; position: absolute; left: 0; right: 0; top: -12px; height: 12px; }
 
-/* The bar's links sit in it down to tablet width; on phones they fold into the menu button. */
-@media (min-width: 641px) {
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .bg-nav-links { display: flex !important; }
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-menu-btn { display: none !important; }
-}
+/* The bar's links fit on every screen; on phones the button reads Make. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .bg-nav-links { display: flex !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-menu-btn { display: none !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-cta-short { display: none; }
 @media (max-width: 640px) {
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .bg-nav-links { display: none !important; }
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-menu-btn { display: flex !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-cta-long { display: none; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-cta-short { display: inline; }
 }
 @media (max-width: 600px) {
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav :is(.nav-btn, .nav-cta-sx) { font-size: 13.5px !important; }
@@ -6260,8 +6259,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-row .demo-media { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-tile.is-video { grid-column: auto !important; }
 @media (max-width: 760px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-row { grid-template-columns: 1fr !important; gap: 36px !important; } }
-/* The phone menu ends with Make a BitGraph as a white pill button. */
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-sheet .nav-sheet-cta { display: inline-flex; align-items: center; justify-content: center; margin-top: 28px; height: 52px; padding: 0 32px; border-radius: 999px !important; background: var(--ink); color: #000 !important; font-size: 18px !important; font-weight: 700; text-decoration: none !important; }
 
 
 /* Home: the hero runs up under the bar to the top of the screen, and the bar is clear over it (SiteNav adds .is-clear
@@ -6272,3 +6269,16 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* Code inside the proof card is a box inside a box, so it takes the lighter grey. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card :is(.code-block, pre) { background: #2c2c2e !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card .code-block pre { background: transparent !important; }
+
+/* The Roll for everyone: one rounded grey card per frame, a big number, how long ago, and a way in. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows { display: flex !important; flex-direction: column; gap: 8px !important; margin-top: 32px !important; border: 0 !important; background: none !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows > .rl-row { display: flex !important; align-items: center; gap: 20px; padding: 20px 24px !important; background: #1c1c1e !important; border: 0 !important; border-radius: 14px !important; box-shadow: none !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows > .rl-link:hover { background: #2a2a2c !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows .rl-num { flex-shrink: 0; min-width: 96px; font-size: 28px !important; font-weight: 700 !important; letter-spacing: -0.02em; color: var(--ink) !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows :is(.rl-what, .rl-when) { font-size: 16px !important; color: var(--dim) !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows .rl-go { font-size: 26px !important; color: var(--dim) !important; }
+@media (max-width: 640px) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows > .rl-row { padding: 16px 18px !important; gap: 14px; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows .rl-num { min-width: 0; font-size: 24px !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows :is(.rl-what, .rl-when) { font-size: 15px !important; }
+}

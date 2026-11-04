@@ -7,8 +7,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 /**
- * The bar: the wordmark, then the Roll and the Info menu, Make a BitGraph at the right. On phones they fold into a menu
- * button that opens a sheet under the bar.
+ * The bar: the wordmark, then the Roll and the Info menu, Make a BitGraph at the right. It fits on every screen; on
+ * phones the button reads Make.
  */
 type NavLink = { href: string; label: string; also?: string[] };
 // The bar is for people taking photos: the Roll, an Info menu holding everything technical, and the one button.
@@ -26,9 +26,6 @@ const INFO: NavLink[] = [
 ];
 // The button is the one action a visitor should take: a drop proves the product in a minute.
 const CTA = { href: "/demos", label: "Make a BitGraph", also: ["/make"] };
-// Phones list everything in one column, in the order a visitor needs it: see them all, the demos, then the technical
-// pages and contact; Make a BitGraph is the button at the bottom.
-const SHEET: NavLink[] = [LINKS[0], INFO[3], INFO[0], INFO[1], INFO[2], INFO[4]];
 
 export function SiteNav() {
   const pathname = usePathname();
@@ -38,9 +35,7 @@ export function SiteNav() {
   // click elsewhere or Esc closes it.
   const [info, setInfo] = useState(false);
   const infoRef = useRef<HTMLDivElement>(null);
-  // Phones: the links fold into a menu under the bar; a new page closes it, Esc closes it, and the page under it stays still.
-  const [open, setOpen] = useState(false);
-  useEffect(() => { setInfo(false); setOpen(false); }, [pathname]);
+  useEffect(() => { setInfo(false); }, [pathname]);
   // Home: the bar is clear over the hero video and solid once the page scrolls past it.
   const [overHero, setOverHero] = useState(false);
   useEffect(() => {
@@ -55,14 +50,6 @@ export function SiteNav() {
     return () => { window.removeEventListener("scroll", check); window.removeEventListener("resize", check); };
   }, [pathname]);
   useEffect(() => {
-    if (!open) return;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", key);
-    return () => { document.body.style.overflow = overflow; window.removeEventListener("keydown", key); };
-  }, [open]);
-  useEffect(() => {
     if (!info) return;
     const away = (e: MouseEvent) => { if (!infoRef.current?.contains(e.target as Node)) setInfo(false); };
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") setInfo(false); };
@@ -72,7 +59,7 @@ export function SiteNav() {
   }, [info]);
 
   return (
-    <div id="site-nav" className={overHero && !open ? "is-clear" : undefined} style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
+    <div id="site-nav" className={overHero ? "is-clear" : undefined} style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", boxSizing: "border-box", position: "relative", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
         {/* The wordmark goes home; on home itself it returns to the top. */}
         <Link href="/" className="nav-wordmark" onClick={() => { if (pathname === "/") window.scrollTo(0, 0); }} style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", textDecoration: "none", letterSpacing: "-0.01em" }}>
@@ -98,24 +85,9 @@ export function SiteNav() {
             )}
           </div>
           {/* The bar is the links and the one button; the sun/moon lives in the footer, on every screen (2026-10-28). */}
-          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}>{CTA.label}</Link>
+          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}><span className="nav-cta-long">{CTA.label}</span><span className="nav-cta-short" aria-hidden="true">Make</span></Link>
         </nav>
-        <button type="button" className="nav-menu-btn" aria-label={open ? "Close the menu" : "Open the menu"} aria-expanded={open} aria-controls="nav-sheet" onClick={() => setOpen((o) => !o)}>
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
-            {open
-              ? <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              : <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}
-          </svg>
-        </button>
       </div>
-      {open && (
-        <nav id="nav-sheet" aria-label="Site" className="nav-sheet">
-          {SHEET.map((l) => (
-            <Link key={l.href} href={l.href} className="nav-sheet-link" aria-current={current(l.href, l.also)} onClick={() => setOpen(false)}>{l.label}</Link>
-          ))}
-          <Link href={CTA.href} className="nav-sheet-cta" onClick={() => setOpen(false)}>{CTA.label}</Link>
-        </nav>
-      )}
     </div>
   );
 }

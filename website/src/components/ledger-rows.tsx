@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { LedgerItem, LedgerRow } from "@/lib/running-ledger";
-import type { ReadsRow, TimelineRead } from "@/lib/timeline-ledger-core";
+import type { ReadsRow } from "@/lib/timeline-ledger-core";
 import { proofFeedKey, warm } from "@/lib/warm";
 
 /**
@@ -14,15 +14,23 @@ import { proofFeedKey, warm } from "@/lib/warm";
  * 200 come with the page; Show older fetches the 200 before the oldest shown.
  */
 const fmt = (n: number | string) => Number(n).toLocaleString("en-US");
-function when(ms: number): string {
-  const d = new Date(ms);
-  const md = d.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
-  const t = d.toLocaleTimeString("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit", second: "2-digit" });
-  return `${md}, ${t} UTC`;
+/** How long ago, in plain words: "just now", "5 minutes ago", "3 hours ago", then the date. */
+function ago(ms: number, now: number): string {
+  const s = Math.max(0, Math.round((now - ms) / 1000));
+  if (s < 45) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} minute${m === 1 ? "" : "s"} ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
-function clock(ms: number): string {
-  return new Date(ms).toLocaleTimeString("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit", second: "2-digit" });
+/** A clock for "ago" that ticks once a minute. */
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
+  return now;
 }
+
 /** The viewer's own time, for the hover: the page itself stays in UTC, the ledger's days and the chains' clock. */
 function local(ms: number): string {
   return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short" });
@@ -56,20 +64,15 @@ function useEpochStart(r: LedgerRow, firstOfEpoch: boolean): number | null {
 
 function Row({ r, firstOfEpoch }: { r: LedgerRow; firstOfEpoch: boolean }) {
   const epochStart = useEpochStart(r, firstOfEpoch);
+  const now = useNow();
+  // A frame on the roll: its number, how long ago, and a way in. The counts, the hash and the exact signed time are on
+  // its proof page.
   const inner = (
     <>
-      {/* The epoch's first BitGraph leads with "Genesis", its number where "Genesis" was (2026-10-20). */}
-      <span className="rl-num">{epochStart !== null ? "Genesis" : `#${fmt(r.counter)}`}</span>
-      {/* An epoch's first BitGraph reads "Genesis"; its Base block is in the tooltip and on its proof page (2026-10-20):
-          the block number wrapped badly, and "Genesis" is short. */}
-      <span className="rl-counts" title={epochStart !== null ? `Epoch start: Base block ${fmt(epochStart)}` : undefined}>{r.nonceCounter ? `counts ${fmt(r.nonceCounter)}, ${fmt(r.counter)}` : ""}{r.anchor ? " · anchor" : ""}{epochStart !== null ? ` · #${fmt(r.counter)}` : ""}</span>
-      <span className="rl-hash" title="SHA-256 of the bound content">{r.digest ?? r.proofHash}</span>
-      {r.recordedMs !== null && (
-        <span className="rl-when" title={local(r.recordedMs)}>
-          <span className="rl-when-long">{when(r.recordedMs)}</span>
-          <span className="rl-when-short">{clock(r.recordedMs)}</span>
-        </span>
-      )}
+      <span className="rl-num">#{fmt(r.counter)}</span>
+      <span className="rl-what">{epochStart !== null ? "The first frame" : ""}</span>
+      {r.recordedMs !== null && <span className="rl-when" title={local(r.recordedMs)}>{ago(r.recordedMs, now)}</span>}
+      <span className="rl-go" aria-hidden="true">&rsaquo;</span>
     </>
   );
   if (!r.digest) return <div className="xp-row xp-row-base rl-row">{inner}</div>;
@@ -87,80 +90,6 @@ function Row({ r, firstOfEpoch }: { r: LedgerRow; firstOfEpoch: boolean }) {
 }
 
 const isReads = (x: LedgerItem): x is ReadsRow => (x as ReadsRow).kind === "reads";
-const CHAIN_NAME: Record<string, string> = { base: "Base", ethereum: "Ethereum" };
-
-/** What a reads row's records are, in words. */
-function readsLabel(r: ReadsRow): string {
-  const n = fmt(r.count);
-  const one = r.count === 1;
-  if (r.state === "recorded") return `${n} block read${one ? "" : "s"}`;
-  if (r.state === "uploading") return `${n} block read${one ? "" : "s"}, uploading (the host uploads each minute)`;
-  if (r.state === "missing") return `${n} record${one ? "" : "s"}, not all on record`;
-  return `${n} record${one ? "" : "s"}, not listed (before the block timeline)`;
-}
-
-/**
- * The block reads between two file rows (timeline-ledger.ts): one row standing for their counts, opened in place to
- * list each read with its chain, block number and the enclave's time. Every count of the sequence is either a file's
- * row or inside one of these.
- */
-function ReadsRowView({ r }: { r: ReadsRow }) {
-  const [open, setOpen] = useState(false);
-  const toggle = () => setOpen((o) => !o);
-  const [reads, setReads] = useState<{ to: number; reads: TimelineRead[]; truncated: boolean } | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    // Fetched when opened, and again when the run has grown since (the newest run grows while the page is live).
-    if (!open || (reads && reads.to === r.to) || r.state === "unlisted") return;
-    let gone = false;
-    (async () => {
-      const res = await fetch(`/api/ledger/reads?epoch=${r.epoch}&from=${r.from}&to=${r.to}`, { cache: "no-store" }).catch(() => null);
-      if (gone) return;
-      if (!res || !res.ok) { setFailed(true); return; }
-      setFailed(false);
-      setReads({ to: r.to, ...((await res.json()) as { reads: TimelineRead[]; truncated: boolean }) });
-    })().catch(() => setFailed(true));
-    return () => { gone = true; };
-  }, [open, reads, r.epoch, r.from, r.to, r.state]);
-  const counts = r.from - 1 === r.to - 1 ? `count ${fmt(r.to)}` : `counts ${fmt(r.from - 1)}–${fmt(r.to)}`;
-  return (
-    <div className={`rl-reads rl-reads-${r.state}`}>
-      <button type="button" className="xp-row xp-row-base rl-row rl-reads-head" onClick={toggle} aria-expanded={open}>
-        <span className="rl-num">{open ? "▾" : "▸"} Reads</span>
-        <span className="rl-counts">{counts}</span>
-        <span className="rl-hash">{readsLabel(r)}</span>
-      </button>
-      {open && (
-        <div className="rl-reads-list">
-          {failed && <div className="rl-reads-note">The reads could not be loaded. Try again.</div>}
-          {!reads && !failed && r.state !== "unlisted" && <div className="rl-reads-note">Loading…</div>}
-          {reads?.reads.map((x) => {
-            const inner = (<>
-              <span className="rl-num">#{fmt(x.counter)}</span>
-              <span className="rl-counts">counts {fmt(x.counter - 1)}, {fmt(x.counter)}</span>
-              <span className="rl-hash">{x.kind === "block" ? `${CHAIN_NAME[x.chain ?? ""] ?? x.chain ?? "Block"} block ${x.number !== undefined ? fmt(x.number) : "?"}` : x.kind === "genesis" ? "Epoch genesis" : "File (not in the index yet)"}</span>
-              {x.recordedMs !== null && (
-                <span className="rl-when" title={local(x.recordedMs)}>
-                  <span className="rl-when-long">{when(x.recordedMs)}</span>
-                  <span className="rl-when-short">{clock(x.recordedMs)}</span>
-                </span>
-              )}
-            </>);
-            // Each read is a BitGraph of its own: its page names the block and links it on the chain's explorer.
-            return x.digestB64
-              ? <Link key={x.counter} href={`/proof/${x.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${x.counter}&epoch=${r.epoch}`} className="xp-row xp-row-base rl-row rl-read rl-link">{inner}</Link>
-              : <div key={x.counter} className="xp-row xp-row-base rl-row rl-read">{inner}</div>;
-          })}
-          {reads && reads.reads.length < r.count && !reads.truncated && r.state !== "uploading" && (
-            <div className="rl-reads-note">{fmt(r.count - reads.reads.length)} of these counts are on no record.</div>
-          )}
-          {reads?.truncated && <div className="rl-reads-note">The newest {fmt(reads.reads.length)} are listed.</div>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: string; live: boolean; initial: LedgerItem[]; newestKey: string | null; hasOlder: boolean }) {
   const [rows, setRows] = useState<LedgerItem[]>(initial);
   const rowsRef = useRef<LedgerItem[]>(initial);
@@ -238,9 +167,8 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: s
   return (
     <>
       <div className="rl-rows">
-        {rows.map((r, i) => isReads(r)
-          ? <ReadsRowView key={r.key} r={r} />
-          : <Row key={r.key} r={r} firstOfEpoch={firstOfEpoch(i)} />)}
+        {/* Block reads are part of the sequence but not frames anyone made; they stay on the proof pages. */}
+        {rows.map((r, i) => isReads(r) ? null : <Row key={r.key} r={r} firstOfEpoch={firstOfEpoch(i)} />)}
       </div>
       {older && (
         <div style={{ marginTop: 20 }}>
