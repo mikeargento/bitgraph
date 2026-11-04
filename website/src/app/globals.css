@@ -6183,7 +6183,7 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 @media (max-width: 640px) {
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .home-what-sub { font-size: 18px !important; }
   /* Phones use 28px, as the card grids already do. */
-  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(#home-any + p + .ft, .home-scale-sec .scale, #home-demo + p + .demo-row) { margin-top: 28px !important; }
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(#home-any + p + .ft, .home-scale-sec .scale, #home-demo + .demo-row) { margin-top: 28px !important; }
 }
 
 /* Info menu: everything technical folds under one button. On desks it opens a small rounded panel under the button;
