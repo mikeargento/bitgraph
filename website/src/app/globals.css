@@ -6301,3 +6301,10 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* Home headings in two tones: the setup grey (the question, the scale), the answer and the call to act white. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short h2.is-quiet { color: #8e8e93 !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short h2 .is-quiet { color: #8e8e93 !important; }
+
+/* Sprocket holes always end whole: each tile is a hole with equal space above and below, and "round" fits a whole
+   number of tiles into the strip's height, so the first and last holes sit the same distance from the ends. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::before, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::after { top: 10px !important; bottom: 10px !important; background-image: linear-gradient(to bottom, transparent 0 25%, #000 25% 75%, transparent 75% 100%) !important; background-size: 14px 24px !important; background-repeat: no-repeat round !important; background-position: 0 0 !important; }
+@media (max-width: 640px) {
+  html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::before, html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .rl-rows::after { top: 8px !important; bottom: 8px !important; background-size: 10px 18px !important; }
+}
