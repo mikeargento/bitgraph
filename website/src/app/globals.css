@@ -6324,3 +6324,16 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 
 /* The demos show a nonce or a request as plain large text (.jev-code), not as a code box: no fill, no rounding. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main pre.jev-code { background: none !important; border-radius: 0 !important; padding: 0 !important; }
+
+/* View details: a plain link with a chevron that turns to point down while the details are open. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-details-btn { display: inline-flex !important; align-items: center; gap: 6px; text-decoration: none !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-details-btn .pv-details-chev { display: inline-block; font-size: 1.3em; line-height: 1; transform: translateY(-1px); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-details-btn[aria-expanded="true"] .pv-details-chev { transform: rotate(90deg); }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-details-btn .pv-details-word { text-decoration: underline !important; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+
+/* Proof pages: a time and its explorer link stay together on one line; a dimmed explanatory row; the drop box inside
+   the proof card takes the lighter grey of a box inside a box. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-nowrap { white-space: nowrap; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-link { white-space: nowrap; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-receipt .pv-dim { color: var(--dim) !important; font-size: 15px !important; line-height: 1.5 !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .pv-card :is(.dropbox, .db-zone) { background: #2c2c2e !important; }

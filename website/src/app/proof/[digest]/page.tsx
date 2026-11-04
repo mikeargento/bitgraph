@@ -299,7 +299,7 @@ export default function ProofPage() {
       try {
         const b = JSON.parse(f) as { chain?: string; number?: number; hash?: string; timestamp?: number };
         if ((b.chain === "base" || b.chain === "ethereum") && typeof b.number === "number" && typeof b.hash === "string" && typeof b.timestamp === "number") {
-          setBlockRead({ chain: b.chain, number: b.number, hash: b.hash, timestamp: b.timestamp });
+          setBlockRead({ chain: b.chain, number: b.number, hash: b.hash, timestamp: b.timestamp, file: f });
         }
       } catch { /* not a block file */ }
     });

@@ -250,15 +250,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // It is never written to Base; when the record at this position is a block read, its block file goes with it, as
     // for a block read with no ledger object, so its page names the block.
     let timelineRecord: { kind: string; blockFile: string } | undefined;
+    // A lookup cut short by the timeout is not an answer: that response is not cached, so the next visit asks again
+    // instead of serving a block read's page without its block.
+    let timelineTimedOut = false;
     // Only for a link naming its position (every floor link does), and never for long: an older epoch has no timeline,
     // and asking it cost every such proof page seconds (2026-11-02).
     if (ceiling === null && selCounter && selEpoch && selCommit?.counter && selCommit.epochId) {
       const ep = selCommit.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const rec = await Promise.race([timelineRecordAt(ep, Number(selCommit.counter)).catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 2000))]);
+      const TIMED_OUT = Symbol("timed out");
+      const got = await Promise.race([timelineRecordAt(ep, Number(selCommit.counter)).catch(() => null), new Promise<typeof TIMED_OUT>((r) => setTimeout(() => r(TIMED_OUT), 2000))]);
+      if (got === TIMED_OUT) timelineTimedOut = true;
+      const rec = got === TIMED_OUT ? null : got;
       if (rec?.kind === "block" && rec.blockFile && rec.proof.artifact.digestB64 === standardB64) timelineRecord = { kind: "block", blockFile: rec.blockFile };
     }
     return NextResponse.json({ proofs: [{ proof }],
-        lookupKind, positions, causalWindow, anchorBlock, floor, ceiling, ...(timelineRecord ? { timelineRecord } : {}) }, { headers: { "Cache-Control": cacheControl } });
+        lookupKind, positions, causalWindow, anchorBlock, floor, ceiling, ...(timelineRecord ? { timelineRecord } : {}) }, { headers: { "Cache-Control": timelineTimedOut ? "no-store" : cacheControl } });
   } catch (e) {
     // Never cached, and never confusable with the `{ proofs: [] }` miss above:
     // that answer means the ledger has nothing, this one means we could not
