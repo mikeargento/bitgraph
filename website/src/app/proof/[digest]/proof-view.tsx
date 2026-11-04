@@ -386,6 +386,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const bitgraphed = m.pieces?.find((p) => p.label === "BitGraphed file") ?? null;
   // The content box comes into view once a search starts (2026-10-30), so its reading count shows the work.
   const [searching, setSearching] = useState(false);
+  // The technical half of the receipt (the bind, its place in line, the signature, the verifier and the JSON) opens on
+  // request; the file, when it was made and the proof to download show first.
+  const [details, setDetails] = useState(false);
   const fo = m.floorOf ?? null;
   // A record written to Base shows that write and nothing from the block timeline: the timeline ran only between its
   // start and the return to per-record Base writes, and a later record of the same epoch would otherwise show the last
@@ -494,6 +497,29 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         showTime && attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
         ceilingCell ? <Fragment key="ceil">{ceilingCell}</Fragment> : null,
       ])}
+      {/* Check it anywhere follows when: text links like the rest of the receipt, under their own eyebrow. The proof;
+          and the BitGraphed file when the original is in hand, the epoch file on an epoch's first record, or Connect
+          the file, which opens the drop box right under these lines. */}
+      <div className="pv-receipt-group">
+        <div className="pv-section-title">Check it anywhere</div>
+        <div className="pv-sub-note" style={{ display: "grid", gap: 6, marginTop: 0 }}>
+          <button type="button" className="pv-link pv-link-btn" onClick={download}>Download proof</button>
+          {bitgraphed ? (
+            <button type="button" className="pv-link pv-link-btn" disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>{bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}</button>
+          ) : es ? (
+            <a className="pv-link" style={{ width: "fit-content" }} href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>Download {es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</a>
+          ) : m.canConnect ? (
+            <button type="button" className="pv-link pv-link-btn" onClick={() => setSearching(true)}>Connect the file</button>
+          ) : null}
+        </div>
+        {m.canConnect && searching && <div style={{ marginTop: 14 }}>{m.filePane}</div>}
+        {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
+      </div>
+      <div className="pv-receipt-group pv-details-toggle">
+        <button type="button" className="bg-action-link" style={{ margin: 0 }} aria-expanded={details} onClick={() => setDetails((v) => !v)}>{details ? "Hide details" : "View details"}</button>
+      </div>
+      {details && (
+        <>
       {group("The bind", [
         nonceCount !== null ? <Row key="nonce" f={{ label: `#${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} /> : null,
         contentCount !== null ? <Row key="hash" f={{ label: `#${fmtNum(contentCount)}: Content hash`, value: m.proof.artifact.digestB64, mono: true }} /> : null,
@@ -532,24 +558,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <div className="pv-section-title">Raw JSON</div>
         <RawJson proof={m.proof} />
       </div>
-      {/* Check it anywhere closes the receipt (2026-10-30): text links like the rest of it, under their own eyebrow.
-          The proof; and the BitGraphed file when the original is in hand, the epoch file on an epoch's first record,
-          or Connect the file, which opens the drop box right under these lines. */}
-      <div className="pv-receipt-group">
-        <div className="pv-section-title">Check it anywhere</div>
-        <div className="pv-sub-note" style={{ display: "grid", gap: 6, marginTop: 0 }}>
-          <button type="button" className="pv-link pv-link-btn" onClick={download}>Download proof</button>
-          {bitgraphed ? (
-            <button type="button" className="pv-link pv-link-btn" disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>{bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}</button>
-          ) : es ? (
-            <a className="pv-link" style={{ width: "fit-content" }} href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>Download {es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</a>
-          ) : m.canConnect ? (
-            <button type="button" className="pv-link pv-link-btn" onClick={() => setSearching(true)}>Connect the file</button>
-          ) : null}
-        </div>
-        {m.canConnect && searching && <div style={{ marginTop: 14 }}>{m.filePane}</div>}
-        {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
-      </div>
+        </>
+      )}
     </section>
   );
   /* The recorded instant leads the page on its own (2026-10-29): the BitGraph's name at heading size and the time large. */
@@ -583,7 +593,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {m.sourceField}
         </section>
         )}
-        {/* Every proof opens in full: no Proof details fold. The verdict and its tally lead, then when, who, and how. */}
+        {/* A failed check is never folded: its tally shows in full here, outside the receipt's details. */}
         {(
           <>
             {!(c.state === "done" && c.verdict === "TRUE") && <section className="pv-card">{checksBlock}</section>}
