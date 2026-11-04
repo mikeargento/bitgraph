@@ -46,14 +46,14 @@ export default function HomePage() {
           the three versions of one picture; then what BitGraph does about them. */}
       <section id="how" className="home-section home-open" aria-labelledby="home-h">
         <h1 id="home-h">Digital&nbsp;film.</h1>
-        <p className="home-open-sub">Prove your photo came&nbsp;first.</p>
+        <p className="home-open-sub">Everything digital is already a copy.<br />Prove which one came&nbsp;first.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">Make a BitGraph</a>
           <a className="bg-action-link" href="/ledger">See the Roll</a>
         </div>
         <DemoRow />
         <p className="home-what">BitGraph captures the<br />order of anything&nbsp;digital.</p>
-        <p className="home-what-sub">Digital photos never had a negative. Now they&nbsp;do.</p>
+        <p className="home-what-sub">Every file gets a place in line. <span className="home-break">Anyone can check&nbsp;it.</span></p>
       </section>
 
       <section className="home-section" aria-labelledby="home-any">
@@ -86,7 +86,7 @@ export default function HomePage() {
         <div className="sx-cards">
           <a className="tl-card sx-link" href="/demos">
             <h3>Drag and develop.</h3>
-            <p>Any photo, video or file. Your proof comes back in under a&nbsp;second.</p>
+            <p>Any photo, video or file. No account, no cost, under a&nbsp;second.</p>
           </a>
           <a className="tl-card sx-link" href="/ledger">
             <h3>See every frame.</h3>
