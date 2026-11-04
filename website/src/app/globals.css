@@ -6359,3 +6359,10 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* The app tiles in one grey, like the cards, each app's mark in white. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app { background: #2c2c2e !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app svg path { fill: #dedede !important; }
+
+/* The app tiles as even cards: one row of eight on wider screens, two rows of four on phones; each a rounded square filling its column, in the cards' grey, its mark
+   centered. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft { grid-template-columns: repeat(8, minmax(0, 1fr)) !important; justify-content: stretch !important; gap: 20px 16px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app { width: 100% !important; border-radius: 14px !important; background: #1c1c1e !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app svg { width: 36% !important; height: 36% !important; }
+@media (max-width: 760px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft { grid-template-columns: repeat(4, minmax(0, 1fr)) !important;  gap: 16px 12px !important; } html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app { width: 100% !important; border-radius: 12px !important; } html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app svg { width: 42% !important; height: 42% !important; } }
