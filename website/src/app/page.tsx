@@ -52,7 +52,7 @@ export default function HomePage() {
           <a className="bg-action-link" href="/ledger">See the Roll</a>
         </div>
         <DemoRow />
-        <p className="home-what">Everything digital is already a&nbsp;copy.</p>
+        <p className="home-what">Everything digital<br />{" "}is already a copy.</p>
         <p className="home-what-sub">BitGraph captures the order of everything&nbsp;digital.</p>
       </section>
 

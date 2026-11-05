@@ -6367,3 +6367,11 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app svg { width: 36% !important; height: 36% !important; }
 @media (max-width: 760px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft { grid-template-columns: repeat(4, minmax(0, 1fr)) !important;  gap: 16px 12px !important; } html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app { width: 100% !important; border-radius: 12px !important; } html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .ft-app svg { width: 42% !important; height: 42% !important; } }
 
+
+/* The copy line under the photos is set exactly like the headline (2026-11-04): same size, leading and tracking on
+   every width, so the page's two big statements read as one voice. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .home-what { font-size: clamp(56px, 8vw, 120px) !important; line-height: 0.98 !important; letter-spacing: -0.04em !important; }
+@media (min-width: 641px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .home-what { font-size: clamp(36px, 6.4vw, 96px) !important; } }
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .home-what { font-size: 11.4vw !important; line-height: 0.95 !important; } }
+/* On phones the line wraps word by word at the headline's size, as the headline does; the desktop break is dropped. */
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .home-what br { display: none; } }
