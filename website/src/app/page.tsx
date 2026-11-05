@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { DemoRow } from "@/components/demo-row";
-import { DemoCards } from "@/components/demo-cards";
+import { HomeCards } from "@/components/demo-cards";
 
 /**
  * The home page: the claim and its answer as one headline, the three versions of one picture with their proofs, and
- * the three demos as cards. The explaining lives on Technology.
+ * three cards that lead to making a BitGraph, the ledger, and the demos. The explaining lives on Technology.
  *
  * Claim discipline, unchanged: a BitGraph is a place in line, bound by a time and after an unpredictable value. It
  * says when bits were bound, not how old they are or who made them.
@@ -31,8 +31,8 @@ export default function HomePage() {
         <h1 id="home-h">Everything{" "}<br className="home-h-ph" />digital{" "}<br className="home-h-dt" />is{" "}<br className="home-h-ph" />already a{" "}<br className="home-h-ph" />copy</h1>
         <p className="home-order">BitGraph just puts things in order</p>
         <DemoRow />
-        {/* The three demos, one card under each picture. */}
-        <DemoCards row />
+        {/* Where to go next, one card under each picture: make one, see the ledger, try the demos. */}
+        <HomeCards />
       </section>
     </div>
   );
