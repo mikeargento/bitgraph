@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
 
 /**
- * The bar (2026-11-04): the mark and the wordmark, then five links beside it in a light weight, and at the far right the light and
+ * The bar (2026-11-04): the wordmark, then five links beside it in a light weight, and at the far right the light and
  * dark switch and two pills, Contact in a soft fill and Make a BitGraph in ink. On phones the links and the button fold
  * into a sheet behind a round menu button.
  */
@@ -60,8 +60,6 @@ export function SiteNav() {
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", boxSizing: "border-box", position: "relative", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
         {/* The wordmark goes home; on home itself it returns to the top. */}
         <Link href="/" className="nav-wordmark" onClick={() => { if (pathname === "/") window.scrollTo(0, 0); }} style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", textDecoration: "none", letterSpacing: "-0.01em" }}>
-          {/* The mark is the ochre drawing on the Blombos Cave flake, the earliest known drawing. */}
-          <span className="earliest-mark" aria-hidden="true" />
           BitGraph
         </Link>
         <nav aria-label="Site" className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
