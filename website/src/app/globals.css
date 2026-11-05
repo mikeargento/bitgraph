@@ -6375,3 +6375,9 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 @media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .home-what { font-size: 11.4vw !important; line-height: 0.95 !important; } }
 /* On phones the line wraps word by word at the headline's size, as the headline does; the desktop break is dropped. */
 @media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .home-what br { display: none; } }
+
+/* Buttons are rounded like the cards (2026-11-04): 10px, which on a 44px button is the proportion 14px gives a tile; the pill is gone. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(.bg-action-link, .btn, .pv-pill, #site-nav#site-nav .nav-cta) { border-radius: 10px !important; }
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav :is(.nav-cta-sx, .nav-btn, .nav-cta) { border-radius: 10px !important; }
+/* On phones the Make button sits 12px clear of The Roll, not 4px. */
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body #site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav#site-nav .nav-cta-sx { margin-left: 12px !important; } }
