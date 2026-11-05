@@ -4,14 +4,14 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
-**Digital film.**
+**Provenance with proof.**
 
-BitGraph gives every photo, video or file its place in line, so anyone can see which came first. The file is never uploaded:
-only its SHA-256 is sent. Inside a measured AWS Nitro enclave, one atomic action binds that hash at a counted position, right
-after a fresh hardware nonce, signed and attested, and every record is written to Base seconds later. The proof is a small
-JSON file that checks offline, without BitGraph.
+Everything digital is already a copy. BitGraph gives any file or record its place in line, so anyone can see which came
+first. The file is never uploaded: only its SHA-256 is sent, and only that hash is ever public. Inside a measured AWS Nitro
+enclave, one atomic action binds the hash at a counted position, right after a fresh hardware nonce, signed and attested,
+and every record is written to Base seconds later. The proof is a small JSON file that checks offline, without BitGraph.
 
-[Make a BitGraph](https://bitgraph.ing/demos) · [The Roll](https://bitgraph.ing/ledger) · [Demos](https://bitgraph.ing/examples) · [Technology](https://bitgraph.ing/technology) · [Developers](https://bitgraph.ing/integrate) · [Licensing](https://bitgraph.ing/licensing)
+[Make a BitGraph](https://bitgraph.ing/demos) · [The Ledger](https://bitgraph.ing/ledger) · [Demos](https://bitgraph.ing/examples) · [Technology](https://bitgraph.ing/technology) · [Developers](https://bitgraph.ing/integrate) · [Licensing](https://bitgraph.ing/licensing)
 
 ## The mechanism
 
@@ -137,8 +137,8 @@ const r = await verifyAttested({ proof, bytes });
 // r.valid, r.attestedAtMs, r.image ({ version: "v13", … }), r.treeMember ({ index, files })
 ```
 
-Where it fits, as integration patterns: Content Credentials, watermark discovery, trusted capture, asset registries, AI agents,
-software supply chains, research and enterprise records ([bitgraph.ing/applications](https://bitgraph.ing/applications)).
+Where it fits, as integration patterns: medical and enterprise records, Content Credentials, watermark discovery, trusted
+capture, asset registries, AI agents, software supply chains and research ([bitgraph.ing/applications](https://bitgraph.ing/applications)).
 The public endpoint is rate-limited; production integrations use an API key.
 
 ## Licensing
