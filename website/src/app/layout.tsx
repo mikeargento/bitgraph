@@ -52,8 +52,8 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
-/* Newsreader for the headings (2026-10-21, matching the essay set in it): a variable
-   display serif with an optical-size axis, self-hosted by next/font like the others. */
+/* Newsreader, the site's face since 2026-11-05 (headings only from 2026-10-21): a variable serif with an optical-size
+   axis, self-hosted by next/font like the others. */
 const newsreader = Newsreader({
   subsets: ["latin"],
   style: ["normal", "italic"],
@@ -62,12 +62,13 @@ const newsreader = Newsreader({
   display: "swap",
 });
 
-/* The site's face (2026-11-05): Geist, a neutral grotesque, variable from 100 to 900 and self-hosted by next/font like
-   the others, so every weight the type system names is a real one. Hashes and code stay in Plex Mono. */
+/* Geist, the site's face for part of 2026-11-05, before Newsreader. Kept declared and not preloaded, so the older
+   rules that name it still resolve. */
 const geist = Geist({
   subsets: ["latin"],
   variable: "--font-geist",
   display: "swap",
+  preload: false,
 });
 
 const inter = Inter({
@@ -79,7 +80,7 @@ const inter = Inter({
 
 /* The tab strip and the phone's chrome take the page colour: white, Google's ground,
    since 2026-09-18 (dark before that). Keep it equal to --bg. */
-export const viewport: Viewport = { themeColor: "#000000" };
+export const viewport: Viewport = { themeColor: "#f0eee6" };
 
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */
@@ -125,8 +126,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: the head script below marks <html> data-js before React loads.
     <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${newsreader.variable} ${geist.variable}`}>
       <head>
-        {/* One mode (2026-11-02): the site is always dark (true black), set before the first paint. */}
-        <script dangerouslySetInnerHTML={{ __html: `document.documentElement.dataset.theme="dark"` }} />
+        {/* Two modes (2026-11-05): the site loads light, whatever the system's setting; a visitor who picks dark with
+            the button in the bar keeps it. Set before the first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t;try{t=localStorage.getItem("theme")}catch(e){}document.documentElement.dataset.theme=t==="dark"?"dark":"light"})()` }} />
         {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
             700 and italics). PREVIEW 2026-09-16: --font-term in globals.css
             points at it. */}

@@ -135,6 +135,11 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   "-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA": { path: "/demo/chatgpt.png", name: "ChatGPT Image.png", mime: "image/png" },
   "gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8": { path: "/demo/google.jpeg", name: "Gemini Image.jpeg", mime: "image/jpeg" },
   "VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM": { path: "/demo/grok.mp4", name: "grok-video.mp4", mime: "video/mp4" },
+  // The home page's second set of three (2026-11-05): a new picture made with ChatGPT, Google's copy of it and Grok's
+  // video of it (#30, #34, #38, epoch GCFx…). Home shows both sets.
+  "Mcr7iOK5afl1x1iwwcTrwn3nFGR31RmRyTyTsHCU_JM": { path: "/demo/chatgpt-30.png", name: "ChatGPT Image.png", mime: "image/png" },
+  "hQU63cRe-SH06EW0ivMBewEj5u1OsrNIvlKpjpPOt_A": { path: "/demo/google-34.jpeg", name: "Gemini Image.jpeg", mime: "image/jpeg" },
+  "UXTJPyhZgvAOmkZpSOdhPBZ9PET5xf9sG9VR6qRNu50": { path: "/demo/grok-38.mp4", name: "grok-video.mp4", mime: "video/mp4" },
   // The home page's made-after picture (2026-10-31): the bridge drawn from #12,526's nonce, recorded as #12,530.
   "E301gTl5CQkxYjhCsn8RZJcv26nR3EeWMyohutOe4F4": { path: "/demo/bridge.png", name: "bitgraph-12530.png", mime: "image/png" },
   // Its re-recording (2026-11-02): the bridge drawn from #42's nonce, recorded as #44.
