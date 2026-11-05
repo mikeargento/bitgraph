@@ -6,9 +6,9 @@
  * in a row under the three pictures.
  */
 const DEMOS = [
-  { href: "/jev", title: "Ask AI", body: "Two questions made from A’s nonce, answered by an AI, and bound as B." },
-  { href: "/generate", title: "Generate image", body: "A picture drawn by code from A’s nonce and bound as B." },
-  { href: "/exam", title: "Sealed exam", body: "Twenty benchmark questions made from A’s nonce, a model’s answers bound as B, checked offline." },
+  { href: "/jev", title: "Ask AI", body: "Demo: Two questions made from A’s nonce, answered by an AI, and bound as B." },
+  { href: "/generate", title: "Generate image", body: "Demo: A picture drawn by code from A’s nonce and bound as B." },
+  { href: "/exam", title: "Sealed exam", body: "Demo: Twenty benchmark questions made from A’s nonce, a model’s answers bound as B, checked offline." },
 ];
 
 export function DemoCards({ row = false }: { row?: boolean }) {

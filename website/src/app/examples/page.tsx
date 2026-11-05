@@ -13,7 +13,7 @@ export default function ExamplesPage() {
       <div className="home-hero"><h1 className="sr-only">Demos.</h1></div>
       <section className="home-section" aria-labelledby="demos-h">
         <p className="home-kicker">Demos</p>
-        <h2 id="demos-h">The power of instant cryptographic order</h2>
+        <h2 id="demos-h">Made between two BitGraphs</h2>
         <DemoCards />
       </section>
     </div>
