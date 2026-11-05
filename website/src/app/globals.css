@@ -6388,3 +6388,16 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 @media (hover: hover) {
   html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body :is(main .bg-action-link.is-make:not(:disabled), #site-nav#site-nav#site-nav a.nav-cta-sx):hover { background-color: #ffffff !important; border-color: #ffffff !important; color: #111111 !important; filter: none !important; opacity: 1 !important; }
 }
+
+/* The subline under the headline breaks after "verifies" on phones only (2026-11-04); wider screens set it as one line. */
+.home-open-sub .home-sub-br { display: none; }
+@media (max-width: 640px) { .home-open-sub .home-sub-br { display: inline; } }
+
+/* The headline's breaks (2026-11-04): two lines on wide screens (.home-h-dt), four on phones (.home-h-ph). */
+.home-h-ph { display: none; }
+@media (max-width: 640px) { .home-h-ph { display: inline; } .home-h-dt { display: none; } }
+
+/* "Any file." is set like the page's other big lines (2026-11-04): the copy line's size, leading and tracking. */
+html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short h2#home-any { font-size: clamp(56px, 8vw, 120px) !important; line-height: 0.98 !important; letter-spacing: -0.04em !important; font-weight: 700 !important; color: var(--ink) !important; }
+@media (min-width: 641px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short h2#home-any { font-size: clamp(36px, 6.4vw, 96px) !important; } }
+@media (max-width: 640px) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .is-short h2#home-any { font-size: 11.4vw !important; line-height: 0.95 !important; } }

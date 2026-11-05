@@ -22,16 +22,16 @@ export const metadata: Metadata = {
   twitter: { title: "Digital film is here.", description: DESCRIPTION },
 };
 
-/* Planet scale (2026-11-02): what it takes to give every photo taken on Earth in a day a place in line, each step
-   checkable. Photos a day: about 6 billion, the highest current estimate (Photutorial, 2.2 trillion for 2026,
-   photutorial.com/photos-statistics; Rise Above Research has 1.95 trillion). A BitGraph holds a million files (the
-   million-file run on Technology, not a limit), so 6,000 BitGraphs, which one enclave makes at a few percent of its pace. Each is one Base
-   write of about $0.0003 (quoted from Base, 2026-11-02), so about $2 a day, which BitGraph pays; the person recording pays nothing. A proof
-   comes back in under half a second (0.47 s, 0.41 s and 0.34 s, measured on the live site on 2026-10-31). */
+/* Scale (2026-11-04, records in place of photos): what a trillion records take, each step checkable. A BitGraph
+   holds a million files (the million-file run on Technology, not a limit), so a trillion records are a million
+   BitGraphs. Each is one Base write of about $0.0003 (quoted from Base, 2026-11-02), so about $300 for all of them.
+   Storage is the proofs and their ceilings at today's sizes (about 8 KB and 5 KB each), about 13 GB for a million,
+   so under 20 GB. A proof is found in under half a second (0.47 s, 0.41 s and 0.34 s, measured on the live site on
+   2026-10-31). */
 const SCALE_STEPS = [
-  { op: "1 million per BitGraph", big: "6,000", small: "BitGraphs hold them all" },
-  { op: "speed", big: "<\u20090.5\u2009s", small: "to make each proof" },
-  { op: "all written to Base", big: "Free", small: "Built into BitGraph" },
+  { op: "1 million per BitGraph", big: "1,000,000", small: "BitGraphs hold them all" },
+  { op: "speed", big: "~5 s", small: "to make 1,000,000 proofs" },
+  { op: "every proof kept", big: "<\u200920\u2009GB", small: "verifies offline, forever" },
 ];
 /* The demos are all pictures; this row shows the same proof covers every other kind of file. */
 const FILE_KINDS: FileKind[] = [
@@ -45,27 +45,29 @@ export default function HomePage() {
       {/* The first screen is the claim and its proof together: the headline and the two actions, left aligned, over
           the three versions of one picture; then what BitGraph does about them. */}
       <section id="how" className="home-section home-open" aria-labelledby="home-h">
-        <h1 id="home-h">BitGraph just puts<br />things in&nbsp;order.</h1>
-        <p className="home-open-sub">With proof that verifies offline,&nbsp;forever.</p>
+        {/* The headline breaks in two on wide screens and in four on phones; the spaces sit before each break so a
+            hidden break leaves a plain space and a shown one leaves no indent. */}
+        <h1 id="home-h">Everything{" "}<br className="home-h-ph" />digital{" "}<br className="home-h-dt" />is{" "}<br className="home-h-ph" />already a{" "}<br className="home-h-ph" />copy.</h1>
+        <p className="home-open-sub">BitGraph just puts things in&nbsp;order.</p>
         <div className="sx-cta">
           <a className="bg-action-link is-make" href="/demos">Make a BitGraph</a>
-          <a className="bg-action-link" href="/ledger">See the Roll</a>
+          <a className="bg-action-link" href="/ledger">See the Ledger</a>
         </div>
         <DemoRow />
-        <p className="home-what">Everything digital<br />{" "}is already a copy.</p>
-        <p className="home-what-sub">BitGraph captures the order of everything&nbsp;digital.</p>
+        <p className="home-what">Provenance{" "}<br />with proof.</p>
+        <p className="home-what-sub">Any file or record, in order. Anyone can check it, offline,&nbsp;forever.</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-any">
-        <h2 id="home-any"><span className="is-quiet">Not just images.</span> Any&nbsp;file.</h2>
+        <h2 id="home-any">Any&nbsp;file.</h2>
         <FileTypes kinds={FILE_KINDS} />
       </section>
 
       <section className="home-section home-scale-sec" aria-labelledby="home-scale">
-        <h2 id="home-scale" className="is-quiet">Built to BitGraph every photo taken on Earth. Every&nbsp;day.</h2>
+        <h2 id="home-scale" className="is-quiet">Built for every record there&nbsp;is.</h2>
         <div className="scale">
           <div className="scale-top">
-            <div className="scale-huge">6 billion photos</div>
+            <div className="scale-huge">1 trillion proofs</div>
           </div>
           <div className="scale-row">
             {SCALE_STEPS.map((x) => (
@@ -77,20 +79,18 @@ export default function HomePage() {
             ))}
           </div>
         </div>
-        <p className="scale-note">Photos a day: about 6 billion, the highest current estimate (Photutorial,&nbsp;2026).</p>
       </section>
 
       <section className="home-section" aria-labelledby="home-paths">
         <h2 id="home-paths">Make a&nbsp;BitGraph.</h2>
-        <p className="home-paths-sub">Every digital photo is undeveloped <span className="home-break">until it&rsquo;s&nbsp;BitGraphed.</span></p>
         <div className="sx-cards">
           <a className="tl-card sx-link" href="/demos">
-            <h3>Drag and develop.</h3>
+            <h3>Drag and drop.</h3>
             <p>Any photo, video or file. No account, no cost, under a&nbsp;second.</p>
           </a>
           <a className="tl-card sx-link" href="/ledger">
-            <h3>See every frame.</h3>
-            <p>Every BitGraph ever made, in order, open to&nbsp;anyone.</p>
+            <h3>View the ledger.</h3>
+            <p>Every BitGraph ever made, in order. Only the hash is public. The file stays&nbsp;private.</p>
           </a>
           <a className="tl-card sx-link" href="/integrate">
             <h3>Build it in.</h3>

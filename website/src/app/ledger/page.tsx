@@ -16,7 +16,7 @@ import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-led
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "The Roll",
+  title: "The Ledger",
   description: "Every BitGraph ever made, in order. Open any one for its proof.",
 };
 
@@ -48,7 +48,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
   try {
     page = await ledgerPage(shown);
   } catch { failed = true; }
-  // Development only: a local server cannot read the Roll, so it shows today's live rows to preview the layout.
+  // Development only: a local server cannot read the ledger, so it shows today's live rows to preview the layout.
   if (failed && process.env.NODE_ENV === "development" && !day) {
     try {
       const j = (await (await fetch("https://bitgraph.ing/api/ledger/rows", { cache: "no-store" })).json()) as { rows: LedgerPage["rows"]; newestKey: string | null };
@@ -88,19 +88,19 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
         }
       `}</style>
       {/* No visible h1: it repeated the nav (2026-10-17). */}
-        <h1 className="sr-only">The Roll.</h1>
+        <h1 className="sr-only">The Ledger.</h1>
 
-      {/* The Roll is the ledger and nothing else: every BitGraph, newest first, one card each. Finding or making one is
-          the Make box's job (a file already on the Roll opens its frame). */}
+      {/* The Ledger is nothing but the BitGraphs, newest first, one card each. Finding or making one is
+          the Make box's job (a file already on the ledger opens its frame). */}
       {/* The day links sit beside the title, so moving between days never needs a scroll to the end of a long day; they
           repeat under the list for whoever reaches it. */}
       <div className="rl-head">
-        <h2 style={{ margin: 0 }}>{day ? longLabel(day) : "The Roll"}</h2>
+        <h2 style={{ margin: 0 }}>{day ? longLabel(day) : "The Ledger"}</h2>
         {dayLinks}
       </div>
 
       {failed || !page ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>The Roll could not be read. Try again in a moment.</div>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>The Ledger could not be read. Try again in a moment.</div>
       ) : (
         <LedgerRows key={shown} day={shown} live={!day} initial={page.rows} newestKey={page.newestKey} hasOlder={page.hasOlder} />
       )}

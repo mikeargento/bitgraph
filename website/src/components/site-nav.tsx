@@ -7,13 +7,13 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 /**
- * The bar: the wordmark, then the Info menu and the Roll, Make a BitGraph at the right. It fits on every screen; on
+ * The bar: the wordmark, then the Info menu and the ledger, Make a BitGraph at the right. It fits on every screen; on
  * phones the button reads Make.
  */
 type NavLink = { href: string; label: string; also?: string[] };
-// The bar is for people taking photos: the Roll, an Info menu holding everything technical, and the one button.
+// The bar is for people taking photos: the ledger, an Info menu holding everything technical, and the one button.
 const LINKS: NavLink[] = [
-  { href: "/ledger", label: "The Roll" },
+  { href: "/ledger", label: "Ledger" },
 ];
 // Info: how it works, how to build on it and license it, the demos, and how to reach us.
 // Applications is reached from Technology and the home page; the reference from Developers; Evaluate from Licensing.

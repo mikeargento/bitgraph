@@ -226,7 +226,7 @@ async function check(proof: Proof, bytes: Uint8Array): Promise<boolean> {
 /** canMake (the Proofs page): a check that offers to make a BitGraph of whatever is not on record yet, one press each
  *  drop, instead of making it at once as "make" does. */
 /** Each file's first BitGraph, by its SHA-256 (standard base64), in one request per 2,000, three at a time. Throws when
- *  any part of the Roll could not be read: a drop is never bound blind, since a file it could not look up may already
+ *  any part of the ledger could not be read: a drop is never bound blind, since a file it could not look up may already
  *  be a BitGraph. */
 async function firstsOf(digests: string[], onProgress?: (done: number) => void): Promise<Map<string, Proof>> {
   const out = new Map<string, Proof>();
@@ -236,13 +236,13 @@ async function firstsOf(digests: string[], onProgress?: (done: number) => void):
   await pool(batches, 3, async (batch) => {
     const keys = batch.map(toUrlSafe);
     const res = await fetch("/api/proofs/batch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ digests: keys }) });
-    if (!res.ok) throw new Error(`the Roll answered ${res.status}`);
+    if (!res.ok) throw new Error(`the ledger answered ${res.status}`);
     const body = (await res.json()) as { results?: Record<string, { proofs?: Array<{ proof: Proof; writeTime?: number | null; kind?: string }>; unavailable?: boolean }>; environments?: Record<string, Record<string, unknown>> };
     const results = body.results ?? {};
     attachEnvironments(results as never, body.environments);
     batch.forEach((d, k) => {
       const r = results[keys[k]!];
-      if (!r || r.unavailable) throw new Error("part of the Roll could not be read");
+      if (!r || r.unavailable) throw new Error("part of the ledger could not be read");
       const f = earliestOf((r.proofs ?? []).filter((e) => !e.kind || e.kind === "recorded"));
       if (f) out.set(d, f);
     });
@@ -320,11 +320,11 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       const proofs = Array.isArray(raw) ? raw : raw.proofs ?? [];
       for (const r of todo) {
         const p = proofs.find((x) => x.artifact?.digestB64 === r.digestB64);
-        if (!p || !r.bytes) { end(r, { state: "error", note: "No proof came back for this file. Look it up on the Roll before trying again." }); continue; }
+        if (!p || !r.bytes) { end(r, { state: "error", note: "No proof came back for this file. Look it up on the ledger before trying again." }); continue; }
         end(r, { state: "made", proof: p, valid: await check(p, r.bytes) });
       }
     } catch {
-      for (const r of todo) end(r, { state: "error", note: "The request did not finish. Look the file up on the Roll before trying again: it may already be a BitGraph." });
+      for (const r of todo) end(r, { state: "error", note: "The request did not finish. Look the file up on the ledger before trying again: it may already be a BitGraph." });
     } finally {
       setBusy(false);
     }
@@ -497,14 +497,14 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
          with the file in hand. A folder is always a new tree, and a hash list is bulk. */
       if (!list && files.length === 1) {
         const f = files[0]!;
-        setStatus("Checking the Roll…");
+        setStatus("Checking the ledger…");
         const bytes = new Uint8Array(await f.arrayBuffer());
         const digest = await digestOf(bytes);
         // The file is saved for its proof page now too, during the bind rather than after it.
         cachedLater = cacheArtifactToIDB(f, digest).catch(() => {});
         const res = await fetch(`/api/proofs/${toUrlSafe(digest)}`).catch(() => null);
         // never recorded blind: there is one BitGraph per file, and that cannot be known while the ledger is unreachable
-        if (!res?.ok) { setStatus(null); setPlugError("Could not check the Roll just now. Try again in a moment."); return; }
+        if (!res?.ok) { setStatus(null); setPlugError("Could not check the ledger just now. Try again in a moment."); return; }
         const before = (await res.json().catch(() => null)) as { proofs?: Array<{ proof: Proof; writeTime?: number | null; kind?: string }> } | null;
         const already = earliestOf((before?.proofs ?? []).filter((e) => !e.kind || e.kind === "recorded"));
         const fc = already?.commit as { counter?: string; epochId?: string } | undefined;
@@ -557,19 +557,19 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
           await cacheArtifactToIDB(files[i]!, dropped[i]![2]).catch(() => {});
         }
       })();
-      /* Files already on the Roll are left out (2026-11-03): a later record of the same bytes says less than the first,
+      /* Files already on the ledger are left out (2026-11-03): a later record of the same bytes says less than the first,
          as with one file. The whole drop is looked up first, and nothing is bound if any of it could not be checked.
          A hash list is bulk and is bound as it is. */
       let fresh = dropped;
       let repeats: Array<{ name: string; href: string; counter: string }> = [];
       if (!list) {
-        setStatus("Checking the Roll\u2026");
+        setStatus("Checking the ledger\u2026");
         let firsts: Map<string, Proof>;
         try {
-          firsts = await firstsOf([...new Set(dropped.map((l) => l[2]))], (n) => { if (count > 2000) setStatus(`Checking the Roll: ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}\u2026`); });
+          firsts = await firstsOf([...new Set(dropped.map((l) => l[2]))], (n) => { if (count > 2000) setStatus(`Checking the ledger: ${n.toLocaleString("en-US")} of ${count.toLocaleString("en-US")}\u2026`); });
         } catch {
           setStatus(null);
-          setPlugError("Could not check the Roll just now, so nothing was made. Try again in a moment.");
+          setPlugError("Could not check the ledger just now, so nothing was made. Try again in a moment.");
           return;
         }
         const seen = new Set<string>();
@@ -764,7 +764,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         const digestB64 = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
         patch(row.key, { bytes, digestB64, state: "looking" });
         const res = await fetch(`/api/proofs/${toUrlSafe(digestB64)}`);
-        if (!res.ok) return end({ bytes, digestB64, state: "error", note: "Could not check the Roll just now. Try again in a moment." });
+        if (!res.ok) return end({ bytes, digestB64, state: "error", note: "Could not check the ledger just now. Try again in a moment." });
         const body = (await res.json()) as { proofs?: Array<{ proof: Proof; writeTime?: number | null }> };
         // the file's first BitGraph, the one that counts; any later ones are listed on its proof page
         const first = earliestOf(body.proofs ?? []);
@@ -953,7 +953,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               )}
             </ul>
           )}
-          {/* Files already on the Roll were left out of this BitGraph (2026-11-03); each opens its first proof. */}
+          {/* Files already on the ledger were left out of this BitGraph (2026-11-03); each opens its first proof. */}
           {plug.repeats && plug.repeats.length > 0 && (<>
             <div className="plug-row"><div className="plug-sub">{plug.repeats.length === 1 ? "1 file was already a BitGraph, so it was left out:" : `${plug.repeats.length.toLocaleString("en-US")} files were already BitGraphs, so they were left out:`}</div></div>
             <ul className="plug-members">
@@ -1006,7 +1006,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
             <div className="db-state">
               {batch.rootState === "absent" && <>Add the batch&rsquo;s merkle-root.txt to check that the root is a BitGraph.</>}
               {batch.rootState === "mismatch" && <span className="db-bad">merkle-root.txt does not carry this tree&rsquo;s root</span>}
-              {batch.rootState === "looking" && "Checking the Roll…"}
+              {batch.rootState === "looking" && "Checking the ledger…"}
               {batch.rootState === "missing" && <>{batch.rootFile} is not a BitGraph yet</>}
               {batch.rootState === "found" && batch.rootDigest && (
                 <>
@@ -1044,7 +1044,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
             <div className="db-row">
               <div className="db-state">
                 <button type="button" className="db-link" onClick={downloadAll}>Download all {bulk.proofs.length.toLocaleString("en-US")} proofs</button>
-                <a href="/ledger">See them on the Roll</a>
+                <a href="/ledger">See them on the ledger</a>
               </div>
             </div>
           )}
@@ -1069,7 +1069,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
               </div>
               <div className="db-state">
                 {r.state === "hashing" && "Hashing…"}
-                {r.state === "looking" && "Checking the Roll…"}
+                {r.state === "looking" && "Checking the ledger…"}
                 {r.state === "new" && mode === "check" && "Not a BitGraph yet"}
                 {r.state === "new" && mode === "make" && (r.note ?? "Not a BitGraph yet")}
                 {r.state === "in-tree" && r.tree && (

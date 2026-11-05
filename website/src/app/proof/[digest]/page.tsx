@@ -2361,7 +2361,7 @@ export default function ProofPage() {
             : isTree
             ? (treeMember && cachedFile ? "This file's export" : "The tree's export")
             : "The package";
-          const PROOF_PIECE: DownloadView = { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false, desc: "The signed proof alone, byte for byte as the Roll serves it." };
+          const PROOF_PIECE: DownloadView = { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false, desc: "The signed proof alone, byte for byte as the ledger serves it." };
           const CARRIER_PIECE: DownloadView = { label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: () => void downloadCarrier(), busy: carrierBusy, desc: "The file with the proof inside: one file that verifies with nothing else." };
           const ANCHORS_PIECE: DownloadView = { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy, desc: "The floor and the ceiling in position, each with its Ethereum block header." };
           // A Base floor has no Ethereum anchors to download: the floor's header is in the export and the package.

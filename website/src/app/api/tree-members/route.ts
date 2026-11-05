@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     throw e;
   }
   // The root's own entry is written as it is bound; a moment's lag reads as not found, so the caller retries.
-  if (!proof) return NextResponse.json({ error: "The root's BitGraph is not on the Roll (yet)." }, { status: 404 });
+  if (!proof) return NextResponse.json({ error: "The root's BitGraph is not on the ledger (yet)." }, { status: 404 });
 
   // The floor, when sent, must be in this very tree; a floor that does not check is refused with the request.
   let floor: TreeFloor | undefined;
