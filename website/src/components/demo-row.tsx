@@ -20,8 +20,8 @@ type Demo = { caption: string; counter: string; proof: string; display: string; 
 const EPOCH = "KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs";
 export const DEMOS: Demo[] = [
   { caption: "Created by ChatGPT", counter: "304", proof: `/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=304&epoch=${EPOCH}`, display: "/demo/display/chatgpt.jpg" },
-  { caption: "Copied by Google", counter: "308", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=308&epoch=${EPOCH}`, display: "/demo/display/google.jpg" },
   { caption: "Animated by Grok", counter: "312", proof: `/proof/VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM?counter=312&epoch=${EPOCH}`, display: "/demo/display/grok-poster.jpg", video: { src: "/demo/display/grok.mp4" } },
+  { caption: "Copied by Google", counter: "308", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=308&epoch=${EPOCH}`, display: "/demo/display/google.jpg" },
 ];
 
 function Media({ d }: { d: Demo }) {

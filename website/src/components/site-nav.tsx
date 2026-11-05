@@ -4,26 +4,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
- * The bar: the wordmark, then the Info menu and the ledger, Make a BitGraph at the right. It fits on every screen; on
- * phones the button reads Make.
+ * The bar (2026-11-04): the wordmark, then five links beside it in a light weight, and at the far right two pills,
+ * Contact in grey and Make a BitGraph in white. On phones the links fold into a sheet behind a round menu button.
  */
 type NavLink = { href: string; label: string; also?: string[] };
 // The bar is for people taking photos: the ledger, an Info menu holding everything technical, and the one button.
-const LINKS: NavLink[] = [
-  { href: "/ledger", label: "Ledger" },
-];
-// Info: how it works, how to build on it and license it, the demos, and how to reach us.
+// Five across (2026-11-04): how it works, how to build on it and license it, the demos, and the ledger.
 // Applications is reached from Technology and the home page; the reference from Developers; Evaluate from Licensing.
-const INFO: NavLink[] = [
+const LINKS: NavLink[] = [
   { href: "/technology", label: "Technology", also: ["/applications"] },
   { href: "/integrate", label: "Developers", also: ["/tools"] },
   { href: "/licensing", label: "Licensing", also: ["/evaluate"] },
   { href: "/examples", label: "Demos", also: ["/jev", "/generate", "/exam"] },
-  { href: "/contact", label: "Contact" },
+  { href: "/ledger", label: "Ledger" },
 ];
+// Contact is the grey pill beside the white one.
+const CONTACT: NavLink = { href: "/contact", label: "Contact" };
 // The button is the one action a visitor should take: a drop proves the product in a minute.
 const CTA = { href: "/demos", label: "Make a BitGraph", also: ["/make"] };
 
@@ -31,11 +30,15 @@ export function SiteNav() {
   const pathname = usePathname();
   const on = (href: string) => pathname === href || pathname.startsWith(href + "/");
   const current = (href: string, also: string[] = []) => (on(href) || also.some(on) ? "page" : undefined);
-  // Info opens a small menu under its button: on hover with a mouse, on tap on a phone. Leaving it, a new page, a
-  // click elsewhere or Esc closes it.
-  const [info, setInfo] = useState(false);
-  const infoRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { setInfo(false); }, [pathname]);
+  // The phone sheet: every link, opened by the round button; a new page or Esc closes it.
+  const [menu, setMenu] = useState(false);
+  useEffect(() => { setMenu(false); }, [pathname]);
+  useEffect(() => {
+    if (!menu) return;
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(false); };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [menu]);
   // Home: the bar is clear over the hero video and solid once the page scrolls past it.
   const [overHero, setOverHero] = useState(false);
   useEffect(() => {
@@ -49,14 +52,6 @@ export function SiteNav() {
     window.addEventListener("resize", check);
     return () => { window.removeEventListener("scroll", check); window.removeEventListener("resize", check); };
   }, [pathname]);
-  useEffect(() => {
-    if (!info) return;
-    const away = (e: MouseEvent) => { if (!infoRef.current?.contains(e.target as Node)) setInfo(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setInfo(false); };
-    document.addEventListener("mousedown", away);
-    window.addEventListener("keydown", key);
-    return () => { document.removeEventListener("mousedown", away); window.removeEventListener("keydown", key); };
-  }, [info]);
 
   return (
     <div id="site-nav" className={overHero ? "is-clear" : undefined} style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
@@ -66,28 +61,30 @@ export function SiteNav() {
           BitGraph
         </Link>
         <nav aria-label="Site" className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
-          <div ref={infoRef} className="nav-info nav-desk" onMouseEnter={() => setInfo(true)} onMouseLeave={() => setInfo(false)}>
-            <button type="button" className="nav-btn nav-box nav-info-btn" aria-expanded={info} aria-controls="nav-info-menu" onClick={(e) => { if ((e.nativeEvent as PointerEvent).pointerType !== "mouse") setInfo((o) => !o); }}>
-              Info
-              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </button>
-            {info && (
-              <div id="nav-info-menu" className="nav-info-menu">
-                {INFO.map((l) => (
-                  <Link key={l.href} href={l.href} className="nav-info-link" aria-current={current(l.href, l.also)} onClick={() => setInfo(false)}>{l.label}</Link>
-                ))}
-              </div>
-            )}
-          </div>
           {LINKS.map((l) => (
             <Link key={l.href} href={l.href} className="nav-btn nav-box nav-desk" aria-current={current(l.href, l.also)} style={{ textDecoration: "none" }}>
               {l.label}
             </Link>
           ))}
           {/* The bar is the links and the one button; the sun/moon lives in the footer, on every screen (2026-10-28). */}
+          <Link href={CONTACT.href} className="nav-cta-2" aria-current={current(CONTACT.href)}>{CONTACT.label}</Link>
           <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}><span className="nav-cta-long">{CTA.label}</span><span className="nav-cta-short" aria-hidden="true">Make</span></Link>
+          <button type="button" className="nav-burger" style={{ borderRadius: "50%" }} aria-label={menu ? "Close menu" : "Menu"} aria-expanded={menu} aria-controls="nav-sheet" onClick={() => setMenu((m) => !m)}>
+            {menu
+              ? <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden><path d="M4 4l10 10M14 4L4 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+              : <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden><path d="M3 5h12M3 9h12M3 13h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>}
+          </button>
         </nav>
       </div>
+      {menu && (
+        <div id="nav-sheet" className="nav-sheet">
+          {LINKS.map((l) => (
+            <Link key={l.href} href={l.href} className="nav-sheet-link" aria-current={current(l.href, l.also)}>{l.label}</Link>
+          ))}
+          <Link href={CONTACT.href} className="nav-sheet-link" aria-current={current(CONTACT.href)}>{CONTACT.label}</Link>
+          <Link href={CTA.href} className="nav-sheet-cta" aria-current={current(CTA.href)}>{CTA.label}</Link>
+        </div>
+      )}
     </div>
   );
 }

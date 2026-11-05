@@ -1,6 +1,6 @@
 import { MENU_ICON_NAMES } from "@/components/menu-icons";
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro, IBM_Plex_Mono, Newsreader } from "next/font/google";
+import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro, IBM_Plex_Mono, Newsreader, Geist } from "next/font/google";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
@@ -62,6 +62,14 @@ const newsreader = Newsreader({
   display: "swap",
 });
 
+/* The site's face (2026-11-05): Geist, a neutral grotesque, variable from 100 to 900 and self-hosted by next/font like
+   the others, so every weight the type system names is a real one. Hashes and code stay in Plex Mono. */
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+  display: "swap",
+});
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -76,7 +84,7 @@ export const viewport: Viewport = { themeColor: "#000000" };
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */
 const SITE_DESCRIPTION =
-  "Digital film. BitGraph gives every photo, video or file its place in line, without uploading it. Anyone can check which came first, offline, in seconds.";
+  "Everything digital is already a copy. BitGraph gives any file or record its place in line, without uploading it. Anyone can check which came first, offline, in seconds.";
 
 export const metadata: Metadata = {
   title: {
@@ -87,18 +95,18 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   keywords: [
-    "BitGraph", "digital film", "photo proof", "which came first", "provenance", "Content Credentials", "C2PA",
+    "BitGraph", "provenance", "file provenance", "record provenance", "which came first", "Content Credentials", "C2PA",
     "hardware enclave", "offline verification", "Base",
   ],
   openGraph: {
-    title: "BitGraph: Digital film",
+    title: "BitGraph: Everything digital is already a copy",
     description: SITE_DESCRIPTION,
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary",
-    title: "BitGraph: Digital film",
+    title: "BitGraph: Everything digital is already a copy",
     description: SITE_DESCRIPTION,
   },
   robots: { index: true, follow: true },
@@ -115,7 +123,7 @@ import { Analytics } from "@vercel/analytics/next";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // suppressHydrationWarning: the head script below marks <html> data-js before React loads.
-    <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${newsreader.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${newsreader.variable} ${geist.variable}`}>
       <head>
         {/* One mode (2026-11-02): the site is always dark (true black), set before the first paint. */}
         <script dangerouslySetInnerHTML={{ __html: `document.documentElement.dataset.theme="dark"` }} />
@@ -124,8 +132,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             points at it. */}
         {/* The Adobe kit link came out 2026-10-17: the site reads in system-ui, code in its own Source Code Pro. */}
         {/* The site's one face since 2026-10-17 (dark, terminal): source-code-pro, from the Adobe Fonts kit below (code-saver, then adaptive-mono, before). */}
-        {/* Acumin Pro from the Adobe Fonts kit (2026-10-18), the face the site wore until 2026-09-11. */}
-        <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
+        {/* The Adobe Fonts kit (Acumin Pro, 2026-10-18 to 2026-11-05) is gone: the face is Geist, loaded by next/font above. */}
         {/* Google's Material Symbols, only the icons the Menu uses. */}
         <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=${MENU_ICON_NAMES}&display=block`} />
         {/* Runs during parse, before the browser restores scroll. On a reload
