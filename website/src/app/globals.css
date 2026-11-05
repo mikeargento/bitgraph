@@ -6153,8 +6153,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .bg-action-link:not(.is-make):not(:disabled):hover { background-color: var(--pill-hover) !important; border-color: currentColor !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link { transition: background-color 0.15s, border-color 0.15s !important; }
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main a.tl-card.sx-link:hover { background-color: var(--card-hover) !important; border-color: var(--line) !important; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-media-link .demo-media { transition: filter 0.15s; }
-html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-media-link:hover .demo-media { filter: brightness(1.08); }
 
 /* Shapes are filled, not outlined: off-black grey fills and no strokes. Boxes inside a box take a lighter grey. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main :is(.tl-card, .code-block, pre, .dropbox, .db-zone, .pv-fold, .pv-verdict, .rl-rows, table, .mf-enclave, .mf-box, .pf-flow .pf-f-enclave, .pf-enclave) { background: var(--card) !important; border: 0 !important; box-shadow: none !important; }
@@ -6712,7 +6710,6 @@ html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:
 /* The home pictures alternate colour and black and white, a checkerboard over the two rows. The filter is on the
    display copy only. */
 html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-tile.is-bw .demo-media { filter: grayscale(1) !important; }
-@media (hover: hover) { html:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root:root body main .demo-tile.is-bw .demo-media-link:hover .demo-media { filter: grayscale(1) brightness(1.08) !important; } }
 
 /* Stacked demo cards share one height, the tallest card's: on the Demos page at every width, on home where its row
    becomes a single column. */
