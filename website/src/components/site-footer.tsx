@@ -23,8 +23,7 @@
 
 const links: Array<{ href: string; label: string }> = [
   // The source (2026-10-17): the site had no GitHub link, and the footer is its place.
-  // Try it lives in the bar; the demos page and Contact (the form) live here.
-  { href: "/examples", label: "Demos" },
+  // Demos is in the bar and on the home page, so it is not repeated here; Contact (the form) is.
   { href: "/contact", label: "Contact" },
   { href: "https://github.com/mikeargento/bitgraph", label: "GitHub" },
   { href: "/terms", label: "Terms" },
