@@ -33,10 +33,9 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { TimeChip, longDateTz, stampTz, timeTz, sameDayTz } from "@/lib/format-time";
 import type { BitGraphProof } from "@/lib/bitgraph";
 import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
-import { baseTimeIsBound, decodeNitroAttestation, floorTimeIsBound, treeMemberOf } from "@mikeargento/bitgraph-verify";
+import { decodeNitroAttestation, floorTimeIsBound, treeMemberOf } from "@mikeargento/bitgraph-verify";
 import { CopyIcon, useCopied } from "@/components/copy-icon";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
-import { rollRootCovers, ROLL_ROOT_LABEL, ROLL_ROOT_WAIT } from "@/lib/roll-root";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
 /** The first Base ceiling write (2026-09-29 22:43 UTC). Records made before it have no ceiling in time. */
@@ -367,8 +366,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const setFileOpen = (f: (v: boolean) => boolean) => setFileChoice(f(fileOpen));
   /* Stripped to the primitive (2026-10-17), with the Base floor and ceiling back (2026-10-18). Anchors, export
      packages and the position lists stay off the page; every old proof still opens, and all of it is in the raw JSON. */
-  // Where it sits in time, on Base (2026-10-18: the Base write is back beside the floor and ceiling times, as before):
-  // the floor signed into the proof, the recorded time, and the Base write.
+  // When shows the recorded time alone (2026-11-06). The floor and the Base write are still read here, because
+  // whether the record has them decides whether the group shows at all (showTime).
   const attested = m.attestedMs;
   const bf = m.kind !== "anchor" ? m.baseFloor ?? null : null;
   // Records made before 2026-10-07 carry an Ethereum floor instead: shown the same way, so old proofs keep their window.
@@ -377,8 +376,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const floorMs = fl ? fl.blockTimestamp * 1000 : bf ? (floorTimeIsBound(bf.blockTimestamp, attested).ok ? bf.blockTimestamp * 1000 : null) : ef?.blockTime ? new Date(ef.blockTime).getTime() : null;
   const sinceFloor = attested !== null && floorMs !== null ? Math.max(0, Math.floor((attested - floorMs) / 1000)) : null;
   const ct = m.ceilingTime;
-  const ctMs = ct?.anchor ? ct.anchor.blockTimestamp * 1000 : null;
-  const ctStampOk = ctMs === null || baseTimeIsBound(ctMs / 1000, { floorTimestampSec: floorMs !== null ? floorMs / 1000 : null, attestedAtMs: attested }).ok;
   // Only a record that went to Base shows where it sits in time (2026-10-18: the floor had stayed on with the Base
   // switch off). Enclave v11 signs a Base floor into every bind; it shows here only beside a Base write (or one
   // waiting), i.e. when the Base switch was on. Enclave v12 drops the floor from plain binds altogether.
@@ -399,14 +396,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   // names. Shown beside the Base write; a read further back (from before the switch) is not this file's floor.
   const own = m.timeline && m.timeline.state !== "failed" && m.timeline.floor && m.proof.commit.slotCounter
     && BigInt(m.timeline.floor.counter) + BigInt(1) === BigInt(m.proof.commit.slotCounter) ? m.timeline.floor : null;
-  // A file bound since the writer went to one write per epoch (lib/roll-root.ts) has no Base write until its epoch is
-  // over. Its row says so; block reads, floors and an epoch's first record are never written to Base and get no row.
-  const inRoll = m.kind !== "anchor" && !es && !fo && !m.blockRead && rollRootCovers(attested);
-  const rollWait = inRoll && !ct;
-  // Such a record's write is its epoch's root, made the next day: the row is named for what it is, not as a time of
-  // the record's own. Records from before the switch keep the label their own write always had.
-  const writeLabel = inRoll ? ROLL_ROOT_LABEL : "Written to Base";
-  const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null || tl !== null || own !== null || rollWait;
+  const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null || tl !== null || own !== null;
   const c = m.checks;
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
   const badCount = c.claims.filter((x) => x.result === "FALSE").length;
@@ -439,34 +429,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           )}
         </div>
   );
-  /* Floor and ceiling share one cell in Position (2026-10-30): the window in time, each time with its explorer link. */
-  const floorHref = fl ? `https://basescan.org/block/${fl.blockNumber}` : tf ? `https://basescan.org/block/${tf.blockNumber}` : fo ? `https://basescan.org/block/${fo.floor.blockNumber}` : bf ? `https://basescan.org/block/${bf.blockNumber}` : ef?.etherscanUrl ?? null;
-  const floorShown = floorMs !== null ? whenBeside(floorMs, attested) : tf ? whenBeside(tf.blockTimestamp * 1000, attested) : fo ? whenBeside(fo.floor.blockTimestamp * 1000, attested) : null;
-  const ceilingShown = ct && ct.anchor && ctMs !== null ? (ctStampOk ? whenBeside(ctMs, attested) : "Written to Base") : ct && !ct.anchor ? "Waiting for the next Base block" : null;
-  const ceilingHref = ct?.anchor ? `https://basescan.org/tx/${ct.anchor.txHash}` : null;
-  // A floor that is a BitGraph of its own links to it too (2026-11-02: every floor reads as a link to its BitGraph);
-  // one signed into the proof itself, or a leaf of its tree, has no BitGraph of its own and links to the block only.
-  const timeCell = (label: string, shown: string | null, href: string | null, own?: { href: string; counter: string }) => shown ? (
-    <div className="pv-row pv-row-window">
-      <div className="pv-row-label">{label}</div>
-      <div className="pv-row-value pv-window">{shown}{own && <> <a className="pv-link" href={own.href}>#{fmtNum(own.counter)}</a></>}{href && <> <a className="pv-link" href={href} target="_blank" rel="noopener">Basescan</a></>}</div>
-    </div>
-  ) : null;
-  // The block timeline, when it has this record: each time links to the block read's own BitGraph, whose page links
-  // the block on the chain's explorer.
+  // The Base floor and Base write rows left the receipt on 2026-11-06, with the helpers that drew them.
   const chainName = (c: "base" | "ethereum") => (c === "base" ? "Base" : "Ethereum");
-  const readHref = (b: { digestB64: string; counter: string }) => `/proof/${b.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${b.counter}&epoch=${m.timeline!.epochUrl}`;
-  const readCell = (label: string, b: { chain: "base" | "ethereum"; timestamp: number; counter: string; digestB64: string }) => (
-    <div className="pv-row pv-row-window">
-      <div className="pv-row-label">{chainName(b.chain)} {label}</div>
-      <div className="pv-row-value pv-window">{whenBeside(b.timestamp * 1000, attested)} <a className="pv-link" href={readHref(b)}>#{fmtNum(b.counter)}</a></div>
-    </div>
-  );
-  const flOwn = fl ? { href: `/proof/${fl.bitgraph.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${fl.bitgraph.counter}&epoch=${fl.bitgraph.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`, counter: fl.bitgraph.counter } : undefined;
-  const floorCell = own ? readCell("floor", own) : tl?.floor ? readCell("floor", tl.floor) : showTime ? timeCell("Base floor", floorShown, floorHref, flOwn) : null;
-  // No "reading the next block" row: records bound now are written to Base, and their write row says when it lands.
-  const ceilingCell = tl?.ceiling ? readCell("ceiling", tl.ceiling) : showTime ? timeCell(writeLabel, ceilingShown, ceilingHref) : null;
-  const rollWaitCell = rollWait ? timeCell(writeLabel, ROLL_ROOT_WAIT, null) : null;
   const br = m.blockRead ?? null;
   const blockReadCell = br ? (
     <div className="pv-row">
@@ -506,11 +470,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         commit.epochId && commit.counter && !treeMemberOf(m.proof) ? <TreeFileList key="tree" digestB64={m.proof.artifact.digestB64} epochId={commit.epochId} counter={commit.counter} /> : null,
         blockReadCell ? <Fragment key="read">{blockReadCell}</Fragment> : null,
       ])}
+      {/* When: the time the enclave recorded it, and nothing else (2026-11-06). The Base block read before it and the
+          Base write after it are no longer rows here; both are still in the proof and its details. */}
       {group("When", [
-        floorCell ? <Fragment key="floor">{floorCell}</Fragment> : null,
         showTime && attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
-        ceilingCell ? <Fragment key="ceil">{ceilingCell}</Fragment> : null,
-        rollWaitCell ? <Fragment key="roll">{rollWaitCell}</Fragment> : null,
       ])}
       {/* Check it anywhere follows when: text links like the rest of the receipt, under their own eyebrow. The proof;
           and the BitGraphed file when the original is in hand, the epoch file on an epoch's first record, or Connect

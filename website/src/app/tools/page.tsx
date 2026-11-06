@@ -147,17 +147,17 @@ export default function ToolsPage() {
             <p>To check a record against its epoch&rsquo;s root:</p>
             <ol className="tl-steps">
               <li>Verify the file against its proof with the offline check above.</li>
-              <li>Hash the proof and walk it up its Merkle path (from its proof page, or <code>/api/ceilings/&lt;proof hash&gt;</code>) to the root. The path is there once the record&rsquo;s epoch has closed. A root that covers one record is that proof&rsquo;s own leaf hash.</li>
-              <li>Open the transaction from the proof page&rsquo;s Basescan link: it is sent by BitGraph&rsquo;s writer to itself, and its data carries that root and a range of counts that includes the proof&rsquo;s.</li>
+              <li>Hash the proof and walk it up its Merkle path (from <code>/api/ceilings/&lt;proof hash&gt;</code>) to the root. The path is there once the record&rsquo;s epoch has closed. A root that covers one record is that proof&rsquo;s own leaf hash.</li>
+              <li>Open the transaction that file names on Basescan: it is sent by BitGraph&rsquo;s writer to itself, and its data carries that root and a range of counts that includes the proof&rsquo;s.</li>
             </ol>
             <p>
               Base adds nothing to the bind and takes nothing from it. Strip it away and a BitGraph is still a position: where your
               bits were bound in the sequence, with the hardware attestation&rsquo;s timestamp bound in as its first layer. The writes
               are what let someone who trusts neither BitGraph nor its host see that a day&rsquo;s sequence was opened in public and
               closed as one fixed set. Records made before the root moved to the end of the epoch were each written to Base within
-              seconds of their bind, a few to a transaction, and their proof pages still show those writes. Proofs made from
+              seconds of their bind, a few to a transaction, and those writes are still served at the same address. Proofs made from
               2026-10-21 to 2026-10-31 also carry a Base floor (<code>base-floor.json</code>, bound just before them), and those from
-              2026-10-31 to 2026-11-02 block reads before and after them; their proof pages still show them
+              2026-10-31 to 2026-11-02 block reads before and after them.
             </p>
           </section>
 
