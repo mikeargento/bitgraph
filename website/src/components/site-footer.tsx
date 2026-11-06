@@ -21,6 +21,8 @@
 
 
 
+import { ThemeToggle } from "./theme-toggle";
+
 const links: Array<{ href: string; label: string }> = [
   // The source (2026-10-17): the site had no GitHub link, and the footer is its place.
   // Demos is in the bar and on the home page, so it is not repeated here; Contact (the form) is.
@@ -52,7 +54,8 @@ export function SiteFooter() {
           {links.map((l) => (
             <a key={l.href} href={l.href} style={linkStyle} {...(l.href.startsWith("http") ? { target: "_blank", rel: "noopener" } : {})}>{l.label}</a>
           ))}
-          {/* The sun/moon, at the footer's right, on every screen (2026-10-28). */}
+          {/* The light and dark switch: a preference, so it sits with the footer links, on every screen. */}
+          <span className="bg-footer-mode"><ThemeToggle /></span>
         </div>
       </div>
     </footer>

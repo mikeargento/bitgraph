@@ -5,11 +5,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ThemeToggle } from "./theme-toggle";
 
 /**
- * The bar (2026-11-04): the wordmark, then five links beside it in a light weight, and at the far right the light and
- * dark switch and two pills, Contact in a soft fill and Make a BitGraph in ink. On phones the links and the button fold
+ * The bar: the wordmark, then five links beside it in a light weight, and at the far right two pills, Contact in a
+ * soft fill and Make a BitGraph in ink. The light and dark switch lives in the footer. On phones the links and the button fold
  * into a sheet behind a round menu button.
  */
 type NavLink = { href: string; label: string; also?: string[] };
@@ -69,7 +68,6 @@ export function SiteNav() {
             </Link>
           ))}
           {/* The sun and moon button sits before the pills; on phones it is in the sheet. */}
-          <span className="nav-theme"><ThemeToggle /></span>
           <Link href={CONTACT.href} className="nav-cta-2" aria-current={current(CONTACT.href)}>{CONTACT.label}</Link>
           <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}><span className="nav-cta-long">{CTA.label}</span><span className="nav-cta-short" aria-hidden="true">Make</span></Link>
           <button type="button" className="nav-burger" style={{ borderRadius: "50%" }} aria-label={menu ? "Close menu" : "Menu"} aria-expanded={menu} aria-controls="nav-sheet" onClick={() => setMenu((m) => !m)}>
@@ -86,7 +84,6 @@ export function SiteNav() {
           ))}
           <Link href={CONTACT.href} className="nav-sheet-link" aria-current={current(CONTACT.href)}>{CONTACT.label}</Link>
           <Link href={CTA.href} className="nav-sheet-cta" aria-current={current(CTA.href)}>{CTA.label}</Link>
-          <span className="nav-sheet-mode"><ThemeToggle /></span>
         </div>
       )}
     </div>
