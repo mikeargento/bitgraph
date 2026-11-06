@@ -418,7 +418,7 @@ export default function ProofPage() {
   useEffect(() => {
     if (!cachedFile) { setFileOpenUrl(null); setFileOpenType(null); return; }
     const ext = (cachedFile.name.split(".").pop() ?? "").toLowerCase();
-    const type = ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", avif: "image/avif", svg: "image/svg+xml", bmp: "image/bmp", pdf: "application/pdf", txt: "text/plain", md: "text/plain", csv: "text/plain", json: "application/json", html: "text/html", htm: "text/html", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4" } as Record<string, string>)[ext] ?? "application/octet-stream";
+    const type = ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", avif: "image/avif", svg: "image/svg+xml", bmp: "image/bmp", pdf: "application/pdf", txt: "text/plain", md: "text/plain", csv: "text/plain", json: "application/json", xml: "application/xml", html: "text/html", htm: "text/html", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4" } as Record<string, string>)[ext] ?? "application/octet-stream";
     const url = URL.createObjectURL(new Blob([cachedFile.data], { type }));
     setFileOpenUrl(url);
     setFileOpenType(type);

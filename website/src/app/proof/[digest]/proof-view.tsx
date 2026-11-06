@@ -319,28 +319,90 @@ function whenBeside(ms: number, ref: number | null): string {
 
 /* ── The view ─────────────────────────────────────────────────────────────── */
 
+/** XML, though not a picture that happens to be XML (SVG shows as the picture it is). */
+const isXmlType = (t: string) => t === "application/xml" || t === "text/xml" || (t.endsWith("+xml") && !t.startsWith("image/"));
+
 /**
- * The file in hand, opened in place under its content hash (2026-10-31): a picture, a PDF, text, a page (sandboxed, no
- * scripts), video or audio shows here; anything else is offered as a download. A link still opens it in a tab.
+ * XML laid out for reading: one element to a line, nested ones indented, and a short value kept on its element's line.
+ * It works on the text alone, tag by tag, so a file cut off partway (the preview reads the first 200 KB) still lays
+ * out as far as it goes. Each line comes back in pieces, markup and text apart, so the page can set the markup back
+ * and let the values stand out. This is a way of showing the file; the proof covers its bytes as they are.
+ */
+function layOutXml(src: string): Array<Array<{ markup: boolean; s: string }>> {
+  const tokens = src.replace(/\r\n?/g, "\n").match(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<![^>]*>|<\/[^>]+>|<[^>]+>|[^<]+/g) ?? [];
+  const lines: Array<Array<{ markup: boolean; s: string }>> = [];
+  const pad = (d: number) => ({ markup: true, s: "  ".repeat(d) });
+  const flat = (x: string) => x.trim().replace(/\s+/g, " ");
+  let depth = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!;
+    if (!t.startsWith("<")) {
+      const text = flat(t);
+      if (text) lines.push([pad(depth), { markup: false, s: text }]);
+      continue;
+    }
+    if (t.startsWith("</")) {
+      depth = Math.max(0, depth - 1);
+      lines.push([pad(depth), { markup: true, s: t }]);
+      continue;
+    }
+    const tag = flat(t);
+    const closed = t.endsWith("/>") || t.startsWith("<?") || t.startsWith("<!");
+    const next = tokens[i + 1], after = tokens[i + 2];
+    // <name>value</name> stays on one line when the value is short.
+    if (!closed && next !== undefined && !next.startsWith("<") && after?.startsWith("</") && flat(next).length <= 120) {
+      lines.push([pad(depth), { markup: true, s: tag }, { markup: false, s: flat(next) }, { markup: true, s: after }]);
+      i += 2;
+      continue;
+    }
+    // <name></name>, nothing inside.
+    if (!closed && next?.startsWith("</")) {
+      lines.push([pad(depth), { markup: true, s: tag + next }]);
+      i += 1;
+      continue;
+    }
+    lines.push([pad(depth), { markup: true, s: tag }]);
+    if (!closed) depth++;
+  }
+  return lines;
+}
+
+/**
+ * The file in hand, opened in place under its content hash (2026-10-31): a picture, a PDF, text, XML laid out for
+ * reading, a page (sandboxed, no scripts), video or audio shows here; anything else is offered as a download. A link
+ * still opens it in a tab.
  */
 function FileInPlace({ url, type, name }: { url: string; type: string | null; name: string | null }) {
   const t = type ?? "";
   const [text, setText] = useState<string | null>(null);
+  const isXml = isXmlType(t);
   const isText = t.startsWith("text/plain") || t === "application/json";
   useEffect(() => {
-    if (!isText) return;
+    if (!isText && !isXml) return;
     let gone = false;
     void fetch(url).then((r) => r.blob()).then((b) => b.slice(0, 200_000).text()).then((x) => { if (!gone) setText(x); }).catch(() => {});
     return () => { gone = true; };
-  }, [url, isText]);
+  }, [url, isText, isXml]);
   const frame = { width: "100%", height: "70vh", border: "1px solid var(--line)", background: "var(--panel)" } as const;
+  const pre = { margin: 0, maxHeight: "60vh", overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 13 } as const;
   let body: ReactNode;
   if (t.startsWith("image/")) body = <img src={url} alt={name ?? "The file"} style={{ display: "block", maxWidth: "100%", maxHeight: "75vh", margin: "0 auto" }} />;
   else if (t === "application/pdf") body = <iframe src={url} title={name ?? "The file"} style={frame} />;
   else if (t === "text/html") body = <iframe src={url} title={name ?? "The file"} sandbox="" style={{ ...frame, background: "#fff" }} />;
   else if (t.startsWith("video/")) body = <video src={url} controls preload="metadata" style={{ display: "block", maxWidth: "100%", maxHeight: "75vh", margin: "0 auto" }} />;
   else if (t.startsWith("audio/")) body = <audio src={url} controls preload="metadata" style={{ width: "100%" }} />;
-  else if (isText) body = <pre className="pv-mono" style={{ margin: 0, maxHeight: "60vh", overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 13 }}>{text ?? "Reading the file\u2026"}</pre>;
+  else if (isXml) body = text === null ? <pre className="pv-mono" style={pre}>{"Reading the file\u2026"}</pre> : (
+    <>
+      {/* Markup set back, values in ink, so the record reads through its tags. */}
+      <pre className="pv-mono" style={pre}>
+        {layOutXml(text).map((line, i) => (
+          <Fragment key={i}>{line.map((part, j) => <span key={j} style={{ color: part.markup ? "var(--dim)" : "var(--ink)" }}>{part.s}</span>)}{"\n"}</Fragment>
+        ))}
+      </pre>
+      <div className="pv-note" style={{ marginTop: 10 }}>Laid out for reading. The proof covers the file exactly as it is.</div>
+    </>
+  );
+  else if (isText) body = <pre className="pv-mono" style={pre}>{text ?? "Reading the file\u2026"}</pre>;
   else body = <div className="pv-note">This kind of file does not show in the browser. <a className="pv-link" href={url} download={name ?? undefined}>Download it</a>.</div>;
   return (
     <div className="pv-row pv-file-open" style={{ gridColumn: "1 / -1" }}>
@@ -355,7 +417,7 @@ function FileInPlace({ url, type, name }: { url: string; type: string | null; na
 const OPEN_BY_DEFAULT_MAX = 25 * 1024 * 1024;
 function showsOpen(type: string | null | undefined, size: number | null | undefined): boolean {
   const t = type ?? "";
-  const displayable = t.startsWith("image/") || t.startsWith("video/") || t.startsWith("audio/") || t === "application/pdf" || t.startsWith("text/plain") || t === "application/json";
+  const displayable = t.startsWith("image/") || t.startsWith("video/") || t.startsWith("audio/") || t === "application/pdf" || t.startsWith("text/plain") || t === "application/json" || isXmlType(t);
   return displayable && (size == null || size <= OPEN_BY_DEFAULT_MAX);
 }
 
