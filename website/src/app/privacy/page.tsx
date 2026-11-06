@@ -12,14 +12,14 @@ export default function PrivacyPage() {
     <div className="frame" style={{ padding: "56px 0 96px" }}>
       <article className="prose">
         <h1>Privacy Policy</h1>
-        <p className="meta">Effective&nbsp;date: August&nbsp;27,&nbsp;2026.<br className="br-mob" /> Updated October&nbsp;14,&nbsp;2026</p>
+        <p className="meta">Effective&nbsp;date: August&nbsp;27,&nbsp;2026.<br className="br-mob" /> Updated November&nbsp;6,&nbsp;2026</p>
 
         <h2>1. What we collect</h2>
         <ul>
           <li>Your email address and what you send us, when you contact us or have a commercial agreement with us.</li>
           <li>Billing details, when a paid agreement exists, handled by our payment processor. We do not store card numbers.</li>
           <li>Service logs: timestamps, request data, and IP addresses, used for security, rate limiting, abuse prevention, and diagnosing failures.</li>
-          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the position and proof metadata the enclave needs to sign a proof. These come back to you in the proof. BitGraph keeps a public copy of each proof, which holds the fingerprint but never the file. For a proof made through bitgraph.ing, BitGraph writes one Base transaction over the proofs made since the last one, carrying a Merkle root of their proof hashes (Ethereum anchors did this before October 7, 2026). It holds nothing about you or your file.</li>
+          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the position and proof metadata the enclave needs to sign a proof. These come back to you in the proof. BitGraph keeps a public copy of each proof, which holds the fingerprint but never the file. Through bitgraph.ing, BitGraph writes one Base transaction a day carrying a Merkle root over that day&apos;s proof hashes. It holds nothing about you or your file.</li>
         </ul>
 
         <h2>2. What we do not collect</h2>
@@ -64,7 +64,7 @@ export default function PrivacyPage() {
         <p>
           Ordinary service data (email, billing, support messages, and logs)
           is kept only as long as the purposes above need it. The
-          transactions BitGraph writes to Base, and the Ethereum anchors written before October 7, 2026, are permanent by
+          transactions BitGraph writes to a public chain are permanent by
           nature: nothing can remove them from the chain. BitGraph also keeps a public copy of each proof it makes, which holds a fingerprint of the file but never its contents, so the site can look proofs up. Copies already kept are under a ten-year retention lock.
         </p>
 

@@ -112,14 +112,14 @@ export default function ToolsPage() {
 
             <h3 className="tl-h3">Many files, one BitGraph</h3>
             <p>
-              Drop more than one file on the Proofs page and make them, and they become one BitGraph: the drop is one moment, so they take one position.
+              Drop more than one file on the Make a BitGraph page and make them, and they become one BitGraph: the drop is one moment, so they take one position.
               The files are hashed into a Merkle tree in your browser (RFC 6962, SHA-256: a leaf is SHA-256 of a zero byte and the file, a
               node is SHA-256 of a one byte and its two children, and an odd last node rises unchanged). One BitGraph is made of{" "}
               <span className="nb"><code>merkle-root.txt</code>,</span> a short text file holding the root. You keep <span className="nb"><code>merkle-tree.json</code>,</span> which lists every
               file&rsquo;s leaf and every level. One position covers a million files as well as one.
             </p>
             <p>
-              To check a file, drop it on the Proofs page by itself. When the tree is made, each file gets a sealed entry that only its own
+              To check a file, drop it on the Make a BitGraph page by itself. When the tree is made, each file gets a sealed entry that only its own
               bytes can open; the page finds it, walks the file up the tree to the root, and checks the root against its BitGraph. With{" "}
               <code>merkle-tree.json</code> and <code>merkle-root.txt</code> it works without any entry. By hand: hash the file as a leaf,
               combine it with its neighbors up the levels, compare with the root in <span className="nb"><code>merkle-root.txt</code>,</span> and verify{" "}
@@ -154,10 +154,7 @@ export default function ToolsPage() {
               Base adds nothing to the bind and takes nothing from it. Strip it away and a BitGraph is still a position: where your
               bits were bound in the sequence, with the hardware attestation&rsquo;s timestamp bound in as its first layer. The writes
               are what let someone who trusts neither BitGraph nor its host see that a day&rsquo;s sequence was opened in public and
-              closed as one fixed set. Records made before the root moved to the end of the epoch were each written to Base within
-              seconds of their bind, a few to a transaction, and those writes are still served at the same address. Proofs made from
-              2026-10-21 to 2026-10-31 also carry a Base floor (<code>base-floor.json</code>, bound just before them), and those from
-              2026-10-31 to 2026-11-02 block reads before and after them.
+              closed as one fixed set.
             </p>
           </section>
 
@@ -177,8 +174,7 @@ export default function ToolsPage() {
               epoch&rsquo;s key, since the id is derived from it, and no BitGraph of the epoch could exist before the transaction&rsquo;s
               block, so epochs order by their genesis blocks. Right behind the genesis goes the day&rsquo;s second write: one Merkle root over
               the file proofs made in the epoch that just ended, when it made any. Base is the witness here because this deployment binds it; the rule is
-              the same for any trust layer: bound into the record, or carrying the record&rsquo;s hash, never merely placed beside it. Epochs opened before 2026-10-23 bound a read of the latest
-              Base block instead (<code>epoch-floor.json</code>), which proves the same &ldquo;after&rdquo; with the block chosen by the host.
+              the same for any trust layer: bound into the record, or carrying the record&rsquo;s hash, never merely placed beside it.
             </p>
             <p>
               The enclave has no storage of its own: the counter&rsquo;s continuity is kept by the enclave&rsquo;s code within each run, not

@@ -101,8 +101,7 @@ node verifier/exam.mjs selftest`}</Code>
         <p style={{ marginTop: 16 }}>
           The answers are <strong>ACCEPT</strong>, <strong>REJECT</strong> (naming what disagrees) or{" "}
           <strong>NO-EVIDENCE</strong> (something is not in hand). The package carries nine fixtures that should fail, among them a
-          proof re-signed with a laptop key that a signature check alone passes. The earlier sittings, from September and October
-          2026, are in <code>archive/</code> and still verify. The zip&rsquo;s SHA-256:
+          proof re-signed with a laptop key that a signature check alone passes. The zip&rsquo;s SHA-256:
         </p>
         <Code>{ZIP_SHA256}</Code>
         <p style={{ marginTop: 16 }}>To run a sitting of your own, with your own API key:</p>

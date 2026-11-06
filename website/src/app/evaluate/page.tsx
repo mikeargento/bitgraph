@@ -53,7 +53,7 @@ export default function EvaluatePage() {
         <p>
           Download a production proof and the file it covers: <a href="/evaluate/chatgpt.png" download>chatgpt.png</a> and{" "}
           <a href="/evaluate/chatgpt.png.bitgraph.json" download>chatgpt.png.bitgraph.json</a>. It is BitGraph #304, the ChatGPT
-          picture on the home page.
+          picture in the <a href="/pictures">Copies</a> demo.
         </p>
         <Code>{`${V} chatgpt.png --proof chatgpt.png.bitgraph.json --pcr0 ${PUBLISHED_PCR0}`}</Code>
         <Code>{`TRUE

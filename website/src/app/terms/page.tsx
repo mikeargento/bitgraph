@@ -40,7 +40,7 @@ export default function TermsPage() {
           Only fingerprints are bound. Files are fingerprinted on your
           machine, and file contents are never transmitted to BitGraph, so
           BitGraph cannot see, store, or reconstruct them. The site's export, or your own tooling, can assemble a portable verification bundle (your
-          local copy of the file, its proof, and the anchors) that anyone
+          local copy of the file and its proof) that anyone
           can verify offline with open-source tooling, with no account and
           nothing to look up.
         </p>
@@ -77,7 +77,7 @@ export default function TermsPage() {
         <ul>
           <li>use the service in connection with unlawful activity, including fingerprinting content for an unlawful purpose;</li>
           <li>abuse the service or interfere with other people&apos;s use of it;</li>
-          <li>attempt to disrupt, overload, or tamper with the anchoring infrastructure;</li>
+          <li>attempt to disrupt, overload, or tamper with the recording infrastructure;</li>
           <li>attempt to reverse engineer, probe, or extract material from the sealed environment;</li>
           <li>evade rate limits. Rate limits may apply and may change.</li>
         </ul>
@@ -99,7 +99,7 @@ export default function TermsPage() {
         <h2>7. Your data</h2>
         <p>
           We store
-          anchors and the positions they cover. A proof is returned to you and
+          the records the service makes and the positions they cover. A proof is returned to you and
           is yours to keep; BitGraph also keeps a public copy of each proof, indexed by fingerprint, as a convenience for the site. We never
           receive file contents, so we cannot store them. Proofs are retained: each
           names the one before it, so the chain of proofs is an append-only
