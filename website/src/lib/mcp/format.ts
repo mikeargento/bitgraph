@@ -137,13 +137,12 @@ function renderWindow(detail: ProofDetailResponse): string | null {
   if (base !== null) {
     const floorLine = `Placed after Base block ${base.blockNumber} (mined ${new Date(base.blockTimestamp * 1000).toISOString().replace(".000Z", "Z")})`;
     const c = detail.ceiling;
-    // Since the writer went to one root per closed epoch (lib/roll-root.ts), a record's write is its epoch's root,
-    // made when the next epoch opens: it fixes the epoch as a set and is not stated as a time of the record's own.
+    // A record's write is its epoch's root (lib/roll-root.ts), made when the epoch closes: it fixes the epoch as a set and is not stated as a time of the record's own.
     const proof = detail.proofs[0]?.proof;
     if (proof && rollRootCovers(recordedMsOf(proof))) {
       return c
         ? `${floorLine}. Its ceiling is the next BitGraph in the chain. Its epoch was closed under one Merkle root, written to Base in block ${c.blockNumber}.`
-        : `${floorLine}. Its ceiling is the next BitGraph in the chain. Its epoch's Merkle root goes to Base once the next epoch opens.`;
+        : `${floorLine}. Its ceiling is the next BitGraph in the chain. Its epoch's Merkle root goes to Base when the epoch closes.`;
     }
     return c ? `${floorLine}, and existed by Base block ${c.blockNumber} (mined ${c.blockTime.replace(".000Z", "Z")}), the ceiling.` : `${floorLine}; its Base ceiling is not written yet.`;
   }

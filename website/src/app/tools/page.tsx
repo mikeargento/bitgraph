@@ -107,7 +107,7 @@ export default function ToolsPage() {
             <p>
               Two things build on a BitGraph without changing it: a drop of many files becomes one tree, bound as one ordinary BitGraph,
               and through bitgraph.ing, Base, the reference trust layer, is tied to each day&rsquo;s sequence by a block read before every
-              file and two writes a day. Nothing about either one enters the enclave or the proof format.
+              file and two writes for each epoch, one when it opens and one when it closes. Nothing about either one enters the enclave or the proof format.
             </p>
 
             <h3 className="tl-h3">Many files, one BitGraph</h3>
@@ -138,11 +138,11 @@ export default function ToolsPage() {
             <ol className="tl-steps">
               <li><strong>A block read before each file.</strong> The newest Base block is read and bound as a BitGraph of its own, on the counts just before the file&rsquo;s. A block&rsquo;s hash cannot be known before the block exists, so the file&rsquo;s BitGraph came after it.</li>
               <li><strong>A write when the epoch opens.</strong> Once a day a new epoch starts, and BitGraph&rsquo;s published writer sends a Base transaction carrying the new epoch&rsquo;s id (see Epochs, below). No BitGraph of that epoch can come before that transaction&rsquo;s block.</li>
-              <li><strong>A write for the epoch that just closed.</strong> Right behind it, a second transaction carries one Merkle root over the proofs of every file bound in the epoch that ended. It carries 84 bytes: the tag <code>BGC1</code>, the root, the previous root write&rsquo;s hash, and the first and last counts it covers. From that block on, the set of records under the root is fixed: none can be added, removed or reordered.</li>
+              <li><strong>A write when the epoch closes.</strong> Before the enclave shuts down, a second transaction carries one Merkle root over the proofs of every file bound in the epoch. It carries 84 bytes: the tag <code>BGC1</code>, the root, the previous root write&rsquo;s hash, and the first and last counts it covers. From that block on, the set of records under the root is fixed: none can be added, removed or reordered.</li>
             </ol>
             <p>
-              That is two writes a day, however many records the day holds. The first opens today&rsquo;s sequence in public; the second
-              fixes yesterday&rsquo;s as it stood.
+              That is two writes a day, however many records the day holds. The first opens the epoch in public; the second
+              closes it, and every record in the epoch lies between the two.
             </p>
             <p>To check a record against its epoch&rsquo;s root:</p>
             <ol className="tl-steps">
@@ -172,8 +172,8 @@ export default function ToolsPage() {
               write to Base: BitGraph&rsquo;s writer sends a transaction carrying the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph
               binds a record of that mined transaction (<code>epoch-genesis.json</code>). The transaction could not exist before the
               epoch&rsquo;s key, since the id is derived from it, and no BitGraph of the epoch could exist before the transaction&rsquo;s
-              block, so epochs order by their genesis blocks. Right behind the genesis goes the day&rsquo;s second write: one Merkle root over
-              the file proofs made in the epoch that just ended, when it made any. Base is the witness here because this deployment binds it; the rule is
+              block, so epochs order by their genesis blocks. Before the enclave shuts down, the epoch&rsquo;s second write goes out: one
+              Merkle root over the file proofs made in the epoch, when it made any. Base is the witness here because this deployment binds it; the rule is
               the same for any trust layer: bound into the record, or carrying the record&rsquo;s hash, never merely placed beside it.
             </p>
             <p>

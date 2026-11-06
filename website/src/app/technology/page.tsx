@@ -182,11 +182,11 @@ export default function TechnologyPage() {
             <ul className="docs-list">
               <li><strong>Before each file.</strong> The newest Base block is read and bound as a BitGraph of its own, on the counts just before the file&rsquo;s. A block&rsquo;s hash cannot be known before the block exists, so the file&rsquo;s BitGraph came after it.</li>
               <li><strong>When an epoch opens.</strong> Once a day a new epoch begins with a Base transaction that carries its id. No BitGraph of that epoch can come before that transaction&rsquo;s block.</li>
-              <li><strong>When an epoch has closed.</strong> Right behind it, a second transaction carries one Merkle root over the proofs of every file bound in the epoch that just ended. From that block on, the set of records under the root is fixed: none can be added, removed or reordered.</li>
+              <li><strong>When an epoch closes.</strong> Before the enclave shuts down, a second transaction carries one Merkle root over the proofs of every file bound in the epoch. From that block on, the set of records under the root is fixed: none can be added, removed or reordered.</li>
             </ul>
             <p>
-              That is two writes a day, however many records the day holds. The first opens today&rsquo;s sequence in public; the
-              second fixes yesterday&rsquo;s as it stood.
+              That is two writes a day, however many records the day holds. The first opens the epoch in public; the
+              second closes it, and every record in the epoch lies between the two.
             </p>
             <div className="sx-cards is-3">
               <article className="tl-card">

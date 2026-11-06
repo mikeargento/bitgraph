@@ -58,8 +58,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
     } catch { /* stays failed */ }
   }
 
-  // Each closed epoch's root on Base, shown where that epoch's rows begin. The write follows the next epoch's genesis,
-  // so it falls on this day or, when an epoch closed across midnight, the next. A failed read shows no root line; it
+  // Each closed epoch's root on Base, shown where that epoch's rows begin. The write goes out as the epoch closes,
+  // so it falls on this day or, when the close runs past midnight, the next. A failed read shows no root line; it
   // says nothing about the root.
   let roots: RollRoot[] = [];
   try { roots = await rollRootsForDays([shown, shiftDay(shown, 1)].filter((d) => d <= todayUTC)); } catch { /* no line */ }

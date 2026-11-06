@@ -1,11 +1,11 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * Two Base writes a day: one opens the new epoch, the second carries the root of the epoch that just closed.
+ * Two Base writes a day: one opens an epoch, the second closes it with the root of every record bound in it.
  *
  * BitGraph's writer used to send a record's hash to Base seconds after the record was bound. With its roll mode on
  * (server/commit-service/src/ceiling/writer.ts, CEILING_ROLL_ROOT), it holds an epoch's records until the epoch is
- * over and the next one's genesis transaction is mined, then writes them all under one Merkle root. Inside the epoch
+ * closed, just before its enclave shuts down, then writes them all under one Merkle root. Inside the epoch
  * the order needs no chain: each BitGraph comes after the one before it, by construction, so the next BitGraph is
  * the ceiling of the one before. The root does a different job: it fixes the finished epoch as a set.
  *

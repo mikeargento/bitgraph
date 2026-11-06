@@ -20,6 +20,7 @@ import {
   mptVerify, rlpEncode, txTrieKey, txTrieProof, merkleRootFromPath, ceilingPayloadHash,
   type CeilingSidecar,
 } from "@mikeargento/bitgraph-verify";
+import { EPOCH_CLOSE_REQUEST_FORMAT, type CloseResult } from "../close.js";
 import { CeilingWriter, type Chain, type Inclusion } from "../writer.js";
 import type { CeilingQueueItem } from "../../parent/ceiling-queue.js";
 
@@ -304,7 +305,7 @@ test("batches never span two epochs", async () => {
 
 // ── Roll mode: one write per closed roll ─────────────────────────────────────────────────────────────────────────
 
-import { writeFileSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { computeProofHash, verifyCeiling, EPOCH_GENESIS_REQUEST_FORMAT, epochIdOfCalldata } from "@mikeargento/bitgraph-verify";
 
 const epochOf = (n: number): string => Buffer.from(Array.from({ length: 32 }, (_, i) => (i * 7 + n) & 0xff)).toString("base64");
@@ -332,8 +333,18 @@ function rollSetup() {
   const dir = mkdtempSync(join(tmpdir(), "ceiling-roll-"));
   const queuePath = join(dir, "queue.jsonl");
   const genesisDir = join(dir, "genesis");
+  const closeDir = join(dir, "close");
   const chain = new FakeChain();
-  const mk = (now?: () => Date) => new CeilingWriter({ stateDir: dir, queuePath, chain, log: () => {}, rollRoot: true, genesisDir, ...(now ? { now } : {}) });
+  const mk = (now?: () => Date) => new CeilingWriter({ stateDir: dir, queuePath, chain, log: () => {}, rollRoot: true, genesisDir, closeDir, ...(now ? { now } : {}) });
+  /** The rotation's ask to close an epoch, made `ms` into `day`. */
+  const ask = (epochId: string, day: number, ms: number) => {
+    mkdirSync(closeDir, { recursive: true });
+    writeFileSync(join(closeDir, `${safeB64(epochId)}.request.json`), JSON.stringify({ format: EPOCH_CLOSE_REQUEST_FORMAT, epochId, requestedAt: new Date(DAY0 + day * DAY + ms).toISOString() }));
+  };
+  const closed = (epochId: string): CloseResult | null => {
+    const path = join(closeDir, `${safeB64(epochId)}.json`);
+    return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) as CloseResult : null;
+  };
   const push = (...items: CeilingQueueItem[]) => appendFileSync(queuePath, items.map((i) => JSON.stringify(i) + "\n").join(""));
   /** The parent's ask for an epoch's genesis, made at the start of `day`. */
   const open = (epochId: string, day: number) =>
@@ -343,7 +354,7 @@ function rollSetup() {
   const events = () => (existsSync(join(dir, "events.jsonl")) ? readFileSync(join(dir, "events.jsonl"), "utf8") : "").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
   /** Open an epoch and see its genesis mined. */
   const born = async (w: CeilingWriter, epochId: string, day: number) => { open(epochId, day); await w.tick(); chain.step(); await w.tick(); };
-  return { dir, genesisDir, chain, mk, push, open, born, sidecar, sidecarPath, events };
+  return { dir, genesisDir, chain, mk, push, open, born, ask, closed, sidecar, sidecarPath, events };
 }
 
 test("roll mode: a roll's records are held, then written as one root when the next roll's genesis is mined", async () => {
@@ -567,4 +578,74 @@ test("roll check: a closed roll passes, and an open one says what is still waiti
   assert.equal(gone.writes[0]!.sidecarsOk, 4);
   assert.ok(gone.problems.some((p) => /sidecar/.test(p)));
   assert.match(formatRollReport(gone), /FAIL/);
+});
+
+test("roll mode: a close request writes the roll's root at once, before any later epoch opens, and the answer names the write", async () => {
+  const { chain, mk, push, born, ask, closed, sidecar, events } = rollSetup();
+  const A = epochOf(1), B = epochOf(2);
+  let w = mk();
+  await born(w, A, 0);
+  const recs = [record(A, 0, 1000), record(A, 0, 2000), record(A, 0, 3000)];
+  for (const r of recs) push(r.item);
+  await w.tick();
+  assert.equal(chain.broadcasts, 1, "held while the roll is open");
+  ask(A, 0, 4000);
+  await w.tick();
+  assert.equal(chain.broadcasts, 2, "the root goes out on the tick that sees the request");
+  assert.equal(closed(A), null, "no answer until the write is mined");
+  w = mk(); // a restart in between answers once, and sends nothing twice
+  await w.tick();
+  assert.equal(closed(A), null);
+  chain.step();
+  await w.tick();
+  assert.equal(chain.broadcasts, 2);
+  const res = closed(A)!;
+  assert.equal(res.format, "bitgraph-epoch-close/1");
+  assert.equal(res.records, 3);
+  assert.equal(res.firstPos, recs[0]!.item.position);
+  assert.equal(res.lastPos, recs[2]!.item.position);
+  const s0 = sidecar(recs[0]!.item);
+  assert.equal(res.blockNumber, s0.anchor!.blockNumber);
+  assert.equal(res.root, s0.root);
+  // On Base in order: A's genesis, then A's root. Nothing of a later epoch is needed.
+  assert.equal(decodeEip1559(evmHexToBytes(s0.anchor!.rawTx)).nonce, 1n);
+  for (const r of recs) {
+    const v = await verifyCeiling(r.proof as never, sidecar(r.item), { writerAddress: chain.writer, chainId: 84532, proofAlreadyVerified: true });
+    assert.equal(v.ok, true, v.reason);
+  }
+  assert.equal(events().filter((e) => e["type"] === "roll-closed").length, 1);
+  // The next epoch opens with its own genesis and writes nothing more for A.
+  await born(w, B, 1);
+  await w.tick(); chain.step(); await w.tick();
+  assert.equal(chain.broadcasts, 3);
+  assert.deepEqual(events().filter((e) => e["type"] === "write").map((e) => e["records"]), [3]);
+});
+
+test("roll mode: a close asked for before the roll's newest record cuts nothing; the next genesis closes it and the request is answered then", async () => {
+  const { chain, mk, push, born, ask, closed } = rollSetup();
+  const A = epochOf(1), B = epochOf(2);
+  const w = mk();
+  await born(w, A, 0);
+  ask(A, 0, 1500);
+  push(record(A, 0, 1000).item, record(A, 0, 2000).item);
+  await w.tick(); chain.step(); await w.tick();
+  assert.equal(chain.broadcasts, 1, "a record bound after the ask keeps the roll open");
+  assert.equal(closed(A), null);
+  await born(w, B, 1);
+  await w.tick(); // A's roll is cut behind B's genesis
+  chain.step();
+  await w.tick();
+  assert.equal(chain.broadcasts, 3);
+  assert.equal(closed(A)!.records, 2);
+});
+
+test("roll mode: a close request for an epoch with nothing queued is answered at once, with no write", async () => {
+  const { chain, mk, born, ask, closed } = rollSetup();
+  const A = epochOf(1);
+  const w = mk();
+  await born(w, A, 0);
+  ask(A, 0, 1000);
+  await w.tick();
+  assert.equal(chain.broadcasts, 1);
+  assert.deepEqual(closed(A), { format: "bitgraph-epoch-close/1", epochId: A, requestedAt: new Date(DAY0 + 1000).toISOString(), records: 0 });
 });

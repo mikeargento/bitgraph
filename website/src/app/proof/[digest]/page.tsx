@@ -2067,7 +2067,7 @@ export default function ProofPage() {
         const el = document.createElement("a"); el.href = url; el.download = name; el.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
         setCarrierMsg([sidecar ? null : rollRootCovers(attestedMs)
-          ? "This record goes to Base with its epoch\u2019s root, when the next epoch opens, so this file carries the proof without that write. Download it again after that for the write too."
+          ? "This record goes to Base with its epoch\u2019s root, when the epoch closes, so this file carries the proof without that write. Download it again after that for the write too."
           : "The Base write has not landed yet, so this file carries the proof without its ceiling. Download it again in a few seconds for the ceiling too."].filter(Boolean).join(" ") || null);
         return;
       }

@@ -96,8 +96,8 @@ function Row({ r, firstOfEpoch }: { r: LedgerRow; firstOfEpoch: boolean }) {
   );
 }
 
-/** A closed epoch's root on Base: one write over every file proof of the epoch, sent right behind the next epoch's
- *  genesis. It is not a BitGraph, so it has no number and opens the Base transaction, not a proof page. */
+/** A closed epoch's root on Base: one write over every file proof of the epoch, sent as the epoch closes, before
+ *  its enclave shuts down. It is not a BitGraph, so it has no number and opens the Base transaction, not a proof page. */
 function RootRow({ root }: { root: RollRoot }) {
   const now = useNow();
   const ms = root.blockTimestamp * 1000;
@@ -191,7 +191,7 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder, roots = []
     <>
       <div className="rl-rows">
         {/* Block reads are part of the sequence but not frames anyone made; they stay on the proof pages. */}
-        {/* A closed epoch's root sits on top of that epoch's rows, between its newest record and the next epoch's genesis. */}
+        {/* A closed epoch's root sits on top of that epoch's rows, after its newest record. */}
         {rows.map((r, i) => {
           if (isReads(r)) return null;
           const epoch = epochOf(r);

@@ -136,7 +136,7 @@ export function floorChainWord(f: CeilingFloor): string {
 
 /**
  * A closed epoch's root on Base (lib/roll-root.ts): the one write that carries the Merkle root over every file proof
- * of an epoch, sent right behind the next epoch's genesis. The ledger shows it where that epoch's rows begin.
+ * of an epoch, sent as the epoch closes. The ledger shows it where that epoch's rows begin.
  */
 export interface RollRoot {
   /** The closed epoch's id, URL-safe base64 without padding, as ledger row keys carry it. */

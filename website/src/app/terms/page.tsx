@@ -32,8 +32,8 @@ export default function TermsPage() {
           file&apos;s SHA-256 fingerprint to it in one indivisible step.
           Positions form a counted, forward-only chain. Through bitgraph.ing,
           the reference trust layer ties each day&apos;s sequence to Base: one
-          transaction opens the day&apos;s sequence, and a second carries a Merkle
-          root over the proof hashes of the day that just ended; no file and no
+          transaction opens the day&apos;s sequence, and a second closes it with a
+          Merkle root over the proof hashes made in it; no file and no
           fingerprint is written. The ordering does not depend on any blockchain.
         </p>
         <p>
