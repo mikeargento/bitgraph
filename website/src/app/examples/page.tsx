@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { DemoCards } from "@/components/demo-cards";
 
-/** The three demos, stacked one per row (components/demo-cards.tsx). */
+/** The four demos, stacked one per row (components/demo-cards.tsx). */
 export const metadata: Metadata = {
   title: "Demos",
-  description: "Three demos of work bracketed by two BitGraphs: made after A, bound by B.",
+  description: "Demos: work made between two BitGraphs, and one picture in three files.",
 };
 
 export default function ExamplesPage() {

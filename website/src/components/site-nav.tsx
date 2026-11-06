@@ -20,7 +20,7 @@ const LINKS: NavLink[] = [
   { href: "/technology", label: "Technology", also: ["/applications"] },
   { href: "/integrate", label: "Developers", also: ["/tools"] },
   { href: "/licensing", label: "Licensing", also: ["/evaluate"] },
-  { href: "/examples", label: "Demos", also: ["/jev", "/generate", "/exam"] },
+  { href: "/examples", label: "Demos", also: ["/jev", "/generate", "/exam", "/pictures"] },
   { href: "/ledger", label: "Ledger" },
 ];
 // Contact is the grey pill beside the white one.

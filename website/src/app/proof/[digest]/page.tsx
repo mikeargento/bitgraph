@@ -129,17 +129,22 @@ const staged = (text: string) => <>{text}</>; // approved 2026-10-11; was red wh
 /** A hosted original this large or smaller is fetched and shown unasked (2026-10-29); above it, the strip offers the download. */
 
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
-  // The home page's three files, three proofs: a picture made with ChatGPT, Google's copy of it and Grok's video of it,
+  // The fourth demo's three files, three proofs (on the home page until 2026-11-06): a picture made with ChatGPT, Google's copy of it and Grok's video of it,
   // first recorded 2026-10-31 (#2,124, #3,452, #3,720, epoch HVhtPS…) and again 2026-11-02 with Base writes (#8, #10,
   // #12, epoch KmoE…). Hosted so each proof page shows its file to every visitor.
   "-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA": { path: "/demo/chatgpt.png", name: "ChatGPT Image.png", mime: "image/png" },
   "gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8": { path: "/demo/google.jpeg", name: "Gemini Image.jpeg", mime: "image/jpeg" },
   "VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM": { path: "/demo/grok.mp4", name: "grok-video.mp4", mime: "video/mp4" },
-  // The home page's second set of three (2026-11-05): a new picture made with ChatGPT, Google's copy of it and Grok's
-  // video of it (#30, #34, #38, epoch GCFx…). Home shows both sets.
+  // The second set of three (2026-11-05): a new picture made with ChatGPT, Google's copy of it and Grok's
+  // video of it (#30, #34, #38, epoch GCFx…). The fourth demo shows both sets.
   "Mcr7iOK5afl1x1iwwcTrwn3nFGR31RmRyTyTsHCU_JM": { path: "/demo/chatgpt-30.png", name: "ChatGPT Image.png", mime: "image/png" },
   "hQU63cRe-SH06EW0ivMBewEj5u1OsrNIvlKpjpPOt_A": { path: "/demo/google-34.jpeg", name: "Gemini Image.jpeg", mime: "image/jpeg" },
   "UXTJPyhZgvAOmkZpSOdhPBZ9PET5xf9sG9VR6qRNu50": { path: "/demo/grok-38.mp4", name: "grok-video.mp4", mime: "video/mp4" },
+  // The home page's three (2026-11-06): one photograph in three files with identical pixels, recorded one after the
+  // other (#58, #62, #66, epoch 2EnG…). The files differ by one character of a comment inside them.
+  "7roNTix7clHFjNuPKoI2pEOfXcCN5seMP2JgCgTWhrg": { path: "/demo/harbor-58.jpg", name: "harbor-1.jpg", mime: "image/jpeg" },
+  "bz7-raVGaSIYKEPO7DIgGcEdoIvb2wSQ4ekyw1pOFhg": { path: "/demo/harbor-62.jpg", name: "harbor-2.jpg", mime: "image/jpeg" },
+  "9EDdSdS1KUrBbfoTx0Bmn1OLzeIRGQb5BHLtDn-GTOo": { path: "/demo/harbor-66.jpg", name: "harbor-3.jpg", mime: "image/jpeg" },
   // The home page's made-after picture (2026-10-31): the bridge drawn from #12,526's nonce, recorded as #12,530.
   "E301gTl5CQkxYjhCsn8RZJcv26nR3EeWMyohutOe4F4": { path: "/demo/bridge.png", name: "bitgraph-12530.png", mime: "image/png" },
   // Its re-recording (2026-11-02): the bridge drawn from #42's nonce, recorded as #44.
