@@ -17,7 +17,7 @@ const DEMOS = [
 const HOME = [
   { href: "/demos", title: "Make a BitGraph", body: "Drop any file. Its hash is bound at the next place in line, and the file stays with you." },
   { href: "/ledger", title: "View the ledger", body: "Every BitGraph in order, each one checkable by anyone." },
-  { href: "/examples", title: "Demos", body: "Three things made between two BitGraphs: an AI’s answers, a picture, and a sealed exam." },
+  { href: "/examples", title: "Demos", body: "Working examples, each built on real BitGraphs you can check." },
 ];
 
 type Card = { href: string; title: string; body: string };
