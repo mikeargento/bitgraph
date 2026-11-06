@@ -13,6 +13,18 @@
  * acted on: a batch file holds its signed transaction BEFORE broadcast, so a
  * restart rebroadcasts the same bytes instead of minting a second nonce. A
  * record anchored twice is harmless and is logged.
+ *
+ * Roll mode (WriterOptions.rollRoot, 2026-11-06). An epoch is a roll: its
+ * records are ordered by construction, each one after the one before it, and
+ * that order needs nothing from Base. So in this mode a record is not written
+ * to Base when it is bound. The queue keeps filling, and the writer holds an
+ * epoch's records until that roll is over, which it knows once the genesis
+ * transaction of a later epoch is mined. Then every record of the closed roll
+ * becomes one Merkle root in one transaction, right behind the new epoch's
+ * genesis. The payload, the sidecars and their checks are the same as before;
+ * only the timing differs. Until its roll closes a record has no sidecar, and
+ * its bound from outside is its Base floor below and, above, the write that
+ * closes its roll.
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, statSync, openSync, readSync, closeSync, unlinkSync } from "node:fs";
@@ -147,6 +159,16 @@ export interface WriterOptions {
    * in and reads the results from. Off when absent.
    */
   genesisDir?: string;
+  /**
+   * One write per roll instead of one per burst (see the header). Needs `genesisDir`, since a mined genesis is how
+   * the writer learns that the roll before it is over. Off by default: a batch is cut as soon as records are queued.
+   */
+  rollRoot?: boolean;
+  /**
+   * Roll mode: once the oldest held record has waited this long, a `roll-held` event is logged, at most once an
+   * hour (default 36 h). Nothing is written early; the event says a roll has not been closed when one was due.
+   */
+  rollHeldAlertMs?: number;
 }
 
 const ZERO32 = "0x" + "00".repeat(32);
@@ -203,6 +225,7 @@ export class CeilingWriter {
   private readonly outputRootSettler: OutputRootSettler | null = null;
   private readonly genesis: GenesisWriter | null = null;
   private lastOutputRootPass = 0;
+  private lastRollHeldEvent = 0;
 
   constructor(opts: WriterOptions) {
     this.o = {
@@ -210,6 +233,8 @@ export class CeilingWriter {
       log: (e) => console.log(JSON.stringify(e)),
       now: () => new Date(),
       ...opts,
+      rollRoot: opts.rollRoot ?? false,
+      rollHeldAlertMs: opts.rollHeldAlertMs ?? 36 * 60 * 60 * 1000,
       minBalanceWei: opts.minBalanceWei ?? null,
       publish: opts.publish,
       settlement: opts.settlement,
@@ -225,6 +250,8 @@ export class CeilingWriter {
         now: () => this.o.now(), log: (e) => this.event(e as { type: string } & Record<string, unknown>),
       });
     }
+    // Without the genesis directory nothing would ever say a roll is over, and every record would wait for good.
+    if (this.o.rollRoot && !this.genesis) throw new TypeError("rollRoot needs genesisDir on Base (8453 or 84532)");
     this.load();
     if (opts.outputRoot) {
       // Built after load(): it reads the batches to finish any mark a stop left half-written.
@@ -332,7 +359,7 @@ export class CeilingWriter {
       if (!b || !b.inclusion || b.state === "dropped") continue;
       await this.ensureFloors(b.items);
       const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
-      for (const i of b.items) this.writeSidecar(i, b, tree, b.state as CeilingStatus);
+      this.writeSidecars(b, tree, b.state as CeilingStatus);
       const stillMissing = b.items.filter((i) => i.floor && !this.floorCache.get(i.floor.blockHash)).length;
       this.event({ type: "floor-repair", batch: b.id, records: b.items.length, stillMissing });
       // A header the chain would not give (an RPC hiccup) is asked for again, a few times, at the back of the line.
@@ -377,6 +404,9 @@ export class CeilingWriter {
       added++;
     }
     // Backlog first, cursor second: a crash between them re-reads lines, and re-reads dedupe.
+    // The backlog file is rewritten whole each time. In roll mode it holds a roll's records until the roll closes,
+    // so the bytes written over a day grow with the square of the day's records: nothing at hundreds a day, worth
+    // an append-only file before tens of thousands.
     this.saveBacklog();
     this.cursor += Buffer.byteLength(complete, "utf8");
     this.saveCursor();
@@ -397,7 +427,11 @@ export class CeilingWriter {
     // A genesis transaction and a ceiling batch never fly together: one nonce sequence, one in flight.
     const genesisInFlight = this.genesis ? await this.genesis.pass(!act) : false;
     if (act) await this.advance(act);
-    else if (!genesisInFlight && this.backlog.length > 0) await this.startBatch();
+    else if (!genesisInFlight && this.backlog.length > 0) {
+      const key = this.o.rollRoot ? this.closedGroup() : groupKey(this.backlog[0]!);
+      if (key !== null) await this.startBatch(key);
+      else this.noteHeld();
+    }
     await this.flushPublish();
     const t = Date.now();
     if (t - this.lastStatusPoll > 4_000) { this.lastStatusPoll = t; await this.pollStatus(); }
@@ -426,8 +460,48 @@ export class CeilingWriter {
     }
   }
 
-  private async startBatch(): Promise<void> {
-    const key = groupKey(this.backlog[0]!);
+  /**
+   * Roll mode: the (epoch, chain) group in the backlog whose roll is over, in backlog order, or null while every
+   * queued record belongs to a roll still open. A roll is over once the genesis transaction of another epoch is
+   * mined and that genesis was asked for after the newest of the group's queued records was bound. Both times are
+   * the parent's clock (a record's committedAt, a request's requestedAt), so no chain time is compared with host
+   * time. It is read from disk every tick and nothing is remembered, so a restart neither cuts early nor forgets.
+   * A record of a closed epoch that turns up afterwards (a reorg, a late queue line) is cut the same way.
+   */
+  private closedGroup(): string | null {
+    const mined = (this.genesis?.openings() ?? []).filter((g) => g.mined);
+    if (mined.length === 0) return null;
+    const newest = new Map<string, { epochId: string; ms: number }>();
+    for (const i of this.backlog) {
+      const t = Date.parse(i.committedAt);
+      const ms = Number.isFinite(t) ? t : 0;
+      const k = groupKey(i);
+      const g = newest.get(k);
+      if (!g) newest.set(k, { epochId: i.epochId, ms });
+      else if (ms > g.ms) g.ms = ms;
+    }
+    for (const [k, g] of newest) {
+      if (mined.some((m) => m.epochId !== g.epochId && m.requestedAtMs > g.ms)) return k;
+    }
+    return null;
+  }
+
+  /** Roll mode, nothing to cut: say so when the oldest held record has waited longer than a roll should last. */
+  private noteHeld(): void {
+    const t = Date.now();
+    if (t - this.lastRollHeldEvent < 60 * 60 * 1000) return;
+    let oldest = Infinity;
+    for (const i of this.backlog) {
+      const ms = Date.parse(i.committedAt);
+      if (Number.isFinite(ms) && ms < oldest) oldest = ms;
+    }
+    const waited = this.o.now().getTime() - oldest;
+    if (!(waited > this.o.rollHeldAlertMs)) return;
+    this.lastRollHeldEvent = t;
+    this.event({ type: "roll-held", records: this.backlog.length, oldestCommittedAt: new Date(oldest).toISOString(), heldHours: Math.round(waited / 3_600_000) });
+  }
+
+  private async startBatch(key: string): Promise<void> {
     const items = this.backlog.filter((i) => groupKey(i) === key);
     items.sort((a, b) => (BigInt(a.position) < BigInt(b.position) ? -1 : BigInt(a.position) > BigInt(b.position) ? 1 : 0));
     const tree = new MerkleTree(items.map((i) => ceilingLeaf(i.proofHash)));
@@ -461,7 +535,8 @@ export class CeilingWriter {
     for (const i of items) this.anchored.set(i.proofHash, b.id);
     this.lastPayloadHash = bytesToHex(ceilingPayloadHash(payload));
     this.saveChain();
-    for (const i of items) this.writeSidecar(i, b, tree, "pending");
+    if (this.o.rollRoot) this.event({ type: "roll-close", batch: b.id, epochId: b.group.epochId, bitgraphChain: b.group.chainId, records: items.length, firstPos: b.firstPos, lastPos: b.lastPos });
+    this.writeSidecars(b, tree, "pending");
     await this.send(b, signed.rawTx);
   }
 
@@ -504,7 +579,7 @@ export class CeilingWriter {
     const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
     const latencies = b.items.map((i) => inc.blockTimestamp * 1000 - Date.parse(i.committedAt));
     await this.ensureFloors(b.items);
-    for (const i of b.items) this.writeSidecar(i, b, tree, "included");
+    this.writeSidecars(b, tree, "included");
     this.writeRecord(b);
     this.event({
       type: "write", batch: b.id, records: b.items.length, blockNumber: inc.blockNumber, blockTimestamp: inc.blockTimestamp,
@@ -548,7 +623,7 @@ export class CeilingWriter {
       this.saveBatch(b);
       const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
       await this.ensureFloors(b.items);
-      for (const i of b.items) this.writeSidecar(i, b, tree, next as CeilingStatus);
+      this.writeSidecars(b, tree, next as CeilingStatus);
       this.writeRecord(b);
       this.event({ type: "status", batch: b.id, status: next, blockNumber: inc.blockNumber });
     }
@@ -564,7 +639,7 @@ export class CeilingWriter {
     this.backlog = [...b.items, ...this.backlog.filter((x) => !b.items.some((i) => i.proofHash === x.proofHash))];
     this.saveBacklog();
     const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
-    for (const i of b.items) this.writeSidecar(i, { ...b, inclusion: undefined, settlement: undefined } as Batch, tree, "pending");
+    this.writeSidecars({ ...b, inclusion: undefined, settlement: undefined } as Batch, tree, "pending");
   }
 
   // ── settlement on Ethereum (bitgraph-settlement/1) ──
@@ -665,7 +740,7 @@ export class CeilingWriter {
       this.saveBatch(b);
       await this.ensureFloors(b.items);
       const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
-      for (const i of b.items) this.writeSidecar(i, b, tree, b.state as CeilingStatus);
+      this.writeSidecars(b, tree, b.state as CeilingStatus);
       this.writeRecord(b);
       this.event({
         type: "settlement", batch: b.id, records: b.items.length, blockNumber: inc.blockNumber,
@@ -732,8 +807,16 @@ export class CeilingWriter {
     return join(this.dirs.sidecars, `${safeName(proofHash)}.ceiling.json`);
   }
 
-  private writeSidecar(i: CeilingQueueItem, b: Batch, tree: MerkleTree, status: CeilingStatus): void {
-    const leafIndex = b.items.findIndex((x) => x.proofHash === i.proofHash);
+  /**
+   * Every record's sidecar for a batch. A roll's batch can hold a whole day of records, so each record's leaf index
+   * is its place in the loop, not a search, and the publish journal is written once at the end, not once a record.
+   */
+  private writeSidecars(b: Batch, tree: MerkleTree, status: CeilingStatus): void {
+    for (let n = 0; n < b.items.length; n++) this.writeSidecar(b.items[n]!, n, b, tree, status);
+    if (this.o.publish && b.items.length > 0) this.journalPublish();
+  }
+
+  private writeSidecar(i: CeilingQueueItem, leafIndex: number, b: Batch, tree: MerkleTree, status: CeilingStatus): void {
     const inc = status === "pending" ? undefined : b.inclusion;
     const floor = i.floor ? this.floorCache.get(i.floor.blockHash) ?? this.floorOnDisk(i) : null;
     const s: SidecarOut = {
@@ -763,7 +846,7 @@ export class CeilingWriter {
     };
     const json = JSON.stringify(s, null, 2);
     atomicWrite(this.sidecarPath(i.proofHash), json);
-    if (this.o.publish) { this.unpublished.set(`${safeName(i.proofHash)}.ceiling.json`, json); this.journalPublish(); }
+    if (this.o.publish) this.unpublished.set(`${safeName(i.proofHash)}.ceiling.json`, json);
   }
 
   /**

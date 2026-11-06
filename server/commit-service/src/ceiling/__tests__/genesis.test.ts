@@ -124,3 +124,16 @@ test("a malformed request is set aside, not retried forever", async () => {
   assert.equal(await w.pass(true), false);
   assert.equal(events.length, 0);
 });
+
+test("openings lists each epoch asked for, with whether its transaction is mined", async () => {
+  const { dir, chain, w, request } = setup();
+  assert.deepEqual(w.openings(), []);
+  request();
+  writeFileSync(join(dir, "other.request.json"), JSON.stringify({ format: EPOCH_GENESIS_REQUEST_FORMAT, epochId, requestedAt: "2026-10-23T00:00:00.000Z" }));
+  assert.deepEqual(w.openings(), [{ epochId, requestedAtMs: Date.parse("2026-10-23T00:00:00.000Z"), mined: false }], "a request under another name is not listed");
+  await w.pass(true);
+  assert.equal(w.openings()[0]!.mined, false, "sent is not mined");
+  chain.step();
+  await w.pass(true);
+  assert.deepEqual(w.openings(), [{ epochId, requestedAtMs: Date.parse("2026-10-23T00:00:00.000Z"), mined: true }]);
+});

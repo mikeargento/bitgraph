@@ -53,6 +53,33 @@ export class GenesisWriter {
     mkdirSync(o.dir, { recursive: true });
   }
 
+  /** Request files already parsed, by file name. A request is written once and never changed; null marks a bad one. */
+  private readonly seen = new Map<string, GenesisRequest | null>();
+
+  /**
+   * Every epoch whose genesis was asked for here: when the parent asked (its clock), and whether the transaction is
+   * mined (the result file exists). The writer's roll mode reads this to tell that an earlier epoch is over.
+   */
+  openings(): { epochId: string; requestedAtMs: number; mined: boolean }[] {
+    const names = new Set(readdirSync(this.o.dir));
+    const out: { epochId: string; requestedAtMs: number; mined: boolean }[] = [];
+    for (const name of names) {
+      if (!name.endsWith(".request.json")) continue;
+      const safe = name.slice(0, -".request.json".length);
+      let r = this.seen.get(name);
+      if (r === undefined) {
+        const read = readJson<GenesisRequest>(join(this.o.dir, name));
+        r = read && read.format === EPOCH_GENESIS_REQUEST_FORMAT && typeof read.epochId === "string" && safeName(read.epochId) === safe ? read : null;
+        this.seen.set(name, r);
+      }
+      if (!r) continue;
+      const requestedAtMs = Date.parse(r.requestedAt);
+      if (!Number.isFinite(requestedAtMs)) continue;
+      out.push({ epochId: r.epochId, requestedAtMs, mined: names.has(`${safe}.json`) });
+    }
+    return out;
+  }
+
   /** Requests with no result yet, oldest first. */
   private pending(): GenesisRequest[] {
     const out: GenesisRequest[] = [];

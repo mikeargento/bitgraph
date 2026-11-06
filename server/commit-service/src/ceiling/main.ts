@@ -12,6 +12,10 @@
  *   CEILING_ETH_RPC_URL     Ethereum RPC for floor headers (default publicnode).
  *   CEILING_MIN_BALANCE_ETH warn below this balance (default 0.001).
  *   CEILING_TICK_MS         loop interval (default 1000).
+ *   CEILING_ROLL_ROOT       "on" to write once per roll: an epoch's records are held until the next epoch's
+ *                           genesis transaction is mined, then go to Base as one Merkle root (writer.ts, "Roll
+ *                           mode"). Anything else, or unset: a write as soon as records are queued.
+ *   CEILING_ROLL_HELD_ALERT_HOURS  roll mode: log `roll-held` once the oldest held record is this old (default 36).
  *   CEILING_S3_BUCKET       publish sidecars to s3://<bucket>/ceilings/ (optional).
  *   CEILING_S3_REGION       default us-east-2.
  *   CEILING_SETTLEMENT      "off" to skip settlement on Ethereum. On by default on Base mainnet
@@ -153,6 +157,8 @@ if (chainId === 8453 && env["CEILING_OUTPUT_ROOT"] !== "off") {
   // Origins only: a URL may carry an API key.
   outputRootEndpoints = { base: baseUrls.map(endpointOrigin), l1: l1Urls.map(endpointOrigin) };
 }
+const rollRoot = env["CEILING_ROLL_ROOT"] === "on";
+const rollHeldAlertHours = Number(env["CEILING_ROLL_HELD_ALERT_HOURS"] ?? 0);
 const writer = new CeilingWriter({
   ...(publish ? { publish } : {}),
   ...(settlement ? { settlement } : {}),
@@ -161,13 +167,15 @@ const writer = new CeilingWriter({
   queuePath: env["CEILING_QUEUE_PATH"] ?? join(stateDir, "queue.jsonl"),
   // Epoch genesis transactions: the parent's EPOCH_GENESIS_DIR must point at the same directory.
   genesisDir: env["CEILING_GENESIS_DIR"] ?? join(stateDir, "genesis"),
+  rollRoot,
+  ...(rollHeldAlertHours > 0 ? { rollHeldAlertMs: rollHeldAlertHours * 3_600_000 } : {}),
   chain,
   minBalanceWei: parseEther(env["CEILING_MIN_BALANCE_ETH"] ?? "0.001"),
 });
 
 const bal = await chain.balanceWei();
 console.log(JSON.stringify({
-  type: "start", chainId, writer: chain.writer, balanceEth: formatEther(bal), stateDir, publishTo: bucket ? `s3://${bucket}/ceilings/` : null,
+  type: "start", chainId, writer: chain.writer, balanceEth: formatEther(bal), stateDir, writes: rollRoot ? "one per roll" : "as records arrive", publishTo: bucket ? `s3://${bucket}/ceilings/` : null,
   settlement: settlement ? settlementEndpointsFromEnv(env) : null,
   outputRoot: outputRootEndpoints ? { ...outputRootEndpoints, storeTo: bucket ? `s3://${bucket}/ceilings/${OUTPUT_ROOT_PREFIX}/` : null } : null,
 }));
