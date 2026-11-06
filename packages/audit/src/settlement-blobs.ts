@@ -39,8 +39,9 @@ import {
   type SettlementPointer, type RlpItem,
 } from "@mikeargento/bitgraph-verify";
 
-/** Base mainnet: block number = (timestamp - l2GenesisTime) / blockTime. */
-export const BASE_MAINNET_ROLLUP = Object.freeze({ l2GenesisTime: 1686789347, blockTime: 2 });
+import { BASE_MAINNET_ROLLUP, blocksAt, numberSingularBatches, type RollupSchedule } from "./rollup-schedule.js";
+
+export { BASE_MAINNET_ROLLUP, type RollupSchedule };
 
 export const BLOB_BYTES = 131072;
 /** OP Stack blob encoding version 0: (4 * 31 + 3) * 1024 - 4 bytes of data per blob. */
@@ -55,7 +56,7 @@ export interface SettlementBlobsCheck {
 }
 
 export interface SettlementLocated {
-  /** The Base block the batch places the transaction in, read from the batch's timestamp. */
+  /** The Base block the batch places the transaction in: its timestamp's second, and its place among the batches of that second. */
   baseBlockNumber: number;
   baseBlockTimestamp: number;
   /** The batch's parent_hash (the hash of the block before), when the batch form carries one. */
@@ -89,8 +90,8 @@ export interface SettlementBlobsResult {
 }
 
 export interface SettlementBlobsOptions {
-  /** How the rollup turns a batch timestamp into a block number. Base mainnet by default. */
-  rollup?: { l2GenesisTime: number; blockTime: number };
+  /** When the rollup's blocks are stamped, which places a batch by its timestamp. Base mainnet by default. */
+  rollup?: RollupSchedule;
   /** The L2 chain id, for rebuilding transactions out of span batches. Base mainnet by default. */
   chainId?: bigint;
   /** What the ceiling record says, each matched against what the batch says when given. */
@@ -292,18 +293,26 @@ export interface DecodedBatch {
   blocks: Array<{ number: number; timestamp: number; parentHash: string | null; txs: BatchTx[]; complete: boolean }>;
 }
 
+/** A batch already identified by hash, to number a channel that cannot be numbered from its own bytes. */
+export interface BatchPin { number: number; parentHash?: string; txHash?: string }
+
 /**
  * Batches out of a decompressed channel. Each is an RLP byte string
  * `batch_version ++ content`. When `complete` is false the stream may be cut:
  * the last batch is then read as far as it goes and marked incomplete.
+ * Singular batches are numbered together once all are read
+ * (numberSingularBatches says how); `pin` is used only where the channel
+ * alone cannot say.
  */
 export function decodeBatches(
   channel: Uint8Array,
   complete: boolean,
-  rollup: { l2GenesisTime: number; blockTime: number },
+  rollup: RollupSchedule,
   chainId: bigint,
+  pin?: BatchPin,
 ): DecodedBatch[] {
   const out: DecodedBatch[] = [];
+  const singular: Array<DecodedBatch["blocks"][number]> = [];
   const limit = channel.length;
   let p = 0;
   while (p < limit) {
@@ -321,8 +330,8 @@ export function decodeBatches(
     const contentStart = s.start + 1;
     const contentEnd = Math.min(s.end, limit);
     if (type === 0) {
-      const sb = parseSingularBatch(channel, contentStart, contentEnd, !cut, rollup);
-      if (sb) out.push({ type, offset: p, blocks: [sb] });
+      const sb = parseSingularBatch(channel, contentStart, contentEnd, !cut);
+      if (sb) { singular.push(sb); out.push({ type, offset: p, blocks: [sb] }); }
     } else if (type === 1) {
       if (!cut) out.push({ type, offset: p, blocks: decodeSpanBatch(channel.subarray(contentStart, contentEnd), rollup, chainId) });
     } else if (!cut) {
@@ -331,6 +340,12 @@ export function decodeBatches(
     if (cut) break;
     p = s.end;
   }
+  if (singular.length > 0) {
+    const want = pin && { parent: pin.parentHash?.toLowerCase(), tx: pin.txHash?.toLowerCase() };
+    const at = want ? singular.findIndex((b) => (want.parent !== undefined && b.parentHash === want.parent) || (want.tx !== undefined && b.txs.some((t) => t.hash === want.tx))) : -1;
+    const numbers = numberSingularBatches(singular.map((b) => b.timestamp), rollup, at >= 0 ? { index: at, number: pin!.number } : undefined);
+    for (const [k, b] of singular.entries()) b.number = numbers[k]!;
+  }
   return out;
 }
 
@@ -338,9 +353,10 @@ export function decodeBatches(
  * rlp([parent_hash, epoch_number, epoch_hash, timestamp, transaction_list]).
  * `limit` is where readable bytes end; with `complete` the list must end
  * exactly there. Returns null when not even the header fields are readable.
+ * The block's number is set by decodeBatches.
  */
 function parseSingularBatch(
-  buf: Uint8Array, start: number, limit: number, complete: boolean, rollup: { l2GenesisTime: number; blockTime: number },
+  buf: Uint8Array, start: number, limit: number, complete: boolean,
 ): DecodedBatch["blocks"][number] | null {
   const outer = rlpSpan(buf, start, limit);
   if (!outer) return null;
@@ -382,14 +398,7 @@ function parseSingularBatch(
   }
   if (listComplete && q !== list.end) throw new TypeError("singular batch: transaction_list overran its length");
   if (complete && list.end !== outer.end) throw new TypeError("singular batch: bytes after transaction_list");
-  const number = blockNumberOf(Number(timestamp), rollup);
-  return { number, timestamp: Number(timestamp), parentHash: bytesToHex(parent.bytes), txs, complete: listComplete };
-}
-
-function blockNumberOf(timestamp: number, rollup: { l2GenesisTime: number; blockTime: number }): number {
-  const n = (timestamp - rollup.l2GenesisTime) / rollup.blockTime;
-  if (!Number.isInteger(n) || n < 0) throw new TypeError(`batch timestamp ${timestamp} is not on the rollup's block grid`);
-  return n;
+  return { number: -1, timestamp: Number(timestamp), parentHash: bytesToHex(parent.bytes), txs, complete: listComplete };
 }
 
 // ── Span batches (type 1), rebuilt into raw transactions ───────────────────
@@ -434,7 +443,7 @@ class Reader {
  * here into their raw form so they can be hashed.
  */
 export function decodeSpanBatch(
-  data: Uint8Array, rollup: { l2GenesisTime: number; blockTime: number }, chainId: bigint,
+  data: Uint8Array, rollup: RollupSchedule, chainId: bigint,
 ): DecodedBatch["blocks"] {
   const r = new Reader(data);
   const relTimestamp = r.uvarint();
@@ -500,8 +509,14 @@ export function decodeSpanBatch(
     }
     return { raw, hash: bytesToHex(keccak256(raw)) };
   });
+  // A span batch counts on from its first block's time one block time apiece, which only describes
+  // blocks that each have a timestamp of their own; one reaching into shared seconds is refused.
   const firstTimestamp = rollup.l2GenesisTime + Number(relTimestamp);
-  const firstBlock = blockNumberOf(firstTimestamp, rollup);
+  const first = blocksAt(firstTimestamp, rollup);
+  if (!first) throw new TypeError(`batch timestamp ${firstTimestamp} is not on the rollup's schedule`);
+  const lastTimestamp = firstTimestamp + (blockCount - 1) * rollup.blockTime;
+  if (first.count !== 1 || blocksAt(lastTimestamp, rollup)?.count !== 1) throw new TypeError(`span batch: its blocks from ${firstTimestamp} to ${lastTimestamp} share their seconds, so their numbers cannot be read from it`);
+  const firstBlock = first.first;
   const blocks: DecodedBatch["blocks"] = [];
   let k = 0;
   for (let b = 0; b < blockCount; b++) {
@@ -635,7 +650,12 @@ export async function verifySettlementBlobs(
   if (pointer.channel?.compression && pointer.channel.compression !== decomp.compression) return fail("decompress", `the channel is ${decomp.compression}, the pointer says ${pointer.channel.compression}`);
   let batches: DecodedBatch[];
   try {
-    batches = decodeBatches(decomp.bytes, complete, rollup, chainId);
+    const pinTx = (options.expect?.txHash ?? pointer.located?.txHash)?.toLowerCase();
+    batches = decodeBatches(decomp.bytes, complete, rollup, chainId, {
+      number: pointer.baseBlockNumber,
+      ...(options.expect?.baseParentHash ? { parentHash: options.expect.baseParentHash } : {}),
+      ...(pinTx ? { txHash: pinTx } : {}),
+    });
   } catch (e) {
     return fail("batches", (e as Error).message);
   }
