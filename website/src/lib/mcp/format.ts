@@ -17,6 +17,7 @@
 
 import { toUrlSafeB64 } from "./encoding";
 import { recordedMsOf } from "@/lib/recorded-time";
+import { rollRootCovers } from "@/lib/roll-root";
 import type { BitGraphProof, PositionView, ProofDetailResponse, SetMemberView } from "./types";
 
 export const CHARACTER_LIMIT = 25_000;
@@ -136,7 +137,12 @@ function renderWindow(detail: ProofDetailResponse): string | null {
   if (base !== null) {
     const floorLine = `Placed after Base block ${base.blockNumber} (mined ${new Date(base.blockTimestamp * 1000).toISOString().replace(".000Z", "Z")})`;
     const c = detail.ceiling;
-    return c ? `${floorLine}, and existed by Base block ${c.blockNumber} (mined ${c.blockTime.replace(".000Z", "Z")}), the ceiling.` : `${floorLine}; its Base ceiling is not written yet.`;
+    if (c) return `${floorLine}, and existed by Base block ${c.blockNumber} (mined ${c.blockTime.replace(".000Z", "Z")}), the ceiling.`;
+    // Since the writer went to one write per epoch (lib/roll-root.ts), the write comes when the epoch is over.
+    const proof = detail.proofs[0]?.proof;
+    return proof && rollRootCovers(recordedMsOf(proof))
+      ? `${floorLine}; it goes to Base under its epoch's Merkle root, once the next epoch opens. Until then its ceiling is the next BitGraph in the chain.`
+      : `${floorLine}; its Base ceiling is not written yet.`;
   }
   const w = detail.causalWindow;
   if (!w) return null;

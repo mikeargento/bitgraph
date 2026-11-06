@@ -136,13 +136,13 @@ export default function ToolsPage() {
             </p>
             <ol className="tl-steps">
               <li><strong>The bind.</strong> The enclave draws a fresh nonce and binds your file&rsquo;s SHA-256 at the very next count, and the hardware signs its time into the proof.</li>
-              <li><strong>The write.</strong> Seconds later, the proof&rsquo;s hash goes into a Base transaction from BitGraph&rsquo;s published writer, under one Merkle root with any others made in the same moment. The transaction carries 84 bytes: the tag <code>BGC1</code>, the root, the previous write&rsquo;s hash, and the counts it covers.</li>
-              <li><strong>The block.</strong> The block that holds the transaction is public proof the record existed by its time.</li>
+              <li><strong>The write.</strong> When the epoch ends and the next one opens, the hashes of the epoch&rsquo;s proofs go into one Base transaction from BitGraph&rsquo;s published writer, under one Merkle root. Until then a record&rsquo;s ceiling is the next BitGraph in the sequence, which needs nothing outside it. The transaction carries 84 bytes: the tag <code>BGC1</code>, the root, the previous write&rsquo;s hash, and the counts it covers.</li>
+              <li><strong>The block.</strong> The block that holds the transaction is public proof that every record under the root existed by its time.</li>
             </ol>
             <p>To check a write yourself:</p>
             <ol className="tl-steps">
               <li>Verify the file against its proof with the offline check above.</li>
-              <li>Hash the proof and walk it up its Merkle path (from its proof page, or <code>/api/ceilings/&lt;proof hash&gt;</code>) to the root. A write that covers one record has the proof&rsquo;s own leaf hash as its root.</li>
+              <li>Hash the proof and walk it up its Merkle path (from its proof page, or <code>/api/ceilings/&lt;proof hash&gt;</code>) to the root. The path is there once the record&rsquo;s epoch has closed. A write that covers one record has the proof&rsquo;s own leaf hash as its root.</li>
               <li>Open the transaction from the proof page&rsquo;s Basescan link: it is sent by BitGraph&rsquo;s writer to itself, and its data carries that root and a range of counts that includes the proof&rsquo;s.</li>
               <li>Read the block&rsquo;s time on Base. The proof existed by then.</li>
             </ol>
@@ -151,7 +151,9 @@ export default function ToolsPage() {
               bits were bound in the sequence, with the hardware attestation&rsquo;s timestamp bound in as its first layer. The write is what
               lets someone who trusts neither BitGraph nor its clock still say the bind existed by a public block. Proofs made from
               2026-10-21 to 2026-10-31 also carry a Base floor (<code>base-floor.json</code>, bound just before them), and those from
-              2026-10-31 to 2026-11-02 block reads before and after them; their proof pages still show them.
+              2026-10-31 to 2026-11-02 block reads before and after them; their proof pages still show them. Records made before
+              the write moved to the end of the epoch were each written within seconds of their bind, and their proof pages
+              show those writes.
             </p>
           </section>
 
@@ -169,7 +171,8 @@ export default function ToolsPage() {
               write to Base: BitGraph&rsquo;s writer sends a transaction carrying the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph
               binds a record of that mined transaction (<code>epoch-genesis.json</code>). The transaction could not exist before the
               epoch&rsquo;s key, since the id is derived from it, and no BitGraph of the epoch could exist before the transaction&rsquo;s
-              block, so epochs order by their genesis blocks. Base is the witness here because this deployment binds it; the rule is
+              block, so epochs order by their genesis blocks. Right behind the genesis goes one more transaction: the Merkle root of
+              the file proofs made in the epoch that just ended, when it made any. Base is the witness here because this deployment binds it; the rule is
               the same for any trust layer: bound into the record, or carrying the record&rsquo;s hash, never merely placed beside it. Epochs opened before 2026-10-23 bound a read of the latest
               Base block instead (<code>epoch-floor.json</code>), which proves the same &ldquo;after&rdquo; with the block chosen by the host.
             </p>

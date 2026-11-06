@@ -175,13 +175,15 @@ export default function TechnologyPage() {
               log or a Content Credential can be bound the same way, by whoever already issues it.
             </p>
             <p>
-              Through bitgraph.ing, every BitGraph is also written to Base, a public chain BitGraph does not operate. Seconds after
-              the bind, the hash of the proof goes into a Base transaction from BitGraph&rsquo;s published writer address, with any
-              others made in the same moment under one Merkle root. Each record then carries two times:
+              Through bitgraph.ing, every file&rsquo;s proof is also written to Base, a public chain BitGraph does not operate.
+              Inside an epoch the order needs no chain: each BitGraph comes after the one before it, by construction, so the
+              next BitGraph is the ceiling of the one before. When the epoch ends and the next one opens, the hashes of the
+              epoch&rsquo;s proofs go into one Base transaction from BitGraph&rsquo;s published writer address, under one Merkle
+              root. Each record then carries two times:
             </p>
             <ul className="docs-list">
               <li><strong>Recorded.</strong> The hardware time the AWS attestation signs into the proof.</li>
-              <li><strong>Written to Base.</strong> The block that holds the transaction. The record existed before that block was produced, and that rests on Base, not on any clock of AWS&rsquo;s or BitGraph&rsquo;s.</li>
+              <li><strong>Written to Base.</strong> The block that holds its epoch&rsquo;s root. The record existed before that block was produced, and that rests on Base, not on any clock of AWS&rsquo;s or BitGraph&rsquo;s.</li>
             </ul>
             <div className="sx-cards is-3">
               <article className="tl-card">

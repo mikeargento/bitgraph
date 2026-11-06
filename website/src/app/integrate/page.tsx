@@ -66,7 +66,7 @@ export default function IntegratePage() {
   -H 'content-type: application/json' \\
   -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</Code>
             <p>
-              The response contains one proof for each submitted digest. Each bind through this endpoint is also written to Base, the reference trust layer, seconds later; a deployment you operate can bind a different witness, or none. Every proof is kept and can be fetched by the digest it bound, earliest first:
+              The response contains one proof for each submitted digest. Each bind through this endpoint is also written to Base, the reference trust layer, under its epoch&rsquo;s Merkle root once the next epoch opens; a deployment you operate can bind a different witness, or none. Every proof is kept and can be fetched by the digest it bound, earliest first:
             </p>
             <Code>{`curl https://bitgraph.ing/api/proofs/<sha-256, base64url>
 # {"proofs":[{"proof":{…},"writeTime":…}, …]}

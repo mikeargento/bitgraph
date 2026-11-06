@@ -3,6 +3,7 @@
 import { DropPrompt, Browse } from "@/components/drop-prompt";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
+import { rollRootCovers } from "@/lib/roll-root";
 import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams, useRouter } from "next/navigation";
 // Nav is in root layout
@@ -221,10 +222,12 @@ export default function ProofPage() {
     anchor: { txHash: string; blockNumber: number; blockTimestamp: number } | null;
     floor?: { blockNumber: number; blockTimestamp: number } | null;
   } | null>(null);
-  // Auto-check (2026-09-30): the Base write lands seconds after the
-  // commit, so a fresh proof keeps asking until its card appears (every 4 s,
+  // Auto-check (2026-09-30): where the Base write lands seconds after the
+  // commit, a fresh proof keeps asking until its card appears (every 4 s,
   // up to 3 minutes), and an included one keeps asking until Base settles it
-  // on Ethereum (every 15 s, up to 10 minutes). An old proof asks once.
+  // on Ethereum (every 15 s, up to 10 minutes). An old proof asks once, and
+  // so does one bound since the writer went to one write per epoch
+  // (lib/roll-root.ts): its write comes when its epoch is over, not now.
   useEffect(() => {
     const ph = (proof as (BitGraphProof & { proofHash?: string }) | null)?.proofHash;
     if (!ph) return;
@@ -233,7 +236,7 @@ export default function ProofPage() {
     const safe = ph.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     const rep = proof?.environment?.attestation?.reportB64;
     const madeMs = typeof rep === "string" && rep.length > 0 ? attestationTimestampMs(rep) : null;
-    const fresh = freshRef.current === true || (madeMs !== null && Date.now() - madeMs < 10 * 60_000);
+    const fresh = !rollRootCovers(madeMs) && (freshRef.current === true || (madeMs !== null && Date.now() - madeMs < 10 * 60_000));
     const started = Date.now();
     const ask = async () => {
       let j: { version?: string; status?: string } | null = null;
@@ -2058,7 +2061,9 @@ export default function ProofPage() {
         const url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type: "application/octet-stream" }));
         const el = document.createElement("a"); el.href = url; el.download = name; el.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setCarrierMsg([sidecar ? null : "The Base write has not landed yet, so this file carries the proof without its ceiling. Download it again in a few seconds for the ceiling too."].filter(Boolean).join(" ") || null);
+        setCarrierMsg([sidecar ? null : rollRootCovers(attestedMs)
+          ? "This record goes to Base with its epoch\u2019s root, when the next epoch opens, so this file carries the proof without that write. Download it again after that for the write too."
+          : "The Base write has not landed yet, so this file carries the proof without its ceiling. Download it again in a few seconds for the ceiling too."].filter(Boolean).join(" ") || null);
         return;
       }
       // tree/1: one member's file (carrier/4), its bytes walked to the signed root document by the

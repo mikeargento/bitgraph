@@ -36,6 +36,7 @@ import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
 import { baseTimeIsBound, decodeNitroAttestation, floorTimeIsBound, treeMemberOf } from "@mikeargento/bitgraph-verify";
 import { CopyIcon, useCopied } from "@/components/copy-icon";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
+import { rollRootCovers, ROLL_ROOT_WAIT } from "@/lib/roll-root";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
 /** The first Base ceiling write (2026-09-29 22:43 UTC). Records made before it have no ceiling in time. */
@@ -398,7 +399,10 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   // names. Shown beside the Base write; a read further back (from before the switch) is not this file's floor.
   const own = m.timeline && m.timeline.state !== "failed" && m.timeline.floor && m.proof.commit.slotCounter
     && BigInt(m.timeline.floor.counter) + BigInt(1) === BigInt(m.proof.commit.slotCounter) ? m.timeline.floor : null;
-  const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null || tl !== null || own !== null;
+  // A file bound since the writer went to one write per epoch (lib/roll-root.ts) has no Base write until its epoch is
+  // over. Its row says so; block reads, floors and an epoch's first record are never written to Base and get no row.
+  const rollWait = !ct && m.kind !== "anchor" && !es && !fo && !m.blockRead && rollRootCovers(attested);
+  const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null || tl !== null || own !== null || rollWait;
   const c = m.checks;
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
   const badCount = c.claims.filter((x) => x.result === "FALSE").length;
@@ -458,6 +462,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const floorCell = own ? readCell("floor", own) : tl?.floor ? readCell("floor", tl.floor) : showTime ? timeCell("Base floor", floorShown, floorHref, flOwn) : null;
   // No "reading the next block" row: records bound now are written to Base, and their write row says when it lands.
   const ceilingCell = tl?.ceiling ? readCell("ceiling", tl.ceiling) : showTime ? timeCell("Written to Base", ceilingShown, ceilingHref) : null;
+  const rollWaitCell = rollWait ? timeCell("Written to Base", ROLL_ROOT_WAIT, null) : null;
   const br = m.blockRead ?? null;
   const blockReadCell = br ? (
     <div className="pv-row">
@@ -501,6 +506,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         floorCell ? <Fragment key="floor">{floorCell}</Fragment> : null,
         showTime && attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
         ceilingCell ? <Fragment key="ceil">{ceilingCell}</Fragment> : null,
+        rollWaitCell ? <Fragment key="roll">{rollWaitCell}</Fragment> : null,
       ])}
       {/* Check it anywhere follows when: text links like the rest of the receipt, under their own eyebrow. The proof;
           and the BitGraphed file when the original is in hand, the epoch file on an epoch's first record, or Connect
