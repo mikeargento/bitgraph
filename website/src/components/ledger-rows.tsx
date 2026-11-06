@@ -3,9 +3,10 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { LedgerItem, LedgerRow } from "@/lib/running-ledger";
 import type { ReadsRow } from "@/lib/timeline-ledger-core";
+import type { RollRoot } from "@/lib/ceilings";
 import { proofFeedKey, warm } from "@/lib/warm";
 
 /**
@@ -95,8 +96,24 @@ function Row({ r, firstOfEpoch }: { r: LedgerRow; firstOfEpoch: boolean }) {
   );
 }
 
+/** A closed epoch's root on Base: one write over every file proof of the epoch, sent right behind the next epoch's
+ *  genesis. It is not a BitGraph, so it has no number and opens the Base transaction, not a proof page. */
+function RootRow({ root }: { root: RollRoot }) {
+  const now = useNow();
+  const ms = root.blockTimestamp * 1000;
+  const span = root.firstPos === root.lastPos ? `#${fmt(root.firstPos)}` : `#${fmt(root.firstPos)} to #${fmt(root.lastPos)}`;
+  return (
+    <a href={`https://basescan.org/tx/${root.txHash}`} target="_blank" rel="noopener" className="xp-row xp-row-base rl-row rl-link">
+      <span className="rl-num">Root</span>
+      <span className="rl-what">{`${fmt(root.records)} record${root.records === 1 ? "" : "s"}, ${span}`}</span>
+      <span className="rl-when" title={local(ms)}>{ago(ms, now)}</span>
+      <span className="rl-go" aria-hidden="true">&rsaquo;</span>
+    </a>
+  );
+}
+
 const isReads = (x: LedgerItem): x is ReadsRow => (x as ReadsRow).kind === "reads";
-export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: string; live: boolean; initial: LedgerItem[]; newestKey: string | null; hasOlder: boolean }) {
+export function LedgerRows({ day, live, initial, newestKey, hasOlder, roots = [] }: { day: string; live: boolean; initial: LedgerItem[]; newestKey: string | null; hasOlder: boolean; roots?: RollRoot[] }) {
   const [rows, setRows] = useState<LedgerItem[]>(initial);
   const rowsRef = useRef<LedgerItem[]>(initial);
   rowsRef.current = rows;
@@ -174,7 +191,16 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: s
     <>
       <div className="rl-rows">
         {/* Block reads are part of the sequence but not frames anyone made; they stay on the proof pages. */}
-        {rows.map((r, i) => isReads(r) ? null : <Row key={r.key} r={r} firstOfEpoch={firstOfEpoch(i)} />)}
+        {/* A closed epoch's root sits on top of that epoch's rows, between its newest record and the next epoch's genesis. */}
+        {rows.map((r, i) => {
+          if (isReads(r)) return null;
+          const epoch = epochOf(r);
+          const newestOfEpoch = !rows.slice(0, i).some((x) => !isReads(x) && epochOf(x) === epoch);
+          const root = newestOfEpoch ? roots.find((x) => x.epoch === epoch) : undefined;
+          return root
+            ? <Fragment key={r.key}><RootRow root={root} /><Row r={r} firstOfEpoch={firstOfEpoch(i)} /></Fragment>
+            : <Row key={r.key} r={r} firstOfEpoch={firstOfEpoch(i)} />;
+        })}
       </div>
       {older && (
         <div style={{ marginTop: 20 }}>

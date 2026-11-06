@@ -18,6 +18,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { getObjectText, listKeysUnderPrefix, runPool } from "@/lib/s3";
+import { ROLL_ROOT_START_MS } from "@/lib/roll-root";
 
 /** The declared writer. Anything signed by another address is not ours. */
 export const CEILING_WRITER = "0xf3972408D853c975F86351C311f4310220bbF2a3";
@@ -131,4 +132,38 @@ export function floorBlockUrl(f: CeilingFloor): string {
 /** "Base block" or "Ethereum block": the chain as a word. */
 export function floorChainWord(f: CeilingFloor): string {
   return f.chain === "base" ? "Base block" : "Ethereum block";
+}
+
+/**
+ * A closed epoch's root on Base (lib/roll-root.ts): the one write that carries the Merkle root over every file proof
+ * of an epoch, sent right behind the next epoch's genesis. The ledger shows it where that epoch's rows begin.
+ */
+export interface RollRoot {
+  /** The closed epoch's id, URL-safe base64 without padding, as ledger row keys carry it. */
+  epoch: string;
+  txHash: string;
+  records: number;
+  firstPos: string;
+  lastPos: string;
+  blockTimestamp: number;
+}
+
+/**
+ * The roots whose Base block falls on one of `days` (UTC). Only writes made since the writer went to one root per
+ * closed epoch count; earlier writes each covered a record or a few, and are not an epoch's root. A day before the
+ * switch is not read at all, so an old day's page does not list hundreds of writes to find none.
+ */
+export async function rollRootsForDays(days: readonly string[]): Promise<RollRoot[]> {
+  if (ROLL_ROOT_START_MS === null) return [];
+  const startMs = ROLL_ROOT_START_MS;
+  const firstDay = new Date(startMs).toISOString().slice(0, 10);
+  const out: RollRoot[] = [];
+  for (const day of days) {
+    if (day < firstDay) continue;
+    for (const w of await writesForDay(day)) {
+      if (w.status === "dropped" || w.blockTimestamp * 1000 < startMs || typeof w.epochId !== "string") continue;
+      out.push({ epoch: safeB64(w.epochId), txHash: w.txHash, records: w.records, firstPos: w.firstPos, lastPos: w.lastPos, blockTimestamp: w.blockTimestamp });
+    }
+  }
+  return out;
 }
