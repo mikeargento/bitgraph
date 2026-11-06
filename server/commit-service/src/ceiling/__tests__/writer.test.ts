@@ -520,3 +520,51 @@ test("roll mode needs the genesis directory, and the genesis transaction is unch
   assert.equal(data.length, 36);
   assert.equal(epochIdOfCalldata(evmBytesToHex(data)), A);
 });
+
+// ── The roll check: is the write correct, and does it carry everything ───────────────────────────────────────────
+
+import { unlinkSync } from "node:fs";
+import { checkRoll, formatRollReport } from "../roll-check.js";
+
+test("roll check: a closed roll passes, and an open one says what is still waiting", async () => {
+  const { dir, chain, mk, push, born, sidecarPath } = rollSetup();
+  const A = epochOf(1), B = epochOf(2);
+  const w = mk();
+  await born(w, A, 0);
+  const recs = [record(A, 0, 1000), record(A, 0, 2000), record(A, 0, 3000), record(A, 0, 4000), record(A, 0, 5000)];
+  push(...recs.map((r) => r.item));
+  await w.tick();
+  const open = await checkRoll({ stateDir: dir, epochId: A });
+  assert.equal(open.ok, false);
+  assert.equal(open.queued, 5);
+  assert.equal(open.waiting.length, 5, "held: the roll is open");
+  await born(w, B, 1); // A's root goes out
+  chain.step(); await w.tick();
+  const r = await checkRoll({ stateDir: dir, writer: chain.writer });
+  assert.equal(r.ok, true, r.problems.join("; "));
+  assert.equal(r.epochId, A, "the newest write's epoch by default");
+  assert.equal(r.queued, 5);
+  assert.equal(r.written, 5);
+  assert.equal(r.writes.length, 1);
+  assert.equal(r.writes[0]!.sidecarsOk, 5);
+  assert.equal(r.writes[0]!.firstPos, recs[0]!.item.position);
+  assert.equal(r.writes[0]!.lastPos, recs[4]!.item.position);
+  assert.match(formatRollReport(r), /PASS/);
+  // What Base says is compared when asked: the same payload passes, another fails.
+  const inc = w.snapshot().batches[0]!.inclusion!;
+  const same = await checkRoll({ stateDir: dir, onChain: async () => ({ from: chain.writer, to: chain.writer, input: w.snapshot().batches[0]!.payload, blockHash: inc.blockHash, blockNumber: inc.blockNumber }) });
+  assert.equal(same.ok, true, same.problems.join("; "));
+  const other = await checkRoll({ stateDir: dir, onChain: async () => ({ from: chain.writer, to: chain.writer, input: "0x00", blockHash: inc.blockHash, blockNumber: inc.blockNumber }) });
+  assert.equal(other.ok, false);
+  // A record queued for the roll after its write is found missing, and so is a sidecar taken away.
+  const late = record(A, 0, 6000);
+  push(late.item);
+  const short = await checkRoll({ stateDir: dir, epochId: A });
+  assert.equal(short.ok, false);
+  assert.deepEqual(short.waiting, [late.item.proofHash]);
+  unlinkSync(sidecarPath(recs[2]!.item));
+  const gone = await checkRoll({ stateDir: dir, epochId: A });
+  assert.equal(gone.writes[0]!.sidecarsOk, 4);
+  assert.ok(gone.problems.some((p) => /sidecar/.test(p)));
+  assert.match(formatRollReport(gone), /FAIL/);
+});
