@@ -137,12 +137,15 @@ function renderWindow(detail: ProofDetailResponse): string | null {
   if (base !== null) {
     const floorLine = `Placed after Base block ${base.blockNumber} (mined ${new Date(base.blockTimestamp * 1000).toISOString().replace(".000Z", "Z")})`;
     const c = detail.ceiling;
-    if (c) return `${floorLine}, and existed by Base block ${c.blockNumber} (mined ${c.blockTime.replace(".000Z", "Z")}), the ceiling.`;
-    // Since the writer went to one write per epoch (lib/roll-root.ts), the write comes when the epoch is over.
+    // Since the writer went to one root per closed epoch (lib/roll-root.ts), a record's write is its epoch's root,
+    // made when the next epoch opens: it fixes the epoch as a set and is not stated as a time of the record's own.
     const proof = detail.proofs[0]?.proof;
-    return proof && rollRootCovers(recordedMsOf(proof))
-      ? `${floorLine}; it goes to Base under its epoch's Merkle root, once the next epoch opens. Until then its ceiling is the next BitGraph in the chain.`
-      : `${floorLine}; its Base ceiling is not written yet.`;
+    if (proof && rollRootCovers(recordedMsOf(proof))) {
+      return c
+        ? `${floorLine}. Its ceiling is the next BitGraph in the chain. Its epoch was closed under one Merkle root, written to Base in block ${c.blockNumber}.`
+        : `${floorLine}. Its ceiling is the next BitGraph in the chain. Its epoch's Merkle root goes to Base once the next epoch opens.`;
+    }
+    return c ? `${floorLine}, and existed by Base block ${c.blockNumber} (mined ${c.blockTime.replace(".000Z", "Z")}), the ceiling.` : `${floorLine}; its Base ceiling is not written yet.`;
   }
   const w = detail.causalWindow;
   if (!w) return null;
@@ -188,7 +191,7 @@ export function renderProofMarkdown(
   const baseFloor = baseFloorOf(detail);
   if (baseFloor !== null) {
     lines.push(`- Floor block on Basescan: https://basescan.org/block/${baseFloor.blockNumber}`);
-    if (detail.ceiling?.txHash) lines.push(`- Ceiling transaction on Basescan: https://basescan.org/tx/${detail.ceiling.txHash}`);
+    if (detail.ceiling?.txHash) lines.push(`- ${rollRootCovers(recorded) ? "Epoch root" : "Ceiling"} transaction on Basescan: https://basescan.org/tx/${detail.ceiling.txHash}`);
   } else {
     const etherscan =
       detail.causalWindow?.anchorAfter?.etherscanUrl ??

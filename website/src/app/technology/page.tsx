@@ -76,8 +76,8 @@ export default function TechnologyPage() {
             <p>
               That is the whole of the mechanism: order, from attested hardware. It needs no clock and no blockchain. Everything else a
               record can carry, a time, an identity, a public witness, is a trust layer bound on top of that position. The
-              hardware&rsquo;s own signed time comes with every attestation; through bitgraph.ing, Base adds a window of public time as
-              the reference layer. Either can be checked, neither is what the proof rests on.
+              hardware&rsquo;s own signed time comes with every attestation; through bitgraph.ing, Base, the reference layer, ties
+              each day&rsquo;s sequence to a public record BitGraph does not control. Either can be checked, neither is what the proof rests on.
             </p>
             <h3 className="tl-h3">What it does not establish</h3>
             <ul className="docs-list">
@@ -175,20 +175,23 @@ export default function TechnologyPage() {
               log or a Content Credential can be bound the same way, by whoever already issues it.
             </p>
             <p>
-              Through bitgraph.ing, every file&rsquo;s proof is also written to Base, a public chain BitGraph does not operate.
-              Inside an epoch the order needs no chain: each BitGraph comes after the one before it, by construction, so the
-              next BitGraph is the ceiling of the one before. When the epoch ends and the next one opens, the hashes of the
-              epoch&rsquo;s proofs go into one Base transaction from BitGraph&rsquo;s published writer address, under one Merkle
-              root. Each record then carries two times:
+              Inside an epoch the order needs no chain. Each BitGraph comes after the one before it, by construction, so the next
+              BitGraph is the ceiling of the one before, and the time in each proof is the hardware&rsquo;s. Through bitgraph.ing, Base,
+              a public chain BitGraph does not operate, is bound to that sequence in three places:
             </p>
             <ul className="docs-list">
-              <li><strong>Recorded.</strong> The hardware time the AWS attestation signs into the proof.</li>
-              <li><strong>Written to Base.</strong> The block that holds its epoch&rsquo;s root. The record existed before that block was produced, and that rests on Base, not on any clock of AWS&rsquo;s or BitGraph&rsquo;s.</li>
+              <li><strong>Before each file.</strong> The newest Base block is read and bound as a BitGraph of its own, on the counts just before the file&rsquo;s. A block&rsquo;s hash cannot be known before the block exists, so the file&rsquo;s BitGraph came after it.</li>
+              <li><strong>When an epoch opens.</strong> Once a day a new epoch begins with a Base transaction that carries its id. No BitGraph of that epoch can come before that transaction&rsquo;s block.</li>
+              <li><strong>When an epoch has closed.</strong> Right behind it, a second transaction carries one Merkle root over the proofs of every file bound in the epoch that just ended. From that block on, the set of records under the root is fixed: none can be added, removed or reordered.</li>
             </ul>
+            <p>
+              That is two writes a day, however many records the day holds. The first opens today&rsquo;s sequence in public; the
+              second fixes yesterday&rsquo;s as it stood.
+            </p>
             <div className="sx-cards is-3">
               <article className="tl-card">
                 <h3>Your file stays off chain.</h3>
-                <p>Only the proof&rsquo;s hash goes to Base, inside a Merkle root. The file itself is never written anywhere.</p>
+                <p>Only the proof&rsquo;s hash goes to Base, inside its epoch&rsquo;s Merkle root. The file itself is never written anywhere.</p>
               </article>
               <article className="tl-card">
                 <h3>One published writer.</h3>
@@ -196,10 +199,10 @@ export default function TechnologyPage() {
               </article>
               <article className="tl-card">
                 <h3>Independently verifiable.</h3>
-                <p>Check the hardware attestation, signatures and counted sequence, then find the Base transaction and check that it carries the proof&rsquo;s hash.</p>
+                <p>Check the hardware attestation, signatures and counted sequence, then walk the proof&rsquo;s hash up its path to its epoch&rsquo;s root and find that root in the Base transaction.</p>
               </article>
             </div>
-            <p>No blockchain is needed to verify a proof. Base is only needed to check when it existed by, and the mechanism does not depend on it.</p>
+            <p>No blockchain is needed to verify a proof or its place in the sequence. Base ties each day&rsquo;s sequence to a public record, and the mechanism does not depend on it.</p>
           </section>
 
           <section className="home-section" aria-labelledby="t-trees">
@@ -286,7 +289,7 @@ export default function TechnologyPage() {
                   <tr>
                     <td>The host operator (BitGraph included)</td>
                     <td>Forge a proof that passes the attested check; see or choose a nonce; reuse a count; insert or reorder proofs inside a sequence without breaking the counts and hash links; change a proof&rsquo;s attested time by releasing it late.</td>
-                    <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbors); restart the enclave to begin a new epoch; delay or decline a record&rsquo;s Base write (its proof then shows none).</td>
+                    <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbors); restart the enclave to begin a new epoch; delay or decline an epoch&rsquo;s Base writes (its records then show none).</td>
                   </tr>
                   <tr>
                     <td>A client</td>

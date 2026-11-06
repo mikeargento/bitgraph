@@ -106,8 +106,8 @@ export default function ToolsPage() {
             <h2 id="d-plugins">Built on ordinary BitGraphs.</h2>
             <p>
               Two things build on a BitGraph without changing it: a drop of many files becomes one tree, bound as one ordinary BitGraph,
-              and through bitgraph.ing, Base, the reference trust layer, places each BitGraph in public time by carrying its proof&rsquo;s
-              hash. Nothing about either one enters the enclave or the proof format.
+              and through bitgraph.ing, Base, the reference trust layer, is tied to each day&rsquo;s sequence by a block read before every
+              file and two writes a day. Nothing about either one enters the enclave or the proof format.
             </p>
 
             <h3 className="tl-h3">Many files, one BitGraph</h3>
@@ -129,31 +129,35 @@ export default function ToolsPage() {
             <h3 className="tl-h3">Base, the reference trust layer</h3>
             <p>
               The sequence is a closed system. Inside it, order is certain: every BitGraph names the one before it, the counter only goes
-              up, and the hardware&rsquo;s time is signed into each proof. What a closed system cannot do is place itself in the world&rsquo;s
-              time on its own word; a clock inside the box is still the box&rsquo;s clock. So every BitGraph made through this site is
-              written to a public chain BitGraph does not operate. Base is the reference layer for this site, not a dependency; another
-              witness bound the same way would serve. Three steps:
+              up, and the hardware&rsquo;s time is signed into each proof. So the next BitGraph is the ceiling of the one before, and that
+              needs nothing outside the sequence. What a closed system cannot show on its own word is that it is the only sequence, and
+              that it was not rewritten afterward. So the sequence made through this site is tied to a public chain BitGraph does not
+              operate. Base is the reference layer for this site, not a dependency; another witness bound the same way would serve.
+              Three things tie them:
             </p>
             <ol className="tl-steps">
-              <li><strong>The bind.</strong> The enclave draws a fresh nonce and binds your file&rsquo;s SHA-256 at the very next count, and the hardware signs its time into the proof.</li>
-              <li><strong>The write.</strong> When the epoch ends and the next one opens, the hashes of the epoch&rsquo;s proofs go into one Base transaction from BitGraph&rsquo;s published writer, under one Merkle root. Until then a record&rsquo;s ceiling is the next BitGraph in the sequence, which needs nothing outside it. The transaction carries 84 bytes: the tag <code>BGC1</code>, the root, the previous write&rsquo;s hash, and the counts it covers.</li>
-              <li><strong>The block.</strong> The block that holds the transaction is public proof that every record under the root existed by its time.</li>
-            </ol>
-            <p>To check a write yourself:</p>
-            <ol className="tl-steps">
-              <li>Verify the file against its proof with the offline check above.</li>
-              <li>Hash the proof and walk it up its Merkle path (from its proof page, or <code>/api/ceilings/&lt;proof hash&gt;</code>) to the root. The path is there once the record&rsquo;s epoch has closed. A write that covers one record has the proof&rsquo;s own leaf hash as its root.</li>
-              <li>Open the transaction from the proof page&rsquo;s Basescan link: it is sent by BitGraph&rsquo;s writer to itself, and its data carries that root and a range of counts that includes the proof&rsquo;s.</li>
-              <li>Read the block&rsquo;s time on Base. The proof existed by then.</li>
+              <li><strong>A block read before each file.</strong> The newest Base block is read and bound as a BitGraph of its own, on the counts just before the file&rsquo;s. A block&rsquo;s hash cannot be known before the block exists, so the file&rsquo;s BitGraph came after it.</li>
+              <li><strong>A write when the epoch opens.</strong> Once a day a new epoch starts, and BitGraph&rsquo;s published writer sends a Base transaction carrying the new epoch&rsquo;s id (see Epochs, below). No BitGraph of that epoch can come before that transaction&rsquo;s block.</li>
+              <li><strong>A write for the epoch that just closed.</strong> Right behind it, a second transaction carries one Merkle root over the proofs of every file bound in the epoch that ended. It carries 84 bytes: the tag <code>BGC1</code>, the root, the previous root write&rsquo;s hash, and the first and last counts it covers. From that block on, the set of records under the root is fixed: none can be added, removed or reordered.</li>
             </ol>
             <p>
-              Base adds nothing to the bind and takes nothing from it. Strip the write away and a BitGraph is still a position: where your
-              bits were bound in the sequence, with the hardware attestation&rsquo;s timestamp bound in as its first layer. The write is what
-              lets someone who trusts neither BitGraph nor its clock still say the bind existed by a public block. Proofs made from
+              That is two writes a day, however many records the day holds. The first opens today&rsquo;s sequence in public; the second
+              fixes yesterday&rsquo;s as it stood.
+            </p>
+            <p>To check a record against its epoch&rsquo;s root:</p>
+            <ol className="tl-steps">
+              <li>Verify the file against its proof with the offline check above.</li>
+              <li>Hash the proof and walk it up its Merkle path (from its proof page, or <code>/api/ceilings/&lt;proof hash&gt;</code>) to the root. The path is there once the record&rsquo;s epoch has closed. A root that covers one record is that proof&rsquo;s own leaf hash.</li>
+              <li>Open the transaction from the proof page&rsquo;s Basescan link: it is sent by BitGraph&rsquo;s writer to itself, and its data carries that root and a range of counts that includes the proof&rsquo;s.</li>
+            </ol>
+            <p>
+              Base adds nothing to the bind and takes nothing from it. Strip it away and a BitGraph is still a position: where your
+              bits were bound in the sequence, with the hardware attestation&rsquo;s timestamp bound in as its first layer. The writes
+              are what let someone who trusts neither BitGraph nor its host see that a day&rsquo;s sequence was opened in public and
+              closed as one fixed set. Records made before the root moved to the end of the epoch were each written to Base within
+              seconds of their bind, a few to a transaction, and their proof pages still show those writes. Proofs made from
               2026-10-21 to 2026-10-31 also carry a Base floor (<code>base-floor.json</code>, bound just before them), and those from
-              2026-10-31 to 2026-11-02 block reads before and after them; their proof pages still show them. Records made before
-              the write moved to the end of the epoch were each written within seconds of their bind, and their proof pages
-              show those writes.
+              2026-10-31 to 2026-11-02 block reads before and after them; their proof pages still show them
             </p>
           </section>
 
@@ -171,7 +175,7 @@ export default function ToolsPage() {
               write to Base: BitGraph&rsquo;s writer sends a transaction carrying the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph
               binds a record of that mined transaction (<code>epoch-genesis.json</code>). The transaction could not exist before the
               epoch&rsquo;s key, since the id is derived from it, and no BitGraph of the epoch could exist before the transaction&rsquo;s
-              block, so epochs order by their genesis blocks. Right behind the genesis goes one more transaction: the Merkle root of
+              block, so epochs order by their genesis blocks. Right behind the genesis goes the day&rsquo;s second write: one Merkle root over
               the file proofs made in the epoch that just ended, when it made any. Base is the witness here because this deployment binds it; the rule is
               the same for any trust layer: bound into the record, or carrying the record&rsquo;s hash, never merely placed beside it. Epochs opened before 2026-10-23 bound a read of the latest
               Base block instead (<code>epoch-floor.json</code>), which proves the same &ldquo;after&rdquo; with the block chosen by the host.
@@ -261,7 +265,7 @@ export default function ToolsPage() {
               </details>
               <details>
                 <summary>Does Base change the BitGraph?</summary>
-                <p>No. The bind is the same two counts. The window comes from a second BitGraph (the block) and a write to Base afterwards, both outside the bind.</p>
+                <p>No. The bind is the same two counts. The Base block read before a file is a BitGraph of its own, and the two writes a day happen outside the enclave.</p>
               </details>
               <details>
                 <summary>Is a tree weaker than one BitGraph per file?</summary>

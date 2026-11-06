@@ -31,7 +31,7 @@ npm run test:ledger    # the day/archive feed
 
 ## What it talks to
 
-The enclave (v10) binds the newest Base block into each position, from a header the host reads from Base and the enclave hashes and checks itself, and signs through the commit service; nothing is written to a chain for the floor. The Base ceiling writer puts a Merkle root over new records on Base. Proofs, floor headers, earlier Ethereum anchors and recovery entries are read from BitGraph's copy in S3. None of it is needed to verify a BitGraph you hold: verification runs offline from the file and its export, or from a BitGraphed file, through [`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify).
+The enclave (v10) binds the newest Base block into each position, from a header the host reads from Base and the enclave hashes and checks itself, and signs through the commit service; nothing is written to a chain for the floor. The Base writer opens each epoch with a transaction carrying its id and, right behind it, writes one Merkle root over the file proofs of the epoch that just ended. Proofs, floor headers, earlier Ethereum anchors and recovery entries are read from BitGraph's copy in S3. None of it is needed to verify a BitGraph you hold: verification runs offline from the file and its export, or from a BitGraphed file, through [`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify).
 
 The protocol, the trust model and the proof format are explained at [bitgraph.ing/docs](https://bitgraph.ing/docs), and the repository as a whole is described in the [root README](../README.md).
 

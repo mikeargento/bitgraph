@@ -8,7 +8,8 @@
 
 BitGraph gives any file or record its place in line, so anyone can see which came first. The file is never uploaded: only its SHA-256 is sent, and only that hash is ever public. Inside a measured AWS Nitro
 enclave, one atomic action binds the hash at a counted position, right after a fresh hardware nonce, signed and attested,
-and every record is written to Base seconds later. The proof is a small JSON file that checks offline, without BitGraph.
+and through bitgraph.ing each day's sequence is tied to Base, a public chain. The proof is a small JSON file that checks
+offline, without BitGraph.
 
 [Make a BitGraph](https://bitgraph.ing/demos) · [The Ledger](https://bitgraph.ing/ledger) · [Demos](https://bitgraph.ing/examples) · [Technology](https://bitgraph.ing/technology) · [Developers](https://bitgraph.ing/integrate) · [Licensing](https://bitgraph.ing/licensing)
 
@@ -58,12 +59,16 @@ the counter does not move, and the nonce never leaves the enclave
    before it, so gaps show.
 2. **Origin of the record.** The binding was done by a specific enclave build whose measurement (PCR0) is published and
    reproducible, as AWS Nitro hardware attests in a document signed for that exact proof.
-3. **Time.** It happened by the time in the hardware's signed attestation. Through bitgraph.ing it also falls between two
-   public Base blocks seconds apart: the newest block, read and bound as its own BitGraph at the count just before the file
-   and chained into the file's proof, and the block where the proof's hash was written.
+3. **Time.** It happened by the time in the hardware's signed attestation. Through bitgraph.ing it also came after a public
+   Base block: the newest block, read and bound as its own BitGraph at the count just before the file and chained into the
+   file's proof. Its ceiling is the next BitGraph in the sequence, which needs no chain.
+
+Each epoch lasts a day and is tied to Base by two writes. It opens with a transaction carrying its id, and right behind
+that goes a second transaction carrying one Merkle root over the file proofs of the epoch that just ended. The first opens
+today's sequence in public; the second fixes yesterday's as it stood, so no record can be added to it, removed or reordered.
 
 It does not establish when content was created, who made it, or that it is true. It binds bytes. No blockchain is needed to
-verify a proof; Base is only needed to check the time window.
+verify a proof; Base is only needed to check the block a record came after and the root its epoch was closed under.
 
 Many items are bound at once as an RFC 6962 Merkle tree in one action, and each proves its own inclusion. Two BitGraphs bracket
 everything bound between them, and work made from one BitGraph's nonce could not have existed before it.

@@ -36,7 +36,7 @@ import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
 import { baseTimeIsBound, decodeNitroAttestation, floorTimeIsBound, treeMemberOf } from "@mikeargento/bitgraph-verify";
 import { CopyIcon, useCopied } from "@/components/copy-icon";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
-import { rollRootCovers, ROLL_ROOT_WAIT } from "@/lib/roll-root";
+import { rollRootCovers, ROLL_ROOT_LABEL, ROLL_ROOT_WAIT } from "@/lib/roll-root";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
 /** The first Base ceiling write (2026-09-29 22:43 UTC). Records made before it have no ceiling in time. */
@@ -401,7 +401,11 @@ export function ProofView({ m }: { m: ProofViewModel }) {
     && BigInt(m.timeline.floor.counter) + BigInt(1) === BigInt(m.proof.commit.slotCounter) ? m.timeline.floor : null;
   // A file bound since the writer went to one write per epoch (lib/roll-root.ts) has no Base write until its epoch is
   // over. Its row says so; block reads, floors and an epoch's first record are never written to Base and get no row.
-  const rollWait = !ct && m.kind !== "anchor" && !es && !fo && !m.blockRead && rollRootCovers(attested);
+  const inRoll = m.kind !== "anchor" && !es && !fo && !m.blockRead && rollRootCovers(attested);
+  const rollWait = inRoll && !ct;
+  // Such a record's write is its epoch's root, made the next day: the row is named for what it is, not as a time of
+  // the record's own. Records from before the switch keep the label their own write always had.
+  const writeLabel = inRoll ? ROLL_ROOT_LABEL : "Written to Base";
   const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null || tl !== null || own !== null || rollWait;
   const c = m.checks;
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
@@ -461,8 +465,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const flOwn = fl ? { href: `/proof/${fl.bitgraph.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${fl.bitgraph.counter}&epoch=${fl.bitgraph.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`, counter: fl.bitgraph.counter } : undefined;
   const floorCell = own ? readCell("floor", own) : tl?.floor ? readCell("floor", tl.floor) : showTime ? timeCell("Base floor", floorShown, floorHref, flOwn) : null;
   // No "reading the next block" row: records bound now are written to Base, and their write row says when it lands.
-  const ceilingCell = tl?.ceiling ? readCell("ceiling", tl.ceiling) : showTime ? timeCell("Written to Base", ceilingShown, ceilingHref) : null;
-  const rollWaitCell = rollWait ? timeCell("Written to Base", ROLL_ROOT_WAIT, null) : null;
+  const ceilingCell = tl?.ceiling ? readCell("ceiling", tl.ceiling) : showTime ? timeCell(writeLabel, ceilingShown, ceilingHref) : null;
+  const rollWaitCell = rollWait ? timeCell(writeLabel, ROLL_ROOT_WAIT, null) : null;
   const br = m.blockRead ?? null;
   const blockReadCell = br ? (
     <div className="pv-row">
