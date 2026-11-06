@@ -196,7 +196,10 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder, roots = []
           if (isReads(r)) return null;
           const epoch = epochOf(r);
           const newestOfEpoch = !rows.slice(0, i).some((x) => !isReads(x) && epochOf(x) === epoch);
-          const root = newestOfEpoch ? roots.find((x) => x.epoch === epoch) : undefined;
+          // Only on the page that holds the last record the root covers: an epoch that began just before midnight has
+          // a row on the day before too, and the root belongs with the end of the epoch, once.
+          const found = newestOfEpoch ? roots.find((x) => x.epoch === epoch) : undefined;
+          const root = found && rows.some((x) => !isReads(x) && epochOf(x) === epoch && x.counter === found.lastPos) ? found : undefined;
           return root
             ? <Fragment key={r.key}><RootRow root={root} /><Row r={r} firstOfEpoch={firstOfEpoch(i)} /></Fragment>
             : <Row key={r.key} r={r} firstOfEpoch={firstOfEpoch(i)} />;
