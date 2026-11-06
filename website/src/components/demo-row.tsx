@@ -44,9 +44,9 @@ export const DEMOS: Demo[] = [
 const COPIES_EPOCH = "2EnGlBWWcEPyBfn1N2oMZgtGgxh3nQ3MD69rqDIX0Xw";
 const COPIES_ALT = "Boats moored along a dock in a harbor, with shingled buildings behind them";
 export const COPIES: Demo[] = [
-  { caption: "1st BitGraph", alt: COPIES_ALT, eager: true, counter: "58", proof: `/proof/7roNTix7clHFjNuPKoI2pEOfXcCN5seMP2JgCgTWhrg?counter=58&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
-  { caption: "2nd BitGraph", alt: COPIES_ALT, eager: true, counter: "62", proof: `/proof/bz7-raVGaSIYKEPO7DIgGcEdoIvb2wSQ4ekyw1pOFhg?counter=62&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
-  { caption: "3rd BitGraph", alt: COPIES_ALT, eager: true, counter: "66", proof: `/proof/9EDdSdS1KUrBbfoTx0Bmn1OLzeIRGQb5BHLtDn-GTOo?counter=66&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
+  { caption: "1st", alt: COPIES_ALT, eager: true, counter: "58", proof: `/proof/7roNTix7clHFjNuPKoI2pEOfXcCN5seMP2JgCgTWhrg?counter=58&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
+  { caption: "2nd", alt: COPIES_ALT, eager: true, counter: "62", proof: `/proof/bz7-raVGaSIYKEPO7DIgGcEdoIvb2wSQ4ekyw1pOFhg?counter=62&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
+  { caption: "3rd", alt: COPIES_ALT, eager: true, counter: "66", proof: `/proof/9EDdSdS1KUrBbfoTx0Bmn1OLzeIRGQb5BHLtDn-GTOo?counter=66&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
 ];
 
 // The home page's three sit at the top of their page and load at once (eager); the demo's tiles load as they come into view.
