@@ -76,7 +76,7 @@ function Row({ r, firstOfEpoch }: { r: LedgerRow; firstOfEpoch: boolean }) {
   const inner = (
     <>
       <span className="rl-num">#{fmt(r.counter)}</span>
-      <span className="rl-what">{epochStart !== null ? "The first frame" : ""}</span>
+      <span className="rl-what">{epochStart !== null ? "Genesis" : ""}</span>
       {r.recordedMs !== null && <span className="rl-when" title={local(r.recordedMs)}>{ago(r.recordedMs, now)}</span>}
       <span className="rl-go" aria-hidden="true">&rsaquo;</span>
     </>
