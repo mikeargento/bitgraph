@@ -3,7 +3,7 @@
 /**
  * The demos as cards. Three make two BitGraphs as bookends: A opens, the work is made from A's nonce, B closes. The
  * fourth is one picture in three files, each with its own BitGraph. Every result is a real BitGraph and checks
- * offline. The Demos page stacks them one per row.
+ * offline. The Demos page shows them two to a row, and one to a row on phones.
  *
  * The home page has its own three cards in a row under the pictures: the three places a visitor goes next, which are
  * making a BitGraph, the ledger, and the demos.
@@ -24,7 +24,7 @@ type Card = { href: string; title: string; body: string };
 
 function Cards({ cards, row }: { cards: Card[]; row: boolean }) {
   return (
-    <div className={`sx-cards is-stack${row ? " is-row" : ""}`}>
+    <div className={`sx-cards is-stack${row ? " is-row" : " is-two"}`}>
       {cards.map((d) => (
         <a key={d.href} className="tl-card sx-link" href={d.href}>
           <h3>{d.title}</h3>

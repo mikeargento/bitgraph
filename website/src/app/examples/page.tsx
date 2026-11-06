@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { DemoCards } from "@/components/demo-cards";
 
-/** The four demos, stacked one per row (components/demo-cards.tsx). */
+/** The four demos, two to a row (components/demo-cards.tsx). */
 export const metadata: Metadata = {
   title: "Demos",
   description: "Demos: work made between two BitGraphs, and one picture in three files.",
