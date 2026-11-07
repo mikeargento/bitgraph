@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DemoRow } from "@/components/demo-row";
+import { CopiesTiles, DemoRow } from "@/components/demo-row";
 
 /**
  * The fourth demo: one picture in three files, twice (components/demo-row.tsx). The earlier set is the first row, in
@@ -16,12 +16,17 @@ export default function PicturesPage() {
       <div className="home-hero"><h1 className="sr-only">Copies.</h1></div>
       <section className="home-section" aria-labelledby="pictures-h">
         <p className="home-kicker">Copies</p>
-        <h2 id="pictures-h">One picture, three files</h2>
+        <h2 id="pictures-h">One source, three files</h2>
         <p className="demo-intro">
           A picture made with ChatGPT, a copy of it made by Google, and a video of it made by Grok. They look alike and
           are different files, so each has its own place in line.
         </p>
         <DemoRow />
+        <p className="demo-intro">
+          One photograph, saved as three separate files. They look identical and are different files, so each has its
+          own place in line: 1st, 2nd and 3rd.
+        </p>
+        <CopiesTiles />
       </section>
     </div>
   );

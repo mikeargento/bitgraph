@@ -16,7 +16,7 @@ const DEMOS = [
 ];
 const HOME = [
   { href: "/demos", title: "Make a BitGraph", body: "Drop any file. Its hash is bound at the next place in line, and the file stays with you." },
-  { href: "/ledger", title: "View the ledger", body: "Every BitGraph in order, each one checkable by anyone." },
+  { href: "/technology", title: "How it works", body: "One sealed step puts each file in its place in line, checkable by anyone." },
   { href: "/examples", title: "Demos", body: "Working examples, each built on real BitGraphs you can check." },
 ];
 
