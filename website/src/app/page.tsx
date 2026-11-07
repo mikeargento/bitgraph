@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { HomeCards } from "@/components/demo-cards";
 
 /**
- * The home page: the claim and its answer as one headline, and three cards that lead to making a BitGraph, how it
+ * The home page: the claim and its answer as one headline, and three buttons that lead to making a BitGraph, how it
  * works, and the demos. The explaining lives on Technology.
  *
  * Claim discipline, unchanged: a BitGraph is a place in line, bound by a time and after an unpredictable value. It
@@ -23,14 +22,18 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page is-landing is-short">
-      {/* The whole page: the claim and its answer stacked, and the three cards under them. */}
+      {/* The whole page: the claim and its answer stacked, and the three buttons under them. */}
       <section id="how" className="home-section home-open" aria-labelledby="home-h">
         {/* The headline breaks in two on wide screens and in four on phones; the spaces sit before each break so a
             hidden break leaves a plain space and a shown one leaves no indent. */}
         <h1 id="home-h">Everything{" "}<br className="home-h-ph" />digital{" "}<br className="home-h-dt" />is{" "}<br className="home-h-ph" />already{" "}<br className="home-h-ph" />a copy.</h1>
         <p className="home-order">BitGraph just puts things in order.</p>
-        {/* Where to go next: make one, see how it works, try the demos. */}
-        <HomeCards />
+        {/* Where to go next: make one, see how it works, try the demos. The same button row as the other pages. */}
+        <div className="sx-cta home-buttons">
+          <a className="bg-action-link is-make" href="/demos">Make a BitGraph</a>
+          <a className="bg-action-link" href="/technology">How it works</a>
+          <a className="bg-action-link" href="/examples">Try a demo</a>
+        </div>
       </section>
     </div>
   );
