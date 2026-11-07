@@ -38,6 +38,7 @@ import {
 } from "@mikeargento/bitgraph-verify";
 import type { CeilingQueueItem } from "../parent/ceiling-queue.js";
 import { GenesisWriter } from "./genesis.js";
+import { PublishWriter } from "./publish.js";
 import { CloseRequests, EPOCH_CLOSE_FORMAT } from "./close.js";
 
 // ── The chain, as the writer needs it (viem in production, a fake in tests) ──
@@ -128,6 +129,11 @@ export interface WriterOptions {
   /** Close requests (bitgraph-epoch-close-request/1, close.ts): the directory they are left in and answered in. Off when absent. */
   closeDir?: string;
   /**
+   * Epoch publish transactions (bitgraph-epoch-publish/1, publish.ts): the directory the parent drops a request in when
+   * it binds an epoch's closing BitGraph, and the result is written to. Off when absent.
+   */
+  epochPublishDir?: string;
+  /**
    * Roll mode: once the oldest held record has waited this long, a `roll-held` event is logged, at most once an
    * hour (default 36 h). Nothing is written early; the event says a roll has not been closed when one was due.
    */
@@ -156,7 +162,7 @@ function groupKey(i: CeilingQueueItem): string {
 }
 
 export class CeilingWriter {
-  private readonly o: Required<Omit<WriterOptions, "minBalanceWei" | "publish" | "genesisDir" | "closeDir">> & { minBalanceWei: bigint | null; publish: WriterOptions["publish"]; genesisDir?: WriterOptions["genesisDir"] };
+  private readonly o: Required<Omit<WriterOptions, "minBalanceWei" | "publish" | "genesisDir" | "closeDir" | "epochPublishDir">> & { minBalanceWei: bigint | null; publish: WriterOptions["publish"]; genesisDir?: WriterOptions["genesisDir"] };
   /** Sidecars written locally and not yet published, newest content per file. */
   private unpublished = new Map<string, string>();
   private readonly dirs: { batches: string; sidecars: string };
@@ -173,6 +179,7 @@ export class CeilingWriter {
   private floorRepair: string[] = [];
   private floorRepairTries = new Map<string, number>();
   private readonly genesis: GenesisWriter | null = null;
+  private readonly epochPublish: PublishWriter | null = null;
   private lastRollHeldEvent = 0;
   private closes?: CloseRequests;
 
@@ -193,6 +200,12 @@ export class CeilingWriter {
     if (opts.genesisDir && (opts.chain.chainId === 8453 || opts.chain.chainId === 84532)) {
       this.genesis = new GenesisWriter({
         dir: opts.genesisDir, chain: opts.chain, chainId: opts.chain.chainId, replaceAfterBlocks: this.o.replaceAfterBlocks,
+        now: () => this.o.now(), log: (e) => this.event(e as { type: string } & Record<string, unknown>),
+      });
+    }
+    if (opts.epochPublishDir && (opts.chain.chainId === 8453 || opts.chain.chainId === 84532)) {
+      this.epochPublish = new PublishWriter({
+        dir: opts.epochPublishDir, chain: opts.chain, chainId: opts.chain.chainId, replaceAfterBlocks: this.o.replaceAfterBlocks,
         now: () => this.o.now(), log: (e) => this.event(e as { type: string } & Record<string, unknown>),
       });
     }
@@ -345,8 +358,12 @@ export class CeilingWriter {
     const act = this.active();
     // A genesis transaction and a ceiling batch never fly together: one nonce sequence, one in flight.
     const genesisInFlight = this.genesis ? await this.genesis.pass(!act) : false;
+    // A publish goes after any genesis still waiting: the new epoch's first BitGraph waits on its genesis, while the
+    // publish only seals the epoch before, so it can wait a few blocks.
+    const genesisWaiting = genesisInFlight || (this.genesis?.openings().some((g) => !g.mined) ?? false);
+    const publishInFlight = this.epochPublish ? await this.epochPublish.pass(!act && !genesisWaiting) : false;
     if (act) await this.advance(act);
-    else if (!genesisInFlight && this.backlog.length > 0) {
+    else if (!genesisInFlight && !publishInFlight && this.backlog.length > 0) {
       const key = this.o.rollRoot ? this.closedGroup() : groupKey(this.backlog[0]!);
       if (key !== null) await this.startBatch(key);
       else this.noteHeld();

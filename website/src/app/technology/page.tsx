@@ -76,8 +76,8 @@ export default function TechnologyPage() {
             <p>
               That is the whole of the mechanism: order, from attested hardware. It needs no clock and no blockchain. Everything else a
               record can carry, a time, an identity, a public witness, is a trust layer bound on top of that position. The
-              hardware&rsquo;s own signed time comes with every attestation; through bitgraph.ing, one Base transaction a day names
-              the day&rsquo;s sequence in a public record BitGraph does not control. Either can be checked, neither is what the proof rests on.
+              hardware&rsquo;s own signed time comes with every attestation; through bitgraph.ing, two Base transactions a day open
+              and close the day&rsquo;s sequence in a public record BitGraph does not control. Either can be checked, neither is what the proof rests on.
             </p>
             <h3 className="tl-h3">What it does not establish</h3>
             <ul className="docs-list">
@@ -181,17 +181,17 @@ export default function TechnologyPage() {
             </p>
             <ul className="docs-list">
               <li><strong>When an epoch opens.</strong> Through bitgraph.ing, one Base transaction carries the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph binds a record of it. That names the day&rsquo;s official sequence in public, and no BitGraph of the epoch can come before that transaction&rsquo;s block.</li>
-              <li><strong>Every file in between.</strong> Each file is one BitGraph on the next counts. Nothing leaves the enclave but the proof.</li>
-              <li><strong>When an epoch closes.</strong> Before the enclave shuts down, its last BitGraph binds a short closing note naming the epoch. Nothing is bound after it, and its proof names the hash of the one before, so the whole sequence ends there.</li>
+              <li><strong>Every file in between.</strong> Each file is one BitGraph on the next counts, right after a BitGraph of the latest Base block, so it was bound after that block. Nothing leaves the enclave but the proof.</li>
+              <li><strong>When an epoch closes.</strong> Before the enclave shuts down, its last BitGraph binds a short closing note naming the epoch. Nothing is bound after it, and its proof names the hash of the one before, so the whole sequence ends there. Through bitgraph.ing, a second Base transaction carries that BitGraph&rsquo;s hash, so every record of the epoch existed by that transaction&rsquo;s block.</li>
             </ul>
             <p>
-              That is one write on Base a day, however many records the day holds. Anchoring finished records anywhere else is
+              That is two writes on Base a day, the same size and at the same times however many records the day holds. Anchoring finished records anywhere else is
               optional and comes afterward; it is not part of the sequence.
             </p>
             <div className="sx-cards is-3">
               <article className="tl-card">
                 <h3>Your file stays off chain.</h3>
-                <p>Nothing about any file is written to Base. The one transaction a day carries only the epoch&rsquo;s id.</p>
+                <p>Nothing about any file is written to Base. The two transactions a day carry only the epoch&rsquo;s id and a hash of its last record.</p>
               </article>
               <article className="tl-card">
                 <h3>One published writer.</h3>
@@ -199,10 +199,10 @@ export default function TechnologyPage() {
               </article>
               <article className="tl-card">
                 <h3>Independently verifiable.</h3>
-                <p>Check the hardware attestation, signatures and counted sequence, then match the proof&rsquo;s epoch id to the one in that day&rsquo;s Base transaction.</p>
+                <p>Check the hardware attestation, signatures and counted sequence, then match the proof&rsquo;s epoch id to the one in that day&rsquo;s Base transactions.</p>
               </article>
             </div>
-            <p>No blockchain is needed to verify a proof or its place in the sequence. The Base transaction names each day&rsquo;s sequence in public, and the mechanism does not depend on it.</p>
+            <p>No blockchain is needed to verify a proof or its place in the sequence. The Base transactions open and close each day&rsquo;s sequence in public, and the mechanism does not depend on them.</p>
           </section>
 
           <section className="home-section" aria-labelledby="t-trees">

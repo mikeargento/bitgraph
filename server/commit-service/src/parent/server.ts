@@ -39,13 +39,13 @@ import { getClientIp, tryConsumeDigests, rateLimitConfig, allocationLimiter } fr
 import { createAuthPolicy, describeAuthPolicy, type AuthPolicy } from "./auth.js";
 import { enqueueCeiling, ceilingQueueEnabled } from "./ceiling-queue.js";
 import { epochFloorFile, latestBaseBlock, sha256B64, epochGenesisDir, requestEpochGenesis, awaitEpochGenesis } from "./epoch-floor.js";
-import { epochEndFileText, closeRequestPath } from "./epoch-end.js";
+import { epochEndFileText, closeRequestPath, writePublishRequest } from "./epoch-end.js";
 import { BaseHeadFeed, baseFloorEnabled } from "./base-head.js";
 import { Timeline } from "./timeline.js";
 import { TimelineAlerter, snsAlertSend } from "./timeline-alerts.js";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { blockReadFileText, blockReadDigestB64 } from "@mikeargento/bitgraph-verify";
+import { blockReadFileText, blockReadDigestB64, computeChainHash } from "@mikeargento/bitgraph-verify";
 
 const PORT = Number(
   process.argv.find((a) => a.startsWith("--port="))?.split("=")[1]
@@ -385,6 +385,8 @@ async function bindDropFloor(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const EPOCH_CLOSE_DIR = process.env["EPOCH_CLOSE_DIR"];
+/** Where the closing BitGraph's chain hash is left for the writer to publish on Base (ceiling/publish.ts). Off when unset. */
+const EPOCH_PUBLISH_DIR = process.env["EPOCH_PUBLISH_DIR"];
 
 async function bindEpochEnd(): Promise<void> {
   const epochId = openEpochId;
@@ -395,6 +397,13 @@ async function bindEpochEnd(): Promise<void> {
   if (!r.ok || !r.data) { console.error(`[parent] epoch end: the closing note was not bound (${r.error ?? "no answer"})`); return; }
   const { proof } = r.data as { proof: BitGraphProof };
   try { timeline?.recordEnd(proof, text); } catch (e) { console.error(`[parent] epoch end: journal append failed: ${e instanceof Error ? e.message : String(e)}`); }
+  if (EPOCH_PUBLISH_DIR) {
+    try {
+      const chainHash = computeChainHash(proof);
+      writePublishRequest(EPOCH_PUBLISH_DIR, epochId, chainHash, String(proof.commit.counter));
+      console.log(`[parent] epoch publish: asked for ${epochId}, closing chain hash ${chainHash}`);
+    } catch (e) { console.error(`[parent] epoch publish: request not written: ${e instanceof Error ? e.message : String(e)}`); }
+  }
   void persistToLedger([proof]);
   console.log(`[parent] epoch end: ${epochId} closed at count ${proof.commit.counter}`);
 }

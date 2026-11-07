@@ -70,6 +70,8 @@ const writer = new CeilingWriter({
   genesisDir: env["CEILING_GENESIS_DIR"] ?? join(stateDir, "genesis"),
   // Close requests: the nightly rotation leaves one here before it stops the enclave, and waits for the answer.
   closeDir: env["CEILING_CLOSE_DIR"] ?? join(stateDir, "close"),
+  // Epoch publish transactions: the parent's EPOCH_PUBLISH_DIR must point at the same directory.
+  epochPublishDir: env["CEILING_PUBLISH_DIR"] ?? join(stateDir, "publish"),
   rollRoot,
   ...(rollHeldAlertHours > 0 ? { rollHeldAlertMs: rollHeldAlertHours * 3_600_000 } : {}),
   chain,
