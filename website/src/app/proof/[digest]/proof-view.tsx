@@ -494,12 +494,15 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   // The Base floor and Base write rows left the receipt on 2026-11-06, with the helpers that drew them.
   const chainName = (c: "base" | "ethereum") => (c === "base" ? "Base" : "Ethereum");
   const br = m.blockRead ?? null;
+  // A block read's own page: the block, with the explorer link to open it, at the top; its time sits under When, right
+  // above the enclave's own, so the two read against each other.
   const blockReadCell = br ? (
     <div className="pv-row">
-      <div className="pv-row-label">Block read</div>
-      <div className="pv-row-value">{chainName(br.chain)} block {fmtNum(br.number)}, <span className="pv-nowrap">{whenBeside(br.timestamp * 1000, attested)} <a className="pv-link" href={br.chain === "base" ? `https://basescan.org/block/${br.number}` : `https://etherscan.io/block/${br.number}`} target="_blank" rel="noopener">{br.chain === "base" ? "Basescan" : "Etherscan"}</a></span></div>
+      <div className="pv-row-label">{chainName(br.chain)} block</div>
+      <div className="pv-row-value">{fmtNum(br.number)} <a className="pv-link pv-explorer" href={br.chain === "base" ? `https://basescan.org/block/${br.number}` : `https://etherscan.io/block/${br.number}`} target="_blank" rel="noopener">{br.chain === "base" ? "Basescan" : "Etherscan"}</a></div>
     </div>
   ) : null;
+  const blockTimeRow = br ? <Row key="blocktime" f={{ label: `${chainName(br.chain)}’s time`, value: stampTz(new Date(br.timestamp * 1000)) }} /> : null;
   // Its content is the block file itself, served with the page, so it downloads instead of asking for a file.
   const blockFileHref = br?.file ? `data:application/json;charset=utf-8,${encodeURIComponent(br.file)}` : null;
   /* The receipt in groups, each answering one question, its rows in the order things happen (2026-11-01): what this
@@ -535,7 +538,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       {/* When: the time the enclave recorded it, and nothing else (2026-11-06). The Base block read before it and the
           Base write after it are no longer rows here; both are still in the proof and its details. */}
       {group("When", [
-        showTime && attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
+        blockTimeRow,
+        (showTime || br) && attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
       ])}
       {/* Check it anywhere follows when: text links like the rest of the receipt, under their own eyebrow. The proof;
           and the BitGraphed file when the original is in hand, the epoch file on an epoch's first record, or Connect
@@ -549,7 +553,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           ) : es ? (
             <a className="pv-link" style={{ width: "fit-content" }} href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>Download {es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</a>
           ) : blockFileHref ? (
-            <a className="pv-link" style={{ width: "fit-content" }} href={blockFileHref} download="block-read.json">Download block-read.json</a>
+            <a className="pv-link pv-link-btn" style={{ width: "fit-content" }} href={blockFileHref} download="block-read.json">Download block-read.json</a>
           ) : m.canConnect ? (
             <button type="button" className="pv-link pv-link-btn" onClick={() => setSearching(true)}>Connect the file</button>
           ) : null}
@@ -572,7 +576,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         es ? (
           <div key="gen" className="pv-row">
             <div className="pv-row-label">Genesis block {fmtNum(es.blockNumber)}</div>
-            <div className="pv-row-value pv-mono">{es.blockHash} <a className="pv-link" href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan</a></div>
+            {/* The hash in the code face, the Basescan link in the page's own, like every other link on the receipt. */}
+            <div className="pv-row-value"><span className="pv-mono">{es.blockHash}</span> <a className="pv-link pv-explorer" href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan</a></div>
           </div>
         ) : null,
         commit.epochId ? <Row key="epoch" f={{ label: "Epoch", value: commit.epochId, mono: true }} /> : null,
