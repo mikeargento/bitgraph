@@ -69,6 +69,10 @@ export default function HomePage() {
           Each proof carries the hash of the one before it, linking the records into a counted sequence. The chain makes gaps
           and changes detectable when the records are checked together, preserving the order in which they were bound.
         </p>
+      </section>
+
+      {/* The way on to the full reference, in a section of its own after the overview. */}
+      <section className="home-section home-ov-end" aria-label="More">
         <div className="sx-cta">
           <a className="bg-action-link" href="/technology">Read the full technology</a>
         </div>
