@@ -3,7 +3,7 @@
 import { DropPrompt, Browse } from "@/components/drop-prompt";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
-import { rollRootCovers } from "@/lib/roll-root";
+import { rollRootCovers, oneWriteCovers } from "@/lib/roll-root";
 import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams, useRouter } from "next/navigation";
 // Nav is in root layout
@@ -300,8 +300,20 @@ export default function ProofPage() {
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [proof]);
   // A block read's own page: the block file it binds (from the timeline's batches), checked here to hash to its digest.
-  const [timelineRecord, setTimelineRecord] = useState<{ kind: string; blockFile?: string } | null>(null);
+  const [timelineRecord, setTimelineRecord] = useState<{ kind: string; blockFile?: string; endFile?: string } | null>(null);
   const [blockRead, setBlockRead] = useState<ProofViewModel["blockRead"]>(null);
+  // The epoch's closing record: its note, checked here to hash to the proof's digest before the page names it.
+  const [epochEnd, setEpochEnd] = useState<ProofViewModel["epochEnd"]>(null);
+  useEffect(() => {
+    setEpochEnd(null);
+    const f = timelineRecord?.endFile;
+    if (!proof || timelineRecord?.kind !== "end" || !f) return;
+    let cancelled = false;
+    void hashBytes(new TextEncoder().encode(f)).then((h) => {
+      if (!cancelled && h === proof.artifact.digestB64) setEpochEnd({ file: f });
+    });
+    return () => { cancelled = true; };
+  }, [proof, timelineRecord]);
   useEffect(() => {
     setBlockRead(null);
     const f = timelineRecord?.blockFile;
@@ -1097,7 +1109,7 @@ export default function ProofPage() {
 
     // Apply a proof API response to state (and kick the image poll). Returns
     // false for a response with no proof, so callers can fall back to an error.
-    const applyData = (data: { proofs?: Array<{ proof?: BitGraphProof }>; causalWindow?: typeof causalWindow; anchorBlock?: typeof anchorBlock; positions?: typeof positions; timelineRecord?: { kind: string; blockFile?: string } } | null): boolean => {
+    const applyData = (data: { proofs?: Array<{ proof?: BitGraphProof }>; causalWindow?: typeof causalWindow; anchorBlock?: typeof anchorBlock; positions?: typeof positions; timelineRecord?: { kind: string; blockFile?: string; endFile?: string } } | null): boolean => {
       if (cancelled || !data?.proofs?.[0]?.proof) return false;
       setProof(data.proofs[0].proof);
       setTimelineRecord(data.timelineRecord ?? null);
@@ -2066,7 +2078,7 @@ export default function ProofPage() {
         const url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type: "application/octet-stream" }));
         const el = document.createElement("a"); el.href = url; el.download = name; el.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setCarrierMsg([sidecar ? null : rollRootCovers(attestedMs)
+        setCarrierMsg([sidecar || oneWriteCovers(attestedMs) ? null : rollRootCovers(attestedMs)
           ? "This record goes to Base with its epoch\u2019s root, when the epoch closes, so this file carries the proof without that write. Download it again after that for the write too."
           : "The Base write has not landed yet, so this file carries the proof without its ceiling. Download it again in a few seconds for the ceiling too."].filter(Boolean).join(" ") || null);
         return;
@@ -2479,6 +2491,7 @@ export default function ProofPage() {
             treeFloor,
             timeline: !isEth ? timeline : null,
             blockRead,
+            epochEnd,
             ceilingFileHref: !isEth && baseCeiling?.anchor && proofHashField ? `/api/ceilings/${stdB64(proofHashField).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}` : null,
             checks: isTree ? treeChecks(checks) : checks,
             onConfirm: confirmAgainstNodes,

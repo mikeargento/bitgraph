@@ -69,15 +69,44 @@ function useEpochStart(r: LedgerRow, firstOfEpoch: boolean): number | null {
   return block;
 }
 
-function Row({ r, firstOfEpoch }: { r: LedgerRow; firstOfEpoch: boolean }) {
+/** The epoch's closing note, byte for byte as the parent binds it (server/commit-service/src/parent/epoch-end.ts). */
+function epochEndText(epochId: string): string {
+  return JSON.stringify({
+    format: "bitgraph-epoch-end/1",
+    epochId,
+    note: "The last BitGraph of this epoch. Nothing is bound after it: the enclave stops and its key is gone.",
+  }, null, 2) + "\n";
+}
+
+/** Whether this row, the newest of its epoch on the page, is the epoch's closing BitGraph: its digest is the hash of the
+ *  closing note for its epoch, which is the same text for every viewer, so it is checked here with no lookup. */
+function useEpochEnd(r: LedgerRow, newestOfEpoch: boolean): boolean {
+  const [end, setEnd] = useState(false);
+  useEffect(() => {
+    if (!newestOfEpoch || !r.digest) return;
+    const urlSafe = r.key.split("/")[1] ?? "";
+    const std = urlSafe.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (urlSafe.length % 4)) % 4);
+    let gone = false;
+    void crypto.subtle.digest("SHA-256", new TextEncoder().encode(epochEndText(std))).then((buf) => {
+      let b = ""; for (const x of new Uint8Array(buf)) b += String.fromCharCode(x);
+      const h = btoa(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      if (!gone && h === r.digest) setEnd(true);
+    });
+    return () => { gone = true; };
+  }, [r.key, r.digest, newestOfEpoch]);
+  return end;
+}
+
+function Row({ r, firstOfEpoch, newestOfEpoch = false }: { r: LedgerRow; firstOfEpoch: boolean; newestOfEpoch?: boolean }) {
   const epochStart = useEpochStart(r, firstOfEpoch);
+  const epochEnd = useEpochEnd(r, newestOfEpoch);
   const now = useNow();
   // A frame on the roll: its number, how long ago, and a way in. The counts, the hash and the exact signed time are on
   // its proof page.
   const inner = (
     <>
       <span className="rl-num">#{fmt(r.counter)}</span>
-      <span className="rl-what">{epochStart !== null ? "Genesis" : ""}</span>
+      <span className="rl-what">{epochStart !== null ? "Genesis" : epochEnd ? "Closed" : ""}</span>
       {r.recordedMs !== null && <span className="rl-when" title={local(r.recordedMs)}>{ago(r.recordedMs, now)}</span>}
       <span className="rl-go" aria-hidden="true">&rsaquo;</span>
     </>
@@ -201,8 +230,8 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder, roots = []
           const found = newestOfEpoch ? roots.find((x) => x.epoch === epoch) : undefined;
           const root = found && rows.some((x) => !isReads(x) && epochOf(x) === epoch && x.counter === found.lastPos) ? found : undefined;
           return root
-            ? <Fragment key={r.key}><RootRow root={root} /><Row r={r} firstOfEpoch={firstOfEpoch(i)} /></Fragment>
-            : <Row key={r.key} r={r} firstOfEpoch={firstOfEpoch(i)} />;
+            ? <Fragment key={r.key}><RootRow root={root} /><Row r={r} firstOfEpoch={firstOfEpoch(i)} newestOfEpoch /></Fragment>
+            : <Row key={r.key} r={r} firstOfEpoch={firstOfEpoch(i)} newestOfEpoch={newestOfEpoch} />;
         })}
       </div>
       {older && (

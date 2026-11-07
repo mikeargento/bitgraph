@@ -76,8 +76,8 @@ export default function TechnologyPage() {
             <p>
               That is the whole of the mechanism: order, from attested hardware. It needs no clock and no blockchain. Everything else a
               record can carry, a time, an identity, a public witness, is a trust layer bound on top of that position. The
-              hardware&rsquo;s own signed time comes with every attestation; through bitgraph.ing, Base, the reference layer, ties
-              each day&rsquo;s sequence to a public record BitGraph does not control. Either can be checked, neither is what the proof rests on.
+              hardware&rsquo;s own signed time comes with every attestation; through bitgraph.ing, one Base transaction a day names
+              the day&rsquo;s sequence in a public record BitGraph does not control. Either can be checked, neither is what the proof rests on.
             </p>
             <h3 className="tl-h3">What it does not establish</h3>
             <ul className="docs-list">
@@ -176,22 +176,22 @@ export default function TechnologyPage() {
             </p>
             <p>
               Inside an epoch the order needs no chain. Each BitGraph comes after the one before it, by construction, so the next
-              BitGraph is the ceiling of the one before, and the time in each proof is the hardware&rsquo;s. Through bitgraph.ing, Base,
-              a public chain BitGraph does not operate, is bound to that sequence in three places:
+              BitGraph is the ceiling of the one before, and the time in each proof is the hardware&rsquo;s. An epoch is one roll, from
+              its first BitGraph to its last:
             </p>
             <ul className="docs-list">
-              <li><strong>Before each file.</strong> The newest Base block is read and bound as a BitGraph of its own, on the counts just before the file&rsquo;s. A block&rsquo;s hash cannot be known before the block exists, so the file&rsquo;s BitGraph came after it.</li>
-              <li><strong>When an epoch opens.</strong> Once a day a new epoch begins with a Base transaction that carries its id. No BitGraph of that epoch can come before that transaction&rsquo;s block.</li>
-              <li><strong>When an epoch closes.</strong> Before the enclave shuts down, a second transaction carries one Merkle root over the proofs of every file bound in the epoch. From that block on, the set of records under the root is fixed: none can be added, removed or reordered.</li>
+              <li><strong>When an epoch opens.</strong> Through bitgraph.ing, one Base transaction carries the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph binds a record of it. That names the day&rsquo;s official sequence in public, and no BitGraph of the epoch can come before that transaction&rsquo;s block.</li>
+              <li><strong>Every file in between.</strong> Each file is one BitGraph on the next counts. Nothing leaves the enclave but the proof.</li>
+              <li><strong>When an epoch closes.</strong> Before the enclave shuts down, its last BitGraph binds a short closing note naming the epoch. Nothing is bound after it, and its proof names the hash of the one before, so the whole sequence ends there.</li>
             </ul>
             <p>
-              That is two writes a day, however many records the day holds. The first opens the epoch in public; the
-              second closes it, and every record in the epoch lies between the two.
+              That is one write on Base a day, however many records the day holds. Anchoring finished records anywhere else is
+              optional and comes afterward; it is not part of the sequence.
             </p>
             <div className="sx-cards is-3">
               <article className="tl-card">
                 <h3>Your file stays off chain.</h3>
-                <p>Only the proof&rsquo;s hash goes to Base, inside its epoch&rsquo;s Merkle root. The file itself is never written anywhere.</p>
+                <p>Nothing about any file is written to Base. The one transaction a day carries only the epoch&rsquo;s id.</p>
               </article>
               <article className="tl-card">
                 <h3>One published writer.</h3>
@@ -199,10 +199,10 @@ export default function TechnologyPage() {
               </article>
               <article className="tl-card">
                 <h3>Independently verifiable.</h3>
-                <p>Check the hardware attestation, signatures and counted sequence, then walk the proof&rsquo;s hash up its path to its epoch&rsquo;s root and find that root in the Base transaction.</p>
+                <p>Check the hardware attestation, signatures and counted sequence, then match the proof&rsquo;s epoch id to the one in that day&rsquo;s Base transaction.</p>
               </article>
             </div>
-            <p>No blockchain is needed to verify a proof or its place in the sequence. Base ties each day&rsquo;s sequence to a public record, and the mechanism does not depend on it.</p>
+            <p>No blockchain is needed to verify a proof or its place in the sequence. The Base transaction names each day&rsquo;s sequence in public, and the mechanism does not depend on it.</p>
           </section>
 
           <section className="home-section" aria-labelledby="t-trees">
@@ -289,7 +289,7 @@ export default function TechnologyPage() {
                   <tr>
                     <td>The host operator (BitGraph included)</td>
                     <td>Forge a proof that passes the attested check; see or choose a nonce; reuse a count; insert or reorder proofs inside a sequence without breaking the counts and hash links; change a proof&rsquo;s attested time by releasing it late.</td>
-                    <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbors); restart the enclave to begin a new epoch; delay or decline an epoch&rsquo;s Base writes (its records then show none).</td>
+                    <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbors); restart the enclave to begin a new epoch; delay or decline an epoch&rsquo;s Base transaction (that epoch then has no public name).</td>
                   </tr>
                   <tr>
                     <td>A client</td>
@@ -336,7 +336,7 @@ export default function TechnologyPage() {
                   <tr><td><a href="https://csrc.nist.gov/pubs/fips/186-5/final" target="_blank" rel="noopener">Digital signature</a></td><td>These bytes were signed with a particular private key.</td><td>The key&rsquo;s security and any claimed link between that key and an identity.</td><td>BitGraph adds a counted position enforced by measured enclave code, with hardware attestation bound to each proof.</td></tr>
                   <tr><td><a href="https://www.rfc-editor.org/rfc/rfc3161.html" target="_blank" rel="noopener">Timestamp authority (RFC&nbsp;3161)</a></td><td>A TSA issued a signed token associating a digest with a stated time.</td><td>The TSA&rsquo;s signing key, time source and operating practices.</td><td>BitGraph provides counted, chained records and carries Nitro&rsquo;s signed attestation time. A TSA token can be bound as additional time evidence.</td></tr>
                   <tr><td><a href="https://docs.sigstore.dev/logging/overview/" target="_blank" rel="noopener">Transparency log (CT, Sigstore&rsquo;s Rekor, SCITT)</a></td><td>An entry is included in a signed log state. Consistency proofs allow checks of append-only growth.</td><td>The log&rsquo;s signing key, consistency checks, and the monitors or witnesses used to detect conflicting views.</td><td>BitGraph enforces each binding inside an attested enclave. Its proofs can also be published in a transparency log.</td></tr>
-                  <tr><td><a href="https://opentimestamps.org/" target="_blank" rel="noopener">Blockchain anchoring</a></td><td>A digest, directly or through a batch commitment, is linked to a commitment included in a particular block.</td><td>The chain&rsquo;s consensus, finality and rules for interpreting block time.</td><td>Through bitgraph.ing, each day&rsquo;s proofs go to Base this way too, under one root. What BitGraph adds is the position: a counted place in line, bound with a fresh hardware nonce, before anything reaches the chain.</td></tr>
+                  <tr><td><a href="https://opentimestamps.org/" target="_blank" rel="noopener">Blockchain anchoring</a></td><td>A digest, directly or through a batch commitment, is linked to a commitment included in a particular block.</td><td>The chain&rsquo;s consensus, finality and rules for interpreting block time.</td><td>Finished proofs can be anchored this way too, afterward and optionally. What BitGraph adds is the position: a counted place in line, bound with a fresh hardware nonce, with no chain needed.</td></tr>
                   <tr><td><a href="https://spec.c2pa.org/specifications/specifications/2.5/specs/C2PA_Specification.html" target="_blank" rel="noopener">Content Credentials (C2PA)</a></td><td>A signer signed assertions cryptographically bound to an asset.</td><td>The signer, certificate trust chain and any timestamp authority used.</td><td>BitGraph can bind the asset and its manifest to a counted position, adding independently verifiable recording evidence.</td></tr>
                   <tr><td><a href="https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html" target="_blank" rel="noopener">Remote attestation</a></td><td>A platform signed evidence identifying measured software and associated attested data.</td><td>The platform&rsquo;s security and the hardware vendor&rsquo;s attestation root.</td><td>BitGraph uses attestation for a specific recording protocol: atomic binding, fresh nonces, consecutive counts and linked proofs.</td></tr>
                 </tbody>

@@ -30,6 +30,7 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { existsSync as fsExists } from "node:fs";
 import { verify } from "bitgraph";
 import type { BitGraphProof, VerificationPolicy, AgencyEnvelope, PolicyBinding } from "bitgraph";
 import { VsockClient, type EnclaveClient, type AnchorClaimRequest, type BindRequest } from "./vsock-client.js";
@@ -38,6 +39,7 @@ import { getClientIp, tryConsumeDigests, rateLimitConfig, allocationLimiter } fr
 import { createAuthPolicy, describeAuthPolicy, type AuthPolicy } from "./auth.js";
 import { enqueueCeiling, ceilingQueueEnabled } from "./ceiling-queue.js";
 import { epochFloorFile, latestBaseBlock, sha256B64, epochGenesisDir, requestEpochGenesis, awaitEpochGenesis } from "./epoch-floor.js";
+import { epochEndFileText, closeRequestPath } from "./epoch-end.js";
 import { BaseHeadFeed, baseFloorEnabled } from "./base-head.js";
 import { Timeline } from "./timeline.js";
 import { TimelineAlerter, snsAlertSend } from "./timeline-alerts.js";
@@ -345,6 +347,9 @@ let epochStarting = false;
 // shows none (the record before it is not a block read of its own epoch).
 // ---------------------------------------------------------------------------
 
+/** A Base block read before each file (bindDropFloor) only when DROP_FLOOR=on. Off, a drop is one BitGraph. */
+const DROP_FLOOR = process.env["DROP_FLOOR"] === "on";
+
 let bindChain: Promise<unknown> = Promise.resolve();
 /** Run `f` with no other bind in the enclave until it finishes. */
 function bindExclusive<T>(f: () => Promise<T>): Promise<T> {
@@ -369,6 +374,41 @@ async function bindDropFloor(): Promise<void> {
   }
   const { proof } = r.data as { proof: BitGraphProof };
   await keepMade([proof], false, undefined, text);
+}
+
+// ---------------------------------------------------------------------------
+// The epoch's closing BitGraph (epoch-end.ts): the last record of the line, made when the nightly rotation is about to
+// stop the enclave. The rotation leaves a close request for the open epoch in EPOCH_CLOSE_DIR, then stops this service.
+// On that stop, and only then, no new request is taken, the binds already under way finish, and the closing note is
+// bound as the epoch's last BitGraph. A stop without a close request (a deploy, a crash restart) leaves the epoch
+// open, since the enclave keeps running and its line goes on.
+// ---------------------------------------------------------------------------
+
+const EPOCH_CLOSE_DIR = process.env["EPOCH_CLOSE_DIR"];
+
+async function bindEpochEnd(): Promise<void> {
+  const epochId = openEpochId;
+  if (!epochId || !EPOCH_CLOSE_DIR) return;
+  if (!fsExists(closeRequestPath(EPOCH_CLOSE_DIR, epochId))) return;
+  const text = epochEndFileText(epochId);
+  const r = await bindExclusive(() => enclaveClient.send({ type: "bind", digestB64: sha256B64(text) }));
+  if (!r.ok || !r.data) { console.error(`[parent] epoch end: the closing note was not bound (${r.error ?? "no answer"})`); return; }
+  const { proof } = r.data as { proof: BitGraphProof };
+  try { timeline?.recordEnd(proof, text); } catch (e) { console.error(`[parent] epoch end: journal append failed: ${e instanceof Error ? e.message : String(e)}`); }
+  void persistToLedger([proof]);
+  console.log(`[parent] epoch end: ${epochId} closed at count ${proof.commit.counter}`);
+}
+
+let stopping = false;
+for (const sig of ["SIGTERM", "SIGINT"] as const) {
+  process.on(sig, () => {
+    if (stopping) return;
+    stopping = true;
+    server.close();
+    void bindEpochEnd()
+      .catch((e) => console.error(`[parent] epoch end failed: ${e instanceof Error ? e.message : String(e)}`))
+      .finally(() => setTimeout(() => process.exit(0), 1500));
+  });
 }
 
 async function bindEpochFloor(epochId: string): Promise<void> {
@@ -695,7 +735,7 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
       // The drop's floor, then the file on the next counts (bindDropFloor). Enclave v12+ only: it binds a digest and
       // nothing else, so the floor is a BitGraph of its own.
       const only = await onlyBind();
-      commitResult = await bindExclusive(async () => { if (only) await bindDropFloor(); return bindWithFloor({
+      commitResult = await bindExclusive(async () => { if (only && DROP_FLOOR) await bindDropFloor(); return bindWithFloor({
         digestB64: d.digestB64,
         ...(body.chainId !== undefined ? { chainId: body.chainId } : {}),
         ...(agencyForDigest !== undefined ? { agency: agencyForDigest } : {}),

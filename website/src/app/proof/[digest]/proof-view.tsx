@@ -172,6 +172,8 @@ export interface ProofViewModel {
   /** This BitGraph is a block read: the block its file names, which hashed here to its digest. */
   /** A block read's block, and the exact block file it binds (its content), checked to hash to the digest. */
   blockRead?: { chain: "base" | "ethereum"; number: number; hash: string; timestamp: number; file?: string } | null;
+  /** The epoch's closing record: the bitgraph-epoch-end/1 note it binds. */
+  epochEnd?: { file: string } | null;
   ceilingFileHref: string | null;
   checks: ChecksView;
   onConfirm: () => void;
@@ -505,6 +507,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const blockTimeRow = br ? <Row key="blocktime" f={{ label: `${chainName(br.chain)}’s time`, value: stampTz(new Date(br.timestamp * 1000)) }} /> : null;
   // Its content is the block file itself, served with the page, so it downloads instead of asking for a file.
   const blockFileHref = br?.file ? `data:application/json;charset=utf-8,${encodeURIComponent(br.file)}` : null;
+  const endFileHref = m.epochEnd?.file ? `data:application/json;charset=utf-8,${encodeURIComponent(m.epochEnd.file)}` : null;
   /* The receipt in groups, each answering one question, its rows in the order things happen (2026-11-01): what this
      BitGraph is; when, with the enclave's time between the two block reads that bracket it; the bind, the two
      consecutive counts with nothing between them; its place in the chain; and the hardware's signature on it all. */
@@ -522,7 +525,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         /* The file opens from the top of the card, right of the number, and shows directly beneath it. */
         <div key="n" className="pv-row pv-row-head">
           <div className="pv-row-value pv-name">
-            {`BitGraph #${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : br ? ` · ${chainName(br.chain)} block read` : ""}`}
+            {`BitGraph #${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : m.epochEnd ? " · the epoch's last" : br ? ` · ${chainName(br.chain)} block read` : ""}`}
             {/* With the file open, the link in the corner goes back to the ledger (what people reach for there); a file
                 that opens on request still gets its Open file button. */}
             {m.openUrl && fileOpen
@@ -539,7 +542,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           Base write after it are no longer rows here; both are still in the proof and its details. */}
       {group("When", [
         blockTimeRow,
-        (showTime || br) && attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
+        (showTime || br || m.epochEnd) && attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
       ])}
       {/* Check it anywhere follows when: text links like the rest of the receipt, under their own eyebrow. The proof;
           and the BitGraphed file when the original is in hand, the epoch file on an epoch's first record, or Connect
@@ -552,6 +555,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <button type="button" className="pv-link pv-link-btn" disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>{bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}</button>
           ) : es ? (
             <a className="pv-link" style={{ width: "fit-content" }} href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>Download {es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</a>
+          ) : endFileHref ? (
+            <a className="pv-link pv-link-btn" style={{ width: "fit-content" }} href={endFileHref} download="epoch-end.json">Download epoch-end.json</a>
           ) : blockFileHref ? (
             <a className="pv-link pv-link-btn" style={{ width: "fit-content" }} href={blockFileHref} download="block-read.json">Download block-read.json</a>
           ) : m.canConnect ? (

@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
         if (rec && rec.proof.artifact.digestB64 === standardB64) {
           return NextResponse.json({
             proofs: [{ proof: rec.proof }], lookupKind: "recorded", positions: [], causalWindow: null, anchorBlock: null, floor: null, ceiling: null,
-            timelineRecord: { kind: rec.kind, ...(rec.blockFile ? { blockFile: rec.blockFile } : {}), ...(rec.genesisFile ? { genesisFile: rec.genesisFile } : {}) },
+            timelineRecord: { kind: rec.kind, ...(rec.blockFile ? { blockFile: rec.blockFile } : {}), ...(rec.genesisFile ? { genesisFile: rec.genesisFile } : {}), ...(rec.endFile ? { endFile: rec.endFile } : {}) },
           }, { headers: { "Cache-Control": "public, s-maxage=3600" } });
         }
       }
@@ -249,7 +249,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // A drop's floor (2026-11-02) is a block read with a ledger object of its own, so it is found above like a file.
     // It is never written to Base; when the record at this position is a block read, its block file goes with it, as
     // for a block read with no ledger object, so its page names the block.
-    let timelineRecord: { kind: string; blockFile: string } | undefined;
+    let timelineRecord: { kind: string; blockFile?: string; endFile?: string } | undefined;
     // A lookup cut short by the timeout is not an answer: that response is not cached, so the next visit asks again
     // instead of serving a block read's page without its block.
     let timelineTimedOut = false;
@@ -262,6 +262,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       if (got === TIMED_OUT) timelineTimedOut = true;
       const rec = got === TIMED_OUT ? null : got;
       if (rec?.kind === "block" && rec.blockFile && rec.proof.artifact.digestB64 === standardB64) timelineRecord = { kind: "block", blockFile: rec.blockFile };
+      // The epoch's closing record: its note goes with it, so its page can name it and offer the note.
+      if (rec?.kind === "end" && rec.endFile && rec.proof.artifact.digestB64 === standardB64) timelineRecord = { kind: "end", endFile: rec.endFile };
     }
     return NextResponse.json({ proofs: [{ proof }],
         lookupKind, positions, causalWindow, anchorBlock, floor, ceiling, ...(timelineRecord ? { timelineRecord } : {}) }, { headers: { "Cache-Control": timelineTimedOut ? "no-store" : cacheControl } });

@@ -98,6 +98,11 @@ export class Timeline {
     this.journal.append({ kind: "block", proof, blockFile });
   }
 
+  /** The epoch's closing record (server.ts, bindEpochEnd), with the note it binds. */
+  recordEnd(proof: BitGraphProof, endFile: string): void {
+    this.journal.append({ kind: "end", proof, endFile });
+  }
+
   /** A file bind's proof, or the genesis record with its file. */
   record(proof: BitGraphProof, genesisFile?: string): void {
     const line: TimelineLine = genesisFile !== undefined ? { kind: "genesis", proof, genesisFile } : { kind: "file", proof };
@@ -109,8 +114,10 @@ export class Timeline {
   async bundle(q: { digestB64?: string; epochId?: string; counter?: string }): Promise<BuildTimelineBundleResult & { found: boolean }> {
     const at = q.epochId && q.counter ? { epochId: q.epochId, counter: q.counter } : q.digestB64 ? await this.records.find(q.digestB64) : null;
     if (!at) return { ok: false, retryable: false, reason: "no timeline record of that file", found: false };
-    const lines = await this.records.around(at.epochId, at.counter);
-    const r = buildTimelineBundle({ lines, counter: at.counter, genesis: this.records.genesis(at.epochId), nitroTimeMs: this.nitroTimeMs });
+    // A closing record is an ordinary file bind as far as a bundle is concerned.
+    type BundleInput = Parameters<typeof buildTimelineBundle>[0];
+    const lines = (await this.records.around(at.epochId, at.counter)).map((l) => (l.kind === "end" ? { kind: "file" as const, proof: l.proof } : l)) as BundleInput["lines"];
+    const r = buildTimelineBundle({ lines, counter: at.counter, genesis: this.records.genesis(at.epochId) as BundleInput["genesis"], nitroTimeMs: this.nitroTimeMs });
     return { ...r, found: true };
   }
 

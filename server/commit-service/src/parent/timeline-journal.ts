@@ -26,12 +26,14 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import type { BitGraphProof } from "bitgraph";
 
 export interface TimelineLine {
-  kind: "block" | "file" | "genesis";
+  kind: "block" | "file" | "genesis" | "end";
   proof: BitGraphProof;
   /** The bitgraph-block-read/1 file a block read binds. */
   blockFile?: string;
   /** The bitgraph-epoch-genesis/1 file the epoch's genesis record binds. */
   genesisFile?: string;
+  /** The bitgraph-epoch-end/1 file the epoch's closing record binds (epoch-end.ts). */
+  endFile?: string;
 }
 
 /** Puts one object; resolves when it is stored or already was (create-only). */

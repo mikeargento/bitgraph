@@ -10,7 +10,7 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
  *
  * Facts checked against the enclave source (server/commit-service/src/enclave/app.ts) on 2026-10-17: epochId =
  * base64(SHA-256(publicKeyB64 + ":" + bootNonceB64)); each epoch's counter starts at 0. Enclave v13 (2026-10-19): epochs
- * are not chained; each one's first BitGraph binds epoch-floor.json, a fresh read of the latest Base block.
+ * are not chained; each one's first BitGraph binds epoch-genesis.json, the record of the Base transaction naming it.
  *
  * Layout (2026-10-30 split): the four ways in live on /integrate; this page is the reference. The offline check as one
  * wide card at the top, then the reference beside a contents list that stays in view on desktop. Questions fold open; the proof's fields are a table.
@@ -106,8 +106,8 @@ export default function ToolsPage() {
             <h2 id="d-plugins">Built on ordinary BitGraphs.</h2>
             <p>
               Two things build on a BitGraph without changing it: a drop of many files becomes one tree, bound as one ordinary BitGraph,
-              and through bitgraph.ing, Base, the reference trust layer, is tied to each day&rsquo;s sequence by a block read before every
-              file and two writes for each epoch, one when it opens and one when it closes. Nothing about either one enters the enclave or the proof format.
+              and through bitgraph.ing, one Base transaction a day names each day&rsquo;s sequence in public. Nothing about either one
+              enters the enclave or the proof format.
             </p>
 
             <h3 className="tl-h3">Many files, one BitGraph</h3>
@@ -133,28 +133,26 @@ export default function ToolsPage() {
               needs nothing outside the sequence. What a closed system cannot show on its own word is that it is the only sequence, and
               that it was not rewritten afterward. So the sequence made through this site is tied to a public chain BitGraph does not
               operate. Base is the reference layer for this site, not a dependency; another witness bound the same way would serve.
-              Three things tie them:
+              It is tied in one place:
             </p>
             <ol className="tl-steps">
-              <li><strong>A block read before each file.</strong> The newest Base block is read and bound as a BitGraph of its own, on the counts just before the file&rsquo;s. A block&rsquo;s hash cannot be known before the block exists, so the file&rsquo;s BitGraph came after it.</li>
-              <li><strong>A write when the epoch opens.</strong> Once a day a new epoch starts, and BitGraph&rsquo;s published writer sends a Base transaction carrying the new epoch&rsquo;s id (see Epochs, below). No BitGraph of that epoch can come before that transaction&rsquo;s block.</li>
-              <li><strong>A write when the epoch closes.</strong> Before the enclave shuts down, a second transaction carries one Merkle root over the proofs of every file bound in the epoch. It carries 84 bytes: the tag <code>BGC1</code>, the root, the previous root write&rsquo;s hash, and the first and last counts it covers. From that block on, the set of records under the root is fixed: none can be added, removed or reordered.</li>
+              <li><strong>A write when the epoch opens.</strong> Once a day a new epoch starts, and BitGraph&rsquo;s published writer sends a Base transaction carrying the new epoch&rsquo;s id (see Epochs, below). It carries 36 bytes: the tag <code>BGE1</code> and the id. The epoch&rsquo;s first BitGraph binds a record of that transaction, so no BitGraph of the epoch can come before its block.</li>
             </ol>
             <p>
-              That is two writes a day, however many records the day holds. The first opens the epoch in public; the second
-              closes it, and every record in the epoch lies between the two.
+              That is one write a day, however many records the day holds. It names the day&rsquo;s sequence in public, so a second
+              sequence started the same day would have no public name, and it places every record of the day after that block.
             </p>
-            <p>To check a record against its epoch&rsquo;s root:</p>
+            <p>To check a record against its epoch:</p>
             <ol className="tl-steps">
               <li>Verify the file against its proof with the offline check above.</li>
-              <li>Hash the proof and walk it up its Merkle path (from <code>/api/ceilings/&lt;proof hash&gt;</code>) to the root. The path is there once the record&rsquo;s epoch has closed. A root that covers one record is that proof&rsquo;s own leaf hash.</li>
-              <li>Open the transaction that file names on Basescan: it is sent by BitGraph&rsquo;s writer to itself, and its data carries that root and a range of counts that includes the proof&rsquo;s.</li>
+              <li>Open the epoch&rsquo;s genesis transaction on Basescan: it is sent by BitGraph&rsquo;s writer to itself, and its data is <code>BGE1</code> followed by 32 bytes.</li>
+              <li>Those 32 bytes, in base64, are the <code>epochId</code> signed into the proof.</li>
             </ol>
             <p>
               Base adds nothing to the bind and takes nothing from it. Strip it away and a BitGraph is still a position: where your
-              bits were bound in the sequence, with the hardware attestation&rsquo;s timestamp bound in as its first layer. The writes
-              are what let someone who trusts neither BitGraph nor its host see that a day&rsquo;s sequence was opened in public and
-              closed as one fixed set.
+              bits were bound in the sequence, with the hardware attestation&rsquo;s timestamp bound in as its first layer. The one write
+              is what lets someone who trusts neither BitGraph nor its host see which sequence was the day&rsquo;s, opened in public.
+              Anchoring finished records anywhere else is optional and comes afterward.
             </p>
           </section>
 
@@ -172,8 +170,8 @@ export default function ToolsPage() {
               write to Base: BitGraph&rsquo;s writer sends a transaction carrying the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph
               binds a record of that mined transaction (<code>epoch-genesis.json</code>). The transaction could not exist before the
               epoch&rsquo;s key, since the id is derived from it, and no BitGraph of the epoch could exist before the transaction&rsquo;s
-              block, so epochs order by their genesis blocks. Before the enclave shuts down, the epoch&rsquo;s second write goes out: one
-              Merkle root over the file proofs made in the epoch, when it made any. Base is the witness here because this deployment binds it; the rule is
+              block, so epochs order by their genesis blocks. Before the enclave shuts down, the epoch&rsquo;s last BitGraph binds a short
+              closing note (<code>epoch-end.json</code>) naming the epoch; nothing is bound after it. Base is the witness here because this deployment binds it; the rule is
               the same for any trust layer: bound into the record, or carrying the record&rsquo;s hash, never merely placed beside it.
             </p>
             <p>
@@ -261,7 +259,7 @@ export default function ToolsPage() {
               </details>
               <details>
                 <summary>Does Base change the BitGraph?</summary>
-                <p>No. The bind is the same two counts. The Base block read before a file is a BitGraph of its own, and the two writes a day happen outside the enclave.</p>
+                <p>No. The bind is the same two counts, and the one write a day happens outside the enclave.</p>
               </details>
               <details>
                 <summary>Is a tree weaker than one BitGraph per file?</summary>
