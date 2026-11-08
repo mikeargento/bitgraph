@@ -31,7 +31,7 @@ import { attachEnvironments } from "@/lib/proof-environment";
 import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
 import { DIGEST_TREE_FORMAT, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes } from "@/lib/tree-member";
-import { bindOne, digestOf, hashLeaves, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type MerkleTree as PluginTree } from "@/lib/plugins";
+import { b64 as digestB64, bindOne, digestOf, digestOfFile, hashLeaves, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type MerkleTree as PluginTree } from "@/lib/plugins";
 
 const MAX_FILES = 25;
 
@@ -497,8 +497,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       if (!list && files.length === 1) {
         const f = files[0]!;
         setStatus("Checking the ledger…");
-        const bytes = new Uint8Array(await f.arrayBuffer());
-        const digest = await digestOf(bytes);
+        const digest = digestB64(await digestOfFile(f));
         // The file is saved for its proof page now too, during the bind rather than after it.
         cachedLater = cacheArtifactToIDB(f, digest).catch(() => {});
         const res = await fetch(`/api/proofs/${toUrlSafe(digest)}`).catch(() => null);
@@ -719,7 +718,9 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     // Making, and more than one file (no proofs or tree among them, those are checks above): one tree, one BitGraph.
     // Making: every drop is bound at once, one file or many, as one tree and one BitGraph. One file that already has a
     // BitGraph opens its proof instead (takePlugins). A lone proof file opens the proof it belongs to.
-    if (mode === "make" && !(files.length === 1 && proofFileOf(files[0]!, new Uint8Array(await files[0]!.arrayBuffer())))) { await takePlugins(files); return; }
+    // Only a small .json file can be a proof, so nothing else is read into memory to find out.
+    const loneProof = files.length === 1 && /\.json$/i.test(files[0]!.name) && files[0]!.size <= 4_000_000 && proofFileOf(files[0]!, new Uint8Array(await files[0]!.arrayBuffer()));
+    if (mode === "make" && !loneProof) { await takePlugins(files); return; }
     if (files.length > MAX_FILES) { await takeMany(files); return; }
     setBulk(null);
     const picked = files.slice(0, MAX_FILES);

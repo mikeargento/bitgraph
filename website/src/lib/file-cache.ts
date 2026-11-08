@@ -6,7 +6,11 @@
  * opened. Everything stays on the device — this is a cache, not an upload.
  */
 
+/** A larger file is not copied into the browser: its proof page opens without the file in hand. */
+export const MAX_CACHED_FILE_BYTES = 200 * 1024 * 1024;
+
 export async function cacheArtifactToIDB(file: File, proofDigest: string): Promise<void> {
+  if (file.size > MAX_CACHED_FILE_BYTES) return;
   const buf = await file.arrayBuffer();
   const db = await openFilesDB();
   const tx = db.transaction("files", "readwrite");

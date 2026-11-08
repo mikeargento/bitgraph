@@ -1,5 +1,6 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
+import { createSHA256 } from "hash-wasm";
 import { DIGEST_TREE_FORMAT, digestRootText } from "./tree-member.ts";
 
 /**
@@ -24,6 +25,30 @@ async function sha256(...parts: Uint8Array[]): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", buf));
 }
 
+/** Above this size a file is hashed as a stream, so it is never held in memory whole. */
+export const WHOLE_READ_MAX_BYTES = 256 * 1024 * 1024;
+const HASH_SLICE_BYTES = 8 * 1024 * 1024;
+
+/** A file's SHA-256. Small files use the browser's native hash; large ones stream through a hasher. */
+export async function digestOfFile(f: Blob, wholeReadMax = WHOLE_READ_MAX_BYTES): Promise<Uint8Array> {
+  if (f.size <= wholeReadMax) return sha256(new Uint8Array(await f.arrayBuffer()));
+  const hasher = await createSHA256();
+  hasher.init();
+  const reader = f.stream().getReader();
+  let sinceYield = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    // Hash in pieces and let the page paint between them, however large the stream's chunks are.
+    for (let o = 0; o < value.length; o += HASH_SLICE_BYTES) {
+      hasher.update(value.subarray(o, o + HASH_SLICE_BYTES));
+      sinceYield += Math.min(HASH_SLICE_BYTES, value.length - o);
+      if (sinceYield >= HASH_SLICE_BYTES) { sinceYield = 0; await new Promise((r) => setTimeout(r)); }
+    }
+  }
+  return hasher.digest("binary");
+}
+
 /** Each file's leaf, in the order given: [name, leaf hash hex, the file's SHA-256 base64]. Files are hashed 16 at a time,
  *  so a large drop is limited by reading the files, not by waiting on one hash at a time. */
 export async function hashLeaves(files: File[], onProgress?: (done: number) => void): Promise<Array<[string, string, string]>> {
@@ -32,7 +57,7 @@ export async function hashLeaves(files: File[], onProgress?: (done: number) => v
   const worker = async () => {
     for (let i = next++; i < files.length; i = next++) {
       const f = files[i]!;
-      const digest = await sha256(new Uint8Array(await f.arrayBuffer()));
+      const digest = await digestOfFile(f);
       leaves[i] = [f.webkitRelativePath || f.name, hex(await sha256(new Uint8Array([0]), digest)), b64(digest)];
       done++;
       if (onProgress && (done % 500 === 0 || done === files.length)) onProgress(done);
