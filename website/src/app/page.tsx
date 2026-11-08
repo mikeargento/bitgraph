@@ -8,12 +8,12 @@ import type { Metadata } from "next";
  * says when bits were bound, not how old they are or who made them.
  */
 
-const TITLE = "Everything digital is already a copy";
+const TITLE = "BitGraph just puts things in order";
 const DESCRIPTION =
-  "Everything digital is already a copy. BitGraph just puts things in order: any file or record gets a numbered place in line, with a proof anyone can check offline, in seconds.";
+  "Everything digital is already a copy. Any file or record gets a numbered place in line, with a proof anyone can check offline, in seconds.";
 
 export const metadata: Metadata = {
-  title: { absolute: `BitGraph: ${TITLE}` },
+  title: { absolute: TITLE },
   description: DESCRIPTION,
   openGraph: { title: TITLE, description: DESCRIPTION },
   twitter: { title: TITLE, description: DESCRIPTION },

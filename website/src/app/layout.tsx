@@ -89,8 +89,7 @@ const SITE_DESCRIPTION =
 
 export const metadata: Metadata = {
   title: {
-    // Home's tab title is "BitGraph: " plus the home h1, set in page.tsx; the
-    // template below brands every other page's tab.
+    // Home's tab title is set in page.tsx; the template below brands every other page's tab.
     default: "BitGraph",
     template: "%s | BitGraph",
   },
@@ -100,14 +99,14 @@ export const metadata: Metadata = {
     "hardware enclave", "offline verification",
   ],
   openGraph: {
-    title: "BitGraph: Everything digital is already a copy",
+    title: "BitGraph just puts things in order",
     description: SITE_DESCRIPTION,
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary",
-    title: "BitGraph: Everything digital is already a copy",
+    title: "BitGraph just puts things in order",
     description: SITE_DESCRIPTION,
   },
   robots: { index: true, follow: true },
