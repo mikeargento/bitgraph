@@ -47,7 +47,7 @@ export default function HomePage() {
         <h2 id="ov-unique">Uniqueness on demand.</h2>
         <p>
           Every BitGraph starts with an unused, unpredictable value from the hardware, so any file, even one of a thousand identical copies, receives a
-          place that is its alone. Include that value in the content itself, and the content becomes one of a kind.
+          place that is its alone. Include that value in the next file you make, and that file is one of a kind, made after it.
         </p>
       </section>
 
