@@ -42,6 +42,15 @@ export default function HomePage() {
         </p>
       </section>
 
+      <section className="home-section" aria-labelledby="ov-unique">
+        <p className="home-kicker">What it gives you</p>
+        <h2 id="ov-unique">Uniqueness on demand.</h2>
+        <p>
+          Every BitGraph starts with an unused, unpredictable value from the hardware, so any file, even one of a thousand identical copies, receives a
+          place that is its alone. Include that value in the content itself, and the content becomes one of a kind.
+        </p>
+      </section>
+
       <section className="home-section" aria-labelledby="ov-not">
         <p className="home-kicker">What it does not prove</p>
         <h2 id="ov-not">Order, not origin.</h2>
@@ -59,6 +68,10 @@ export default function HomePage() {
           The step runs inside an AWS Nitro enclave whose code is published and measured. In one indivisible action it draws a
           fresh value nobody has seen, binds your fingerprint at the next count, and signs both into one proof that the hardware
           attests. Your file stays on your machine; only its 32-byte fingerprint reaches BitGraph.
+        </p>
+        <p>
+          That is what sets it apart from a timestamp. Each place comes with a value nobody has seen, so no place can be
+          prepared for in advance, and the chain shows any gap or reordering when the records are checked together.
         </p>
       </section>
 
