@@ -328,7 +328,12 @@ export default function TechnologyPage() {
           <section className="home-section" aria-labelledby="t-compare">
             <p className="home-kicker">Comparisons</p>
             <h2 id="t-compare">How BitGraph fits.</h2>
-            <p>These systems provide different kinds of evidence and can be used together.</p>
+            <p>
+              These systems provide different kinds of evidence and can be used together. Each attaches something to content that
+              already exists: a signature, a token, a log entry, a block. What BitGraph adds is the place itself. Each count comes
+              with a nonce nobody could predict, drawn at the moment the place is taken, so no place in line can be prepared for,
+              reserved, or reused.
+            </p>
             <div className="sx-table-wrap">
               <table className="sx-table">
                 <thead><tr><th>System</th><th>What it establishes</th><th>What you trust</th><th>How BitGraph fits</th></tr></thead>
