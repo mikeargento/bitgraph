@@ -6,11 +6,11 @@
  * Between them every record is found, whether it was made a second ago or a month ago.
  *
  * A file is found by its digest in the local lines, else through the bucket's by-digest index (the earliest proof of
- * those bytes). The epoch's genesis record is kept beside the cursors (genesis-<epoch>.json) when the parent binds
- * it, since it may be far from the file in the sequence.
+ * those bytes). An epoch that has a genesis record keeps it in the state directory (genesis-<epoch>.json), since it may
+ * be far from the file in the sequence; genesis() reads it for bundles.
  */
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import type { TimelineLine } from "./timeline-journal.js";
@@ -77,14 +77,10 @@ export class TimelineRecords {
     return [...byCount.values()];
   }
 
-  /** The epoch's genesis record, when this parent bound it. */
+  /** The epoch's genesis record, when the state directory holds one. */
   genesis(epochId: string): TimelineLine | null {
     const p = join(this.stateDir, `genesis-${safe(epochId)}.json`);
     return existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as TimelineLine) : null;
-  }
-
-  keepGenesis(line: TimelineLine): void {
-    writeFileSync(join(this.stateDir, `genesis-${safe(line.proof.commit.epochId!)}.json`), JSON.stringify(line), { mode: 0o600 });
   }
 }
 

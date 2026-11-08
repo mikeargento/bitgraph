@@ -16,40 +16,6 @@ export interface CommitRequest {
   policy?: PolicyBinding;
 }
 
-/** BitGraph 2-RTT: single-artifact commit with pre-allocated slot. */
-export interface CommitDigestRequest {
-  type: "commitDigest";
-  slotId: string;
-  digestB64: string;
-  metadata?: Record<string, unknown>;
-  agency?: AgencyEnvelope;
-  attribution?: { name?: string; title?: string; message?: string };
-  /** Optional policy binding — cryptographically sealed into the proof. */
-  policy?: PolicyBinding;
-  /**
-   * Anchor service claim (enclave v7): the enclave verifies the Ed25519
-   * signature against the anchor service key baked into its image and, if it
-   * holds, signs commit.anchor into the proof. Passed through by the parent.
-   */
-  anchor?: AnchorClaimRequest;
-}
-
-export interface AnchorClaimRequest {
-  blockNumber: number;
-  /** 0x-prefixed lowercase hex, 32 bytes. */
-  blockHash: string;
-  /** Ed25519 over "bitgraph-anchor/1\n{epochId}\n{chainId}\n{blockNumber}\n{blockHash}". */
-  signatureB64: string;
-}
-
-/** Pre-allocate a causal slot (nonce-first). */
-export interface AllocateSlotRequest {
-  type: "allocateSlot";
-  chainId?: string;
-  /** Enclave v10: the newest Base block header (raw RLP, base64), fixed as the slot's floor. */
-  baseFloorHeaderB64?: string;
-}
-
 /**
  * Enclave v11: THE primitive. One atomic action: a fresh nonce at count N,
  * this digest at N+1, signed and released together. The nonce never leaves
@@ -59,13 +25,10 @@ export interface BindRequest {
   type: "bind";
   digestB64: string;
   chainId?: string;
-  /** The newest Base block header (raw RLP, base64), fixed as the floor. */
-  baseFloorHeaderB64?: string;
   metadata?: Record<string, unknown>;
   agency?: AgencyEnvelope;
   attribution?: { name?: string; title?: string; message?: string };
   policy?: PolicyBinding;
-  anchor?: AnchorClaimRequest;
 }
 
 export interface KeyRequest {
@@ -95,8 +58,6 @@ export interface InitRequest {
 
 export type EnclaveRequest =
   | CommitRequest
-  | CommitDigestRequest
-  | AllocateSlotRequest
   | BindRequest
   | KeyRequest
   | ChallengeRequest

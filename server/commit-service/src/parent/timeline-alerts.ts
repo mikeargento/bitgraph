@@ -1,19 +1,14 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * Alerts for the block timeline, checked inside the parent every 30 s and sent by email through an SNS topic.
+ * Alerts for the timeline, checked inside the parent every 30 s and sent by email through an SNS topic.
  *
  * Conditions (each has a key; an email goes out when a condition starts, again every hour while it lasts, and once
  * when it clears):
  *
- *   reads-stopped:<chain>     no block bound for 20 s on Base, 60 s on Ethereum (settable)
- *   lag-streak:<chain>        more than 3 Base reads in a row, or 2 Ethereum reads, outside the lag limits
- *   lag-median:base           the median Base lag over 5 minutes above 3 s
- *   disagree:<chain>          the two providers answered differently in the last 5 minutes
  *   upload                    the journal's last S3 upload failed
- *   genesis-stuck             the epoch's genesis write requested more than 10 minutes ago and not yet bound
- *   enclave                   the enclave refused or failed binds (not initialized, unreachable): it restarted or
- *                             is down. A new epoch at parent start is also sent once, as a notice.
+ *
+ * notice() sends a one-off message, such as a new epoch at parent start.
  *
  * This only sees what the parent sees: a parent that is down sends nothing, so the site's cron checks /health from
  * outside as well. At most 30 emails an hour leave this process, whatever happens.
@@ -22,29 +17,17 @@
 import type { TimelineStatus } from "./timeline.js";
 
 export interface AlertSettings {
-  readsStoppedS: { base: number; ethereum: number };
-  streak: { base: number; ethereum: number };
-  baseMedianMaxS: number;
-  genesisStuckMs: number;
   repeatMs: number;
   maxPerHour: number;
 }
 
 export const DEFAULT_ALERT_SETTINGS: AlertSettings = {
-  readsStoppedS: { base: 20, ethereum: 60 },
-  streak: { base: 3, ethereum: 2 },
-  baseMedianMaxS: 3,
-  genesisStuckMs: 10 * 60_000,
   repeatMs: 60 * 60_000,
   maxPerHour: 30,
 };
 
 export interface AlertInputs {
   timeline: TimelineStatus;
-  /** When the genesis write was requested, while it is not yet bound; null when bound or not asked. */
-  genesisPendingSinceMs: number | null;
-  /** When this parent started reading (reads-stopped waits this long before the first read). */
-  startedAtMs: number;
 }
 
 export interface Condition { key: string; message: string }
@@ -52,33 +35,15 @@ export interface Condition { key: string; message: string }
 /** Sends one email: a subject and a body. */
 export type AlertSend = (subject: string, body: string) => Promise<void>;
 
-const ENCLAVE_DOWN = /not initialized|Enclave error|ECONNREFUSED|ECONNRESET|socket hang up|timed out/i;
-
-export function evaluate(inputs: AlertInputs, now: number, s: AlertSettings, disagreedRecently: (chain: string, count: number) => boolean): Condition[] {
+export function evaluate(inputs: AlertInputs): Condition[] {
   const out: Condition[] = [];
-  for (const c of inputs.timeline.chains) {
-    const ch = c.chain;
-    const name = ch === "base" ? "Base" : "Ethereum";
-    const since = c.lastReadAtMs ?? inputs.startedAtMs;
-    const idleS = (now - since) / 1000;
-    if (idleS > s.readsStoppedS[ch]) out.push({ key: `reads-stopped:${ch}`, message: `${name} reads stopped: none bound for ${Math.round(idleS)} s (last block ${c.last?.number ?? "none"}; ${c.lastError ?? "no error reported"})` });
-    if (c.outOfRangeStreak > s.streak[ch]) out.push({ key: `lag-streak:${ch}`, message: `${name}: ${c.outOfRangeStreak} reads in a row outside the lag limits (last lag ${c.lagS?.toFixed(1)} s)` });
-    if (ch === "base" && c.medianLag5mS !== null && c.medianLag5mS > s.baseMedianMaxS) out.push({ key: "lag-median:base", message: `Base median lag over 5 minutes is ${c.medianLag5mS.toFixed(1)} s (limit ${s.baseMedianMaxS} s)` });
-    if (disagreedRecently(ch, c.disagreements)) out.push({ key: `disagree:${ch}`, message: `${name}: the two providers answered differently (${c.disagreements} times since start; last: ${c.lastError ?? "?"})` });
-    if (c.lastError && ENCLAVE_DOWN.test(c.lastError)) out.push({ key: "enclave", message: `the enclave refused or failed a bind: ${c.lastError}` });
-  }
   if (inputs.timeline.journal.uploading && inputs.timeline.journal.lastError) out.push({ key: "upload", message: `S3 upload of the timeline journal failed: ${inputs.timeline.journal.lastError}` });
-  if (inputs.genesisPendingSinceMs !== null && now - inputs.genesisPendingSinceMs > s.genesisStuckMs) {
-    out.push({ key: "genesis-stuck", message: `the epoch's genesis write to Base was requested ${Math.round((now - inputs.genesisPendingSinceMs) / 60_000)} min ago and is not bound yet` });
-  }
-  // One enclave condition is enough, however many chains saw it.
-  return out.filter((c, i) => out.findIndex((d) => d.key === c.key) === i);
+  return out;
 }
 
 export class TimelineAlerter {
   private readonly active = new Map<string, { since: number; lastSent: number; message: string }>();
   private readonly sentAt: number[] = [];
-  private readonly lastDisagreement = new Map<string, { count: number; at: number }>();
   private timer: NodeJS.Timeout | undefined;
 
   constructor(private readonly send: AlertSend, private readonly inputs: () => AlertInputs, private readonly settings: AlertSettings = DEFAULT_ALERT_SETTINGS, private readonly now: () => number = Date.now, private readonly log: (m: string) => void = () => {}) {}
@@ -90,14 +55,7 @@ export class TimelineAlerter {
 
   async check(): Promise<void> {
     const now = this.now();
-    // A disagreement counts as recent for five minutes after the count last went up.
-    const disagreed = (chain: string, count: number) => {
-      const seen = this.lastDisagreement.get(chain) ?? { count: 0, at: 0 };
-      if (count > seen.count) this.lastDisagreement.set(chain, { count, at: now });
-      const at = this.lastDisagreement.get(chain)?.at ?? 0;
-      return at > 0 && now - at < 5 * 60_000;
-    };
-    const conditions = evaluate(this.inputs(), now, this.settings, disagreed);
+    const conditions = evaluate(this.inputs());
     const keys = new Set(conditions.map((c) => c.key));
     for (const c of conditions) {
       const a = this.active.get(c.key);

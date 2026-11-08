@@ -7,7 +7,7 @@
 
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BitGraphProof } from "bitgraph";
@@ -65,11 +65,11 @@ test("a file is found locally by its digest, else through the bucket's by-digest
   assert.equal(await records.find(digest(9)), null);
 });
 
-test("the genesis record is kept beside the cursors", () => {
+test("an epoch's genesis record is read from the state directory", () => {
   const dir = mkdtempSync(join(tmpdir(), "records-"));
   const records = new TimelineRecords(join(dir, "journal"), dir, null);
   assert.equal(records.genesis(EPOCH), null);
   const g: TimelineLine = { kind: "genesis", proof: line(2).proof, genesisFile: "{}" };
-  records.keepGenesis(g);
+  writeFileSync(join(dir, `genesis-${EPOCH.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}.json`), JSON.stringify(g));
   assert.deepEqual(records.genesis(EPOCH), g);
 });
