@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph-sdk",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Make and check BitGraphs from any stack: files are hashed locally, each SHA-256 is bound in one atomic action in the enclave, and the proof is saved beside the file.",
   "keywords": [
     "bitgraph",

@@ -33,7 +33,7 @@ import {
   type CheckOutcome,
 } from "./format.js";
 
-export const SERVER_VERSION = "0.12.0";
+export const SERVER_VERSION = "0.13.0";
 
 const SCAN_CONCURRENCY = 4;
 /** Paths per call; a directory counts once and expands to its files. */
