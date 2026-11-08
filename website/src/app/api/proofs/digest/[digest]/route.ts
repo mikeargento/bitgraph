@@ -1,33 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ANCHOR_ATTRIBUTION_NAME, anchorMarkOf, isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { fusedOriginDigestOf, isFusedProof } from "@/lib/fuse-core";
 import { bindSet, isSetProof, memberOf } from "@/lib/fuse-set";
-import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, epochHasAnchors, LedgerUnavailableError, DISCOVERY_RETIRED, ledgerWritesOn } from "@/lib/s3";
+import { getProofsByDigest, LedgerUnavailableError, DISCOVERY_RETIRED, ledgerWritesOn } from "@/lib/s3";
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
-import { buildAnchorView, computeWindow } from "@/lib/causal-window";
 import { recordedMsOf } from "@/lib/recorded-time";
-import { readSidecarText } from "@/lib/ceilings";
 import { timelineRecordAt } from "@/lib/timeline-ledger";
-
-/** The Base floor a proof signs (commit.slotFloor, enclave v10 on), or null for an Ethereum floor or none. */
-function baseFloorOf(proof: Record<string, unknown>): { chain: "base"; blockNumber: number; blockHash: string | null; blockTime: string } | null {
-  const f = (proof.commit as { slotFloor?: { chain?: unknown; blockNumber?: unknown; blockHash?: unknown; blockTimestamp?: unknown } } | undefined)?.slotFloor;
-  if (!f || f.chain !== "base" || typeof f.blockNumber !== "number" || typeof f.blockTimestamp !== "number") return null;
-  return { chain: "base", blockNumber: f.blockNumber, blockHash: typeof f.blockHash === "string" ? f.blockHash : null, blockTime: new Date(f.blockTimestamp * 1000).toISOString() };
-}
-
-/** The record's Base ceiling (its bitgraph-ceiling/1 sidecar), or null when the writer has not written one. */
-async function baseCeilingOf(proof: Record<string, unknown>): Promise<{ chain: "base"; blockNumber: number; blockTime: string; txHash: string | null } | null> {
-  const ph = typeof proof.proofHash === "string" ? proof.proofHash : null;
-  if (!ph) return null;
-  try {
-    const text = await readSidecarText(ph);
-    if (!text) return null;
-    const a = (JSON.parse(text) as { anchor?: { blockNumber?: unknown; blockTimestamp?: unknown; txHash?: unknown } }).anchor;
-    if (!a || typeof a.blockNumber !== "number" || typeof a.blockTimestamp !== "number") return null;
-    return { chain: "base", blockNumber: a.blockNumber, blockTime: new Date(a.blockTimestamp * 1000).toISOString(), txHash: typeof a.txHash === "string" ? a.txHash : null };
-  } catch { return null; }
-}
 
 export const dynamic = "force-dynamic";
 
@@ -42,15 +19,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // earliest, i.e. the originating proof.
     const all = await getProofsByDigest(standardB64);
     if (all.length === 0) {
-      // A block read (and any record of the block timeline) has no per-proof object: it is in the timeline's batches,
-      // found by its epoch and count, and served when it binds these bytes.
+      // A record kept only in the timeline's batches (an epoch's closing BitGraph, and some older system records) has no
+      // per-proof object: it is found by its epoch and count, and served when it binds these bytes.
       const c = req.nextUrl.searchParams.get("counter"), e = req.nextUrl.searchParams.get("epoch");
       if (c && e && /^[1-9][0-9]*$/.test(c) && /^[A-Za-z0-9_-]{43}$/.test(e)) {
         const rec = await timelineRecordAt(e, Number(c)).catch(() => null);
         if (rec && rec.proof.artifact.digestB64 === standardB64) {
           return NextResponse.json({
-            proofs: [{ proof: rec.proof }], lookupKind: "recorded", positions: [], causalWindow: null, anchorBlock: null, floor: null, ceiling: null,
-            timelineRecord: { kind: rec.kind, ...(rec.blockFile ? { blockFile: rec.blockFile } : {}), ...(rec.genesisFile ? { genesisFile: rec.genesisFile } : {}), ...(rec.endFile ? { endFile: rec.endFile } : {}) },
+            proofs: [{ proof: rec.proof }], lookupKind: "recorded", positions: [],
+            timelineRecord: { kind: rec.kind, ...(rec.endFile ? { endFile: rec.endFile } : {}) },
           }, { headers: { "Cache-Control": "public, s-maxage=3600" } });
         }
       }
@@ -124,30 +101,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       } catch { /* keep the artifact's own list */ }
     }
 
-    // The two-sided ETH anchor window for one counter+epoch. NOTE the naming
-    // inversion the UI depends on: anchorBefore is the anchor with the LOWER
-    // counter (earlier Ethereum block) — the proof was BitGraphed AFTER it
-    // (lower time bound). anchorAfter is the HIGHER counter (later block) — the
-    // proof was BitGraphed BEFORE it (upper time bound). Together they bracket
-    // the proof to roughly one anchor interval of public Ethereum time.
-
-    // Compute EVERY position's anchor window in parallel. The anchor window is
-    // the defensible time statement (the S3 write time is just our server
-    // clock, not part of the proof), so each position in the Causal Positions
-    // card shows the same two-sided "between X and Y" as the lead card.
-    const positionWindows = await Promise.all(positionEntries.map(async (e) => {
-      const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
-      if (!c?.counter || !c?.epochId) return { anchorBefore: null, anchorAfter: null };
-      try { return await computeWindow(parseInt(c.counter, 10), c.epochId); }
-      catch { return { anchorBefore: null, anchorAfter: null }; }
-    }));
-
-    // The Base floor each proof signs and the Base ceiling written after it (2026-10-11): since the Ethereum
-    // anchor stream stopped (10-07), the anchor window above is hours stale for a Base-floored record, and
-    // it never carried the Base ceiling. These are the record's own bounds, in time.
-    const baseFloors = positionEntries.map((e) => baseFloorOf(e.proof as Record<string, unknown>));
-    const baseCeilings = await Promise.all(positionEntries.map((e) => baseCeilingOf(e.proof as Record<string, unknown>)));
-
     // A set entry's member count, from the manifest the index hydrated and
     // bindSet bound (hash to the signed digest, commitment to the slot);
     // absent when the entry could not be bound, never guessed from raw metadata.
@@ -156,18 +109,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
 
     const positions = positionEntries.map((e, idx) => {
       const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
-      const w = positionWindows[idx];
       const artifact = (e.proof.artifact as { digestB64?: string } | undefined)?.digestB64;
       const attr = e.proof.attribution as { title?: string } | undefined;
       return {
         counter: c?.counter ?? null,
         epoch: c?.epochId ? toUrlSafeB64(c.epochId) : null,
-        // A Base-floored record: the floor block it signs and its Base ceiling, both in time. Earlier
-        // records keep the Ethereum anchor window, unchanged.
-        lowerTime: baseFloors[idx]?.blockTime ?? w.anchorBefore?.blockTime ?? null,
-        upperTime: baseFloors[idx] ? baseCeilings[idx]?.blockTime ?? null : baseCeilings[idx]?.blockTime ?? w.anchorAfter?.blockTime ?? null,
-        floor: baseFloors[idx],
-        ceiling: baseCeilings[idx],
         // When BitGraph recorded this position, by the TEE's signed clock: the
         // same time the proof page leads with, so a Positions row and the page
         // it opens never disagree (one clock everywhere, 2026-09-27).
@@ -186,87 +132,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       };
     });
 
-    // The lead card's window is the selected proof's — reuse it from the set
-    // just computed instead of looking it up a second time.
-    let causalWindow = null;
-    // Matched on counter+epoch, not object identity: when the list widened to
-    // the origin's entries above, the selected proof is a different instance of
-    // the same record. A counter is unique within an epoch, so this is exact.
     const selCommit = proof.commit as { counter?: string; epochId?: string } | undefined;
-    const selIdx = positionEntries.findIndex((e) => {
-      const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
-      return c?.counter === selCommit?.counter && c?.epochId === selCommit?.epochId;
-    });
-    let floor: ReturnType<typeof baseFloorOf> = null;
-    let ceiling: Awaited<ReturnType<typeof baseCeilingOf>> = null;
-    if (selIdx >= 0) {
-      floor = baseFloors[selIdx];
-      ceiling = baseCeilings[selIdx];
-      const w = positionWindows[selIdx];
-      if (w.anchorAfter || w.anchorBefore) causalWindow = { anchorBefore: w.anchorBefore, anchorAfter: w.anchorAfter };
-    } else if (selCommit?.counter && selCommit?.epochId) {
-      // The selected proof is not in the list at all. Not expected, and the
-      // lead card must still carry its window rather than silently losing it.
-      floor = baseFloorOf(proof as Record<string, unknown>);
-      ceiling = await baseCeilingOf(proof as Record<string, unknown>);
-      try {
-        const w = await computeWindow(parseInt(selCommit.counter, 10), selCommit.epochId);
-        if (w.anchorAfter || w.anchorBefore) causalWindow = { anchorBefore: w.anchorBefore, anchorAfter: w.anchorAfter };
-      } catch { /* leave it null, as before */ }
-    }
-
-    // For an Ethereum anchor, resolve its OWN block (number + timestamp) so the
-    // proof page can show a "Recorded: Ethereum Block #N at <time>" line, the
-    // anchor's equivalent of a user proof's causal time window. The stored
-    // anchor proof carries the block hash/number but not the timestamp, so
-    // buildAnchorView fills it in (from the block number via RPC fallback).
-    let anchorBlock = null;
-    try {
-      const anchorAttr = proof.attribution as { name?: string } | undefined;
-      if (anchorAttr?.name?.startsWith("Ethereum")) {
-        anchorBlock = await buildAnchorView(proof);
-      }
-    } catch (_) { /* non-critical */ }
-
-    // CDN caching. This response is expensive (per position: two S3 anchor-window
-    // scans), yet for a SETTLED proof it never changes — both anchors have landed
-    // and the causal window is fixed. Serve those from the CDN so a warm/prefetch,
-    // and every subsequent visit, is instant instead of re-running the S3 work.
-    // The one thing that can still change is the Recordings list growing (the same
-    // bytes BitGraphed again), which stale-while-revalidate refreshes in the
-    // background — so SWR is minutes, not days: a stale list must heal on the
-    // next visit soon after, not whenever a second visitor happens by. The page
-    // also self-corrects the worst case (viewing a position the cached list
-    // doesn't contain) by refetching on a fresh cache key. A proof still waiting
-    // on its upper anchor gets a short TTL so the pending "waiting on Ethereum"
-    // window fills in promptly (the client also polls).
-    // An epoch with no anchors has no window to wait for: its record's answer is as settled as it will get.
-    const noAnchors = selCommit?.epochId ? !(await epochHasAnchors(selCommit.epochId)) : false;
-    const settled = !!causalWindow?.anchorAfter?.blockTime || ceiling !== null || noAnchors;
-    const cacheControl = settled
-      ? "public, s-maxage=60, stale-while-revalidate=300"
-      : "public, s-maxage=5, stale-while-revalidate=30";
-    // A drop's floor (2026-11-02) is a block read with a ledger object of its own, so it is found above like a file.
-    // It is never written to Base; when the record at this position is a block read, its block file goes with it, as
-    // for a block read with no ledger object, so its page names the block.
-    let timelineRecord: { kind: string; blockFile?: string; endFile?: string } | undefined;
-    // A lookup cut short by the timeout is not an answer: that response is not cached, so the next visit asks again
-    // instead of serving a block read's page without its block.
+    // CDN caching. A recorded proof never changes; the one thing that can is the Recordings list growing (the same
+    // bytes BitGraphed again), which stale-while-revalidate refreshes in the background, so SWR is minutes, not days.
+    const cacheControl = "public, s-maxage=60, stale-while-revalidate=300";
+    // The epoch's closing record: its note goes with it, so its page can name it and offer the note.
+    let timelineRecord: { kind: string; endFile?: string } | undefined;
+    // A lookup cut short by the timeout is not an answer: that response is not cached, so the next visit asks again.
     let timelineTimedOut = false;
-    // Only for a link naming its position (every floor link does), and never for long: an older epoch has no timeline,
-    // and asking it cost every such proof page seconds (2026-11-02).
-    if (ceiling === null && selCounter && selEpoch && selCommit?.counter && selCommit.epochId) {
+    // Only for a link naming its position, and never for long: an older epoch has no timeline.
+    if (selCounter && selEpoch && selCommit?.counter && selCommit.epochId) {
       const ep = selCommit.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       const TIMED_OUT = Symbol("timed out");
       const got = await Promise.race([timelineRecordAt(ep, Number(selCommit.counter)).catch(() => null), new Promise<typeof TIMED_OUT>((r) => setTimeout(() => r(TIMED_OUT), 2000))]);
       if (got === TIMED_OUT) timelineTimedOut = true;
       const rec = got === TIMED_OUT ? null : got;
-      if (rec?.kind === "block" && rec.blockFile && rec.proof.artifact.digestB64 === standardB64) timelineRecord = { kind: "block", blockFile: rec.blockFile };
-      // The epoch's closing record: its note goes with it, so its page can name it and offer the note.
       if (rec?.kind === "end" && rec.endFile && rec.proof.artifact.digestB64 === standardB64) timelineRecord = { kind: "end", endFile: rec.endFile };
     }
     return NextResponse.json({ proofs: [{ proof }],
-        lookupKind, positions, causalWindow, anchorBlock, floor, ceiling, ...(timelineRecord ? { timelineRecord } : {}) }, { headers: { "Cache-Control": timelineTimedOut ? "no-store" : cacheControl } });
+        lookupKind, positions, ...(timelineRecord ? { timelineRecord } : {}) }, { headers: { "Cache-Control": timelineTimedOut ? "no-store" : cacheControl } });
   } catch (e) {
     // Never cached, and never confusable with the `{ proofs: [] }` miss above:
     // that answer means the ledger has nothing, this one means we could not

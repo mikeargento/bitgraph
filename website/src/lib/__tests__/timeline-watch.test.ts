@@ -1,5 +1,5 @@
 /**
- * The outside check of the block timeline: what counts as down, and when an email goes out.
+ * The outside check of the enclave host: what counts as down, and when an email goes out.
  *
  *   cd website && node --test src/lib/__tests__/timeline-watch.test.ts
  */
@@ -9,15 +9,16 @@ import { strict as assert } from "node:assert";
 import { decideWatch, judgeHealth, INITIAL_WATCH_STATE } from "../timeline-watch.ts";
 
 const T = 1_793_404_750_000;
-const healthy = { status: 200, body: { ok: true, timeline: { chains: [{ chain: "base", lastReadAtMs: T - 2_000 }, { chain: "ethereum", lastReadAtMs: T - 30_000 }] } } };
+const healthy = { status: 200, body: { ok: true, epochId: "e", timeline: { problems: [], journal: { uploading: true } }, alerts: [] } };
 
-test("down: no answer, an error status, no timeline, or a chain without a read for two minutes", () => {
-  assert.equal(judgeHealth(healthy, T).down, false);
+test("down: no answer, an error status, not ok, or no timeline; problems are reported but not down", () => {
+  assert.deepEqual(judgeHealth(healthy, T), { down: false, reason: "up" });
   assert.match(judgeHealth(new Error("fetch failed"), T).reason, /did not answer \/health: fetch failed/);
   assert.match(judgeHealth({ status: 502, body: null }, T).reason, /HTTP 502/);
+  assert.match(judgeHealth({ status: 200, body: { ok: false } }, T).reason, /not ok/);
   assert.match(judgeHealth({ status: 200, body: { ok: true } }, T).reason, /not running/);
-  const stale = { status: 200, body: { ok: true, timeline: { chains: [{ chain: "base", lastReadAtMs: T - 121_000, lastError: "HTTP 429" }, { chain: "ethereum", lastReadAtMs: T }] } } };
-  assert.equal(judgeHealth(stale, T).reason, "base: no read for 121 s (HTTP 429)");
+  const degraded = { status: 200, body: { ok: true, timeline: { problems: ["journal: no LEDGER_BUCKET, so batches stay on disk"], journal: {} } } };
+  assert.deepEqual(judgeHealth(degraded, T), { down: false, reason: "up, running without: journal: no LEDGER_BUCKET, so batches stay on disk" });
 });
 
 test("one email when it goes down, one an hour while it stays down, one when it is back", () => {

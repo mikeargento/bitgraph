@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /**
- * GET /api/cron/timeline-health: the outside check of the block timeline (lib/timeline-watch.ts), every five
+ * GET /api/cron/timeline-health: the outside check of the enclave host (lib/timeline-watch.ts), every five
  * minutes from vercel.json. Closed unless CRON_SECRET is set and given; quiet unless TIMELINE_ALERT_SNS_TOPIC_ARN is
  * set. TIMELINE_HEALTH_URL defaults to the enclave host's public /health.
  */

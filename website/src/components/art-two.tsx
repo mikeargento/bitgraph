@@ -9,10 +9,8 @@
  * stored: /generate?a=<A's digest> reads A's proof, draws the same picture from its nonce, and looks B up by the PNG's
  * SHA-256. Only digests leave the browser.
  *
- * Each BitGraph is one tree, as on Make: its first leaf is base-block.json (the latest Base block), its second the file,
- * and only the root is bound (floorLeaf, so app/api/commit binds no separate floor in front of it). The file is then
- * indexed under its own hash, so A and B are looked up and linked by the request's and the PNG's own digests, as before.
- * Pictures made before trees are plain binds of the same digests and read the same way.
+ * Each file is bound as one BitGraph of its own SHA-256 (lib/bind-file.ts), so A and B are looked up and linked by the
+ * request's and the PNG's own digests. Older pictures made as trees read the same way.
  */
 import { useCallback, useEffect, useState } from "react";
 import { makeArtOffThread } from "@/lib/art-offthread";

@@ -5,7 +5,7 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 
 /**
  * Evaluate (2026-10-27): a technical buyer reproduces the guarantees without a call. The sample in /evaluate is a real
- * v13 production proof: the home page's ChatGPT picture, BitGraph #304 (2026-11-02, with its Base floor at #302). Every
+ * v13 production proof: the home page's ChatGPT picture, BitGraph #304 (2026-11-02). Every
  * command and every failure line below was run against it with @mikeargento/bitgraph-sdk 0.8.0 on 2026-11-02.
  */
 export const metadata: Metadata = {
@@ -83,7 +83,7 @@ ${V} chatgpt.png --proof moved.json`}</Code>
         <p className="home-kicker">Step 3</p>
         <h2 id="e-3">Make your own BitGraph.</h2>
         <p>Bind any file on the live service. It is hashed on your machine and only the digest is sent; the proof is saved beside it.</p>
-        <Code>{`npx -p @mikeargento/bitgraph-sdk bitgraph make yourfile
+        <Code>{`npx -p @mikeargento/bitgraph-sdk bitgraph record yourfile
 ${V} yourfile --proof yourfile.bitgraph.json`}</Code>
         <p className="sx-fine">
           BitGraphs are permanent, and the digest appears in the public <a href="/ledger">ledger</a>. Bind a file you are content to

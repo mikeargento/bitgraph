@@ -30,12 +30,9 @@ export default function TermsPage() {
         <p>
           A sealed environment mints a single-use position, then binds your
           file&apos;s SHA-256 fingerprint to it in one indivisible step.
-          Positions form a counted, forward-only chain. Through bitgraph.ing,
-          the reference trust layer names each day&apos;s sequence on Base: one
-          transaction opens it, carrying only the sequence&apos;s id, and one
-          closes it, carrying only a hash of its last record; no file and no
-          fingerprint is written. The ordering does not depend on any
-          blockchain.
+          Positions form a counted, forward-only chain. Each day&apos;s
+          sequence ends with a closing record of its own. The service does
+          not write to or read from any blockchain.
         </p>
         <p>
           Only fingerprints are bound. Files are fingerprinted on your
@@ -51,7 +48,7 @@ export default function TermsPage() {
           BitGraph records the position exact bytes took in a BitGraph
           sequence. A proof establishes that position, and nothing more. Time
           bounds come only from trust layers bound to it, such as the hardware
-          attestation&apos;s time and the Base transactions that open and close its epoch. It does not verify,
+          attestation&apos;s time. It does not verify,
           endorse, or make any claim about the truth, accuracy, legality,
           originality, authorship, or identity behind any file. It does not
           establish when a file was first created or that it did not exist

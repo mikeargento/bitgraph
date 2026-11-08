@@ -97,7 +97,7 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   keywords: [
     "BitGraph", "provenance", "file provenance", "record provenance", "which came first", "Content Credentials", "C2PA",
-    "hardware enclave", "offline verification", "Base",
+    "hardware enclave", "offline verification",
   ],
   openGraph: {
     title: "BitGraph: Everything digital is already a copy",

@@ -49,7 +49,7 @@ export function useHostedFiles(proof: { artifact?: { digestB64?: string } } | nu
       setState(m.ok ? { phase: "matched", host: got.host, kind: m.kind, members: m.members, extras: m.extras } : { phase: "failed", host: got.host, problem: m.problem });
     })();
     return () => { live = false; };
-    // The proof object is re-set as ceilings land; the digest is what the match is about.
+    // The proof object can be re-set; the digest is what the match is about.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [raw, digest]);
   return state;

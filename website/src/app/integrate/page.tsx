@@ -4,7 +4,7 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 
 /**
  * Integrate (2026-10-27): the managed service's real interface, from the code: /api/commit (website/src/app/api/commit),
- * the lookups (api/proofs, api/proofs/batch), the SDK (packages/sdk 0.7.4), the MCP servers (packages/mcp 0.12.0, the
+ * the lookups (api/proofs, api/proofs/batch), the SDK (packages/sdk: record, check, proof, verify), the MCP servers (packages/mcp 0.12.0, the
  * hosted /mcp route) and the verifier (packages/verify 1.26.0, MIT). The verify snippet was run against the v13 sample.
  */
 export const metadata: Metadata = {
@@ -66,7 +66,7 @@ export default function IntegratePage() {
   -H 'content-type: application/json' \\
   -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'`}</Code>
             <p>
-              The response contains one proof for each submitted digest. Each bind through this endpoint belongs to its epoch, which is named on Base, the reference trust layer, by one transaction when it opens and sealed by another when it closes; a deployment you operate can bind a different witness, or none. Every proof is kept and can be fetched by the digest it bound, earliest first:
+              The response contains one proof for each submitted digest. Each bind through this endpoint belongs to its epoch, one UTC day, which ends with a closing BitGraph in its own line. The time on each proof is the attestation&rsquo;s AWS-signed time. Every proof is kept and can be fetched by the digest it bound, earliest first:
             </p>
             <Code>{`curl https://bitgraph.ing/api/proofs/<sha-256, base64url>
 # {"proofs":[{"proof":{…},"writeTime":…}, …]}
@@ -99,11 +99,24 @@ curl -X POST https://bitgraph.ing/api/proofs/batch \\
             <Code>{"npm install @mikeargento/bitgraph-sdk"}</Code>
             <Code>{`import { BitGraph } from "@mikeargento/bitgraph-sdk";
 
-const bg = new BitGraph();
-const [b] = await bg.bind("run-042.log");   // hashed locally; the proof is saved as run-042.log.bitgraph.json
-console.log(b.number, b.proofUrl);`}</Code>
-            <Code>{`npx -p @mikeargento/bitgraph-sdk bitgraph make run-042.log --json
-npx -p @mikeargento/bitgraph-sdk bitgraph check run-042.log --json`}</Code>
+const bg = new BitGraph();                        // or new BitGraph({ baseUrl, apiKey })
+const { made, files } = await bg.record("run-042.log");
+console.log(made?.number, made?.counts);          // the BitGraph's number, and its two counts [N, N+1]
+console.log(made?.nonce);                         // the fresh nonce this BitGraph made
+console.log(files[0]?.proofPath);                 // run-042.log.bitgraph.json: keep it with the file`}</Code>
+            <p>
+              Files are hashed locally; only the SHA-256 is sent. One file makes one BitGraph. Several files make one tree, bound
+              as one BitGraph, and each file&rsquo;s proof carries its place in the tree. Each file comes back with
+              its <code>outcome</code> (<code>&quot;made&quot;</code>, <code>&quot;on record&quot;</code> or <code>&quot;skipped&quot;</code>), and every
+              result returns the BitGraph&rsquo;s nonce. Pass <code>{"{ write: false }"}</code> to keep proofs in memory instead of
+              beside each file. Reading is unchanged:
+            </p>
+            <Code>{`await bg.check(["run-042.log"]);            // is this exact file on record, and where?
+await bg.proof({ path: "run-042.log" });    // the proof and every position the same bytes occupy
+await bg.verify("run-042.log", proof);      // offline: hash, signature, two counts, attestation, published image`}</Code>
+            <Code>{`npx -p @mikeargento/bitgraph-sdk bitgraph record run-042.log --json
+npx -p @mikeargento/bitgraph-sdk bitgraph check run-042.log --json
+npx -p @mikeargento/bitgraph-sdk bitgraph serve   # POST /record, /check, /proof, /verify on 127.0.0.1`}</Code>
             <p className="sx-fine">MIT licensed. <code>--api-key</code> or <code>BITGRAPH_API_KEY</code> for keyed access. Full reference: <a href="/tools">Docs</a>.</p>
           </section>
 

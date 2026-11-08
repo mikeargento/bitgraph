@@ -5,7 +5,7 @@ import { SandwichFigure } from "@/components/primitive-figures";
 /**
  * The sealed exam, on two BitGraphs (2026-10-19, shipped together with the repo's release v3 and npm 0.3.0).
  * A binds a request naming the public bank; twenty questions are derived from A's nonce; the model answers; B binds the
- * answer sheet with a Base ceiling. Repo: github.com/mikeargento/sealed-exam. The zip is a GitHub release asset and its
+ * answer sheet. Repo: github.com/mikeargento/sealed-exam. The zip is a GitHub release asset and its
  * URL is versionless (releases/latest), so the page cannot point at a stale file; the checksum is here so a recipient can
  * check the bytes against a domain that did not serve them. Rebuild the package and ZIP_SHA256 moves with it.
  */
@@ -21,7 +21,6 @@ const SITTING = {
   date: "24 October 2026",
   a: { n: "14", id: "iehfooh2p78A4BzdVdHWCCaCUYw0mwavOWVkLgv5L1c", at: "20:14:24 UTC" },
   b: { n: "18", id: "SfL8unjOBZ-SSEDKqTDgW_Bp7oEvp5PJ6LUq232wPZk", at: "20:14:43 UTC" },
-  ceiling: { block: 53041769, at: "20:14:45 UTC" },
 };
 
 function Code({ children }: { children: string }) {
@@ -57,10 +56,8 @@ export function ExamContent() {
         <h2 id="exam-sitting">These exact questions could not have existed before BitGraph&nbsp;#{SITTING.a.n} was&nbsp;bound</h2>
         <p style={{ marginTop: 24 }}>
           {SITTING.model} scored {SITTING.score} on {SITTING.date}. BitGraph #{SITTING.a.n} and BitGraph #{SITTING.b.n} are counts in one sequence. The AWS Nitro attestation&rsquo;s clock, a
-          hardware layer, puts them at {SITTING.a.at} and {SITTING.b.at}; a Base transaction in
-          block{" "}
-          <a href={`https://basescan.org/block/${SITTING.ceiling.block}`} target="_blank" rel="noopener">{SITTING.ceiling.block.toLocaleString("en-US")}</a>{" "}
-          ({SITTING.ceiling.at}) carries B, so the answers existed by then. The bank is small and easy on purpose: this is about
+          hardware layer signed by AWS, puts them at {SITTING.a.at} and {SITTING.b.at}, so the answers were bound by B&rsquo;s
+          attested time. The bank is small and easy on purpose: this is about
           freshness, not difficulty.
         </p>
         <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -83,7 +80,7 @@ export function ExamContent() {
         <p className="home-kicker">The claim</p>
         <h2 id="exam-claim">What it proves, and what it does&nbsp;not</h2>
         <ul className="facts" style={{ marginTop: 24 }}>
-          <li><b>Proves</b><span>every question is derived from BitGraph A&rsquo;s nonce, which the enclave drew and bound in one atomic action and nobody could see before A existed, so the exact questions did not exist before A, and no training set frozen before A was bound contains them; A&rsquo;s request named the bank, so the bank was fixed before that nonce; BitGraph B bound the answer sheet, which names the paper and A, at a later count in the same epoch; both proofs carry an AWS Nitro attestation of a published BitGraph enclave image; where B&rsquo;s Base ceiling is in the folder, the answers existed by that block.</span></li>
+          <li><b>Proves</b><span>every question is derived from BitGraph A&rsquo;s nonce, which the enclave drew and bound in one atomic action and nobody could see before A existed, so the exact questions did not exist before A, and no training set frozen before A was bound contains them; A&rsquo;s request named the bank, so the bank was fixed before that nonce; BitGraph B bound the answer sheet, which names the paper and A, at a later count in the same epoch; both proofs carry an AWS Nitro attestation of a published BitGraph enclave image, and B&rsquo;s AWS-signed attestation time is when the answers were bound.</span></li>
           <li><b>Does not prove</b><span>that the template families are unfamiliar to the model; that the model worked alone, without tools, or quickly; that the answers came from the model the sheet names.</span></li>
         </ul>
       </section>

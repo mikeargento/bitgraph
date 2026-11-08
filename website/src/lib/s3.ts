@@ -3,11 +3,9 @@
  *
  * Keys:
  *   by-digest/{urlSafeDigest}.json  — lookup by artifact hash
- *   anchors-by-time/{timestamp}.json — chronological anchor listing
  */
 
 import { Agent } from "node:https";
-import { isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { journalDigests } from "./digest-index";
 import { checkMember } from "./tree-member";
@@ -924,206 +922,11 @@ export async function getProofsByDigest(digestB64: string, options: LookupOption
   return unique;
 }
 
-/**
- * Get the first ETH anchor proof(s) AFTER a given counter on the same chain.
- *
- * Since anchors and user proofs share the same monotonic counter chain,
- * we find the next anchor by scanning proofs with counter > proofCounter
- * in the same epoch, filtering for Ethereum anchors (attribution.name).
- */
 /* getProofsAroundCounter lived here: every proof in a window of counters,
    recordings included, the reader behind /api/proofs/chain. Deleted with that
    route (2026-10-09: no public list of recordings): walking counters
    read out every record. Proofs are read by digest only. */
 
-
-/**
- * Whether an epoch has any Ethereum anchors at all: one LIST of one key.
- *
- * An epoch without anchors (the block-timeline epochs, made after the anchor
- * stream stopped) has no window to find, and the two searches above would
- * still widen and fall back through up to five hundred proof reads to say so.
- * An answer is kept for ten minutes per instance; a failed read answers true,
- * so the searches run exactly as before.
- */
-const epochAnchorsSeen = new Map<string, { has: boolean; at: number }>();
-export async function epochHasAnchors(epochId: string): Promise<boolean> {
-  const safeEpoch = toSafe(epochId);
-  const hit = epochAnchorsSeen.get(safeEpoch);
-  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.has;
-  try {
-    const res = await getClient().send(new ListObjectsV2Command({ Bucket: getBucket(), Prefix: `anchors/${safeEpoch}/`, MaxKeys: 1 }));
-    const has = (res.Contents?.length ?? 0) > 0;
-    epochAnchorsSeen.set(safeEpoch, { has, at: Date.now() });
-    return has;
-  } catch {
-    return true;
-  }
-}
-/**
- * Get the most recent ETH anchor BEFORE a given counter on the same chain.
- * Scans backwards from the counter to find the latest anchor.
- *
- * `strict` throws LedgerUnavailableError instead of returning null on a read
- * failure, exactly as getProofByDigest does. Null means TWO things here — "no
- * anchor precedes this counter" (true of the first proof of an epoch) and "we
- * could not find out" — and a caller writing a package needs them apart: an
- * absent anchor-before.json otherwise reads as both. Default OFF so the check
- * path (/api/proofs/digest) keeps the behaviour it has.
- */
-export async function getAnchorBeforeCounter(proofCounter: number, epochId: string, strict = false): Promise<Record<string, unknown> | null> {
-  try {
-    const s3 = getClient();
-    const bucket = getBucket();
-    const safeEpoch = toSafe(epochId);
-    // Scan the counter-indexed anchors/ index (anchors only — no user proofs to
-    // skip), same source getAnchorsAfterCounter uses.
-    const anchorPrefix = `anchors/${safeEpoch}/`;
-
-    // Nearest anchor strictly BEFORE proofCounter (the lower time bound). S3
-    // lists ascending only, so we open a window just below proofCounter via
-    // StartAfter, page forward keeping the highest anchor counter still
-    // < proofCounter, and stop as soon as keys reach proofCounter. The window
-    // starts wider than any realistic anchor gap (~600 commits per 12s at peak
-    // TEE throughput) and widens only if it somehow caught no anchor, e.g. a
-    // long anchoring outage left a large gap. Crucially this is bounded near
-    // proofCounter rather than scanning the whole epoch from the start, which
-    // was the previous bug (it always returned the first anchor of the epoch).
-    for (let window = 4096; ; window *= 8) {
-      const start = Math.max(0, proofCounter - window);
-      let token: string | undefined;
-      let bestKey: string | null = null;
-      let bestCounter = -1;
-      let reachedProof = false;
-      for (let page = 0; page < 128; page++) {
-        const res = await s3.send(new ListObjectsV2Command({
-          Bucket: bucket,
-          Prefix: anchorPrefix,
-          StartAfter: `${anchorPrefix}${String(start).padStart(12, "0")}`,
-          ContinuationToken: token,
-          MaxKeys: 1000,
-        }));
-        for (const obj of res.Contents || []) {
-          const filename = (obj.Key || "").split("/").pop() || "";
-          const c = parseInt(filename.split("-")[0], 10);
-          if (isNaN(c)) continue;
-          if (c < proofCounter) {
-            if (c > bestCounter) { bestCounter = c; bestKey = obj.Key!; }
-          } else {
-            reachedProof = true;
-            break;
-          }
-        }
-        if (reachedProof || !res.IsTruncated) break;
-        token = res.NextContinuationToken;
-      }
-      if (bestKey) {
-        const gr = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: bestKey }));
-        const body = await gr.Body?.transformToString();
-        return body ? JSON.parse(body) : null;
-      }
-      // No anchor found in the window. If we already reached the epoch start,
-      // there is genuinely no anchor before this proof (very early proof).
-      if (start === 0) return null;
-      // ⚠️ THE WINDOW RAN OUT BEFORE THE EPOCH DID, which is a different fact
-      // and used to be the same null. "We stopped looking" is not "there is
-      // nothing there", and a caller writing a package turns the second into a
-      // PERMANENT claim — a lower bound is the one side that can never arrive
-      // later, so `none` says "and it never will". Strict callers get the
-      // honest answer; the check path keeps the null it has always had.
-      if (window >= 8_388_608) {
-        if (strict) throw new LedgerUnavailableError("anchor before counter: search window exhausted before the epoch start");
-        return null;
-      }
-    }
-  } catch (err) {
-    console.error("[s3] getAnchorBeforeCounter failed:", (err as Error).message);
-    if (strict) throw new LedgerUnavailableError("anchor before counter", err);
-    return null;
-  }
-}
-
-/**
- * The ETH anchors that FOLLOW a counter (the upper time bound).
- *
- * ⚠️ An empty array is not one answer, it is four: nothing is anchored past
- * this counter yet, the epoch is closed and nothing ever will be, we have no
- * anchors for that epoch at all, or the read failed. `strict` peels the last
- * one off by throwing; classifyEmptyAnchorAnswer below separates the rest.
- * Default OFF so the check path keeps the behaviour it has.
- */
-export async function getAnchorsAfterCounter(proofCounter: number, epochId: string, limit = 2, strict = false): Promise<Array<Record<string, unknown>>> {
-  try {
-    const s3 = getClient();
-    const bucket = getBucket();
-
-    const safeEpoch = toSafe(epochId);
-    const startCounter = String(proofCounter + 1).padStart(12, "0");
-
-    // Scan anchors/{epoch}/ — counter-indexed, only contains anchors.
-    // One S3 LIST + one GET per anchor found. No user proofs to skip.
-    // Falls back to proofs/ scan if anchors/ index isn't populated yet.
-    const anchorPrefix = `anchors/${safeEpoch}/`;
-    let result = await s3.send(new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: anchorPrefix,
-      StartAfter: `${anchorPrefix}${startCounter}`,
-      MaxKeys: limit,
-    }));
-
-    let keys = (result.Contents || []).map(o => o.Key!).filter(Boolean);
-
-    // Fallback: if anchors/ index is empty, scan proofs/ (slower but works)
-    if (keys.length === 0) {
-      const proofPrefix = `proofs/${safeEpoch}/`;
-      let continuationToken: string | undefined;
-      const foundAnchors: Array<Record<string, unknown>> = [];
-      for (let page = 0; page < 5 && foundAnchors.length < limit; page++) {
-        const r = await s3.send(new ListObjectsV2Command({
-          Bucket: bucket,
-          Prefix: proofPrefix,
-          StartAfter: page === 0 ? `${proofPrefix}${startCounter}` : undefined,
-          ContinuationToken: continuationToken,
-          MaxKeys: 100,
-        }));
-        for (const obj of r.Contents || []) {
-          if (!obj.Key || foundAnchors.length >= limit) break;
-          try {
-            const gr = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.Key }));
-            const body = await gr.Body?.transformToString();
-            if (!body) continue;
-            // Typed as the parsed record it is: isAnchorProof narrows to
-            // BitGraphProof, which has no index signature, so an untyped
-            // parse cannot go back into this list afterwards.
-            const p: Record<string, unknown> = JSON.parse(body);
-            // Signed commit.anchor first; the attribution name is the pre-v7
-            // fallback and is all the older half of the ledger carries.
-            if (isAnchorProof(p)) foundAnchors.push(p);
-          } catch { /* skip */ }
-        }
-        if (!r.IsTruncated) break;
-        continuationToken = r.NextContinuationToken;
-      }
-      return foundAnchors;
-    }
-
-    // Fetch from anchors/ index
-    const anchors: Array<Record<string, unknown>> = [];
-    for (const key of keys.slice(0, limit)) {
-      try {
-        const getResult = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-        const body = await getResult.Body?.transformToString();
-        if (!body) continue;
-        anchors.push(JSON.parse(body));
-      } catch { /* skip */ }
-    }
-    return anchors;
-  } catch (err) {
-    console.error("[s3] getAnchorsAfterCounter failed:", (err as Error).message);
-    if (strict) throw new LedgerUnavailableError("anchors after counter", err);
-    return [];
-  }
-}
 
 // ---------------------------------------------------------------------------
 // A set's member list: one position answered once, not once per member.
@@ -1199,50 +1002,10 @@ async function readSetMemberListUncached(
 /** Chunks read at once. A list is ~20 objects, so this finishes in one round. */
 const SET_LIST_POOL = 24;
 
-/* ── Floor links (2026-10-18): the Base plugin's floor is its own BitGraph. When the Base switch is on, BitGraph 1
-   binds the latest Base block and BitGraph 2 the content; a floor link, written once beside the ledger, names BitGraph 1
-   as BitGraph 2's floor. The bind itself stays two counts; this is a record about two BitGraphs, checked before it is
-   written (app/api/floors). ── */
+/* ── Records kept under one position: positionKey names their object. ── */
 
 const positionKey = (prefix: string, digestB64: string, epochId: string, counter: string) =>
   `${prefix}/${toSafe(digestB64)}/${toSafe(epochId)}-${String(counter).padStart(12, "0")}.json`;
-
-/** The proof the ledger holds for one digest at one position, or null. Throws LedgerUnavailableError on a failed read. */
-export async function getProofAtPosition(digestB64: string, epochId: string, counter: string): Promise<Record<string, unknown> | null> {
-  try {
-    const r = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: positionKey("by-digest", digestB64, epochId, counter) }));
-    const body = await r.Body?.transformToString();
-    return body ? JSON.parse(body) : null;
-  } catch (err) {
-    const name = (err as { name?: string }).name;
-    if (name === "NoSuchKey" || name === "NotFound") return null;
-    throw new LedgerUnavailableError("position key", err);
-  }
-}
-
-/** A tree's floor, kept under the ROOT's own position (2026-10-22): base-block.json, its leaf index and path, and the
- *  root text, so the root's proof page shows the floor too, not only each member's. Written by app/api/tree-members. */
-export async function getTreeFloorText(digestB64: string, epochId: string, counter: string): Promise<string | null> {
-  try {
-    const r = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: positionKey("tree-floors", digestB64, epochId, counter) }));
-    return (await r.Body?.transformToString()) ?? null;
-  } catch (err) {
-    const name = (err as { name?: string }).name;
-    if (name === "NoSuchKey" || name === "NotFound") return null;
-    throw new LedgerUnavailableError("tree floor", err);
-  }
-}
-export async function putTreeFloorOnce(digestB64: string, epochId: string, counter: string, body: string): Promise<boolean> {
-  if (!ledgerWritesOn()) return false;
-  try {
-    await getClient().send(new PutObjectCommand({ Bucket: getBucket(), Key: positionKey("tree-floors", digestB64, epochId, counter), Body: body, ContentType: "application/json", IfNoneMatch: "*" }));
-    return true;
-  } catch (err) {
-    const name = (err as { name?: string }).name;
-    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
-    throw err;
-  }
-}
 
 /* ── A tree's file list (2026-11-02) ──
    The hashes of a tree's files, in tree order, kept under the root's position so the root's proof page can list them.
@@ -1283,34 +1046,6 @@ export async function getTreeListChunk(digestB64: string, epochId: string, count
     const name = (err as { name?: string }).name;
     if (name === "NoSuchKey" || name === "NotFound") return null;
     throw new LedgerUnavailableError("tree list", err);
-  }
-}
-
-/** The floor link written for BitGraph 2 at its position, or null. */
-export async function getFloorLinkText(digestB64: string, epochId: string, counter: string): Promise<string | null> {
-  try {
-    const r = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: positionKey("floor-links", digestB64, epochId, counter) }));
-    return (await r.Body?.transformToString()) ?? null;
-  } catch (err) {
-    const name = (err as { name?: string }).name;
-    if (name === "NoSuchKey" || name === "NotFound") return null;
-    throw new LedgerUnavailableError("floor link", err);
-  }
-}
-
-/** Writes a floor link once (never over another; the bucket keeps it). False when one is already there or writes are off. */
-export async function putFloorLinkOnce(digestB64: string, epochId: string, counter: string, body: string): Promise<boolean> {
-  if (!ledgerWritesOn()) return false;
-  try {
-    await getClient().send(new PutObjectCommand({
-      Bucket: getBucket(), Key: positionKey("floor-links", digestB64, epochId, counter),
-      Body: body, ContentType: "application/json", IfNoneMatch: "*",
-    }));
-    return true;
-  } catch (err) {
-    const name = (err as { name?: string }).name;
-    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
-    throw err;
   }
 }
 

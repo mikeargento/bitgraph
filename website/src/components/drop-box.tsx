@@ -31,7 +31,7 @@ import { attachEnvironments } from "@/lib/proof-environment";
 import { findInTree, type FoundInTree } from "@/lib/tree-entries";
 import { parseCarrier } from "@/lib/carrier";
 import { DIGEST_TREE_FORMAT, checkMember, leafOfDigest, memberBlocks, memberOf, rootTextBytes } from "@/lib/tree-member";
-import { bindOne, digestOf, hashLeaves, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type BaseBlock, type MerkleTree as PluginTree } from "@/lib/plugins";
+import { bindOne, digestOf, hashLeaves, leavesOfDigests, parseDigestList, postTreeMembers, sortedLeaves, treeFromLeaves, type MerkleTree as PluginTree } from "@/lib/plugins";
 
 const MAX_FILES = 25;
 
@@ -279,7 +279,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
   const [plug, setPlug] = useState<{
     fromList?: boolean; // the tree came from a hash list, no file opened (2026-10-21)
     tree: PluginTree | null; rootText: string | null; contentName: string; contentDigest: string; b: Proof & { proofHash?: string };
-    block: BaseBlock | null; blockBytes: Uint8Array | null; a: (Proof & { proofHash?: string }) | null; ceiling: "waiting" | "written" | null; ceilingInfo: string | null;
     /** With ?timer: milliseconds spent hashing (the tree) and binding, from the drop to the proof. */
     ms?: { hash: number; bind: number; total: number };
     /** A tree's sealed lookup entries, one per file, so a file dropped later finds this tree. */
@@ -524,7 +523,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         const tDone = performance.now();
         const commit = b.commit as { counter?: string; epochId?: string } | undefined;
         if (timer) {
-          setPlug({ dropCount: 1, tree: null, rootText: null, contentName: f.name, contentDigest: digest, b, block: null, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 } });
+          setPlug({ dropCount: 1, tree: null, rootText: null, contentName: f.name, contentDigest: digest, b, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 } });
           setStatus(null);
           return;
         }
@@ -532,13 +531,12 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         // The file goes with the page (the proof opens with it in hand): its save started before the bind, so this is brief.
         try { await Promise.race([cachedLater, new Promise((r) => setTimeout(r, 1500))]); } catch { /* the page still opens; the reader can drop the file there */ }
         const epoch = commit?.epochId ? toUrlSafe(commit.epochId) : "";
-        setFreshProof(toUrlSafe(digest), { proofs: [{ proof: b }], positions: commit?.counter ? [{ counter: commit.counter, epoch: epoch || null, lowerTime: null, upperTime: null }] : [], causalWindow: null, anchorBlock: null });
+        setFreshProof(toUrlSafe(digest), { proofs: [{ proof: b }], positions: commit?.counter ? [{ counter: commit.counter, epoch: epoch || null }] : [] });
         router.push(`/proof/${toUrlSafe(digest)}?counter=${encodeURIComponent(commit?.counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1`);
         return;
       }
-      /* Two or more files are one tree and one BitGraph (2026-10-20; one file is bound alone, above). Its floor and
-         ceiling come from the block timeline: the Base block reads bound on the same counter sequence just before and
-         just after it, so the tree holds only the files and nothing is written to any chain for it. */
+      /* Two or more files are one tree and one BitGraph (one file is bound alone, above). The tree holds only the
+         files, and each file's proof carries its place in the tree. */
       const count = list ? list.length : files.length;
       setStatus(list ? `Reading 0 of ${count.toLocaleString("en-US")} hashes…` : `Hashing 0 of ${count.toLocaleString("en-US")}…`);
       // The files are hashed. A folder is not looked up first: every folder drop is a new tree and a new BitGraph.
@@ -603,7 +601,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         const tOne = performance.now();
         const b = await bindOne(one[2]);
         const tDone = performance.now();
-        setPlug({ dropCount: 1, tree: null, rootText: null, contentName: one[0], contentDigest: one[2], b, block: null, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tOne - t0, bind: tDone - tOne, total: tDone - t0 }, repeats });
+        setPlug({ dropCount: 1, tree: null, rootText: null, contentName: one[0], contentDigest: one[2], b, ms: { hash: tOne - t0, bind: tDone - tOne, total: tDone - t0 }, repeats });
         setStatus(null);
         return;
       }
@@ -611,7 +609,6 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       // files' leaves that are not BitGraphs yet, and nothing else.
       const fileLeaves = sortedLeaves(fresh);
       let tree: PluginTree | null = null, rootText = "";
-      const block: BaseBlock | null = null;
       const already: Proof | null = null;
       const tHashed = performance.now();
       if (!already) {
@@ -635,7 +632,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       // The names in tree order, kept on this device for the root's proof page (components/tree-file-list.tsx).
       if (!list && b.commit?.counter) void putTreeNamesToIDB(contentDigest, String(b.commit.counter), t.leaves.map((l) => l[0]));
       const dropCount = list ? t.files : fresh.length;
-      setPlug({ members, dropCount, tree: t, rootText, contentName, contentDigest, b, block, blockBytes: null, a: null, ceiling: null, ceilingInfo: null, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list, repeats });
+      setPlug({ members, dropCount, tree: t, rootText, contentName, contentDigest, b, ms: { hash: tHashed - t0, bind: tDone - tHashed, total: tDone - t0 }, already: !!already, fromList: !!list, repeats });
       // Each file is indexed under its own hash (lib/tree-member.ts): written after the proof is
       // shown, so the BitGraph never waits on it; the server checks every path to the root before it writes.
       type Lookup = { stored: number; total: number; state: "sealing" | "saving" | "done" | "failed"; note?: string };
@@ -643,7 +640,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       lookup({ stored: 0, total, state: "saving" });
       void (async () => {
         try {
-          const stored = await postTreeMembers({ rootDigestB64: contentDigest, epochId: String(b.commit!.epochId), counter: String(b.commit!.counter), rootText, ...(blocks[0]?.floor ? { floor: blocks[0].floor } : {}) },
+          const stored = await postTreeMembers({ rootDigestB64: contentDigest, epochId: String(b.commit!.epochId), counter: String(b.commit!.counter), rootText },
             t.leaves.map((l, i) => ({ digestB64: l[2], index: i, path: blocks[i]!.path })), (n) => lookup({ stored: n, total, state: "saving" }));
           await filesSaved;
           lookup({ stored, total, state: stored >= total ? "done" : "failed", note: stored >= total ? undefined : `${(total - stored).toLocaleString("en-US")} could not be saved` });
@@ -664,41 +661,17 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
     return () => window.removeEventListener("beforeunload", warn);
   }, [plug?.lookup?.state]);
 
-  // The Base ceiling: the host's writer puts BitGraph 2's proof hash in a later block; look for it now and then.
-  useEffect(() => {
-    if (plug?.ceiling !== "waiting" || !plug.b.proofHash) return;
-    const id = toUrlSafe(plug.b.proofHash);
-    let stop = false;
-    const look = async () => {
-      try {
-        const res = await fetch(`/api/ceilings/${id}`, { cache: "no-store" });
-        if (res.ok && !stop) { const t = await res.text(); setPlug((p) => (p ? { ...p, ceiling: "written", ceilingInfo: t } : p)); return true; }
-      } catch { /* try again */ }
-      return false;
-    };
-    // Every 2 s for the first minute (a batch lands in a few seconds), then every 15 s (2026-10-20: it sat on "waiting"
-    // long after Base had it).
-    let tries = 0, timer: ReturnType<typeof setTimeout> | undefined;
-    const tick = () => { void look().then((done) => { if (!done && !stop) timer = setTimeout(tick, ++tries < 30 ? 2000 : 15000); }); };
-    tick();
-    return () => { stop = true; if (timer) clearTimeout(timer); };
-  }, [plug?.ceiling, plug?.b.proofHash]);
-
   const downloadPlug = () => {
     if (!plug) return;
     const files: Record<string, Uint8Array> = {};
     const j = (o: unknown) => strToU8(JSON.stringify(o, null, 2) + "\n");
-    const lines = ["BitGraph: its position, its tree, and the Base reference layer bound to it.", ""];
-    if (plug.blockBytes && plug.a) {
-      files["base-block.json"] = plug.blockBytes; files["base-block.bitgraph.json"] = j(plug.a);
-      lines.push(`base-block.json            BitGraph 1 (#${plug.a.commit?.counter}): the latest Base block when it was made (block ${plug.block?.number}).`, "base-block.bitgraph.json   Its proof.");
-    }
+    const lines = ["BitGraph: its position and its tree.", ""];
     if (plug.tree && plug.rootText) {
       files["merkle-tree.json"] = j(plug.tree); files["merkle-root.txt"] = strToU8(plug.rootText);
       lines.push(`merkle-tree.json           The RFC 6962 tree over ${plug.tree.files.toLocaleString("en-US")} files (leaf = SHA-256(0x00 || file), node = SHA-256(0x01 || left || right)).`, "merkle-root.txt            The root, the file that was bound.");
     }
     files[`${plug.contentName}.bitgraph.json`] = j(plug.b);
-    lines.push(`${plug.contentName}.bitgraph.json   ${plug.a ? "BitGraph 2" : "The BitGraph"} (#${plug.b.commit?.counter}): ${plug.tree ? "the root" : "the content"}${plug.a ? ", bound right after BitGraph 1; its proof hash is written to Base" : ""}.`);
+    lines.push(`${plug.contentName}.bitgraph.json   The BitGraph (#${plug.b.commit?.counter}): ${plug.tree ? "the root" : "the content"}.`);
     lines.push("", "Check a file: drop it on bitgraph.ing/make" + (plug.tree ? " with merkle-tree.json and merkle-root.txt." : ".") , "Check a proof: npx @mikeargento/bitgraph-sdk verify <file> --proof <file>.bitgraph.json");
     files["README.txt"] = strToU8(lines.join("\n") + "\n");
     const blob = new Blob([zipSync(files).slice()], { type: "application/zip" });
@@ -814,7 +787,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       const fresh = one.state === "made" ? `${sel ? `${sel}&` : "?"}fresh=1` : sel;
       // Seed the proof page with the proof in hand (lib/fresh-proof, as the old drop flow did): it paints at once,
       // and a BitGraph made a second ago does not wait on the ledger's index.
-      if (!one.isProofFile) setFreshProof(toUrlSafe(one.digestB64), { proofs: [{ proof: one.proof }], positions: commit?.counter ? [{ counter: commit.counter, epoch: epoch || null, lowerTime: null, upperTime: null }] : [], causalWindow: null, anchorBlock: null });
+      if (!one.isProofFile) setFreshProof(toUrlSafe(one.digestB64), { proofs: [{ proof: one.proof }], positions: commit?.counter ? [{ counter: commit.counter, epoch: epoch || null }] : [] });
       router.push(`/proof/${toUrlSafe(one.digestB64)}${fresh}`);
       return;
     }
@@ -905,22 +878,11 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
       </div></div>)}
       {plug && (<div className="db-reveal" key={String(plug.b.commit?.counter ?? "")}><div>
         <div className="plug-result">
-          {plug.a && plug.block && (
-            <div className="plug-row">
-              <div>
-                <div className="plug-title">BitGraph 1 <span className="plug-num">#{Number(plug.a.commit?.counter).toLocaleString("en-US")}</span></div>
-                <div className="plug-sub">Base block <a href={`https://basescan.org/block/${plug.block.number}`} target="_blank" rel="noreferrer">{plug.block.number.toLocaleString("en-US")}</a></div>
-              </div>
-              <a className="bg-action-link plug-open" style={{ margin: 0, flex: "none" }} href={`/proof/${toUrlSafe(plug.a.artifact!.digestB64!)}?counter=${plug.a.commit?.counter}`} {...(plug.lookup && (plug.lookup.state === "saving" || plug.lookup.state === "sealing") ? { target: "_blank", rel: "noopener" } : {})}>View proof</a>
-            </div>
-          )}
           <div className="plug-row">
             <div>
-              <div className="plug-title">{plug.a ? "BitGraph 2" : "BitGraph"} <span className="plug-num">#{Number(plug.b.commit?.counter).toLocaleString("en-US")}</span></div>
+              <div className="plug-title">BitGraph <span className="plug-num">#{Number(plug.b.commit?.counter).toLocaleString("en-US")}</span></div>
               <div className="plug-sub">
                 {plug.tree ? `${(plug.dropCount ?? plug.tree.files).toLocaleString("en-US")} files in one tree` : plug.contentName}
-                {plug.ceiling === "waiting" && " · waiting for Base"}
-                {plug.ceiling === "written" && " · written to Base"}
               </div>
             </div>
             <a className="bg-action-link plug-open" style={{ margin: 0, flex: "none" }} href={`/proof/${toUrlSafe(plug.contentDigest)}?counter=${plug.b.commit?.counter}`} {...(plug.lookup && (plug.lookup.state === "saving" || plug.lookup.state === "sealing") ? { target: "_blank", rel: "noopener" } : {})}>View proof</a>
@@ -970,7 +932,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
             <div className="plug-row">
               <div className="plug-sub">
                 {plug.tree ? `${plug.fromList ? "Read" : "Hashed"} ${(plug.dropCount ?? plug.tree.files).toLocaleString("en-US")} ${plug.fromList ? "hashes" : "files"} in ${(plug.ms.hash / 1000).toFixed(2)} s · ` : ""}
-                {plug.a ? "Two BitGraphs" : "BitGraph"} made in {(plug.ms.bind / 1000).toFixed(2)} s · drop to proof {(plug.ms.total / 1000).toFixed(2)} s
+                BitGraph made in {(plug.ms.bind / 1000).toFixed(2)} s · drop to proof {(plug.ms.total / 1000).toFixed(2)} s
               </div>
             </div>
           )}

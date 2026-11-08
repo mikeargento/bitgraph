@@ -167,18 +167,18 @@ test("a single-file proof: the file whose SHA-256 is the signed digest, and noth
 
 // ── a tree member's proof (lib/tree-member.ts) ──────────────────────────────────────────────────
 
-test("a tree member's proof shows its own file from the bundle, not the root text or the floor", async () => {
+test("a tree member's proof shows its own file from the bundle, not the root text or another member", async () => {
   const { hashLeaves, treeFromLeaves } = await import("../plugins.ts");
-  const { baseBlockFileText, memberBlocks, withMember } = await import("../tree-member.ts");
-  const floorFile = baseBlockFileText({ chain: "base-mainnet", chainId: 8453, number: 7, hash: `0x${"cd".repeat(32)}`, timestamp: 7 });
+  const { memberBlocks, withMember } = await import("../tree-member.ts");
+  const otherFile = "{\"part\":\"other\"}\n";
   const record = utf8("{\"part\":\"record\"}\n");
-  const leaves = await hashLeaves([new File([floorFile], "base-block.json"), new File([record.slice()], "record.json")]);
+  const leaves = await hashLeaves([new File([otherFile], "other.json"), new File([record.slice()], "record.json")]);
   const { tree, rootText } = await treeFromLeaves(leaves);
-  const blocks = memberBlocks(tree, rootText, floorFile);
+  const blocks = memberBlocks(tree, rootText);
   const proof = withMember({ artifact: { digestB64: await digestB64(utf8(rootText)) }, commit: {} }, blocks[1]!);
   const bundle: HostedFile[] = [
     { name: "README.txt", bytes: utf8("readme") },
-    { name: "record-tree/base-block.json", bytes: utf8(floorFile) },
+    { name: "record-tree/other.json", bytes: utf8(otherFile) },
     { name: "record-tree/merkle-root.txt", bytes: utf8(rootText) },
     { name: "record.json", bytes: record },
   ];

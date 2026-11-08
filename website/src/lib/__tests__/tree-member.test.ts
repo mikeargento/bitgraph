@@ -64,25 +64,3 @@ test("the same files make the same tree, whatever order they are dropped in", as
   assert.equal((await treeFromLeaves(sortedLeaves(await hashLeaves(shuffled)))).tree.root, one.tree.root);
 });
 
-test("a tree's floor leaf, base-block.json, is checked into the bound root; a changed or foreign floor is not", async () => {
-  const { hashLeaves, treeFromLeaves, sortedLeaves } = await import("../plugins.ts");
-  const { baseBlockFileText, checkFloor } = await import("../tree-member.ts");
-  const block = { chain: "base-mainnet", chainId: 8453, number: 52875700, hash: "0x" + "ab".repeat(32), timestamp: 1792540747 };
-  const floorFile = baseBlockFileText(block);
-  for (const n of [1, 2, 7]) {
-    const files = filesOf(n);
-    const [floorLeaf] = await hashLeaves([new File([floorFile], "base-block.json")]);
-    const { tree, rootText } = await treeFromLeaves([floorLeaf!, ...sortedLeaves(await hashLeaves(files))]);
-    const proof = proofFor(rootText);
-    const blocks = memberBlocks(tree, rootText, floorFile);
-    for (let i = 0; i < tree.files; i++) {
-      const stored = withMember(proof, blocks[i]!);
-      assert.ok(checkMember(stored, tree.leaves[i]![2]), `n=${n} i=${i} member`);
-      assert.deepEqual(checkFloor(stored), block, `n=${n} i=${i} floor`);
-    }
-    const m = blocks[1]!;
-    assert.equal(checkFloor(withMember(proof, { ...m, floor: { ...m.floor!, file: floorFile.replace("52875700", "52875701") } })), null, "a changed block");
-    assert.equal(checkFloor(withMember(proofFor(digestRootText(tree.files, "0".repeat(64))), m)), null, "another tree's root");
-    assert.equal(checkFloor(withMember(proof, { ...m, floor: undefined })), null, "no floor");
-  }
-});

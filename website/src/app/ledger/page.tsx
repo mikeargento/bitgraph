@@ -2,12 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LedgerRows } from "@/components/ledger-rows";
 import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-ledger";
-import { rollRootsForDays, type RollRoot } from "@/lib/ceilings";
 
 /**
- * The running ledger (2026-10-17), modelled on the Base ledger:
- * every BitGraph, newest first, one UTC day per page, today live. The Base
- * page's own layout and styles.
+ * The running ledger: every BitGraph, newest first, one UTC day per page,
+ * today live.
  *
  * Public (2026-10-17; the ledger starts with the new BitGraph): a row shows the
  * BitGraph's number, its two counts, the SHA-256 it bound and the enclave's signed time, and opens its proof
@@ -58,12 +56,6 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
     } catch { /* stays failed */ }
   }
 
-  // Each closed epoch's root on Base, shown where that epoch's rows begin. The write goes out as the epoch closes,
-  // so it falls on this day or, when the close runs past midnight, the next. A failed read shows no root line; it
-  // says nothing about the root.
-  let roots: RollRoot[] = [];
-  try { roots = await rollRootsForDays([shown, shiftDay(shown, 1)].filter((d) => d <= todayUTC)); } catch { /* no line */ }
-
   const dayLinks = (
     <div className="rl-more">
       {prev >= LEDGER_FIRST_DAY && <a href={`/ledger?day=${prev}`}>&lsaquo; {shortLabel(prev)}</a>}
@@ -109,7 +101,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       {failed || !page ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>The Ledger could not be read. Try again in a moment.</div>
       ) : (
-        <LedgerRows key={shown} day={shown} live={!day} initial={page.rows} newestKey={page.newestKey} hasOlder={page.hasOlder} roots={roots} />
+        <LedgerRows key={shown} day={shown} live={!day} initial={page.rows} newestKey={page.newestKey} hasOlder={page.hasOlder} />
       )}
       <div className="rl-foot">{dayLinks}</div>
     </div>

@@ -30,19 +30,10 @@ const ICON: Record<string, string> = {
 export const MENU_ICON_NAMES = [...new Set(Object.values(ICON))].sort().join(",");
 const TINTS = ["blue", "red", "yellow", "green"] as const;
 
-/** The Base page (floors and ceilings, one item since enclave v10): Base's mark, the Square, in the block's one colour. */
-function BaseMark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-      <rect x="5" y="5" width="14" height="14" rx="2.6" />
-    </svg>
-  );
-}
-
 export function MenuIcon({ href, index = 0 }: { href: string; index?: number }) {
   return (
     <span className={`menu-block g-${TINTS[index % TINTS.length]}`} aria-hidden="true">
-      {href === "/ceilings" ? <BaseMark /> : <span className="material-symbols-rounded">{ICON[href] ?? "circle"}</span>}
+      <span className="material-symbols-rounded">{ICON[href] ?? "circle"}</span>
     </span>
   );
 }

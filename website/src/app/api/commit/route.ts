@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storeProofByDigest, getProofByDigest } from "@/lib/s3";
 import { FOLDER_VERSION } from "@/lib/folder-version";
-import { commitsMayProceed, TEE_URL, teeRestarting503 as teeRestarting503Bare } from "@/lib/anchor-gate";
-import { isNoBaseFloorRefusal } from "@/lib/fuse-core";
+import { currentEpochId, TEE_URL, teeRestarting503 as teeRestarting503Bare } from "@/lib/tee-gate";
 
 export const dynamic = "force-dynamic";
 
-// ── Anchor-first gate ──────────────────────────────────────────────────────
-// Lives in lib/anchor-gate.ts now, shared with the Fuse routes so every
-// commit surface on this site sits behind the same rule. See the header there.
+// ── Restart gate ───────────────────────────────────────────────────────────
+// lib/tee-gate.ts: commits go ahead whenever the enclave answers /key.
 
 // ── Folder retirement notice ───────────────────────────────────────────────
 // BitGraph Folder was retired on 2026-09-01. This header used to advertise the
@@ -37,9 +35,8 @@ export async function POST(req: NextRequest) {
     // legacy default chain, outside that sequence.
     if (body && typeof body === "object" && !Array.isArray(body) && body.chainId === undefined) body.chainId = "bitgraph:main";
 
-    // Every BitGraph is written to Base: the host queues each proof's hash for the ceiling writer when asked, so every
-    // bind asks. Nothing is bound in front of a caller's digest (no floor). `floorLeaf` from older clients is dropped.
-    if (body && typeof body === "object" && !Array.isArray(body)) { delete body.floorLeaf; body.ceiling = true; }
+    // Nothing is bound in front of a caller's digest. `floorLeaf` and `ceiling` from older clients are dropped.
+    if (body && typeof body === "object" && !Array.isArray(body)) { delete body.floorLeaf; delete body.ceiling; }
 
     // Snapshot what the legacy by-digest key holds BEFORE committing. The EC2
     // parent overwrites that key fire-and-forget as soon as the TEE responds,
@@ -58,12 +55,10 @@ export async function POST(req: NextRequest) {
     // their rate-limit exemption at the TEE while still committing through
     // this proxy, which is what maintains the per-position by-digest index.
     const auth = req.headers.get("authorization");
-    // Hold commits during the daily rotation window and until the new
-    // epoch's first anchor has landed (see the anchor-first gate above).
-    // Nothing has been minted when either path fires, so an automatic
-    // client retry cannot double-record.
-    const gate = await commitsMayProceed();
-    if (gate !== "yes") return teeRestarting503();
+    // Hold commits while the enclave does not answer (the daily rotation
+    // window, or a restart). Nothing has been minted when this fires, so an
+    // automatic client retry cannot double-record.
+    if ((await currentEpochId()) === null) return teeRestarting503();
 
     let teeRes: Response;
     try {
@@ -81,8 +76,6 @@ export async function POST(req: NextRequest) {
 
     if (!teeRes.ok) {
       const err = await teeRes.json().catch(() => ({ error: teeRes.statusText }));
-      // Enclave v10 with no Base header to fix a floor from: come back in a moment.
-      if (isNoBaseFloorRefusal(err)) return teeRestarting503();
       return NextResponse.json(err, { status: teeRes.status, headers: VERSION_HEADER });
     }
 

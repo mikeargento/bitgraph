@@ -3,13 +3,8 @@
  *
  * Markdown for human-facing summaries, JSON for complete structured data.
  * A BitGraph's time is its attestation timestamp, the enclave platform's
- * signed clock, the same time its proof page leads with (RE-RULING
- * 2026-09-25; one clock everywhere, 2026-09-27). Since enclave v10 the
- * floor is a Base block signed into the proof (commit.slotFloor) and no anchor
- * follows it. For earlier proofs the Ethereum bracket
- * confirms it: a floor block with its mine time, and a ceiling in POSITION,
- * the next anchor, never a later block's mine time (CANON 3.6). Never from
- * advisory clock fields.
+ * signed clock, the same time its proof page leads with. Never from advisory
+ * clock fields.
  *
  * Ported from packages/mcp/src/format.ts; RecordOutcome is keyed by the
  * caller's digest string ("input") instead of a local file path.
@@ -17,7 +12,6 @@
 
 import { toUrlSafeB64 } from "./encoding";
 import { recordedMsOf } from "@/lib/recorded-time";
-import { rollRootCovers } from "@/lib/roll-root";
 import type { BitGraphProof, PositionView, ProofDetailResponse, SetMemberView } from "./types";
 
 export const CHARACTER_LIMIT = 25_000;
@@ -122,48 +116,6 @@ export function renderCheckMarkdown(outcomes: readonly CheckOutcome[]): string {
   return lines.join("\n");
 }
 
-/** A Base floor the proof signs (commit.slotFloor, enclave v10), or null for an Ethereum floor or none. */
-function baseFloorOf(detail: ProofDetailResponse): { blockNumber: number; blockTimestamp: number } | null {
-  const f = (detail.proofs[0]?.proof?.commit as { slotFloor?: { chain?: unknown; blockNumber?: unknown; blockTimestamp?: unknown } } | undefined)?.slotFloor;
-  if (!f || f.chain !== "base" || typeof f.blockNumber !== "number" || typeof f.blockTimestamp !== "number") return null;
-  return { blockNumber: f.blockNumber, blockTimestamp: f.blockTimestamp };
-}
-
-function renderWindow(detail: ProofDetailResponse): string | null {
-  // A Base floor (enclave v10): the block the enclave fixed when the position
-  // opened, signed into the proof with its time. No anchor follows it: order
-  // after a record is the next BitGraph in the chain.
-  const base = baseFloorOf(detail);
-  if (base !== null) {
-    const floorLine = `Placed after Base block ${base.blockNumber} (mined ${new Date(base.blockTimestamp * 1000).toISOString().replace(".000Z", "Z")})`;
-    const c = detail.ceiling;
-    // A record's write is its epoch's root (lib/roll-root.ts), made when the epoch closes: it fixes the epoch as a set and is not stated as a time of the record's own.
-    const proof = detail.proofs[0]?.proof;
-    if (proof && rollRootCovers(recordedMsOf(proof))) {
-      return c
-        ? `${floorLine}. Its ceiling is the next BitGraph in the chain. Its epoch was closed under one Merkle root, written to Base in block ${c.blockNumber}.`
-        : `${floorLine}. Its ceiling is the next BitGraph in the chain. Its epoch's Merkle root goes to Base when the epoch closes.`;
-    }
-    return c ? `${floorLine}, and existed by Base block ${c.blockNumber} (mined ${c.blockTime.replace(".000Z", "Z")}), the ceiling.` : `${floorLine}; its Base ceiling is not written yet.`;
-  }
-  const w = detail.causalWindow;
-  if (!w) return null;
-  // The floor is a block and its mine time, Ethereum's clock. The ceiling is
-  // the next anchor, stated as a position; the time given with it is when
-  // BitGraph recorded that anchor, the enclave's clock, as on the proof page.
-  // A later block's mine time is never offered as a bound.
-  const lower = w.anchorBefore?.blockTime ?? null;
-  const lowerBlock = w.anchorBefore?.blockNumber ?? null;
-  const after = w.anchorAfter;
-  const ceiling = after?.counter
-    ? `before anchor #${after.counter}${typeof after.recordedMs === "number" ? `, which BitGraph recorded at ${new Date(after.recordedMs).toISOString()}` : ""}`
-    : null;
-  if (lower && ceiling) return `Placed after Ethereum block ${lowerBlock ?? "?"} (mined ${lower}), ${ceiling}.`;
-  if (ceiling) return `Placed ${ceiling}; no floor is known here.`;
-  if (lower) return `Placed after Ethereum block ${lowerBlock ?? "?"} (mined ${lower}); no anchor follows yet.`;
-  return null;
-}
-
 export function renderProofMarkdown(
   detail: ProofDetailResponse,
   baseUrl: string
@@ -185,18 +137,6 @@ export function renderProofMarkdown(
     const role = here.member.role === "fused" ? "its new fused bytes" : "the original";
     lines.push(`- Set: member ${here.member.index + 1} of ${here.member.count}, as ${role}${here.placement ? ` (${here.placement})` : ""}`);
   }
-  const window = renderWindow(detail);
-  if (window) lines.push(`- ${window}`);
-  const baseFloor = baseFloorOf(detail);
-  if (baseFloor !== null) {
-    lines.push(`- Floor block on Basescan: https://basescan.org/block/${baseFloor.blockNumber}`);
-    if (detail.ceiling?.txHash) lines.push(`- ${rollRootCovers(recorded) ? "Epoch root" : "Ceiling"} transaction on Basescan: https://basescan.org/tx/${detail.ceiling.txHash}`);
-  } else {
-    const etherscan =
-      detail.causalWindow?.anchorAfter?.etherscanUrl ??
-      detail.causalWindow?.anchorBefore?.etherscanUrl;
-    if (etherscan) lines.push(`- Anchor block on Etherscan: ${etherscan}`);
-  }
   if (proof.environment?.enforcement) {
     lines.push(`- Enforcement: ${proof.environment.enforcement}`);
   }
@@ -213,7 +153,7 @@ export function renderProofMarkdown(
       const label = i === 0 ? " · original" : "";
       const when = typeof p.recordedMs === "number"
         ? ` · recorded ${new Date(p.recordedMs).toISOString()}`
-        : p.lowerTime ? ` · no earlier than ${p.lowerTime}` : "";
+        : "";
       lines.push(`- #${p.counter ?? "?"}${label}${p.member ? ` · set of ${p.member.count}` : ""}${when}`);
     });
   }

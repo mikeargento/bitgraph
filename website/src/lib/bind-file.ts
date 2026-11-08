@@ -3,8 +3,7 @@
 /**
  * Files as BitGraphs, the way Make binds them: one file is bound alone, its own SHA-256 the proof's content hash
  * (2026-10-31); several are one tree, its root bound and each leaf indexed under its own hash (app/api/tree-members).
- * Either way a file is looked up by its own SHA-256. Floor and ceiling come from the block timeline: the block reads bound
- * before and after it.
+ * Either way a file is looked up by its own SHA-256, and its time is its proof's attested time.
  *
  * Explicit .ts specifiers so node's test runner loads it.
  */

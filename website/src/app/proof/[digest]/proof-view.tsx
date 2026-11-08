@@ -1,31 +1,13 @@
 "use client";
 
 /**
- * The proof page's presentation (2026-09-30 overhaul: all of the same
- * information, laid out as simply as it can be). The page (page.tsx) still loads, caches,
- * matches drops, binds sets and builds downloads; this file only shows.
+ * The proof page's presentation. The page (page.tsx) loads, caches, matches drops, binds sets and builds downloads;
+ * this file only shows.
  *
- * Five sections, top to bottom, each a raised card on the grey ground:
- *
- *   1. The record        what this is: its number and epoch, the instant it was
- *                        recorded, the file (or the box that finds it), what the
- *                        file says about itself (set members)
- *   2. Where it sits     the window: the floor in time, the recorded instant, the
- *                        ceiling in time, the ceiling in position, in that order,
- *                        each with its public link (a Base floor, enclave v10: the
- *                        first three only; no anchor follows it)
- *   3. What holds        one line per claim, computed here in the browser from the
- *                        same evidence a download carries, each saying what it rests
- *                        on; the reading is written from the results
- *   4. Take it with you  the BitGraphed file and the other downloads, the offline
- *                        command, and recording again
- *   5. Details           every raw field, folded: hashes, positions, the position
- *                        record, the commit, the signature, the enclave, the raw JSON
- *
- * Claim discipline is unchanged: floor in time, ceiling in position, ceiling in
- * time; the attested instant leads and wears its root; block times are the
- * blocks' own, in UTC, so they match Etherscan and Basescan; nothing here says
- * "proves when".
+ * One receipt card, top to bottom: the BitGraph's name and its file; when, which is the attestation's time, signed by
+ * AWS Nitro hardware; the downloads; and, on request, the details: the bind (the nonce at N, the content hash at
+ * N+1), its place in line (the epoch and the previous BitGraph), the hardware's signature, and the raw JSON.
+ * Nothing here says "proves when" about the content itself.
  */
 
 import { TreeFileList } from "@/components/tree-file-list";
@@ -33,35 +15,13 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { TimeChip, longDateTz, stampTz, timeTz, sameDayTz } from "@/lib/format-time";
 import type { BitGraphProof } from "@/lib/bitgraph";
 import type { CarrierClaim } from "@mikeargento/bitgraph-verify";
-import { decodeNitroAttestation, floorTimeIsBound, treeMemberOf } from "@mikeargento/bitgraph-verify";
+import { decodeNitroAttestation, treeMemberOf } from "@mikeargento/bitgraph-verify";
 import { CopyIcon, useCopied } from "@/components/copy-icon";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
-/** The first Base ceiling write (2026-09-29 22:43 UTC). Records made before it have no ceiling in time. */
-const BASE_CEILING_START_MS = Date.UTC(2026, 8, 29, 22, 43);
-
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
 const safe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-
-export interface AnchorSideView {
-  counter: string;
-  blockNumber: number | null;
-  blockHash: string | null;
-  etherscanUrl: string | null;
-  blockTime?: string | null;
-  digestB64?: string | null;
-  /** When BitGraph recorded the anchor: its attestation's timestamp. */
-  recordedMs: number | null;
-}
-
-export interface CeilingTimeView {
-  status: "pending" | "included" | "safe" | "finalized";
-  anchor: { txHash: string; blockNumber: number; blockTimestamp: number } | null;
-  floor?: { blockNumber: number; blockTimestamp: number } | null;
-  /** The Ethereum block that committed the Base batch data, once the writer attached it. */
-  settlement?: { l1?: { blockNumber?: number; blockTimestamp?: number; txHash?: string; blockHash?: string } } | null;
-}
 
 export interface ChecksView {
   state: "idle" | "running" | "done" | "failed";
@@ -112,14 +72,14 @@ export interface FieldView {
 }
 
 export interface ProofViewModel {
-  kind: "file" | "anchor" | "interval";
+  kind: "file" | "interval";
   proof: BitGraphProof;
   recordName: string;
   epochFull: string | null;
   attestedMs: number | null;
-  /** The lead when the attestation cannot be read: the floor's block time. */
+  /** The lead time, the attestation's, as a node. */
   leadFallback: ReactNode;
-  /** The file pane: the preview, the drop box, or for an anchor the block row. */
+  /** The file pane: the preview or the drop box. */
   filePane: ReactNode;
   /** The hosted original (components/source-link): the line in the strip for everyone, and the holder's field under the pane. */
   sourceField?: ReactNode;
@@ -135,58 +95,10 @@ export interface ProofViewModel {
   c2pa?: C2PAReadResult | null;
   /** A set, or a tree/1 (whose page can list only the file in hand, once placed: a tree's members are known file by file, from evidence). */
   set: { kind: "set/1" | "set/2" | "tree/1"; count: number; root: string | null; rows: SetRowView[] } | null;
-  /** Anchors: which Ethereum block this anchor recorded, and its Etherscan link. */
-  anchorBlock: { number: string | null; minedMs: number | null; etherscanUrl: string | null } | null;
-  anchorsBackHref: string | null;
-  floor: AnchorSideView | null;
-  /**
-   * Enclave v10: the Base block the proof signs as its floor (commit.slotFloor), read from the
-   * signed proof. When set, `floor`, `ceilingPos` and `commitAfter` are null and `ethWait` false:
-   * no anchor stands on either side, and order after the record is the next BitGraph in the chain.
-   */
-  baseFloor?: { blockNumber: number; blockHash: string; blockTimestamp: number } | null;
-  /** A sentence about what the floor covers, for a tree/1 record (every file recorded after it; a file kept as is not dated by it). */
-  floorNote?: string | null;
-  /** The anchor before the commit when it is later than the signed floor: a tighter bound on the commit by hash order. */
-  commitAfter: { counter: string; blockNumber: number; blockTime: string | null; digestB64: string | null } | null;
-  ceilingPos: AnchorSideView | null;
-  /** The ceiling in position has not landed yet and the page is asking. */
-  ethWait: boolean;
-  ceilingTime: CeilingTimeView | null;
-  /** The Base plugin's floor: BitGraph 1, which bound the latest Base block before this record, in the same epoch (app/api/floors). */
-  floorLink?: { floor: { bitgraph: { digestB64: string; epochId: string; counter: string }; blockNumber: number; blockHash: string; blockTimestamp: number } } | null;
-  /** This proof is itself a floor: it binds base-floor.json, the latest Base block, read for the record bound right after it. */
-  floorOf?: { floor: { blockNumber: number; blockHash: string; blockTimestamp: number }; record: { digestB64: string; epochId: string; counter: string } } | null;
-  /** This proof is its epoch's first BitGraph, a read of the latest Base block; the file hashed to its digest here. */
-  epochStart?: { blockNumber: number; blockHash: string; blockTimestamp: number; baseChecked: boolean | null; fileUrl: string; genesis?: { txHash: string; writer: string } | null } | null;
-  /** The floor leaf of this file's tree (2026-10-20): base-block.json, checked into the root this proof binds. */
-  treeFloor?: { blockNumber: number; blockHash: string; blockTimestamp: number; fileUrl: string } | null;
-  /** The block timeline's bracket (app/api/timeline/bracket): the block reads before and after this record. When it
-   *  has them, the floor and ceiling show their blocks' times and link to the block reads' own BitGraphs. */
-  timeline?: {
-    state: "verified" | "unconfirmed" | "failed" | "pending" | "none";
-    epochUrl: string;
-    floor: { chain: "base" | "ethereum"; number: number; timestamp: number; counter: string; digestB64: string } | null;
-    ceiling: { chain: "base" | "ethereum"; number: number; timestamp: number; counter: string; digestB64: string } | null;
-  } | null;
-  /** This BitGraph is a block read: the block its file names, which hashed here to its digest. */
-  /** A block read's block, and the exact block file it binds (its content), checked to hash to the digest. */
-  blockRead?: { chain: "base" | "ethereum"; number: number; hash: string; timestamp: number; file?: string } | null;
   /** The epoch's closing record: the bitgraph-epoch-end/1 note it binds. */
   epochEnd?: { file: string } | null;
-  ceilingFileHref: string | null;
   checks: ChecksView;
-  onConfirm: () => void;
-  /** ONE export per position (2026-10-04, a single master button): what the
-   *  button downloads depends on the kind of position, and the person makes no
-   *  choice. Null while nothing can be exported yet (a tree still binding). */
-  exportAction: DownloadView | null;
-  /** The export's row name: what the one download is, for this kind of position. */
-  exportName: string;
-  /** One line under it: what the export holds. */
-  exportInside: ReactNode;
-  /** The pieces on their own, as small text links: the proof, the anchors, the
-   *  original, the BitGraphed file. For the few who want one part. */
+  /** The pieces on their own, as small text links: the proof, the original, the BitGraphed file. */
   pieces: DownloadView[];
   downloadNotes: ReactNode[];
   /** The BitGraphed file's last download, as it went: shown under its button. */
@@ -195,9 +107,6 @@ export interface ProofViewModel {
   canConnect?: boolean;
   /** Every BitGraph of this file's exact bytes, oldest first; `current` is this page's. */
   bindings?: Array<{ counter: number; ms: number | null; href: string; epochId: string; current?: boolean }>;
-  /** "Check it anywhere": the command that matches this kind of export, or null. */
-  checkText: ReactNode | null;
-  checkCommand: ReactNode | null;
   hashes: FieldView[];
   positions: { intro: string; rows: PositionRowView[] } | null;
   positionRecord: FieldView[];
@@ -311,14 +220,6 @@ function Pill({ href, children, external, download }: { href: string; children: 
 
 const fmtNum = (n: number | string | null | undefined) => (n === null || n === undefined ? "?" : Number(n).toLocaleString("en-US"));
 
-/** A block's own time beside the recorded instant: the time alone on the same day, else the full stamp. */
-function whenBeside(ms: number, ref: number | null): string {
-  const d = new Date(ms);
-  const s = ref !== null && sameDayTz(d, new Date(ref)) ? timeTz(d) : stampTz(d);
-  // "7:22:57 PM EDT" is one reading: never let the zone or the AM/PM wrap onto a line of its own.
-  return s.replace(/(\d{1,2}:\d{2}(?::\d{2})?) (AM|PM)(?: ([A-Z]{2,5}|UTC))?/, (_m, t, ap, z) => `${t}\u00a0${ap}${z ? `\u00a0${z}` : ""}`);
-}
-
 /* ── The view ─────────────────────────────────────────────────────────────── */
 
 /** XML, though not a picture that happens to be XML (SVG shows as the picture it is). */
@@ -428,39 +329,14 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const [fileChoice, setFileChoice] = useState<boolean | null>(null);
   const fileOpen = fileChoice ?? showsOpen(m.openType, m.openSize);
   const setFileOpen = (f: (v: boolean) => boolean) => setFileChoice(f(fileOpen));
-  /* Stripped to the primitive (2026-10-17), with the Base floor and ceiling back (2026-10-18). Anchors, export
-     packages and the position lists stay off the page; every old proof still opens, and all of it is in the raw JSON. */
-  // When shows the recorded time alone (2026-11-06). The floor and the Base write are still read here, because
-  // whether the record has them decides whether the group shows at all (showTime).
+  // The time on a proof is the attestation's, signed by AWS Nitro hardware.
   const attested = m.attestedMs;
-  const bf = m.kind !== "anchor" ? m.baseFloor ?? null : null;
-  // Records made before 2026-10-07 carry an Ethereum floor instead: shown the same way, so old proofs keep their window.
-  const ef = m.kind !== "anchor" && !bf ? m.floor ?? null : null;
-  const fl = m.floorLink?.floor ?? null;
-  const floorMs = fl ? fl.blockTimestamp * 1000 : bf ? (floorTimeIsBound(bf.blockTimestamp, attested).ok ? bf.blockTimestamp * 1000 : null) : ef?.blockTime ? new Date(ef.blockTime).getTime() : null;
-  const sinceFloor = attested !== null && floorMs !== null ? Math.max(0, Math.floor((attested - floorMs) / 1000)) : null;
-  const ct = m.ceilingTime;
-  // Only a record that went to Base shows where it sits in time (2026-10-18: the floor had stayed on with the Base
-  // switch off). Enclave v11 signs a Base floor into every bind; it shows here only beside a Base write (or one
-  // waiting), i.e. when the Base switch was on. Enclave v12 drops the floor from plain binds altogether.
-  const es = m.epochStart ?? null;
-  const tf = m.treeFloor ?? null;
   const bitgraphed = m.pieces?.find((p) => p.label === "BitGraphed file") ?? null;
   // The content box comes into view once a search starts (2026-10-30), so its reading count shows the work.
   const [searching, setSearching] = useState(false);
   // The technical half of the receipt (the bind, its place in line, the signature, the verifier and the JSON) opens on
   // request; the file, when it was made and the proof to download show first.
   const [details, setDetails] = useState(false);
-  const fo = m.floorOf ?? null;
-  // A record written to Base shows that write and nothing from the block timeline: the timeline ran only between its
-  // start and the return to per-record Base writes, and a later record of the same epoch would otherwise show the last
-  // read before the switch as a floor, and a ceiling read that never comes.
-  const tl = !ct && m.timeline && m.timeline.state !== "failed" ? m.timeline : null;
-  // A drop's own floor (2026-11-02): the Base read bound on the counts right before this file, which its signed prevB64
-  // names. Shown beside the Base write; a read further back (from before the switch) is not this file's floor.
-  const own = m.timeline && m.timeline.state !== "failed" && m.timeline.floor && m.proof.commit.slotCounter
-    && BigInt(m.timeline.floor.counter) + BigInt(1) === BigInt(m.proof.commit.slotCounter) ? m.timeline.floor : null;
-  const showTime = ct !== null || fl !== null || es !== null || tf !== null || fo !== null || tl !== null || own !== null;
   const c = m.checks;
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
   const badCount = c.claims.filter((x) => x.result === "FALSE").length;
@@ -488,29 +364,15 @@ export function ProofView({ m }: { m: ProofViewModel }) {
                 <span className={`pv-verdict pv-verdict-${(c.verdict ?? "UNDETERMINED").toLowerCase()}`}>{c.verdict === "TRUE" ? "\u2713 Valid proof" : c.verdict === "FALSE" ? "\u2717 Not a valid proof" : "Undetermined"}</span>
                 <span className="pv-checks-count">{okCount} checks passed{badCount ? `, ${badCount} failed` : ""}</span>
               </div>
-              {/* The verifier's reading talks floors and blocks; the verdict and the count are enough here (raw JSON has the rest). */}
+              {/* The verdict and the count are enough here (raw JSON has the rest). */}
             </>
           )}
         </div>
   );
-  // The Base floor and Base write rows left the receipt on 2026-11-06, with the helpers that drew them.
-  const chainName = (c: "base" | "ethereum") => (c === "base" ? "Base" : "Ethereum");
-  const br = m.blockRead ?? null;
-  // A block read's own page: the block, with the explorer link to open it, at the top; its time sits under When, right
-  // above the enclave's own, so the two read against each other.
-  const blockReadCell = br ? (
-    <div className="pv-row">
-      <div className="pv-row-label">{chainName(br.chain)} block</div>
-      <div className="pv-row-value">{fmtNum(br.number)} <a className="pv-link pv-explorer" href={br.chain === "base" ? `https://basescan.org/block/${br.number}` : `https://etherscan.io/block/${br.number}`} target="_blank" rel="noopener">{br.chain === "base" ? "Basescan" : "Etherscan"}</a></div>
-    </div>
-  ) : null;
-  const blockTimeRow = br ? <Row key="blocktime" f={{ label: `${chainName(br.chain)}’s time`, value: stampTz(new Date(br.timestamp * 1000)) }} /> : null;
-  // Its content is the block file itself, served with the page, so it downloads instead of asking for a file.
-  const blockFileHref = br?.file ? `data:application/json;charset=utf-8,${encodeURIComponent(br.file)}` : null;
   const endFileHref = m.epochEnd?.file ? `data:application/json;charset=utf-8,${encodeURIComponent(m.epochEnd.file)}` : null;
-  /* The receipt in groups, each answering one question, its rows in the order things happen (2026-11-01): what this
-     BitGraph is; when, with the enclave's time between the two block reads that bracket it; the bind, the two
-     consecutive counts with nothing between them; its place in the chain; and the hardware's signature on it all. */
+  /* The receipt in groups, each answering one question, its rows in the order things happen: what this BitGraph is;
+     when, by the attestation's time; the bind, the two consecutive counts with nothing between them; its place in the
+     chain; and the hardware's signature on it all. */
   const group = (title: string | null, rows: ReactNode[]) => rows.some(Boolean) ? (
     <div className="pv-receipt-group">
       {title && <div className="pv-section-title">{title}</div>}
@@ -525,7 +387,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         /* The file opens from the top of the card, right of the number, and shows directly beneath it. */
         <div key="n" className="pv-row pv-row-head">
           <div className="pv-row-value pv-name">
-            {`BitGraph #${fmtNum(m.proof.commit?.counter ?? "")}${es ? " · the epoch's first" : m.epochEnd ? " · the epoch's last" : br ? ` · ${chainName(br.chain)} block read` : ""}`}
+            {`BitGraph #${fmtNum(m.proof.commit?.counter ?? "")}${m.epochEnd ? " · the epoch's last" : ""}`}
             {/* With the file open, the link in the corner goes back to the ledger (what people reach for there); a file
                 that opens on request still gets its Open file button. */}
             {m.openUrl && fileOpen
@@ -536,34 +398,27 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         fileOpen && m.openUrl ? <FileInPlace key="open" url={m.openUrl} type={m.openType ?? null} name={m.fileName ?? null} /> : null,
         m.fileName ? <Row key="file" f={{ label: "File", value: m.fileName }} /> : null,
         commit.epochId && commit.counter && !treeMemberOf(m.proof) ? <TreeFileList key="tree" digestB64={m.proof.artifact.digestB64} epochId={commit.epochId} counter={commit.counter} /> : null,
-        blockReadCell ? <Fragment key="read">{blockReadCell}</Fragment> : null,
       ])}
-      {/* When: the time the enclave recorded it, and nothing else (2026-11-06). The Base block read before it and the
-          Base write after it are no longer rows here; both are still in the proof and its details. */}
+      {/* When: the attestation's time, signed by AWS Nitro hardware. */}
       {group("When", [
-        blockTimeRow,
-        (showTime || br || m.epochEnd) && attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
+        attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
       ])}
       {/* Check it anywhere follows when: text links like the rest of the receipt, under their own eyebrow. The proof;
-          and the BitGraphed file when the original is in hand, the epoch file on an epoch's first record, or Connect
-          the file, which opens the drop box right under these lines. */}
+          and the BitGraphed file when the original is in hand, the epoch-end note on an epoch's closing record, or
+          Connect the file, which opens the drop box right under these lines. */}
       <div className="pv-receipt-group">
         <div className="pv-section-title">Check it anywhere</div>
         <div className="pv-sub-note" style={{ display: "grid", gap: 6, marginTop: 0 }}>
           <button type="button" className="pv-link pv-link-btn" onClick={download}>Download proof</button>
           {bitgraphed ? (
             <button type="button" className="pv-link pv-link-btn" disabled={bitgraphed.busy} onClick={bitgraphed.onClick}>{bitgraphed.busy ? "Assembling\u2026" : "Download BitGraphed file"}</button>
-          ) : es ? (
-            <a className="pv-link" style={{ width: "fit-content" }} href={es.fileUrl} download={es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}>Download {es.genesis ? "epoch-genesis.json" : "epoch-floor.json"}</a>
           ) : endFileHref ? (
             <a className="pv-link pv-link-btn" style={{ width: "fit-content" }} href={endFileHref} download="epoch-end.json">Download epoch-end.json</a>
-          ) : blockFileHref ? (
-            <a className="pv-link pv-link-btn" style={{ width: "fit-content" }} href={blockFileHref} download="block-read.json">Download block-read.json</a>
           ) : m.canConnect ? (
             <button type="button" className="pv-link pv-link-btn" onClick={() => setSearching(true)}>Connect the file</button>
           ) : null}
         </div>
-        {m.canConnect && !br && searching && <div style={{ marginTop: 14 }}>{m.filePane}</div>}
+        {m.canConnect && searching && <div style={{ marginTop: 14 }}>{m.filePane}</div>}
         {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
       </div>
       <div className="pv-receipt-group pv-details-toggle">
@@ -578,13 +433,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       {/* Shown by its hash: proofs are not looked up by position, so the page cannot open the BitGraph before this one;
           whoever holds both proofs can check the link offline. */}
       {group("Its place in line", [
-        es ? (
-          <div key="gen" className="pv-row">
-            <div className="pv-row-label">Genesis block {fmtNum(es.blockNumber)}</div>
-            {/* The hash in the code face, the Basescan link in the page's own, like every other link on the receipt. */}
-            <div className="pv-row-value"><span className="pv-mono">{es.blockHash}</span> <a className="pv-link pv-explorer" href={es.genesis ? `https://basescan.org/tx/${es.genesis.txHash}` : `https://basescan.org/block/${es.blockNumber}`} target="_blank" rel="noopener">Basescan</a></div>
-          </div>
-        ) : null,
         commit.epochId ? <Row key="epoch" f={{ label: "Epoch", value: commit.epochId, mono: true }} /> : null,
         prevB64 ? <Row key="prev" f={{ label: "Previous BitGraph", value: prevB64, mono: true }} /> : null,
       ])}
@@ -672,36 +520,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   }
 }
 
-function Moment({ label, title, note, children, accent, chain }: { label: string; title: ReactNode; note?: ReactNode; children?: ReactNode; accent?: boolean; chain?: "eth" | "base" }) {
-  return (
-    <div className={`pv-moment${accent ? " is-accent" : ""}`}>
-      <div className="pv-moment-rail" aria-hidden><span className="pv-moment-dot" /></div>
-      <div className="pv-moment-body">
-        <div className="pv-moment-label">{chain && <span className={`pv-chain pv-chain-${chain}`} role="img" aria-label={chain === "eth" ? "Ethereum" : "Base"} />}{label}</div>
-        <div className="pv-moment-title">{title}</div>
-        {note && <div className="pv-moment-note">{note}</div>}
-        {children && <div className="pv-moment-actions">{children}</div>}
-      </div>
-    </div>
-  );
-}
-
-/* Claims this page does not judge by design, said plainly instead of as a question mark (2026-10-05: the
-   question mark read as a leftover). Still listed, so every claim is shown. One the audit tool
-   checks; one a status BitGraph's Base node reported, never proven by the file. */
-const NOTED: Record<string, { label: string; text: (x: CarrierClaim) => string }> = {
-  "settlement.blobs.decoded": {
-    label: "checked by the audit tool",
-    text: () => "This needs Base's raw batch data from Ethereum, which the audit tool checks with the data kept beside each download. The browser holds only the pointer to it.",
-  },
-  "ceiling.time.status": {
-    label: "reported",
-    text: (x) => {
-      const status = /says "([^"]+)"/.exec(x.detail)?.[1];
-      return `Base's status when this proof was written, as BitGraph's Base server reported it${status ? `: ${status}` : ""}. Reported, not proven: the settlement check below is the proof.`;
-    },
-  },
-};
+/* Claims this page does not judge by design, said plainly instead of as a question mark. None at present: every
+   claim the page lists is judged here. */
+const NOTED: Record<string, { label: string; text: (x: CarrierClaim) => string }> = {};
 const noted = (x: CarrierClaim) => (x.result === "UNDETERMINED" ? NOTED[x.id] ?? null : null);
 const auditOnly = (x: CarrierClaim) => noted(x)?.label === "checked by the audit tool";
 

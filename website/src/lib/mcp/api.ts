@@ -3,7 +3,7 @@
  *
  * All recording goes through the website's own /api/commit proxy rather than
  * the TEE directly: the proxy is what maintains the per-position by-digest
- * index and the anchor-first gate. The endpoint serves anonymous callers only;
+ * index and the restart gate. The endpoint serves anonymous callers only;
  * keyed clients that need the TEE rate-limit exemption use the stdio package
  * (@mikeargento/bitgraph-mcp), which forwards Authorization itself.
  *
@@ -148,7 +148,7 @@ export class PartialCommitError extends Error {
   }
 }
 
-/** Full detail for one digest: proof, all causal positions, anchor window. */
+/** Full detail for one digest: proof and all causal positions. */
 export async function getProofDetail(
   urlSafeDigest: string,
   counter?: string,

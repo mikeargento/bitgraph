@@ -28,5 +28,3 @@ test("an allocation's anchor is recognized; malformed ones are not", () => {
   assert.ok(!isAnchorMark({ counter: 1, blockNumber: 1, blockHash: "0x" + "a".repeat(64) }));
 });
 
-// The Base floor's suite (fuse/3, enclave v10) runs with this one under test:fuse.
-import "./base-floor.test.ts";

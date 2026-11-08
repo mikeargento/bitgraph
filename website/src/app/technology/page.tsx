@@ -6,7 +6,7 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 /**
  * Technology (2026-10-27): the mechanism, for a CTO or security architect, from the code. Sources: the v13 enclave
  * (server/commit-service/src/enclave/app.ts, the enclave-v13 branch), the verifier (packages/verify: attested.ts,
- * verifier.ts, stretch.ts, nitro.ts, tree-member.ts, ceiling.ts), the host (parent/server.ts, rate-limit.ts) and the
+ * verifier.ts, stretch.ts, nitro.ts, tree-member.ts), the host (parent/server.ts, rate-limit.ts) and the
  * build pins (server/commit-service/reproducible-build/PINS.md). A claim that is not in that code is not on this page.
  */
 export const metadata: Metadata = {
@@ -76,15 +76,14 @@ export default function TechnologyPage() {
             <p>
               That is the whole of the mechanism: order, from attested hardware. It needs no clock and no blockchain. Everything else a
               record can carry, a time, an identity, a public witness, is a trust layer bound on top of that position. The
-              hardware&rsquo;s own signed time comes with every attestation; through bitgraph.ing, two Base transactions a day open
-              and close the day&rsquo;s sequence in a public record BitGraph does not control. Either can be checked, neither is what the proof rests on.
+              hardware&rsquo;s own signed time comes with every attestation, and it can be checked; it is not what the proof rests on.
             </p>
             <h3 className="tl-h3">What it does not establish</h3>
             <ul className="docs-list">
               <li><strong>When the content was created.</strong> An old file can be bound today. The proof fixes where in the sequence its digest was recorded; a time layer bound to that position associates it with a timestamp or a time window. Either way, that is when the digest was recorded, not when the content was made.</li>
               <li><strong>Who made it, or whether it is true.</strong> It binds bytes, not authorship or meaning.</li>
               <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other record was.</li>
-              <li><strong>Order across epochs</strong> from the enclave alone. Each epoch is its own sequence; a trust layer places epochs relative to each other. In the demo that layer is Base.</li>
+              <li><strong>Order across epochs</strong> from the counts alone. Each epoch is its own sequence; the attested time in each proof places epochs relative to each other.</li>
             </ul>
           </section>
 
@@ -135,9 +134,8 @@ export default function TechnologyPage() {
             <h3 className="tl-h3">Epochs</h3>
             <p>
               The enclave&rsquo;s key and counter live only in its memory, so each start is a new epoch: a new key, a counter from zero,
-              and an <code>epochId</code> signed into every proof. Epochs are independent sequences. Each one&rsquo;s first BitGraph
-              binds a record of an outside witness, which places that epoch&rsquo;s start in the witness&rsquo;s time; on bitgraph.ing the
-              witness is Base.
+              and an <code>epochId</code> signed into every proof. Epochs are independent sequences. On bitgraph.ing an epoch runs for one
+              UTC day and ends with a closing BitGraph inside its own line.
             </p>
           </section>
 
@@ -175,34 +173,33 @@ export default function TechnologyPage() {
               log or a Content Credential can be bound the same way, by whoever already issues it.
             </p>
             <p>
-              Inside an epoch the order needs no chain. Each BitGraph comes after the one before it, by construction, so the next
-              BitGraph is the ceiling of the one before, and the time in each proof is the hardware&rsquo;s. An epoch is one roll, from
-              its first BitGraph to its last:
+              Inside an epoch the order needs nothing outside the enclave. Each BitGraph comes after the one before it, by
+              construction, and the time in each proof is the hardware&rsquo;s. An epoch is one run, from its first BitGraph to its last:
             </p>
             <ul className="docs-list">
-              <li><strong>When an epoch opens.</strong> Through bitgraph.ing, one Base transaction carries the new epoch&rsquo;s id, and the epoch&rsquo;s first BitGraph binds a record of it. That names the day&rsquo;s official sequence in public, and no BitGraph of the epoch can come before that transaction&rsquo;s block.</li>
-              <li><strong>Every file in between.</strong> Each file is one BitGraph on the next counts, right after a BitGraph of the latest Base block, so it was bound after that block. Nothing leaves the enclave but the proof.</li>
-              <li><strong>When an epoch closes.</strong> Before the enclave shuts down, its last BitGraph binds a short closing note naming the epoch. Nothing is bound after it, and its proof names the hash of the one before, so the whole sequence ends there. Through bitgraph.ing, a second Base transaction carries that BitGraph&rsquo;s hash, so every record of the epoch existed by that transaction&rsquo;s block.</li>
+              <li><strong>When an epoch opens.</strong> The enclave starts with a new key and a counter at zero, and signs the new epoch&rsquo;s id into every proof it makes.</li>
+              <li><strong>Every file in between.</strong> Each file is one atomic step on the next two counts: a fresh nonce at count N, the file&rsquo;s SHA-256 at count N+1, attested by AWS Nitro with AWS&rsquo;s signed time and linked to the proof before it. Nothing leaves the enclave but the proof.</li>
+              <li><strong>When an epoch closes.</strong> At the end of the UTC day the enclave makes a closing BitGraph in its own line, binding a short note naming the epoch. Nothing is bound after it, and its proof names the hash of the one before, so the whole sequence ends there.</li>
             </ul>
             <p>
-              That is two writes on Base a day, the same size and at the same times however many records the day holds. Anchoring finished records anywhere else is
-              optional and comes afterward; it is not part of the sequence.
+              BitGraph writes nothing to any blockchain and reads nothing from one. Anyone who wants an outside anchor can add their
+              own afterward: an RFC&nbsp;3161 timestamp authority, a transparency log, or a blockchain. That is optional and is not
+              part of BitGraph.
             </p>
             <div className="sx-cards is-3">
               <article className="tl-card">
-                <h3>Your file stays off chain.</h3>
-                <p>Nothing about any file is written to Base. The two transactions a day carry only the epoch&rsquo;s id and a hash of its last record.</p>
+                <h3>Your file stays with you.</h3>
+                <p>Only the file&rsquo;s 32-byte SHA-256 reaches the enclave, and only the proof leaves it.</p>
               </article>
               <article className="tl-card">
-                <h3>One published writer.</h3>
-                <p>Every write comes from one Base address, pinned in the verifier. A write from any other address is not BitGraph&rsquo;s.</p>
+                <h3>Time from the hardware.</h3>
+                <p>The time on a proof is the attestation&rsquo;s timestamp, signed by AWS for that exact proof.</p>
               </article>
               <article className="tl-card">
                 <h3>Independently verifiable.</h3>
-                <p>Check the hardware attestation, signatures and counted sequence, then match the proof&rsquo;s epoch id to the one in that day&rsquo;s Base transactions.</p>
+                <p>Check the hardware attestation, signatures and counted sequence offline, with no service and no network.</p>
               </article>
             </div>
-            <p>No blockchain is needed to verify a proof or its place in the sequence. The Base transactions open and close each day&rsquo;s sequence in public, and the mechanism does not depend on them.</p>
           </section>
 
           <section className="home-section" aria-labelledby="t-trees">
@@ -289,7 +286,7 @@ export default function TechnologyPage() {
                   <tr>
                     <td>The host operator (BitGraph included)</td>
                     <td>Forge a proof that passes the attested check; see or choose a nonce; reuse a count; insert or reorder proofs inside a sequence without breaking the counts and hash links; change a proof&rsquo;s attested time by releasing it late.</td>
-                    <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbors); restart the enclave to begin a new epoch; delay or decline an epoch&rsquo;s Base transaction (that epoch then has no public name).</td>
+                    <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbors); restart the enclave to begin a new epoch.</td>
                   </tr>
                   <tr>
                     <td>A client</td>

@@ -1,24 +1,18 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
-import { DIGEST_TREE_FORMAT, digestRootText, type TreeFloor } from "./tree-member.ts";
+import { DIGEST_TREE_FORMAT, digestRootText } from "./tree-member.ts";
 
 /**
- * The drop box's two plugins (2026-10-18: toggles at the top of the Make section). Both sit on the plain bind
- * and never change what a proof is.
+ * The drop box's tree helpers. They sit on the plain bind and never change what a proof is.
  *
  *   Tree: many files, one position. An RFC 6962 SHA-256 tree whose leaf data is each file's SHA-256 (leaf =
  *   SHA-256(0x00 || SHA-256(file)), node = SHA-256(0x01 || left || right), an odd last node rises unchanged; from
  *   2026-10-20, so a file's own hash finds it, lib/tree-member.ts). Only merkle-root.txt is bound.
- *
- *   Base: two BitGraphs and a write. BitGraph 1 binds base-block.json (the latest Base block, so what follows came
- *   after it); BitGraph 2 binds the content right after; BitGraph 2's proof hash is queued for Base (the ceiling: the
- *   host's writer puts it in a later block).
  */
 
 /** leaves: [name, leaf hash hex, the file's SHA-256 base64]. */
 export type MerkleTree = { format: typeof DIGEST_TREE_FORMAT; files: number; root: string; leaves: Array<[string, string, string]>; levels: string[][] };
 export type Proof = Record<string, unknown> & { proofHash?: string; artifact?: { digestB64?: string }; commit?: { counter?: string; epochId?: string } };
-export type BaseBlock = { chain: string; chainId: number; number: number; hash: string; timestamp: number };
 
 const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 const unhex = (h: string) => new Uint8Array(h.match(/../g)!.map((x) => parseInt(x, 16)));
@@ -76,20 +70,12 @@ export async function buildTree(files: File[], onProgress?: (done: number) => vo
 
 export async function digestOf(bytes: Uint8Array): Promise<string> { return b64(await sha256(bytes)); }
 
-/** The latest Base block, through the site (api/base/latest). */
-export async function latestBaseBlock(): Promise<BaseBlock> {
-  const res = await fetch("/api/base/latest", { cache: "no-store" });
-  if (!res.ok) throw new Error("Base did not answer just now. Try again in a moment.");
-  return (await res.json()) as BaseBlock;
-}
-
-/** One bind. Every bind gets a Base floor and ceiling from app/api/commit (2026-10-21); `floorLeaf` tells it this tree
- *  already carries the latest Base block as its first leaf, so it binds no second floor in front of it. */
-export async function bindOne(digestB64: string, opts: { ceiling?: boolean; floorLeaf?: boolean } = {}): Promise<Proof> {
+/** One bind: one atomic step in the enclave, a fresh nonce at N and the digest at N+1. */
+export async function bindOne(digestB64: string): Promise<Proof> {
   const res = await fetch("/api/commit", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ digests: [{ digestB64, hashAlg: "sha256" }], chainId: "bitgraph:main", ...(opts.ceiling ? { ceiling: true } : {}), ...(opts.floorLeaf ? { floorLeaf: true } : {}) }),
+    body: JSON.stringify({ digests: [{ digestB64, hashAlg: "sha256" }], chainId: "bitgraph:main" }),
   });
   if (res.status === 503) throw new Error("The enclave is restarting (it does once a day). Try again in a minute.");
   if (!res.ok) throw new Error("The BitGraph could not be made just now. Nothing was recorded.");
@@ -133,7 +119,7 @@ export async function leavesOfDigests(list: Array<{ hex: string; name: string }>
 
 /** Post a tree's members to /api/tree-members, 2,000 a request, four at a time; the root's own entry can lag its bind by a
  *  moment (404), and a rate limit or server error waits and tries again. Resolves with how many were written. */
-export async function postTreeMembers(root: { rootDigestB64: string; epochId: string; counter: string; rootText: string; floor?: TreeFloor }, members: Array<{ digestB64: string; index: number; path: string }>, onProgress?: (n: number) => void): Promise<number> {
+export async function postTreeMembers(root: { rootDigestB64: string; epochId: string; counter: string; rootText: string }, members: Array<{ digestB64: string; index: number; path: string }>, onProgress?: (n: number) => void): Promise<number> {
   const batches: Array<typeof members> = [];
   // 2,000 a request, four at a time (2026-10-20: 500 two at a time took over a minute for 50,000 files).
   for (let i = 0; i < members.length; i += 2000) batches.push(members.slice(i, i + 2000));

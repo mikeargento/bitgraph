@@ -29,25 +29,9 @@ import { pathOf, rootFromPath } from "./tree-entries.ts";
 
 export const TREE_MEMBER_KEY = "bitgraph-tree-member/1" as const;
 export const DIGEST_TREE_FORMAT = "rfc6962-sha256/file-digests" as const;
-/** The tree's floor (2026-10-20): the latest Base block, read just before the bind, as the tree's first leaf. `file` is
- *  base-block.json's exact text; `index` and `path` place it in the same tree. Every member carries it, so each file's
- *  proof shows the window: bound after this block (its hash was unknowable before it existed), by the ceiling's block. */
+/** A member block's optional `floor` field is carried by some older trees; it is accepted when parsing and not used. */
 export type TreeFloor = { file: string; index: number; path: string };
 export type TreeMember = { format: typeof TREE_MEMBER_KEY; files: number; index: number; path: string; rootText: string; floor?: TreeFloor };
-export const BASE_BLOCK_FORMAT = "bitgraph-base-block/1" as const;
-export type BaseBlockInfo = { chain: string; chainId: number; number: number; hash: string; timestamp: number };
-
-/** base-block.json for a tree's floor leaf. */
-export const baseBlockFileText = (b: BaseBlockInfo): string =>
-  JSON.stringify({ format: BASE_BLOCK_FORMAT, chain: b.chain, chainId: b.chainId, number: b.number, hash: b.hash, timestamp: b.timestamp, note: "The first leaf of a BitGraph tree. Everything in the tree was bound after this Base block existed." }, null, 2) + "\n";
-
-function parseBaseBlockFile(text: string): BaseBlockInfo | null {
-  try {
-    const o = JSON.parse(text) as Partial<BaseBlockInfo> & { format?: string };
-    if (o.format !== BASE_BLOCK_FORMAT || typeof o.chain !== "string" || !Number.isSafeInteger(o.chainId) || !Number.isSafeInteger(o.number) || typeof o.hash !== "string" || !/^0x[0-9a-f]{64}$/i.test(o.hash) || !Number.isSafeInteger(o.timestamp)) return null;
-    return { chain: o.chain, chainId: o.chainId!, number: o.number!, hash: o.hash, timestamp: o.timestamp! };
-  } catch { return null; }
-}
 
 const enc = new TextEncoder();
 const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
@@ -72,12 +56,10 @@ export function parseDigestRootText(text: string): { files: number; root: string
 export const leafOfDigest = (digest32: Uint8Array): Uint8Array => sha256(cat(new Uint8Array([0]), digest32));
 
 /** Every member's block for a digest-leaf tree, in tree order. `leaves` are the leaf hashes (hex), `levels` each row above. */
-export function memberBlocks(tree: { files: number; leaves: Array<[string, string, ...unknown[]]>; levels: string[][] }, rootText: string, floorFile?: string): TreeMember[] {
+export function memberBlocks(tree: { files: number; leaves: Array<[string, string, ...unknown[]]>; levels: string[][] }, rootText: string): TreeMember[] {
   const rows = [tree.leaves.map((l) => l[1]), ...tree.levels];
   const paths = tree.leaves.map((_, i) => b64(pathOf(rows, i)));
-  // The floor is the first leaf when there is one (lib/plugins.ts puts base-block.json at index 0).
-  const floor = floorFile !== undefined ? { file: floorFile, index: 0, path: paths[0]! } : undefined;
-  return tree.leaves.map((_, i) => ({ format: TREE_MEMBER_KEY, files: tree.files, index: i, path: paths[i]!, rootText, ...(floor ? { floor } : {}) }));
+  return tree.leaves.map((_, i) => ({ format: TREE_MEMBER_KEY, files: tree.files, index: i, path: paths[i]!, rootText }));
 }
 
 /** The member block a proof carries, strictly parsed; null when absent or malformed. Unchecked: see checkMember. */
@@ -105,23 +87,6 @@ export function checkMember(proof: unknown, digestB64: string, member: TreeMembe
   if (!d || d.length !== 32 || !path) return false;
   return rootFromPath(leafOfDigest(d), member.index, member.files, path) === parsed.root;
 }
-
-/**
- * The tree's floor block, when the member carries one and it is in the very tree the proof binds: base-block.json's hash
- * walks up its path to the root rootText names (and rootText is what the proof signs, as checkMember requires). Null
- * otherwise. Says nothing about Base itself: that the block exists with that hash and time is checked against Base.
- */
-export function checkFloor(proof: unknown, member: TreeMember | null = memberOf(proof)): BaseBlockInfo | null {
-  const f = member?.floor;
-  if (!member || !f || typeof f.file !== "string" || typeof f.path !== "string" || !Number.isSafeInteger(f.index) || f.file.length > 2048) return null;
-  const parsed = parseDigestRootText(member.rootText);
-  const bound = (proof as { artifact?: { digestB64?: string } } | null)?.artifact?.digestB64;
-  if (!parsed || parsed.files !== member.files || typeof bound !== "string" || b64(sha256(enc.encode(member.rootText))) !== bound) return null;
-  const path = unb64(f.path);
-  if (!path || treeRootOf(leafOfDigest(sha256(enc.encode(f.file))), f.index, member.files, path) !== parsed.root) return null;
-  return parseBaseBlockFile(f.file);
-}
-const treeRootOf = (leaf: Uint8Array, index: number, files: number, path: Uint8Array) => rootFromPath(leaf, index, files, path);
 
 /** The proof with a member block attached, as the index stores it under the member's hash. */
 export function withMember(proof: Record<string, unknown>, member: TreeMember): Record<string, unknown> {

@@ -3,10 +3,9 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 import Link from "next/link";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LedgerItem, LedgerRow } from "@/lib/running-ledger";
 import type { ReadsRow } from "@/lib/timeline-ledger-core";
-import type { RollRoot } from "@/lib/ceilings";
 import { proofFeedKey, warm } from "@/lib/warm";
 
 /**
@@ -38,35 +37,9 @@ function useNow(): number {
   return now;
 }
 
-/** The viewer's own time, for the hover: the page itself stays in UTC, the ledger's days and the chains' clock. */
+/** The viewer's own time, for the hover: the ledger's days are UTC days. */
 function local(ms: number): string {
   return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short" });
-}
-
-/** An epoch's first BitGraph (counts 1, 2) is, from enclave v13, a read of the latest Base block
- *  (epoch-floor.json). Shown only when the file served for the epoch hashes, here, to this row's digest. */
-function useEpochStart(r: LedgerRow, firstOfEpoch: boolean): number | null {
-  const [block, setBlock] = useState<number | null>(null);
-  useEffect(() => {
-    // From the block timeline on, the genesis record may follow a few reads made while the Base write was pending:
-    // it is then the epoch's first file row. Either way the file served for the epoch must hash to this row's digest.
-    if ((r.nonceCounter !== "1" && !firstOfEpoch) || !r.digest) return;
-    const epoch = r.key.split("/")[1];
-    if (!epoch) return;
-    let gone = false;
-    (async () => {
-      const res = await fetch(`/api/epoch-floors/${epoch}`).catch(() => null);
-      if (!res || !res.ok) return;
-      const j = (await res.json()) as { file?: string; block?: { number?: number } };
-      if (typeof j.file !== "string") return;
-      const h = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(j.file)));
-      let b = ""; for (const x of h) b += String.fromCharCode(x);
-      const urlSafe = btoa(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      if (!gone && urlSafe === r.digest && typeof j.block?.number === "number") setBlock(j.block.number);
-    })().catch(() => {});
-    return () => { gone = true; };
-  }, [r.key, r.digest, r.nonceCounter, firstOfEpoch]);
-  return block;
 }
 
 /** The epoch's closing note, byte for byte as the parent binds it (server/commit-service/src/parent/epoch-end.ts). */
@@ -97,8 +70,7 @@ function useEpochEnd(r: LedgerRow, newestOfEpoch: boolean): boolean {
   return end;
 }
 
-function Row({ r, firstOfEpoch, newestOfEpoch = false }: { r: LedgerRow; firstOfEpoch: boolean; newestOfEpoch?: boolean }) {
-  const epochStart = useEpochStart(r, firstOfEpoch);
+function Row({ r, newestOfEpoch = false }: { r: LedgerRow; newestOfEpoch?: boolean }) {
   const epochEnd = useEpochEnd(r, newestOfEpoch);
   const now = useNow();
   // A frame on the roll: its number, how long ago, and a way in. The counts, the hash and the exact signed time are on
@@ -106,7 +78,7 @@ function Row({ r, firstOfEpoch, newestOfEpoch = false }: { r: LedgerRow; firstOf
   const inner = (
     <>
       <span className="rl-num">#{fmt(r.counter)}</span>
-      <span className="rl-what">{epochStart !== null ? "Genesis" : epochEnd ? "Closed" : ""}</span>
+      <span className="rl-what">{epochEnd ? "Closed" : ""}</span>
       {r.recordedMs !== null && <span className="rl-when" title={local(r.recordedMs)}>{ago(r.recordedMs, now)}</span>}
       <span className="rl-go" aria-hidden="true">&rsaquo;</span>
     </>
@@ -125,24 +97,8 @@ function Row({ r, firstOfEpoch, newestOfEpoch = false }: { r: LedgerRow; firstOf
   );
 }
 
-/** A closed epoch's root on Base: one write over every file proof of the epoch, sent as the epoch closes, before
- *  its enclave shuts down. It is not a BitGraph, so it has no number and opens the Base transaction, not a proof page. */
-function RootRow({ root }: { root: RollRoot }) {
-  const now = useNow();
-  const ms = root.blockTimestamp * 1000;
-  const span = root.firstPos === root.lastPos ? `#${fmt(root.firstPos)}` : `#${fmt(root.firstPos)} to #${fmt(root.lastPos)}`;
-  return (
-    <a href={`https://basescan.org/tx/${root.txHash}`} target="_blank" rel="noopener" className="xp-row xp-row-base rl-row rl-link">
-      <span className="rl-num">Root</span>
-      <span className="rl-what">{`${fmt(root.records)} record${root.records === 1 ? "" : "s"}, ${span}`}</span>
-      <span className="rl-when" title={local(ms)}>{ago(ms, now)}</span>
-      <span className="rl-go" aria-hidden="true">&rsaquo;</span>
-    </a>
-  );
-}
-
 const isReads = (x: LedgerItem): x is ReadsRow => (x as ReadsRow).kind === "reads";
-export function LedgerRows({ day, live, initial, newestKey, hasOlder, roots = [] }: { day: string; live: boolean; initial: LedgerItem[]; newestKey: string | null; hasOlder: boolean; roots?: RollRoot[] }) {
+export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: string; live: boolean; initial: LedgerItem[]; newestKey: string | null; hasOlder: boolean }) {
   const [rows, setRows] = useState<LedgerItem[]>(initial);
   const rowsRef = useRef<LedgerItem[]>(initial);
   rowsRef.current = rows;
@@ -209,29 +165,16 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder, roots = []
   if (rows.length === 0) {
     return <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>{live ? "No BitGraphs yet today. New ones appear here as they are made." : "No BitGraphs on this day."}</div>;
   }
-  // An epoch's first file row: the next item is its epoch's reads from the start, or nothing older in its epoch.
   const epochOf = (x: LedgerItem) => (isReads(x) ? x.epoch : x.key.split("/")[1]);
-  const firstOfEpoch = (i: number): boolean => {
-    const next = rows[i + 1];
-    if (!next || epochOf(next) !== epochOf(rows[i]!)) return !older;
-    return isReads(next) && next.from === 2 && (!rows[i + 2] || epochOf(rows[i + 2]!) !== epochOf(rows[i]!));
-  };
   return (
     <>
       <div className="rl-rows">
-        {/* Block reads are part of the sequence but not frames anyone made; they stay on the proof pages. */}
-        {/* A closed epoch's root sits on top of that epoch's rows, after its newest record. */}
+        {/* Older records of system reads are part of the sequence but not frames anyone made; they are not listed. */}
         {rows.map((r, i) => {
           if (isReads(r)) return null;
           const epoch = epochOf(r);
           const newestOfEpoch = !rows.slice(0, i).some((x) => !isReads(x) && epochOf(x) === epoch);
-          // Only on the page that holds the last record the root covers: an epoch that began just before midnight has
-          // a row on the day before too, and the root belongs with the end of the epoch, once.
-          const found = newestOfEpoch ? roots.find((x) => x.epoch === epoch) : undefined;
-          const root = found && rows.some((x) => !isReads(x) && epochOf(x) === epoch && x.counter === found.lastPos) ? found : undefined;
-          return root
-            ? <Fragment key={r.key}><RootRow root={root} /><Row r={r} firstOfEpoch={firstOfEpoch(i)} newestOfEpoch /></Fragment>
-            : <Row key={r.key} r={r} firstOfEpoch={firstOfEpoch(i)} newestOfEpoch={newestOfEpoch} />;
+          return <Row key={r.key} r={r} newestOfEpoch={newestOfEpoch} />;
         })}
       </div>
       {older && (

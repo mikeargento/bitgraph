@@ -2,16 +2,12 @@
 
 import { DropPrompt, Browse } from "@/components/drop-prompt";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
-import { rollRootCovers, oneWriteCovers } from "@/lib/roll-root";
 import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams, useRouter } from "next/navigation";
 // Nav is in root layout
 import { hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
 import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, readTreeExports, checkTreeExports, walkEntries, type CapturedDrop } from "@/lib/folder-check";
-import { zipSync, strToU8 } from "fflate";
-import { anchorStatusDoc, isSettled, ANCHOR_STATUS_FILE, type BoundReport } from "@/lib/anchor-export";
-import { verifyNitroAttestation, attestationTimestampMs, type NitroVerifyResult } from "@/lib/nitro-verify";
+import { attestationTimestampMs } from "@/lib/nitro-verify";
 import { timeTz, stampTz, longDateTz, dateTz, sameDayTz, useTimeZoneMode, TimeChip } from "@/lib/format-time";
 import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
@@ -37,22 +33,20 @@ import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpa
 import { rebuildTreeFromFiles, rebuildMatches } from "@/lib/fuse-tree-make";
 import { recoverRows, treePositionKey } from "@/lib/recovery-fold";
 import { browserRecoveryQueue } from "@/lib/recovery-queue";
-import { SPEC_FILE_NAME, specFileFor, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, rootOnlyTree, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource, type BoundTree } from "@/lib/fuse-tree";
-import { buildCarrierForProof, buildMemberCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence, fetchBaseFloorHeader } from "@/lib/carrier-site";
-import { memberCarrierFormat, memberCommittedBytes } from "@/lib/carrier-member";
-import { verifyCarrierPayload, verifyAttested, assembleCarrierV4Payload, buildBitGraphedFileV6, type CarrierClaim, type CarrierLookups, blobSource, } from "@mikeargento/bitgraph-verify";
+import { bindTree, isTreeTitled, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource, type BoundTree } from "@/lib/fuse-tree";
+import { deCarrierFiles } from "@/lib/carrier-site";
+import { memberCommittedBytes } from "@/lib/carrier-member";
+import { verifyAttested, buildBitGraphedFileV6, type CarrierClaim, blobSource } from "@mikeargento/bitgraph-verify";
 import { ProofView, type ProofViewModel, type FieldView, type PositionRowView, type SetRowView, type DownloadView } from "./proof-view";
-import { PUBLISHED_PCR0S, PUBLISHED_ENCLAVE_MEASUREMENTS } from "@/lib/enclave-measurements";
-import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_CARRIER_DIR, PKG_README, PKG_BASE_FLOOR_FILE, floorHeaderFile, packageReadme } from "@/lib/package-layout";
-import { ENCODING_BASE64URL, TREE_MEMBER_CATEGORIES, bytesToBase64, bytesToHex, commitmentForProof, computeProofHash, verifyTreeMember, type BitGraphProof as VerifyProof, type TreeMemberEvidence } from "@mikeargento/bitgraph-verify";
+import { PUBLISHED_PCR0S } from "@/lib/enclave-measurements";
+import { ENCODING_BASE64URL, TREE_MEMBER_CATEGORIES, bytesToBase64, bytesToHex, commitmentForProof, verifyTreeMember, type BitGraphProof as VerifyProof, type TreeMemberEvidence } from "@mikeargento/bitgraph-verify";
 import { baseFloorOf, isFuseName } from "@/lib/fuse-core";
 
 /** Carry encodings this page knows; anything else in the title is a placement. */
 const ENCODING_IDS: string[] = [ENCODING_BASE64URL];
 
 /** The commitment from a proof’s own slot record, base64url, for the row that lets a reader search the file.
- *  A bitgraph-fuse/2 marker means the commitment also binds the proof's signed floor block (an Ethereum
- *  anchor), bitgraph-fuse/3 its signed Base floor: the verifier's commitmentForProof picks by the marker. */
+ *  The verifier's commitmentForProof picks the rule by the proof's marker. */
 function slotCommitmentOf(proof: unknown): string | null {
   const p = proof as { slotAllocation?: unknown } | null;
   const slot = p?.slotAllocation;
@@ -62,15 +56,12 @@ function slotCommitmentOf(proof: unknown): string | null {
   } catch { return null; }
 }
 
-/** The Base floor a proof signs (commit.slotFloor, enclave v10), or null: see baseFloorOf. */
-const baseFloorOfProof = baseFloorOf;
 import { SET_KEY, bindSet, bindSetMember, dropDigestsFor, isSetProof, memberEvidenceOf, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
 import { toUrlSafeB64, fromUrlSafeB64, truncateHash } from "@/lib/explorer";
-import { checkFloor as checkTreeFloor, checkMember as checkTreeMember, memberOf as treeMemberOf, rootTextBytes as treeRootTextBytes } from "@/lib/tree-member";
+import { checkMember as checkTreeMember, memberOf as treeMemberOf, rootTextBytes as treeRootTextBytes } from "@/lib/tree-member";
 import { Shell } from "./proof-skeleton";
 import { Wait } from "@/components/wait";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
-// QR code removed — replaced with Ethereum Seal card
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
 
@@ -86,15 +77,6 @@ const toSafeB64 = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").repla
 const asRecord = (p: BitGraphProof) => p as unknown as Record<string, unknown>;
 // Lowercase hex to bytes, for the verifier's hex digests (already checked by it).
 const hexBytes = (hex: string): Uint8Array => Uint8Array.from((hex.match(/../g) ?? []).map((h) => parseInt(h, 16)));
-
-// The window as a phrase, for interval proofs only (a legacy type): the floor
-// as a time. The upper bound is omitted on purpose: the next anchor's block
-// time is not an upper bound on a position (see the overview, "Where time
-// comes from"); the lead card names the following anchor by position.
-function formatWindow(lower: string | null, _upper: string | null): string | null {
-  if (lower) { const t = new Date(lower); return `after ${stampTz(t)}`; }
-  return null;
-}
 
 // "sha256" -> "SHA-256", "sha-512" -> "SHA-512". Hyphenates the SHA family to
 // the conventional spelling; anything else is just upper-cased.
@@ -131,7 +113,7 @@ const staged = (text: string) => <>{text}</>; // approved 2026-10-11; was red wh
 
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
   // The fourth demo's three files, three proofs (on the home page until 2026-11-06): a picture made with ChatGPT, Google's copy of it and Grok's video of it,
-  // first recorded 2026-10-31 (#2,124, #3,452, #3,720, epoch HVhtPS…) and again 2026-11-02 with Base writes (#8, #10,
+  // first recorded 2026-10-31 (#2,124, #3,452, #3,720, epoch HVhtPS…) and again 2026-11-02 (#8, #10,
   // #12, epoch KmoE…). Hosted so each proof page shows its file to every visitor.
   "-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA": { path: "/demo/chatgpt.png", name: "ChatGPT Image.png", mime: "image/png" },
   "gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8": { path: "/demo/google.jpeg", name: "Gemini Image.jpeg", mime: "image/jpeg" },
@@ -176,13 +158,11 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
     { path: "/example/bitgraph-sample.txt", name: "bitgraph-sample.txt", mime: "text/plain" },
   // The home example of 2026-09-30 (#4,546): a text file that explains itself for a reader
   // who knows nothing about BitGraph, in the TRACE doc's words: it carries its position
-  // commitment and the link to the anchor BitGraph recorded right after its position
-  // opened, so it names both of the things it came after, and since 2026-09-30 the Base
-  // block that came after it (BitGraph #4,546). Served so the preview shows without the
-  // reader having to find the file.
+  // commitment, so it names what it came after (BitGraph #4,546). Served so the preview
+  // shows without the reader having to find the file.
   "FFlsXXYqWJYNAeVrevpw-Jir4OU2P-lC19JRAIa9nIg":
     { path: "/example/bitgraph-demonstration-4.txt", name: "bitgraph-demonstration.txt", mime: "text/plain" },
-  // The home example of 2026-09-27 (#3,178, before Base ceilings); kept so old links still show it.
+  // The home example of 2026-09-27 (#3,178); kept so old links still show it.
   "pCAk_zQCEgu7EU4ErgfST3lmM7JwUojNCUBb8PH51nc":
     { path: "/example/bitgraph-demonstration-3.txt", name: "bitgraph-demonstration.txt", mime: "text/plain" },
   // The home example of 2026-09-22 (the commitment on line 4, the almanac line); kept so
@@ -218,90 +198,8 @@ export default function ProofPage() {
   }
 
   const [proof, setProof] = useState<BitGraphProof | null>(null);
-  // Base ceiling (bitgraph-ceiling/1): the record's ceiling in TIME, written
-  // by the ceiling writer beside the proof, never inside it. A 404 means none
-  // was written (every record before 2026-09-29, or one still queued), and
-  // then the card is simply absent: nothing here implies a ceiling exists.
-  const [baseCeiling, setBaseCeiling] = useState<{
-    status: "pending" | "included" | "safe" | "finalized";
-    anchor: { txHash: string; blockNumber: number; blockTimestamp: number } | null;
-    floor?: { blockNumber: number; blockTimestamp: number } | null;
-  } | null>(null);
-  // Auto-check (2026-09-30): where the Base write lands seconds after the
-  // commit, a fresh proof keeps asking until its card appears (every 4 s,
-  // up to 3 minutes), and an included one keeps asking until Base settles it
-  // on Ethereum (every 15 s, up to 10 minutes). An old proof asks once, and
-  // so does one bound since the writer went to one write per epoch
-  // (lib/roll-root.ts): its write comes when its epoch is over, not now.
-  useEffect(() => {
-    const ph = (proof as (BitGraphProof & { proofHash?: string }) | null)?.proofHash;
-    if (!ph) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const safe = ph.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    const rep = proof?.environment?.attestation?.reportB64;
-    const madeMs = typeof rep === "string" && rep.length > 0 ? attestationTimestampMs(rep) : null;
-    const fresh = !rollRootCovers(madeMs) && (freshRef.current === true || (madeMs !== null && Date.now() - madeMs < 10 * 60_000));
-    const started = Date.now();
-    const ask = async () => {
-      let j: { version?: string; status?: string } | null = null;
-      try {
-        const r = await fetch(`/api/ceilings/${safe}`, { cache: "no-store" });
-        j = r.ok ? await r.json() : null;
-      } catch { j = null; }
-      if (cancelled) return;
-      if (j?.version === "bitgraph-ceiling/1") setBaseCeiling(j as never);
-      const elapsed = Date.now() - started;
-      const settled = j?.status === "safe" || j?.status === "finalized";
-      // Nothing yet, or queued ("pending") and not yet in a block: ask again soon.
-      if ((!j || j.status === "pending") && fresh && elapsed < 3 * 60_000) timer = setTimeout(ask, 4_000);
-      else if (j && !settled && elapsed < 10 * 60_000) timer = setTimeout(ask, 15_000);
-    };
-    void ask();
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [proof]);
-  // The floor link (2026-10-18): with the Base switch on, BitGraph 1 binds the latest Base block and is this
-  // record's floor. The site writes the link seconds after the bind, so a fresh proof asks a few times.
-  const [floorLink, setFloorLink] = useState<ProofViewModel["floorLink"]>(null);
-  /** This proof is a floor: BitGraph 1 of a pair, bound right before the record it floors (app/api/commit, 2026-10-21). */
-  const [floorOf, setFloorOf] = useState<ProofViewModel["floorOf"]>(null);
-  // An epoch's first BitGraph (counts 1, 2), from enclave v13 a read of the latest Base block (epoch-floor.json).
-  // Shown only when the served file hashes, in this browser, to this proof's digest (2026-10-19), so a reader can
-  // tell that it read a Base block.
-  const [epochStart, setEpochStart] = useState<ProofViewModel["epochStart"]>(null);
-  // A tree member's floor (2026-10-20): base-block.json, the first leaf of its tree, checked into the bound root here.
-  const [treeFloor, setTreeFloor] = useState<ProofViewModel["treeFloor"]>(null);
-  // The block timeline: this record's floor and ceiling, two block reads on the same counter sequence, verified by the
-  // site against Base and Ethereum (app/api/timeline/bracket). Each links to the block read's own BitGraph.
-  const [timeline, setTimeline] = useState<ProofViewModel["timeline"]>(null);
-  useEffect(() => {
-    setTimeline(null);
-    const c = proof?.commit as { counter?: string; epochId?: string; chainId?: string } | undefined;
-    if (!proof || c?.chainId !== "bitgraph:main" || !c.counter || !c.epochId) return;
-    const ep = c.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    let cancelled = false, timer: ReturnType<typeof setTimeout> | null = null;
-    const started = Date.now();
-    const ask = async () => {
-      const r = await fetch(`/api/timeline/bracket?epoch=${ep}&counter=${c.counter}`, { cache: "no-store" }).catch(() => null);
-      const j = r?.ok ? ((await r.json().catch(() => null)) as ProofViewModel["timeline"] & { state?: string } | null) : null;
-      if (cancelled) return;
-      const since = Date.now() - started;
-      // No answer, or no timeline record: a page opened the moment its bind returned can ask before the host has the
-      // record in hand, so it asks again for a little while; an older proof outside the timeline stops after that.
-      if (!j || j.state === "none") { if (since < 30_000) timer = setTimeout(ask, 3000); return; }
-      setTimeline({ ...j, epochUrl: ep });
-      // A drop's own floor (the read on the counts right before it) is settled: its ceiling is the Base write, not a read.
-      const sc = (proof.commit as { slotCounter?: string }).slotCounter;
-      if (j.floor && sc && Number(j.floor.counter) + 1 === Number(sc)) return;
-      // The ceiling is the next block read stamped after this record: a few seconds after a bind.
-      if ((j.state === "pending" || j.state === "unconfirmed") && since < 120_000) timer = setTimeout(ask, 3000);
-    };
-    void ask();
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [proof]);
   // A block read's own page: the block file it binds (from the timeline's batches), checked here to hash to its digest.
   const [timelineRecord, setTimelineRecord] = useState<{ kind: string; blockFile?: string; endFile?: string } | null>(null);
-  const [blockRead, setBlockRead] = useState<ProofViewModel["blockRead"]>(null);
   // The epoch's closing record: its note, checked here to hash to the proof's digest before the page names it.
   const [epochEnd, setEpochEnd] = useState<ProofViewModel["epochEnd"]>(null);
   useEffect(() => {
@@ -314,94 +212,6 @@ export default function ProofPage() {
     });
     return () => { cancelled = true; };
   }, [proof, timelineRecord]);
-  useEffect(() => {
-    setBlockRead(null);
-    const f = timelineRecord?.blockFile;
-    if (!proof || timelineRecord?.kind !== "block" || !f) return;
-    let cancelled = false;
-    void hashBytes(new TextEncoder().encode(f)).then((h) => {
-      if (cancelled || h !== proof.artifact.digestB64) return;
-      try {
-        const b = JSON.parse(f) as { chain?: string; number?: number; hash?: string; timestamp?: number };
-        if ((b.chain === "base" || b.chain === "ethereum") && typeof b.number === "number" && typeof b.hash === "string" && typeof b.timestamp === "number") {
-          setBlockRead({ chain: b.chain, number: b.number, hash: b.hash, timestamp: b.timestamp, file: f });
-        }
-      } catch { /* not a block file */ }
-    });
-    return () => { cancelled = true; };
-  }, [proof, timelineRecord]);
-  useEffect(() => {
-    let url: string | null = null, cancelled = false;
-    const show = (floorFile: string, block: { number: number; hash: string; timestamp: number }) => {
-      url = URL.createObjectURL(new Blob([floorFile], { type: "application/json" }));
-      setTreeFloor({ blockNumber: block.number, blockHash: block.hash, blockTimestamp: block.timestamp, fileUrl: url });
-    };
-    const tm = treeMemberOf(proof);
-    const block = tm ? checkTreeFloor(proof, tm) : null;
-    if (tm?.floor && block) { show(tm.floor.file, block); return () => { if (url) URL.revokeObjectURL(url); }; }
-    setTreeFloor(null);
-    // The root itself (opened by its own digest, from the ledger or a link): the tree's floor is kept under the root's
-    // position (app/api/tree-members GET) and checked here the same way, the floor leaf walked up to this bound root.
-    const d = proof?.artifact?.digestB64, ep = proof?.commit?.epochId, ctr = proof?.commit?.counter;
-    if (!proof || tm || !d || !ep || !ctr) return;
-    (async () => {
-      const r = await fetch(`/api/tree-members?digest=${encodeURIComponent(d)}&epoch=${encodeURIComponent(ep)}&counter=${encodeURIComponent(String(ctr))}`).catch(() => null);
-      if (!r?.ok || cancelled) return;
-      const j = (await r.json().catch(() => null)) as { format?: string; files?: number; rootText?: string; floor?: { file: string; index: number; path: string } } | null;
-      if (!j || j.format !== "bitgraph-tree-floor/1" || typeof j.files !== "number" || typeof j.rootText !== "string" || !j.floor) return;
-      const probe = { format: "bitgraph-tree-member/1" as const, files: j.files, index: 0, path: "", rootText: j.rootText, floor: j.floor };
-      const b = checkTreeFloor(proof, probe);
-      if (b && !cancelled) show(j.floor.file, b);
-    })().catch(() => {});
-    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
-  }, [proof]);
-  useEffect(() => {
-    setEpochStart(null);
-    const c = proof?.commit as { counter?: string; slotCounter?: string; epochId?: string } | undefined;
-    if (!proof || c?.counter !== "2" || c?.slotCounter !== "1" || !c?.epochId) return;
-    let cancelled = false;
-    (async () => {
-      const ep = c.epochId!.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const res = await fetch(`/api/epoch-floors/${ep}`).catch(() => null);
-      if (!res || !res.ok) return;
-      const j = (await res.json()) as { format?: string | null; file?: string; block?: { number?: number; hash?: string; timestamp?: number }; tx?: { hash: string; writer: string } | null; baseChecked?: boolean | null };
-      if (typeof j.file !== "string" || typeof j.block?.number !== "number" || typeof j.block.timestamp !== "number") return;
-      const h = await hashBytes(new TextEncoder().encode(j.file));
-      if (cancelled || h !== proof.artifact.digestB64) return;
-      // A genesis (bitgraph-epoch-genesis/1): the epoch opened with the writer's Base transaction carrying its id.
-      const genesis = j.format === "bitgraph-epoch-genesis/1" && j.tx ? { txHash: j.tx.hash, writer: j.tx.writer } : null;
-      setEpochStart({ blockNumber: j.block.number, blockHash: String(j.block.hash), blockTimestamp: j.block.timestamp, baseChecked: j.baseChecked ?? null, fileUrl: `/api/epoch-floors/${ep}?file=1`, genesis });
-    })().catch(() => {});
-    return () => { cancelled = true; };
-  }, [proof]);
-  useEffect(() => {
-    const d = proof?.artifact?.digestB64, ep = proof?.commit?.epochId, ctr = proof?.commit?.counter;
-    setFloorOf(null);
-    if (!d || !ep || !ctr) return;
-    let cancelled = false, tries = 0;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const ask = async () => {
-      try {
-        const r = await fetch(`/api/floors?digest=${encodeURIComponent(d)}&epoch=${encodeURIComponent(ep)}&counter=${encodeURIComponent(String(ctr))}`, { cache: "no-store" });
-        if (r.ok) {
-          const j = await r.json();
-          if (!cancelled && j?.format === "bitgraph-floor-link/1") {
-            // The same link is kept under both positions: under the record it is that record's floor; under the floor it
-            // says which record the floor was read for.
-            if (j.floor?.bitgraph?.digestB64 === d) setFloorOf(j); else setFloorLink(j);
-            return;
-          }
-        }
-      } catch { /* ask again below */ }
-      if (!cancelled && freshRef.current === true && ++tries < 10) timer = setTimeout(ask, 3_000);
-    };
-    void ask();
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [proof]);
-  const [causalWindow, setCausalWindow] = useState<{
-    anchorBefore: { counter: string; attrName: string; blockNumber: number | null; blockHash: string | null; etherscanUrl: string | null; blockTime?: string | null; digestB64?: string | null; recordedMs?: number | null } | null;
-    anchorAfter: { counter: string; attrName: string; blockNumber: number | null; blockHash: string | null; etherscanUrl: string | null; blockTime?: string | null; digestB64?: string | null; recordedMs?: number | null } | null;
-  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   /* The lookup came back empty AND said why: discovery is retired, so the
@@ -532,95 +342,46 @@ export default function ProofPage() {
     try { committed = memberCommittedBytes(new Uint8Array(cachedFile.data), treeMember.evidence, treeBound.commitment); } catch { committed = null; }
     setTreeCommitted(committed ? { of: treeMember, bytes: committed } : null);
   }, [treeBound, treeMember, cachedFile]);
-  // The checks (2026-09-30): the same claims the CLI answers, computed here from
-  // the same evidence a download carries (assembleProofEvidence: the floor anchor
-  // and its header, the closing anchor, the Base sidecar, each vetted), with the
-  // file's bytes when they are in hand and are the committed bytes. Re-run when
-  // a ceiling lands or a file arrives; confirmed against public nodes on request.
+  // The checks: every proof is checked here in full, the way the package's verifyAttested does it: the signature and
+  // the two consecutive counts, the AWS Nitro attestation over this body, and the image pinned to BitGraph's published
+  // ones, with the file's bytes when they are in hand and are the committed bytes. Re-run when a file arrives.
   const [checks, setChecks] = useState<{ state: "idle" | "running" | "done" | "failed"; claims: CarrierClaim[]; reading: string | null; verdict: "TRUE" | "FALSE" | "UNDETERMINED" | null; note: string | null; bytesInHand: boolean; confirming: boolean; confirmed: boolean }>({ state: "idle", claims: [], reading: null, verdict: null, note: null, bytesInHand: false, confirming: false, confirmed: false });
-  // The floor and the closing anchor as the vetted evidence names them: the floor is the
-  // proof's SIGNED commit.slotAnchor (the anchor fixed at allocation), which is what the
-  // checks, the BitGraphed file and the docs mean by the floor; the window route's
-  // "anchor before" is the anchor before the COMMIT, a tighter bound on the commit by
-  // hash order, shown as a note.
-  const [evidenceSides, setEvidenceSides] = useState<{
-    floor: { counter: string; blockNumber: number; blockHash: string; timestamp: number | null; digestB64: string | null; recordedMs: number | null } | null;
-    ceiling: { counter: string; blockNumber: number; blockHash: string; timestamp: number | null; digestB64: string | null; recordedMs: number | null } | null;
-  }>({ floor: null, ceiling: null });
-  const evidenceRef = useRef<{ payload: Parameters<typeof verifyCarrierPayload>[0]; parts: Awaited<ReturnType<typeof assembleProofEvidence>>["parts"]; forCounter: string | null; ceilings: string } | null>(null);
   const checksBytesRef = useRef<Uint8Array | null>(null);
-  // tree/1: the member in hand, placed: the checks then judge it exactly as its BitGraphed file (carrier/4) would be judged.
+  // tree/1: the member in hand, placed by verifyTreeMember: the checks then judge the root document it walks up to.
   const checksMemberRef = useRef<{ evidence: TreeMemberEvidence; committed: Uint8Array; rootDocument: Uint8Array } | null>(null);
-  const runChecks = async (lookups?: CarrierLookups) => {
-    const signsFloor = !!proof?.commit?.slotAnchor || baseFloorOfProof(proof) !== null;
-    // A proof made in one atomic action (v11 on) signs no floor: it is checked here in full, the way the package's
-    // verifyAttested does it (2026-10-18 audit): signature and counts, the AWS Nitro attestation over this body, and the
-    // image pinned to BitGraph's published ones. Before, this path only said "check it from the package".
-    if (proof && !signsFloor && proof.commit?.atomic === true) {
-      setChecks((c) => ({ ...c, state: c.state === "done" ? "done" : "running" }));
-      try {
-        const bytes = checksBytesRef.current;
-        // A file of a tree, reached by its own hash (lib/tree-member.ts): the hash (of the file in hand, or this page's)
-        // walks up to the root, and the proof is checked against the root's text, the bytes it signs.
-        const tm = treeMemberOf(proof);
-        let inTree: boolean | null = null;
-        if (tm) {
-          const own = bytes ? bytesToBase64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes.slice()))) : decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
-          inTree = checkTreeMember(proof, own, tm);
-        }
-        // A member's block is left out of what the verifier sees: the walk is done above, and bitgraph-verify 1.24 on
-        // would otherwise walk it again from the root text, taking that for the file.
-        const forVerify = tm ? { ...proof, metadata: Object.fromEntries(Object.entries((proof as { metadata?: Record<string, unknown> }).metadata ?? {}).filter(([k]) => k !== "bitgraph-tree-member/1")) } : proof;
-        const r = await verifyAttested({ proof: forVerify as unknown as VerifyProof, ...(tm ? { bytes: treeRootTextBytes(tm) } : bytes ? { bytes } : {}) });
-        const claims: CarrierClaim[] = [];
-        if (tm) claims.push({ id: "tree.member", name: `The ${bytes ? "file" : "hash"} is in the tree the proof binds`, result: inTree ? "TRUE" : "FALSE", restsOn: "SHA-256", detail: `file ${(tm.index + 1).toLocaleString("en-US")} of ${tm.files.toLocaleString("en-US")}: its hash walks up the tree to the root the proof binds`, level: "offline" });
-        else if (bytes) claims.push({ id: "bytes.digest", name: "The file is the committed bytes", result: r.valid || !/digest/.test(r.reason ?? "") ? "TRUE" : "FALSE", restsOn: "SHA-256", detail: "your file hashes to the proof's digest", level: "offline" });
-        for (const c of r.checks) claims.push({ id: `attestation.${c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: c.name, result: c.pass ? "TRUE" : "FALSE", restsOn: "the AWS Nitro attestation", detail: c.detail, level: "offline" });
-        if (r.pcr0) claims.push({ id: "attestation.pins", name: "The image is one BitGraph published", result: r.image ? "TRUE" : "FALSE", restsOn: "BitGraph's published enclave images", detail: r.image ? `PCR0 ${r.pcr0.slice(0, 16)}… is the ${r.image.version} image (since ${r.image.since})` : `PCR0 ${r.pcr0.slice(0, 16)}… is not one of BitGraph's`, level: "offline" });
-        const attestOk = r.checks.length > 0 && r.checks.every((c) => c.pass) && !!r.image;
-        claims.push({ id: "proof.signature", name: "The signature, the nonce's record and the two consecutive counts", result: r.valid ? "TRUE" : attestOk ? "FALSE" : "UNDETERMINED", restsOn: "Ed25519", detail: r.valid ? "the enclave's key signed this body, the nonce at N and the content at N+1" : (r.reason ?? "did not verify"), level: "offline" });
-        const ok = r.valid && (inTree === null || inTree);
-        const reading = ok
-          ? `Bound by BitGraph's published enclave image ${r.image?.version ?? ""}, as the AWS Nitro hardware attests${r.attestedAtMs !== null ? `, at ${new Date(r.attestedAtMs).toISOString().replace("T", " ").slice(0, 19)} UTC` : ""}.${tm ? ` Recorded as file ${(tm.index + 1).toLocaleString("en-US")} of a tree of ${tm.files.toLocaleString("en-US")}, all bound at this position.${bytes ? " Your file is that file." : ""}` : bytes ? " Your file is the committed bytes." : ""} This proves where these bytes were bound in the sequence; the attestation's time is a layer on that position. It says nothing about when or how they were made.`
-          : tm && inTree === false ? "This hash is not in the tree the proof binds." : `This proof does not check: ${r.reason ?? "it did not verify"}.`;
-        setChecks((c) => ({ ...c, state: "done", claims, reading, verdict: ok ? "TRUE" : "FALSE", note: null, bytesInHand: !!bytes, confirming: false, confirmed: true }));
-      } catch (e) {
-        setChecks((c) => ({ ...c, state: "failed", note: `The checks could not run in this browser: ${(e as Error).message}` }));
-      }
-      return;
-    }
-    if (!proof || !signsFloor) { setChecks((c) => ({ ...c, state: "failed", note: proof && !signsFloor ? "This proof was made before enclave v7 and carries no signed floor, so its window cannot be checked here; the signature and attestation can be checked with the package's verifyAttested." : null })); return; }
-    setChecks((c) => ({ ...c, state: c.state === "done" ? "done" : "running", confirming: lookups !== undefined }));
+  const runChecks = async () => {
+    if (!proof) return;
+    setChecks((c) => ({ ...c, state: c.state === "done" ? "done" : "running" }));
     try {
-      const key = `${baseCeiling?.anchor?.txHash ?? "-"}|${causalWindow?.anchorAfter?.counter ?? "-"}`;
-      let ev = evidenceRef.current;
-      if (!ev || ev.forCounter !== (proof.commit.counter ?? null) || ev.ceilings !== key) {
-        const assembled = await assembleProofEvidence(proof as never);
-        ev = { payload: assembled.payload as never, parts: assembled.parts, forCounter: proof.commit.counter ?? null, ceilings: key };
-        evidenceRef.current = ev;
+      const placed = checksMemberRef.current;
+      const bytes = placed ? placed.rootDocument : checksBytesRef.current;
+      // A file of a tree, reached by its own hash (lib/tree-member.ts): the hash (of the file in hand, or this page's)
+      // walks up to the root, and the proof is checked against the root's text, the bytes it signs.
+      const tm = treeMemberOf(proof);
+      let inTree: boolean | null = null;
+      if (tm) {
+        const own = bytes ? bytesToBase64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes.slice()))) : decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
+        inTree = checkTreeMember(proof, own, tm);
       }
-      const tm = checksMemberRef.current;
-      const payload = tm
-        ? assembleCarrierV4Payload({ ...(ev.parts as never as Parameters<typeof assembleCarrierV4Payload>[0]), tree: { rootDocument: bytesToHex(tm.rootDocument), member: tm.evidence } })
-        : ev.payload;
-      const r = await verifyCarrierPayload(payload as never, tm ? tm.committed : checksBytesRef.current, { pins: { pcr0: [...PUBLISHED_PCR0S] }, ...(lookups ? { lookups } : {}) });
-      setChecks({ state: "done", claims: r.claims, reading: r.reading, verdict: r.verdict, note: null, bytesInHand: tm !== null || checksBytesRef.current !== null, confirming: false, confirmed: lookups !== undefined });
-      const sideOf = (anchor: Record<string, unknown> | undefined, witness: { blockNumber: number; blockHash: string } | undefined, ts: number | null) => {
-        const ac = (anchor as { commit?: { counter?: string } } | undefined)?.commit;
-        const digest = (anchor as { artifact?: { digestB64?: string } } | undefined)?.artifact?.digestB64 ?? null;
-        const rep = (anchor as { environment?: { attestation?: { reportB64?: string } } } | undefined)?.environment?.attestation?.reportB64;
-        if (!ac || typeof ac.counter !== "string" || !witness) return null;
-        return { counter: ac.counter, blockNumber: witness.blockNumber, blockHash: witness.blockHash, timestamp: ts, digestB64: digest, recordedMs: typeof rep === "string" ? attestationTimestampMs(rep) : null };
-      };
-      const p = ev.payload as { floor: { anchor: Record<string, unknown>; witness: { blockNumber: number; blockHash: string } }; ceiling: { status: string; anchor?: Record<string, unknown>; witness?: { blockNumber: number; blockHash: string } } };
-      // A Base floor (carrier/3) has no anchors on either side: the page reads its floor from the signed proof.
-      if ((ev.payload.floor as { basis?: unknown }).basis === "base-header") { setEvidenceSides({ floor: null, ceiling: null }); return; }
-      setEvidenceSides({
-        floor: sideOf(p.floor.anchor, p.floor.witness, r.bounds?.notBefore.timestamp ?? null),
-        ceiling: p.ceiling.status === "present" ? sideOf(p.ceiling.anchor, p.ceiling.witness, r.bounds?.notAfter?.timestamp ?? null) : null,
-      });
+      // A member's block is left out of what the verifier sees: the walk is done above, and bitgraph-verify 1.24 on
+      // would otherwise walk it again from the root text, taking that for the file.
+      const forVerify = tm ? { ...proof, metadata: Object.fromEntries(Object.entries((proof as { metadata?: Record<string, unknown> }).metadata ?? {}).filter(([k]) => k !== "bitgraph-tree-member/1")) } : proof;
+      const r = await verifyAttested({ proof: forVerify as unknown as VerifyProof, ...(tm ? { bytes: treeRootTextBytes(tm) } : bytes ? { bytes } : {}) });
+      const claims: CarrierClaim[] = [];
+      if (tm) claims.push({ id: "tree.member", name: `The ${bytes ? "file" : "hash"} is in the tree the proof binds`, result: inTree ? "TRUE" : "FALSE", restsOn: "SHA-256", detail: `file ${(tm.index + 1).toLocaleString("en-US")} of ${tm.files.toLocaleString("en-US")}: its hash walks up the tree to the root the proof binds`, level: "offline" });
+      else if (placed) claims.push({ id: "tree.member", name: "The file is in the tree the proof binds", result: "TRUE", restsOn: "SHA-256", detail: "its evidence walks up to the root document this proof binds", level: "offline" });
+      else if (bytes) claims.push({ id: "bytes.digest", name: "The file is the committed bytes", result: r.valid || !/digest/.test(r.reason ?? "") ? "TRUE" : "FALSE", restsOn: "SHA-256", detail: "your file hashes to the proof's digest", level: "offline" });
+      for (const c of r.checks) claims.push({ id: `attestation.${c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: c.name, result: c.pass ? "TRUE" : "FALSE", restsOn: "the AWS Nitro attestation", detail: c.detail, level: "offline" });
+      if (r.pcr0) claims.push({ id: "attestation.pins", name: "The image is one BitGraph published", result: r.image ? "TRUE" : "FALSE", restsOn: "BitGraph's published enclave images", detail: r.image ? `PCR0 ${r.pcr0.slice(0, 16)}… is the ${r.image.version} image (since ${r.image.since})` : `PCR0 ${r.pcr0.slice(0, 16)}… is not one of BitGraph's`, level: "offline" });
+      const attestOk = r.checks.length > 0 && r.checks.every((c) => c.pass) && !!r.image;
+      claims.push({ id: "proof.signature", name: "The signature, the nonce's record and the two consecutive counts", result: r.valid ? "TRUE" : attestOk ? "FALSE" : "UNDETERMINED", restsOn: "Ed25519", detail: r.valid ? "the enclave's key signed this body, the nonce at N and the content at N+1" : (r.reason ?? "did not verify"), level: "offline" });
+      const ok = r.valid && (inTree === null || inTree);
+      const reading = ok
+        ? `Bound by BitGraph's published enclave image ${r.image?.version ?? ""}, as the AWS Nitro hardware attests${r.attestedAtMs !== null ? `, at ${new Date(r.attestedAtMs).toISOString().replace("T", " ").slice(0, 19)} UTC` : ""}.${tm ? ` Recorded as file ${(tm.index + 1).toLocaleString("en-US")} of a tree of ${tm.files.toLocaleString("en-US")}, all bound at this position.${bytes ? " Your file is that file." : ""}` : bytes ? " Your file is the committed bytes." : ""} This proves where these bytes were bound in the sequence; the attestation's time is a layer on that position. It says nothing about when or how they were made.`
+        : tm && inTree === false ? "This hash is not in the tree the proof binds." : `This proof does not check: ${r.reason ?? "it did not verify"}.`;
+      setChecks((c) => ({ ...c, state: "done", claims, reading, verdict: ok ? "TRUE" : "FALSE", note: null, bytesInHand: !!bytes, confirming: false, confirmed: true }));
     } catch (e) {
-      setChecks((c) => ({ ...c, state: "failed", note: e instanceof Error ? e.message : String(e), confirming: false }));
+      setChecks((c) => ({ ...c, state: "failed", note: `The checks could not run in this browser: ${(e as Error).message}` }));
     }
   };
   useEffect(() => {
@@ -629,7 +390,7 @@ export default function ProofPage() {
     // The committed bytes, when they are in hand: a plain recording's file, or a fused
     // new file. An original in hand is not the artifact (it rebuilds into it), and a set's
     // artifact is its root document, so neither is offered as the bytes.
-    // An anchor's bytes are the block hash it records, as text: they are in the proof itself.
+    // An older system record's bytes are its message, as text: they are in the proof itself.
     const attrib = proof.attribution as { name?: string; message?: string } | undefined;
     const anchorText = attrib?.name?.startsWith("Ethereum") ? attrib.message : undefined;
     const bytes = cachedFile && cachedRole !== "original" && !isSetProof(proof)
@@ -649,25 +410,7 @@ export default function ProofPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proof, cachedFile, cachedRole, baseCeiling?.anchor?.txHash, causalWindow?.anchorAfter?.counter, treeCommitted]);
-  const confirmAgainstNodes = () => {
-    const rpc = (url: string) => async (n: number): Promise<string | null> => {
-      try {
-        const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: ["0x" + n.toString(16), false] }), signal: AbortSignal.timeout(15_000) });
-        const j = (await res.json()) as { result?: { hash?: string } | null };
-        return j.result?.hash ?? null;
-      } catch { return null; }
-    };
-    void runChecks({ ethereumBlockHash: rpc("https://ethereum-rpc.publicnode.com"), baseBlockHash: rpc("https://mainnet.base.org") });
-  };
-  /* Confirmed by default (2026-10-05: no button; the check runs by itself): once the
-     offline checks are done, the page asks the public nodes itself. A re-run of the offline checks (a
-     ceiling landing, a file arriving) resets confirmed, so the new evidence is confirmed too; a node that
-     does not answer still counts as asked, so nothing loops. */
-  useEffect(() => {
-    if (checks.state === "done" && !checks.confirmed && !checks.confirming) confirmAgainstNodes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checks.state, checks.confirmed, checks.confirming]);
+  }, [proof, cachedFile, cachedRole, treeCommitted]);
   // The manifest row the file in hand belongs to, when this is a set proof:
   // named by the verifier, which is also what decides the role below.
   const [heldMember, setHeldMember] = useState<SetMemberRow | null>(null);
@@ -744,16 +487,13 @@ export default function ProofPage() {
     return () => { cancelled = true; };
   }, [cachedFile, proof]);
 
-  // Export fetches the two ETH anchors and their block-header witnesses before
-  // zipping, so it is a real wait, not an instant download. The link reports it.
-  const [exporting, setExporting] = useState(false);
-  // What a tree's export went out short of (a pending ceiling, no file in hand), said under the downloads.
-  const [treeExportMsg, setTreeExportMsg] = useState<string | null>(null);
   // The carrier download: the file with its proof inside (lib/carrier-site).
   const [carrierBusy, setCarrierBusy] = useState(false);
-  // A proof made in one atomic action (enclave v11 on, no signed floor of its own) leaves as bitgraph-carrier/6 (/5 before 2026-11-02).
+  // A proof made in one atomic action, with no signed floor of its own, leaves as bitgraph-carrier/6: the file, then
+  // the proof as the ledger serves it. Proofs that sign a floor block are checked from the proof alone and offer no
+  // BitGraphed file here.
   const atomicCarrier = !!proof && (proof.commit as { atomic?: boolean } | undefined)?.atomic === true
-    && !(proof.commit as { slotAnchor?: unknown } | undefined)?.slotAnchor && baseFloorOfProof(proof) === null;
+    && !(proof.commit as { slotAnchor?: unknown } | undefined)?.slotAnchor && baseFloorOf(proof as never) === null;
   const [carrierMsg, setCarrierMsg] = useState<string | null>(null);
   // Every BitGraph of this file's exact bytes, oldest first: the same file bound again is listed, never merged, and the
   // first one is the one that counts.
@@ -771,9 +511,7 @@ export default function ProofPage() {
     }).catch(() => {});
     return () => { gone = true; };
   }, [digestParam]);
-  // The two piece-downloads beside the package: the anchor pair, and the original.
-  const [anchorsBusy, setAnchorsBusy] = useState(false);
-  const [anchorsMsg, setAnchorsMsg] = useState<string | null>(null);
+  // The original, back out of a new file.
   const [originBusy, setOriginBusy] = useState(false);
   const [originMsg, setOriginMsg] = useState<string | null>(null);
 
@@ -840,52 +578,10 @@ export default function ProofPage() {
   }, [digestParam]);
 
 
-  // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
-  // line on Ethereum-anchor pages. Null for user proofs.
-  const [anchorBlock, setAnchorBlock] = useState<{ blockNumber: number | null; blockTime: string | null; etherscanUrl: string | null } | null>(null);
-  // When each bracketing anchor was itself RECORDED, per the enclave platform's
-  // signed clock (2026-09-27: a file appeared to fall after its bracketing
-  // anchors). The ceiling card used to show only the
-  // ceiling block's MINE time under "Before anchor #K", which reads as a clock
-  // ceiling and is not one: an anchor is recorded after the block it carries.
-  // On #1,012 the block was mined 9:44:59 PM, the file recorded 9:45:01, and
-  // the anchor recorded 9:45:06, so the file looked out of its bracket while
-  // sitting exactly inside it. Canon 3.6's "one error", on a card. Reading the
-  // anchor's own attested instant lets the ceiling card show the real bound.
-  // Cached digest-API reads, after first paint; a failed read just leaves the
-  // field off, since the positional title is already true without it.
-  const [anchorRecordedMs, setAnchorRecordedMs] = useState<{ before: number | null; after: number | null }>({ before: null, after: null });
-  useEffect(() => {
-    const w = causalWindow;
-    if (!w) return;
-    let cancelled = false;
-    const urlsafe = (b: string) => b.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    const readOne = async (a: { counter: string; digestB64?: string | null; recordedMs?: number | null } | null): Promise<number | null> => {
-      // The window now carries each anchor's recorded time, read on the server
-      // from the anchor's own attestation. The fetch below is for a response
-      // cached before that field existed.
-      if (typeof a?.recordedMs === "number") return a.recordedMs;
-      if (!a?.digestB64) return null;
-      try {
-        const r = await fetch(`/api/proofs/digest/${urlsafe(a.digestB64)}`);
-        if (!r.ok) return null;
-        const d = await r.json();
-        const list: Array<{ proof?: BitGraphProof }> = Array.isArray(d?.proofs) ? d.proofs : [];
-        const hit = list.find((x) => String(x.proof?.commit?.counter) === String(a.counter))?.proof ?? list[0]?.proof;
-        const rep = hit?.environment?.attestation?.reportB64;
-        return typeof rep === "string" && rep.length > 0 ? attestationTimestampMs(rep) : null;
-      } catch { return null; }
-    };
-    void Promise.all([readOne(w.anchorBefore), readOne(w.anchorAfter)]).then(([before, after]) => {
-      if (!cancelled) setAnchorRecordedMs({ before, after });
-    });
-    return () => { cancelled = true; };
-  }, [causalWindow?.anchorBefore?.digestB64, causalWindow?.anchorBefore?.counter, causalWindow?.anchorBefore?.recordedMs, causalWindow?.anchorAfter?.digestB64, causalWindow?.anchorAfter?.counter, causalWindow?.anchorAfter?.recordedMs]); // eslint-disable-line react-hooks/exhaustive-deps
   // Every causal position recorded for these bytes (the same bits can be
   // BitGraphed more than once), earliest first. ?counter=&epoch= in the URL
-  // picks which one this page describes. lowerTime/upperTime are the ETH anchor
-  // window bounds (block times) that bracket each recording.
-  const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; lowerTime: string | null; upperTime: string | null; recordedMs?: number | null; kind?: "recorded" | "fused"; artifactDigest?: string | null; placement?: string | null }>>([]);
+  // picks which one this page describes. Each row's time is its recorded instant.
+  const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; recordedMs?: number | null; kind?: "recorded" | "fused"; artifactDigest?: string | null; placement?: string | null }>>([]);
 
   // A capture "flash" plays once when you land here straight off a fresh
   // recording (the drop flow / BitGraph Again append ?fresh=1). On mount the
@@ -912,86 +608,6 @@ export default function ProofPage() {
       return () => clearTimeout(t);
     }
   }, [flashArmed, loading, proof]);
-
-  /* ⚠️ THE WINDOW NO LONGER ARRIVES WITH THE PROOF, so ask for it.
-   *
-   * It used to come from /api/proofs/digest/{digest}, which finds nothing for
-   * a proof made after 2026-09-08 — the ledger keeps only anchors. A BitGraph
-   * opened from its own holder's folder therefore showed no time at all, and
-   * the anchor card sat on "Waiting for the next Ethereum block…" forever,
-   * which was false: the anchors had landed, readable from S3, and nobody
-   * was asking.
-   *
-   * The proof carries its own counter and epoch in its SIGNED body, and
-   * anchors are indexed by counter — that is why that index survived the
-   * cutover. So this asks by position, never by digest: nothing about the file
-   * is sent, and the privacy the cutover bought is untouched.
-   *
-   * Only when the window is missing, so a page that already has one from the
-   * ledger costs nothing extra. */
-  useEffect(() => {
-    if (!proof || causalWindow) return;
-    const c = proof.commit as { counter?: string; epochId?: string } | undefined;
-    if (!c?.counter || !c?.epochId) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const r = await fetch(`/api/proofs/window?counter=${encodeURIComponent(c.counter!)}&epoch=${encodeURIComponent(toUrlSafeB64(c.epochId!))}`);
-        if (!r.ok || cancelled) return;   // 503 is "we could not look", not "none"
-        const d = await r.json();
-        if (!cancelled && (d?.causalWindow?.anchorBefore || d?.causalWindow?.anchorAfter)) {
-          setCausalWindow(d.causalWindow);
-        }
-      } catch { /* leave it unknown; the card says so rather than guessing */ }
-    })();
-    return () => { cancelled = true; };
-  }, [proof, causalWindow]);
-
-  // A fresh recording arrives with only its lower bound: the sealing anchor
-  // hasn't been mined yet. Instead of a static "after X" line, poll the same
-  // endpoint until the upper anchor lands, then fill the window in place, no
-  // refresh. We show a quiet pulsing "waiting on Ethereum…" rather than a
-  // seconds countdown: the client has no ETA for the next anchor (the cadence
-  // is ~12s only when the TEE is live, up to an hour when idle), so any number
-  // would be counting toward nothing real. The poll gives up after 5 minutes
-  // and the line falls back to the honest static "after X on DATE".
-  const [ethWait, setEthWait] = useState(false);
-  useEffect(() => {
-    const attrName = (proof?.attribution as { name?: string } | undefined)?.name || "";
-    // A Base floor (enclave v10) has no anchor after it to wait for: order after the record is the hash chain.
-    const needUpper = !!proof && !attrName.startsWith("Ethereum") && attrName !== "Interval" && baseFloorOfProof(proof) === null &&
-      !!causalWindow?.anchorBefore?.blockTime && !causalWindow?.anchorAfter?.blockTime;
-    if (!needUpper) { setEthWait(false); return; }
-    let cancelled = false;
-    setEthWait(true);
-    /* ⚠️ THE POLL WAS KNOCKING ON THE DEAD DOOR. It asked
-     * /api/proofs/digest/{digest} every four seconds — the lookup that finds
-     * nothing for a proof made after the cutover — so for a local-first
-     * BitGraph it could never resolve. It ran its full five minutes, gave up,
-     * and the page kept its unfinished window with nothing said. Live in
-     * principle, never live in fact.
-     *
-     * The window endpoint is keyed by COUNTER, which is what survived phase 2,
-     * and the proof carries its own counter and epoch in its signed body — so
-     * this asks with what it is holding rather than what the URL happens to
-     * say. A shared link with no ?counter= polled with no selector at all
-     * before, and got the wrong position's window when the bytes held several.
-     */
-    const c = proof?.commit as { counter?: string; epochId?: string } | undefined;
-    const poll = setInterval(async () => {
-      if (!c?.counter || !c?.epochId) return;
-      try {
-        const r = await fetch(`/api/proofs/window?counter=${encodeURIComponent(c.counter)}&epoch=${encodeURIComponent(toUrlSafeB64(c.epochId))}`);
-        if (!r.ok) return;   // 503 is "could not look", not "not yet"
-        const data = await r.json();
-        if (!cancelled && data.causalWindow?.anchorAfter?.blockTime) {
-          setCausalWindow(data.causalWindow);
-        }
-      } catch { /* transient; next poll retries */ }
-    }, 4000);
-    const stop = setTimeout(() => { clearInterval(poll); if (!cancelled) setEthWait(false); }, 5 * 60_000);
-    return () => { cancelled = true; clearInterval(poll); clearTimeout(stop); };
-  }, [proof, causalWindow?.anchorBefore?.blockTime, causalWindow?.anchorAfter?.blockTime, digestParam]);
 
   // Nav visible on proof pages
 
@@ -1109,12 +725,10 @@ export default function ProofPage() {
 
     // Apply a proof API response to state (and kick the image poll). Returns
     // false for a response with no proof, so callers can fall back to an error.
-    const applyData = (data: { proofs?: Array<{ proof?: BitGraphProof }>; causalWindow?: typeof causalWindow; anchorBlock?: typeof anchorBlock; positions?: typeof positions; timelineRecord?: { kind: string; blockFile?: string; endFile?: string } } | null): boolean => {
+    const applyData = (data: { proofs?: Array<{ proof?: BitGraphProof }>; positions?: typeof positions; timelineRecord?: { kind: string; blockFile?: string; endFile?: string } } | null): boolean => {
       if (cancelled || !data?.proofs?.[0]?.proof) return false;
       setProof(data.proofs[0].proof);
       setTimelineRecord(data.timelineRecord ?? null);
-      if (data.causalWindow) setCausalWindow(data.causalWindow);
-      if (data.anchorBlock) setAnchorBlock(data.anchorBlock);
       if (Array.isArray(data.positions)) setPositions(data.positions);
       startImagePoll(data.proofs[0].proof);
       return true;
@@ -1168,8 +782,7 @@ export default function ProofPage() {
         } catch { /* fall through to a fresh fetch */ }
       }
       try {
-        // 15s timeout guards against a stuck API route (e.g. a slow Ethereum
-        // RPC inside the causal-window lookup). Without this the page can hang
+        // 15s timeout guards against a stuck API route. Without this the page can hang
         // indefinitely on the skeleton if anything downstream stalls.
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -1266,7 +879,7 @@ export default function ProofPage() {
    *
    * And this settles what /proof/{digest} is FOR, which was open: it becomes a
    * VIEWER for a proof you supply. A proof verifies with no ledger at all
-   * (signature, attestation to the AWS root, slot binding, floor), so the page
+   * (signature, attestation to the AWS root, slot binding), so the page
    * has everything it needs the moment you hand it one — which is exactly what
    * the drop below already does. */
   /* ⚠️ NOTHING TO LOOK UP IS NOT NOTHING TO SAY, but it is very little.
@@ -1319,10 +932,8 @@ export default function ProofPage() {
   const commit = proof.commit;
   const attr = proof.attribution as { name?: string; title?: string; message?: string } | undefined;
   const slot = (proof as unknown as Record<string, unknown>).slotAllocation as Record<string, unknown> | undefined;
-  const isEth = attr?.name?.startsWith("Ethereum");
-  // Interval checkpoint: a system re-recording of an Ethereum block hash, not a
-  // user submission. It gets its own card (not "Submitter's Note") and, like an
-  // anchor, carries no user file.
+  // Interval checkpoint: an older system record, not a user submission. It gets
+  // its own rows (not "Submitter's Note") and carries no user file.
   const isInterval = attr?.name === "Interval";
   // A set proof: N files under one slot, the manifest of their digests the
   // committed artifact. The page is reached by the manifest digest, a member's
@@ -1332,12 +943,6 @@ export default function ProofPage() {
   // A tree/1 proof: the files are leaves of one tree, and the committed
   // artifact is the root document over them (treeBound above, once bound).
   const isTree = isTreeTitled(proof);
-  // tree/1: whether the placed member's kind of file can carry a proof block after its end (lib/carrier-member).
-  const treeCarrierFormat = isTree && treeMember && cachedFile
-    ? memberCarrierFormat(new Uint8Array(cachedFile.data, 0, Math.min(64, cachedFile.data.byteLength)), treeMember.placement)
-    : null;
-  const signsFloor = Boolean((proof.commit as { slotAnchor?: unknown }).slotAnchor || baseFloorOf(proof as never) !== null);
-  const treeCarrierOk = Boolean(isTree && treeBound && treeMember && treeCarrierFormat?.ok && signsFloor);
   // Every BitGraph answers the same question, so the page asks it the same way
   // and only the answer changes: how does this artifact carry the commitment
   // to the slot it consumed? A fused file carries it in its own bytes, a set
@@ -1393,218 +998,23 @@ export default function ProofPage() {
   const isTee = proof.environment?.enforcement === "measured-tee";
   const ts = (proof.timestamps as Record<string, Record<string, unknown>> | undefined)?.artifact;
 
-  // Ethereum block number this anchor commits (parsed from the etherscan link),
-  // used in the "Recorded" line and the Ethereum Block card.
-  const ethBlockNum = isEth ? (attr?.title?.match(/\/block\/(\d+)/)?.[1] ?? null) : null;
-
-  // "Recorded" summary, shown the same way on both page types. User BitGraph:
-  // the two-sided ETH time window (committed after the earlier anchor, before
-  // the later one). Ethereum anchor: its own block and that block's timestamp.
-  // anchorBefore is the earlier block (lower bound), anchorAfter the later
-  // (upper bound) — see the naming note on the BitGraphed After/Before cards.
-  const lowerTime = causalWindow?.anchorBefore?.blockTime;
-  const upperTime = causalWindow?.anchorAfter?.blockTime;
-  const upperCounter = causalWindow?.anchorAfter?.counter ?? null;
-  // The committed instant per the enclave platform's signed clock: the Nitro
-  // attestation document's own timestamp, decoded here for display and fully
-  // verified on demand in the Hardware Enclave card. RE-RULING 2026-09-25:
-  // the attested instant LEADS the receipt, the Ethereum bracket beneath
-  // confirms it, and the number always wears its root. The bracket's ceiling
-  // stays positional (before the anchor), never a block's mine time.
-  // Computed plainly (no hook): this section sits below the page's early
-  // returns, and the decode is a few kilobytes of CBOR.
+  // The time on a proof is the attestation's: the AWS Nitro attestation document's own timestamp, signed by the
+  // hardware, decoded here for display and verified in the checks. Computed plainly (no hook): this section sits
+  // below the page's early returns, and the decode is a few kilobytes of CBOR.
   const attestedRep = proof?.environment?.attestation?.reportB64;
   const attestedMs = typeof attestedRep === "string" && attestedRep.length > 0 ? attestationTimestampMs(attestedRep) : null;
-  let recordedLine: string | null = null;
-  // Optional pre-formatted node so the Ethereum-anchor line breaks cleanly
-  // between the block and its time (one line on desktop, time drops to line 2
-  // on mobile) instead of wrapping mid-time/mid-date via wordBreak.
-  let recordedNode: React.ReactNode = null;
-  // Lead-card variants: the date moves up into the card TITLE ("BitGraph
-  // Recorded on 7/17/2026") so the line below is pure wall-clock time.
-  // recordedLine/recordedNode keep the date for other consumers (the interval
-  // "Window ended" field must stand alone). Cross-day windows keep full
-  // stamps and an undated title.
-  // The date now lives on its own line inside the lead card (not the title,
-  // which wrapped on mobile), written long ("October 24, 2025") so there is no
-  // M/D vs D/M ambiguity across locales.
-  let recordedDate: string | null = null;
-  // The heading names the day IN THE DISPLAYED ZONE, so the times beneath it
-  // drop their date when they fall on that day (2026-09-17), and a
-  // toggle to local can never print "3:05 AM EDT" under a UTC date. UTC stays
-  // the default, used throughout (2026-09-19).
+  // The heading names the day IN THE DISPLAYED ZONE, so the times beneath it drop their date when they fall on that day.
   const longDate = (d: Date) => longDateTz(d);
-  const sameUtcDay = (a: Date, b: Date) => sameDayTz(a, b);
-  const utcDate = (d: Date) => dateTz(d);
-  let leadNode: React.ReactNode = null;
-  // The actual time/date values are emphasized in brand blue (the connector
-  // words stay default gray), so the receipt's key temporal fact reads as the
-  // focal point, consistent with how counters/block numbers are highlighted.
-  const emStyle: React.CSSProperties = { color: "var(--ink)", fontWeight: 600 };
-  const Em = ({ children }: { children: React.ReactNode }) => <span style={emStyle}>{children}</span>;
-  if (isEth && ethBlockNum) {
-    // An anchor is just a BitGraph (of an Ethereum block hash), so it reads
-    // like the others: "BitGraph Record on {date}" with the block + time on
-    // the line below. The date lives in the title.
-    const bt = anchorBlock?.blockTime;
-    const blockPart = `Ethereum Block #${Number(ethBlockNum).toLocaleString()}`;
-    if (bt) {
-      const d = new Date(bt);
-      const timeStr = timeTz(d);
-      const dateStr = utcDate(d);
-      recordedLine = `${blockPart} at ${timeStr} on ${dateStr}`;
-      recordedNode = (
-        <>
-          <span style={{ whiteSpace: "nowrap" }}>{blockPart}</span>{" "}
-          <span style={{ whiteSpace: "nowrap" }}>at <Em>{timeStr}</Em> on <Em>{dateStr}</Em></span>
-        </>
-      );
-      recordedDate = longDate(d);
-      leadNode = (
-        <>
-          <span style={{ whiteSpace: "nowrap" }}>{blockPart}</span>{" "}
-          <span style={{ whiteSpace: "nowrap" }}>at <Em>{timeStr}</Em></span>
-        </>
-      );
-    } else {
-      recordedLine = blockPart;
-      leadNode = <span style={{ whiteSpace: "nowrap" }}>{blockPart}</span>;
-    }
-  } else if (!isEth && lowerTime && upperTime) {
-    // The floor is a time (the earlier anchor's block). The ceiling here is a
-    // POSITION, the next anchor in the chain, never that block's mint time:
-    // an anchor is made after the block it carries, and an operator who
-    // delays the block feed could make the two blocks read as a window the
-    // record did not sit in. Only Base-era records (from 2026-09-29 22:43 UTC)
-    // have a ceiling in time. (Supersedes the 09-16/17 "after <time>, before
-    // <time>" verdict, per the 2026-10-16 audit.)
-    const t1 = new Date(lowerTime);
-    const before = upperCounter !== null ? `before anchor #${Number(upperCounter).toLocaleString("en-US")}` : "before the next anchor";
-    recordedLine = `after ${stampTz(t1)}, ${before}`;
-    recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em>, {before}</>;
-    recordedDate = longDate(t1);
-    leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
-  } else if (!isEth && lowerTime) {
-    const t1 = new Date(lowerTime);
-    recordedLine = `after ${timeTz(t1)} on ${utcDate(t1)}`;
-    recordedDate = longDate(t1);
-    if (ethWait) {
-      // The window is still open: show it as "between X and <waiting>". When the
-      // sealing anchor lands, the poll above swaps in the real end time without a
-      // refresh. No seconds count: the next anchor has no client-known ETA.
-      recordedNode = (
-        <>
-          after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em>
-        </>
-      );
-      leadNode = recordedNode;
-    } else {
-      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{utcDate(t1)}</span></Em></>;
-      leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
-    }
-  }
-
-  // The recording window renders as ONE horizontal line ("between VALUE and
-  // VALUE"), sized with a clamp so it stays a single line at every width and the
-  // card stays short. Connectors are gray labels; the values are the brand font
-  // in black, kept as unbreakable units. A cross-midnight window carries full
-  // date stamps, long enough to wrap at its connectors — fine for that rare case.
-  let leadStack: React.ReactNode = null;
-  const conn = (label: string) => <span style={{ color: "var(--dim)", fontWeight: 400 }}>{label}</span>;
-  const val = (t: string) => <span style={{ color: "var(--ink)", fontWeight: 400, whiteSpace: "nowrap" }}>{t}</span>;
-  const winLine = (children: React.ReactNode) => (
-    <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "var(--dim)" }}>{children}</div>
-  );
-  // RE-RULING 2026-09-25 (the lead states the commit time by the TEE's clock;
-  // the Ethereum proofs confirm it, so no Ethereum detail goes in the lead):
-  // the lead is the recorded instant alone, bare by
-  // the ruled lead exception, because the card stack directly beneath it
-  // supplies the root and both bounds (Hardware Enclave, floor, ceiling).
-  // The card's heading names the position, i.e. which BitGraph (2026-09-26): the
-  // commit counter, the BitGraph's own number, not the slot just before it. The epoch ID
-  // stays in the Positions card: an epoch is one UTC day, which the date line already gives.
   const commitCounter = typeof commit?.counter === "string" && /^\d+$/.test(commit.counter) ? Number(commit.counter) : null;
-  // The position's other coordinate, the epoch ID, one line down (2026-09-26): a counter means nothing without its
-  // epoch, so the head shows both. The full ID where it fits, cut with an ellipsis by the
-  // column's width where it does not (a phone); the tooltip always holds all of it.
+  // The position's other coordinate, the epoch ID: the full ID where it fits, cut with an ellipsis where it does not.
   const epochFull = typeof commit?.epochId === "string" ? commit.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null;
-  // The date and the time share one line under "BitGraphed" (2026-09-26; the "Recorded"
-  // label went): the heading carries the verb.
-  const committedLine = attestedMs !== null
+  const whenNode = attestedMs !== null
     ? (
-      // Normal text, not mono (2026-09-26): a date written in words is read, not
-      // compared character by character; the epoch ID beneath stays mono.
       <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink)" }}>
         <TimeChip date={new Date(attestedMs)} withDate />
       </div>
     )
     : null;
-  if (isEth && ethBlockNum && anchorBlock?.blockTime) {
-    // An anchor leads like every other proof (2026-09-27, the new proof page
-    // format): the attested instant, when the enclave recorded the
-    // block, per the 09-25 re-ruling. It used to lead with the block's own mine
-    // time, which is a different and earlier moment (an anchor is built after
-    // the block it carries: 2s after it on the anchor this was checked against,
-    // though canon 3.6 measured about 12s on 09-15); that time now sits in the
-    // identity row beside the block it belongs to. The block time stands in only when the
-    // attestation cannot be read.
-    const d = new Date(anchorBlock.blockTime);
-    leadStack = committedLine ?? winLine(val(timeTz(d)));
-  } else if (!isEth && lowerTime) {
-    if (upperTime) {
-      // RE-RULED 2026-09-25 (supersedes the 09-16/17 "after <time>, before
-      // <time>" verdict): the committed instant leads on its own line, the
-      // floor stays a block's mint time, and the ceiling is stated in
-      // POSITION ("before anchor #K"), never as the later block's mint time,
-      // because an anchor is built after the block it carries. The ceiling
-      // block's own time still shows on its card below, beside its link.
-      const s1 = new Date(lowerTime);
-      const s2 = new Date(upperTime);
-      // The lead is the recorded instant alone, with no Ethereum detail (09-25);
-      // the floor and ceiling keep their own cards below.
-      // When the attestation is unreadable, the bracket line stands in, with
-      // the ceiling stated in position.
-      leadStack = committedLine ?? winLine(
-        <>
-          <span style={{ whiteSpace: "nowrap" }}>{conn("after ")}{val(timeTz(s1))}{conn(",")}</span>{" "}
-          {upperCounter !== null
-            ? <span style={{ whiteSpace: "nowrap" }}>{conn("before ")}{val(`anchor #${Number(upperCounter).toLocaleString("en-US")}`)}</span>
-            : <span style={{ whiteSpace: "nowrap" }}>{conn("before ")}{val(sameUtcDay(s1, s2) ? timeTz(s2) : stampTz(s2))}</span>}
-        </>
-      );
-    } else if (ethWait) {
-      const s1 = new Date(lowerTime);
-      // Not sealed yet: the close time is unknown. Show the open time and a
-      // pulsing ellipsis for the pending close ("between 11:04:35 PM and …")
-      // rather than a full-width timestamp placeholder — short enough that date
-      // + time stay on one line while waiting (no wrap). When the anchor lands
-      // the close fills in; on mobile it then drops to its own line at seal.
-      leadStack = committedLine ?? winLine(
-        <>
-          {conn("after ")}{val(timeTz(s1))}
-        </>
-      );
-    } else {
-      leadStack = committedLine ?? winLine(<>{conn("after ")}{val(timeTz(new Date(lowerTime)))}</>);
-    }
-  } else if (!isEth && baseFloorOfProof(proof) !== null) {
-    // A Base floor: the attested instant leads; the floor block's own time stands in only when it cannot be read.
-    leadStack = committedLine ?? winLine(<>{conn("after ")}{val(timeTz(new Date(baseFloorOfProof(proof)!.blockTimestamp * 1000)))}</>);
-  }
-
-  // The recording's "when": date (bold, left) + time window (right). Shown
-  // inside the content card (above the image / hash) on file proofs, and as its
-  // own small card on anchor/interval proofs (which have no file card). On a
-  // phone the window wraps to its own right-aligned line.
-  const whenNode = leadStack ?? (recordedDate ? leadNode : (recordedNode ?? recordedLine));
-  // Where an anchor's "All Ethereum anchors" goes: a past UTC day to that day's ledger
-  // page, where this anchor's row is; today to the live list.
-  const anchorsBackHref = isEth && attr?.title ? (() => {
-    const bt = anchorBlock?.blockTime;
-    const day = bt ? new Date(bt).toISOString().slice(0, 10) : null;
-    const today = new Date().toISOString().slice(0, 10);
-    return day && day < today ? `/ledger?day=${day}` : "/ledger";
-  })() : null;
   // The record's name. It was the first line of the card head; since the card
   // folds (2026-09-28: the name is the label, and the card starts closed),
   // it is the card's label, and each page shows its own number.
@@ -1618,15 +1028,6 @@ export default function ProofPage() {
   // Both the BitGraph's number and the tree's size (2026-10-18).
   const recordName = `BitGraph${commitCounter !== null ? ` #${commitCounter.toLocaleString("en-US")}` : ""}${treeOf !== null ? ` · Tree of ${treeOf.toLocaleString("en-US")}` : ""}`;
 
-  // Interval window, derived from the causal positions the page already loads
-  // (metadata.interval does not survive the TEE, so nothing here relies on it):
-  // the earliest recording is the original anchor = when the window BEGAN, and
-  // this proof's own ETH bounds (recordedLine) are when it ENDED. The counter
-  // gap between them is the causal activity across the window.
-  const intervalBlockNum = isInterval ? (attr?.title?.match(/\/block\/(\d+)/)?.[1] ?? null) : null;
-  const originalPos = isInterval && positions.length > 0 && positions[0]?.counter !== commit?.counter ? positions[0] : null;
-  const intervalBegan = originalPos ? formatWindow(originalPos.lowerTime, originalPos.upperTime) : null;
-
   // The fused copy is stored nowhere: it is rebuilt here from the original in
   // hand and the proof, and offered only on this explicit click. A visitor who
   // dropped the fused file itself simply gets those bytes back.
@@ -1634,8 +1035,7 @@ export default function ProofPage() {
   /** The proof, as the file it already is. See the note at the call site. */
   function downloadProof() {
     if (!proof) return;
-    const blockNumber = (proof.metadata as { anchor?: { blockNumber?: number } } | undefined)?.anchor?.blockNumber;
-    const name = blockNumber ? `ethereum-anchor-${blockNumber}.json` : "bitgraph-proof.json";
+    const name = "bitgraph-proof.json";
     const url = URL.createObjectURL(new Blob([JSON.stringify(proof, null, 2)], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url;
@@ -1648,475 +1048,19 @@ export default function ProofPage() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  /* A tree/1 proof leaves this page as export/1 (SPEC.md section 12): one JSON
-     file with SPEC.md beside it, zipped so the pair is one download. The file
-     in hand, once the verifier placed it, makes it that file's own export;
-     without one it carries the root document alone, which checks the proof
-     and its times and says no file's membership is carried. No copy of any
-     file, no proof.json. The floor header, the Base ceiling and the
-     settlement come from this site's read-only routes and are vetted first. */
-  async function exportTree() {
-    if (exporting || !proof || !treeBound) return;
-    setExporting(true);
-    setTreeExportMsg(null);
-    try {
-      const vp = proof as unknown as VerifyProof;
-      const tree = treeMember ? memberTree(treeBound.rootDocument, treeMember.evidence) : rootOnlyTree(treeBound.rootDocument);
-      const name = treeMember && cachedFile ? memberExportName(cachedFile.name) : ownerExportName(vp);
-      const built = await buildTreeExport(vp, tree, await fetchTreeEvidence(vp));
-      const files: Record<string, Uint8Array> = { [name]: strToU8(exportJson(built.exp)) };
-      const spec = await fetchSpecFor(treeBound.specHashB64);
-      const notes = [...built.notes];
-      if (spec) files[SPEC_FILE_NAME] = spec;
-      else notes.push(`SPEC.md could not be fetched, so it is not beside the export. It is at bitgraph.ing${specFileFor(treeBound.specHashB64).path}; its SHA-256 is the one the proof pins.`);
-      if (!treeMember) notes.push(treeBound.count === 1
-        ? "This export carries the proof and its times, not the file: drop the file in the box above first, and the export carries it too."
-        : `This export carries the proof and its times, not a file's place among the ${treeBound.count.toLocaleString()} files: that comes with each file's own export.`);
-      // The member's BitGraphed file (carrier/4) rides along when it can be built: one file with the
-      // whole proof inside, for whoever receives only a file. A failure leaves it out, said below.
-      if (treeMember && cachedFile && treeCarrierOk) {
-        try {
-          const c = await buildMemberCarrierForProof(new Uint8Array(cachedFile.data), proof, { rootDocument: treeBound.rootDocument, commitment: treeBound.commitment }, treeMember.evidence, cachedFile.name, { waitForCeilingMs: 0 });
-          files[c.fileName] = c.bytes;
-        } catch (e) {
-          notes.push(`The BitGraphed file was left out of the zip: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-      const zip = zipSync(files);
-      const url = URL.createObjectURL(new Blob([zip.slice().buffer as ArrayBuffer], { type: "application/zip" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `BitGraph (${(treeMember && cachedFile ? cachedFile.name : `#${proof.commit?.counter ?? "?"}`).replace(/[\x00-\x1f\x7f/]/g, " ").trim()}).zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-      setTreeExportMsg(notes.length ? [...new Set(notes)].join(" ") : null);
-    } catch (e) {
-      console.error("[bitgraph] tree export failed:", e);
-      setTreeExportMsg(`The export could not be built: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  async function exportZip() {
-    if (exporting) return;
-    setExporting(true);
-    try {
-    // A set proof travels WITH its manifest: proof.json is what a member's
-    // export verifies against, and the manifest is what names the member.
-    // The route's copy carries it; if it does not, the bound copy is attached.
-    const proofOut = proof && isSet && setBound && proof.metadata?.[SET_KEY] === undefined
-      ? { ...proof, metadata: { ...(proof.metadata ?? {}), [SET_KEY]: setBound.manifest } }
-      : proof;
-    const files: Record<string, Uint8Array> = {
-      "proof.json": strToU8(JSON.stringify(proofOut, null, 2)),
-    };
-    // No Frame in the package (2026-09-03): proof.json is the correct proof.
-    // A Frame is { type, manifest, proof }, and the proof inside it is byte for
-    // byte proof.json, so shipping both put the signed proof in the zip twice.
-    // Of the manifest's four fields, three are already in the signed proof (the
-    // placement is the attribution title, the origin digest its message, the
-    // artifact digest the proof's own) and the fourth is the new file's name,
-    // which is moot here because the new file is in new-file/ beside it.
-    //
-    // The package. A fused BitGraph leaves this page for someone who may have
-    // neither the original nor a tool that rebuilds, so the export is the one
-    // moment the new file is actually wanted (2026-09-03): the original
-    // as it always was, and the new file beside it under new-file/.
-    // Everywhere else the new file stays virtual. Built here from whichever
-    // file is in hand: the original rebuilds it, the new file carries the
-    // original inside it. Without a file, the proof travels alone.
-    let packLabel = cachedFile?.name ?? null;
-    const packProof = proof;
-    if (cachedFile && packProof) {
-      const bytes = new Uint8Array(cachedFile.data);
-      // The new file keeps the original's name and is told apart by the folder
-      // it sits in (2026-09-03). It is the same picture plus 48 bytes, so
-      // a second name would imply a second thing. "fused" is gone from the
-      // package too: Fuse is a working name and an export is permanent.
-      if (isSet && cachedRole === "new") {
-        // A set member's new file: the original back out of it, beside it.
-        const u = await unpackSetMember(packProof, bytes, cachedFile.name, setBound?.bytes ?? null);
-        const name = u.originalName ?? cachedFile.name;
-        files[`${PKG_COMMITTED_DIR}/${name}`] = bytes;
-        if (u.originalBytes && u.originalName) {
-          files[`${PKG_ORIGINAL_DIR}/${u.originalName}`] = u.originalBytes;
-          packLabel = u.originalName;
-        }
-      } else if (isSet) {
-        // A set member's original: its new file rebuilt from the row's
-        // placement and the set's slot commitment, only when the rebuild
-        // hashes to the row's listed digest. Never a wrong new-file.
-        files[`${PKG_ORIGINAL_DIR}/${cachedFile.name}`] = bytes;
-        const r = await rebuildSetMember(packProof, bytes, cachedFile.name, setBound?.bytes ?? null);
-        if (r.fusedBytes) files[`${PKG_COMMITTED_DIR}/${cachedFile.name}`] = r.fusedBytes;
-      } else if (isInlineProof(packProof)) {
-        // An inline record carries its commitment in its own bytes: there is no
-        // container and no separate original, so the file is both halves at once.
-        // It goes at the root, not under new-file/, which would imply an original
-        // that never existed and leaves the artifact where bitgraph-audit does not
-        // look for it. Verified 2026-09-21: before this branch the export held only
-        // new-file/<name> and no original, because unpackNewFile had nothing to
-        // unpack. Since 2026-10-01 every package names its folders for what the
-        // bytes are: committed/ holds the bytes the proof's digest names, always;
-        // original/ exists only when the committed file was made from one.
-        files[`${PKG_COMMITTED_DIR}/${cachedFile.name}`] = bytes;
-      } else if (isFuseName(attr?.name) && cachedRole === "new") {
-        const u = await unpackNewFile(packProof, bytes, cachedFile.name);
-        const name = u.originalName ?? cachedFile.name;
-        files[`${PKG_COMMITTED_DIR}/${name}`] = bytes;
-        if (u.originalBytes && u.originalName) {
-          files[`${PKG_ORIGINAL_DIR}/${u.originalName}`] = u.originalBytes;
-          packLabel = u.originalName;
-        }
-      } else if (isFuseName(attr?.name)) {
-        files[`${PKG_ORIGINAL_DIR}/${cachedFile.name}`] = bytes;
-        const r = await rebuildFromOrigin(packProof, bytes, cachedFile.name);
-        if (r.fusedBytes) files[`${PKG_COMMITTED_DIR}/${cachedFile.name}`] = r.fusedBytes;
-      } else {
-        files[`${PKG_COMMITTED_DIR}/${cachedFile.name}`] = bytes;
-      }
-    } else if (cachedFile) {
-      files[`${PKG_COMMITTED_DIR}/${cachedFile.name}`] = new Uint8Array(cachedFile.data);
-    }
-    // Captured as the anchors are gathered, so the export's own page can state
-    // the causal window without a second round of fetching. Declared out here
-    // because the page is written after the fetch block closes.
-    const sides: { before: AnchorSide; after: AnchorSide } = { before: {}, after: {} };
-    // Fetch BOTH bounding ETH anchors. The proof was witnessed after the
-    // "before" anchor and before the "after" anchor, which brackets it to one
-    // anchor interval (~12s) of public Ethereum time. Both are required to read
-    // the window: the after-anchor alone gives only an upper bound, the same
-    // one-sided "existed by now" a plain blockchain timestamp gives.
-    // A Base floor (enclave v10) has no anchors: its floor is the Base block the
-    // proof signs, and the package carries that block's header in base-floor/
-    // (bitgraph-floor-header/1, as bitgraph-audit writes it), checked against
-    // the signed floor before it is written. No anchor after it exists.
-    const zipBaseFloor = baseFloorOfProof(proof);
-    if (zipBaseFloor !== null) {
-      try {
-        const header = await fetchBaseFloorHeader(proof as never);
-        files[PKG_BASE_FLOOR_FILE] = strToU8(JSON.stringify(floorHeaderFile(zipBaseFloor, header), null, 2));
-      } catch (e) {
-        files["base-floor/floor-status.json"] = strToU8(JSON.stringify({
-          version: "bitgraph-floor-status/1",
-          status: "unavailable",
-          blockNumber: zipBaseFloor.blockNumber,
-          blockHash: zipBaseFloor.blockHash,
-          note: `The floor block's header was not fetched (${(e as Error).message}). The proof still signs the floor block; its header is at https://bitgraph.ing/api/proofs/floor-header?chain=base&block=${zipBaseFloor.blockNumber}&hash=${zipBaseFloor.blockHash}, or any Base node. Build the package again.`,
-        }, null, 2));
-      }
-    } else try {
-      const counter = commit.counter;
-      const enc = encodeURIComponent(commit.epochId || "");
-      const [afterResp, beforeResp] = await Promise.all([
-        fetch(`/api/proofs/anchors?counter=${counter}&epoch=${enc}&limit=1`),
-        fetch(`/api/proofs/anchors?counter=${counter}&epoch=${enc}&before=1`),
-      ]);
-      // For an anchor, also add its block-header witness so the anchor's
-      // Ethereum time claim verifies fully offline. The server re-encodes and
-      // self-checks the header (returns it only when keccak256 == the signed
-      // block hash), so a failure just omits the witness; the bundle stays valid.
-      const addWitness = async (name: string, anchor: Record<string, unknown>) => {
-        try {
-          const eth = anchor.ethereum as { blockNumber?: number; blockHash?: string } | undefined;
-          const attr = anchor.attribution as { title?: string; message?: string } | undefined;
-          const m = attr?.title?.match(/\/block\/(\d+)/);
-          const blockNumber = eth?.blockNumber ?? (m ? parseInt(m[1], 10) : undefined);
-          const blockHash = eth?.blockHash ?? attr?.message;
-          if (blockNumber === undefined || !blockHash) return;
-          const wResp = await fetch(`/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`);
-          if (wResp.ok) {
-            const w = await wResp.json();
-            files[name] = strToU8(JSON.stringify(w, null, 2));
-            // The block time is not a field anywhere; it is inside the header.
-            const side = name.includes("before") ? sides.before : sides.after;
-            side.block = blockNumber;
-            if (w?.headerRlpHex) side.ts = blockTimeFromHeader(w.headerRlpHex) || null;
-          }
-        } catch (_) { /* the bundle is valid without the witness */ }
-      };
-      // The four ETH anchor files (before/after anchor + their block-header
-      // witnesses) go in an ethereum-anchors/ subfolder so they don't clutter
-      // the bundle root. Audit discovery is by schema shape, not path, so the
-      // nesting is transparent to the verifier.
-      /* ⚠️ AN ABSENT ANCHOR FILE USED TO SAY NOTHING, HERE TOO. This is the
-       * second of the two places that build an ethereum-anchors/ folder, and
-       * it swallowed the same four different situations into one silence: the
-       * ledger saying "not yet", saying "never", being unreadable, and the
-       * request throwing. A package could not tell its reader whether no upper
-       * bound had been FETCHED or none EXISTED. Fixing only the camera's copy
-       * would have left the bug alive on the path a stranger actually uses —
-       * a fallback is where a fixed bug survives (2026-09-07). */
-      const readSide = async (resp: Response, name: string, witnessName: string): Promise<BoundReport> => {
-        if (!resp.ok) {
-          return { state: "unavailable", note: resp.status === 503
-            ? "BitGraph's copy could not be read when this package was built. That is a gap in what was asked, not a finding about what it holds."
-            : `BitGraph answered ${resp.status} when this package was built, so this side was never learned.` };
-        }
-        const data = await resp.json();
-        if (Array.isArray(data.anchors) && data.anchors.length > 0) {
-          files[name] = strToU8(JSON.stringify(data.anchors[0], null, 2));
-          await addWitness(witnessName, data.anchors[0]);
-          // The anchor before is the floor in time; the anchor after is the
-          // ceiling in position (CANON §3.6, 2026-09-16).
-          return { state: "anchored", note: name.includes("before") ? "An Ethereum anchor is the floor of this position." : "An Ethereum anchor is the ceiling of this position: it sits after it in the order." };
-        }
-        const b = data.bound as { state?: string; note?: string } | undefined;
-        if (!b?.state) {
-          return { state: "unavailable", note: "BitGraph returned no anchor and gave no reason, so nothing can be concluded from this absence." };
-        }
-        return { state: b.state as BoundReport["state"], note: b.note ?? "" };
-      };
-      const [upperReport, lowerReport] = await Promise.all([
-        readSide(afterResp, "ethereum-anchors/anchor-after.json", "ethereum-anchors/anchor-after-witness.json"),
-        readSide(beforeResp, "ethereum-anchors/anchor-before.json", "ethereum-anchors/anchor-before-witness.json"),
-      ]);
-      // Only when something is missing: a complete package is byte-for-byte
-      // what it was before this change.
-      if (!isSettled(upperReport.state, lowerReport.state)) {
-        files[`ethereum-anchors/${ANCHOR_STATUS_FILE}`] = strToU8(JSON.stringify(
-          anchorStatusDoc({ epochId: commit.epochId || "", counter: String(counter ?? "") }, upperReport, lowerReport),
-          null, 2));
-      }
-    } catch (e) {
-      // Even a throw has to leave a trace: a package that silently lacks its
-      // anchors is the exact ambiguity this file exists to remove.
-      console.error("[bitgraph] anchors for package:", e);
-      files[`ethereum-anchors/${ANCHOR_STATUS_FILE}`] = strToU8(JSON.stringify(anchorStatusDoc(
-        { epochId: commit.epochId || "", counter: String(commit.counter ?? "") },
-        { state: "unavailable", note: `This side was not fetched: the request did not complete (${(e as Error).message}). Ask again.` },
-        { state: "unavailable", note: `This side was not fetched: the request did not complete (${(e as Error).message}). Ask again.` },
-      ), null, 2));
-    }
-
-    let ceilingDoc: { status?: string; settlement?: { l1?: { blockNumber?: number; blockTimestamp?: number; txHash?: string }; blobs?: Array<{ versionedHash: string; file?: string }> } | null; anchor?: { blockNumber?: number; blockTimestamp?: number; txHash?: string } | null } | null = null;
-    let settlementBlobs: { inPackage: string[]; missing: string[] } | null = null;
-    // The ceiling in time (bitgraph-ceiling/1) travels beside the proof, in its
-    // own folder, exactly as the writer published it: the Merkle path, the
-    // signed Base transaction, the block header and its inclusion proof, and
-    // the floor block's header. With proof.json it verifies offline, with no
-    // call to bitgraph.ing (bitgraph-audit, or verifyCeiling). Absent, the
-    // package says so in words instead of staying silent (the same rule as
-    // the anchor status above): an unfetched ceiling is not a missing one.
-    try {
-      const ph = (proof as BitGraphProof & { proofHash?: string }).proofHash ?? computeProofHash(proof as never);
-      const safe = ph.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const cr = await fetch(`/api/ceilings/${safe}`);
-      if (cr.ok) {
-        const ceilingBytes = new Uint8Array(await cr.arrayBuffer());
-        files["base-ceiling/ceiling.json"] = ceilingBytes;
-        try { ceilingDoc = JSON.parse(new TextDecoder().decode(ceilingBytes)); } catch { ceilingDoc = null; }
-        // Settlement is attached a few minutes after the Base block. Absent, the package says
-        // so in words: the sidecar's "status" is a report, not evidence (outside review, 2026-09-30).
-        if (ceilingDoc && !ceilingDoc.settlement) {
-          files["base-ceiling/settlement-status.json"] = strToU8(JSON.stringify({
-            version: "bitgraph-settlement-status/1",
-            proofHash: ph,
-            status: "not-attached",
-            reportedBaseStatus: ceilingDoc.status ?? null,
-            note: "No settlement pointer was attached to this ceiling when the package was built. The ceiling's status field is what BitGraph's Base node reported, which this package cannot prove. The pointer (the Ethereum block that carries the batch data holding this Base block) is attached a few minutes after the Base block: build the package again later to get it.",
-          }, null, 2));
-        }
-        // The blob bytes the pointer names go in the package (outside review, 2026-10-02): Ethereum
-        // nodes prune blob data after about 18 days, and without the bytes nobody can show the
-        // ceiling transaction is inside that batch. bitgraph-audit finds them in base-ceiling/blobs/
-        // and checks each against its KZG commitment, so these copies are checked, not trusted.
-        const blobRefs = ceilingDoc?.settlement?.blobs ?? [];
-        if (blobRefs.length) {
-          const inPackage: string[] = [], missing: string[] = [];
-          await Promise.all(blobRefs.map(async (b) => {
-            const file = (b.file || `${b.versionedHash}.bin`).toLowerCase();
-            try {
-              const br = await fetch(`/api/ceilings/blobs/${file}`);
-              if (!br.ok) throw new Error(String(br.status));
-              files[`base-ceiling/blobs/${file}`] = new Uint8Array(await br.arrayBuffer());
-              inPackage.push(file);
-            } catch { missing.push(b.versionedHash); }
-          }));
-          settlementBlobs = { inPackage: inPackage.sort(), missing };
-        }
-      } else {
-        files["base-ceiling/ceiling-status.json"] = strToU8(JSON.stringify({
-          version: "bitgraph-ceiling-status/1",
-          proofHash: ph,
-          status: cr.status === 404 ? "none-found" : "unavailable",
-          note: cr.status === 404
-            ? "No ceiling in time was found for this record when this package was built. Records made before 2026-09-29 22:43 UTC have none; a newer record may still be queued for its Base write, so build the package again."
-            : `BitGraph answered ${cr.status} when this package was built, so the ceiling was never learned. Build the package again.`,
-        }, null, 2));
-      }
-    } catch (e) {
-      files["base-ceiling/ceiling-status.json"] = strToU8(JSON.stringify({
-        version: "bitgraph-ceiling-status/1",
-        status: "unavailable",
-        note: `The ceiling was not fetched: the request did not complete (${(e as Error).message}). Build the package again.`,
-      }, null, 2));
-    }
-
-    // ❄️ NO index.html. An export carries evidence, not a rendering of it.
-    //
-    // This zip used to open as a page rather than as a pile of JSON, and the
-    // Folder wrote the same page beside every recording. Both are gone
-    // (Folder 1.12.0): it was a second implementation of this very proof page
-    // and it drifted from it, and what it displayed was not a check anyone
-    // could rely on — the match verdict was computed by whoever built the
-    // export, so a recipient opening it was reading the sender's assertion.
-    // The check that means something is dropping the folder on bitgraph.ing,
-    // which re-hashes in the reader's own browser against the ledger.
-    //
-    // The two must not diverge: a zip from here and a folder from the Folder
-    // are meant to be the same object, and they now are.
-
-    // The BitGraphed file rides along when it can be built: one file with the whole proof inside,
-    // for whoever receives only a file. A set member waits (as on the page); a failure leaves it out.
-    const committedPath = Object.keys(files).find((k) => k.startsWith(`${PKG_COMMITTED_DIR}/`)) ?? null;
-    const originalPath = Object.keys(files).find((k) => k.startsWith(`${PKG_ORIGINAL_DIR}/`)) ?? null;
-    let carrierPath: string | null = null;
-    if (committedPath && proof && !isSet && ((commit as { slotAnchor?: unknown }).slotAnchor || zipBaseFloor !== null)) {
-      try {
-        const built = await buildCarrierForProof(files[committedPath]!, proof, committedPath.slice(PKG_COMMITTED_DIR.length + 1), { waitForCeilingMs: 0 });
-        carrierPath = `${PKG_CARRIER_DIR}/${built.fileName}`;
-        files[carrierPath] = built.bytes;
-      } catch (e) { console.warn("[bitgraph] the BitGraphed file was left out of the package:", e); }
-    }
-    // README.md: the claim, which file is which, how to check, and what each result rests on.
-    try {
-      const hex = async (b: Uint8Array | undefined) => b ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", b as unknown as BufferSource))).map((x) => x.toString(16).padStart(2, "0")).join("") : null;
-      const iso = (sec: number | null | undefined) => (typeof sec === "number" && sec > 0 ? new Date(sec * 1000).toISOString() : null);
-      const sa = zipBaseFloor !== null ? undefined : (commit as { slotAnchor?: { blockNumber?: number; blockHash?: string } }).slotAnchor;
-      let floorIso: string | null = sa?.blockNumber !== undefined && sides.before.block === sa.blockNumber ? iso(sides.before.ts ?? null) : null;
-      if (sa?.blockNumber !== undefined && sa.blockHash && floorIso === null) {
-        try {
-          const w = await fetch(`/api/proofs/witness?block=${sa.blockNumber}&hash=${encodeURIComponent(sa.blockHash)}`).then((r) => (r.ok ? r.json() : null));
-          if (w?.headerRlpHex) floorIso = iso(blockTimeFromHeader(w.headerRlpHex));
-        } catch { /* the README says the time is not in the package */ }
-      }
-      let afterCounter: string | null = null;
-      try { afterCounter = files["ethereum-anchors/anchor-after.json"] ? String(JSON.parse(new TextDecoder().decode(files["ethereum-anchors/anchor-after.json"])).commit?.counter ?? "") || null : null; } catch { afterCounter = null; }
-      const pcr0 = proof?.environment?.measurement ?? null;
-      const tagNote = PUBLISHED_ENCLAVE_MEASUREMENTS.find((m) => m.pcr0 === pcr0)?.note.match(/^v(\d+)/);
-      const ca = ceilingDoc?.anchor, st = ceilingDoc?.settlement?.l1;
-      files[PKG_README] = strToU8(packageReadme({
-        recordName,
-        epochId: String(commit.epochId ?? ""),
-        proofUrl: `https://bitgraph.ing/proof/${digestParam}`,
-        committedPath, originalPath, carrierPath,
-        committedSha256Hex: committedPath ? await hex(files[committedPath]) : null,
-        originalSha256Hex: originalPath ? await hex(files[originalPath]) : null,
-        recordedIso: attestedMs !== null ? new Date(attestedMs).toISOString() : null,
-        floor: zipBaseFloor !== null
-          ? { block: zipBaseFloor.blockNumber, iso: iso(zipBaseFloor.blockTimestamp), chain: "base" }
-          : sa?.blockNumber !== undefined ? { block: sa.blockNumber, iso: floorIso } : null,
-        ceilingInTime: ca && typeof ca.blockNumber === "number" && typeof ca.blockTimestamp === "number" && ca.txHash
-          ? { block: ca.blockNumber, iso: new Date(ca.blockTimestamp * 1000).toISOString(), txHash: ca.txHash, reportedStatus: String(ceilingDoc?.status ?? "included") } : null,
-        settlement: st && typeof st.blockNumber === "number" && typeof st.blockTimestamp === "number" && st.txHash
-          ? { block: st.blockNumber, iso: new Date(st.blockTimestamp * 1000).toISOString(), txHash: st.txHash } : null,
-        settlementBlobs,
-        ceilingInPosition: afterCounter ? { anchorCounter: afterCounter, block: sides.after.block ?? null, iso: iso(sides.after.ts ?? null) } : null,
-        pcr0, enclaveTag: tagNote ? `enclave-v${tagNote[1]}` : null,
-        writer: "0xf3972408D853c975F86351C311f4310220bbF2a3",
-        hasAnchorsBefore: !!files["ethereum-anchors/anchor-before.json"], hasAnchorsAfter: !!files["ethereum-anchors/anchor-after.json"],
-        ...(zipBaseFloor !== null ? { hasBaseFloorHeader: !!files[PKG_BASE_FLOOR_FILE] } : {}),
-        versions: { verify: "1.15.2", audit: "0.8.0", sdk: "0.3.0" },
-      }));
-    } catch (e) { console.warn("[bitgraph] README left out of the package:", e); }
-
-    // README first, so it is the first thing a recipient sees when the folder opens.
-    const ordered = files[PKG_README] ? { [PKG_README]: files[PKG_README], ...files } : files;
-    const zipped = zipSync(ordered, { level: 0 });
-    const blob = new Blob([zipped as unknown as BlobPart], { type: "application/zip" });
-    const url = URL.createObjectURL(blob);
-    // Named the way the Folder names its exports, so the zip expands into an
-    // identically named folder and the two stay interchangeable. The counter
-    // scheme this replaces was rejected for folder names long ago (a counter
-    // is a position within one epoch and identifies nothing across days); the
-    // zip had kept it. Without a file in hand there is no label, and a bare
-    // "BitGraph.zip" beats advertising a number that means nothing tomorrow.
-    const zipLabel = packLabel ? ` (${packLabel.replace(/[\x00-\x1f\x7f/]/g, " ").trim()})` : "";
-    const a = document.createElement("a"); a.href = url; a.download = `BitGraph${zipLabel}.zip`; a.click();
-    URL.revokeObjectURL(url);
-    } catch (e) { console.error("[bitgraph] export error:", e); alert("Export failed: " + e); }
-    finally { setExporting(false); }
-  }
-
-  /* One file out: the committed bytes with the proof, the floor anchor and its
-     block header inside, and the closing anchor too once it exists. The bytes
-     handed to the builder are the COMMITTED ones (the new file), rebuilt from
-     the original when that is what the page holds; the builder re-hashes them
-     against the proof before anything is assembled, and never stamps an
-     unverified anchor. Sets wait (offline member verification is thinner). */
+  /* One file out: the file with the proof inside (bitgraph-carrier/6). The bytes are the file in hand, which the
+     builder re-hashes against the proof before anything is assembled. */
   async function downloadCarrier() {
-    if (carrierBusy || !proof || !cachedFile) return;
+    if (carrierBusy || !proof || !cachedFile || !atomicCarrier) return;
     setCarrierBusy(true);
     setCarrierMsg(null);
     try {
-      // A proof made in one atomic action signs no floor of its own: its BitGraphed file is bitgraph-carrier/6 (2026-11-02;
-      // /5 before), the file, then the proof as the ledger serves it (its tree path and floor leaf inside), its Base ceiling,
-      // and its own Base floor: the block read bound on the counts right before it, with the block file it binds.
-      if (atomicCarrier) {
-        const ph = String((proof as { proofHash?: string }).proofHash ?? "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-        let sidecar: Record<string, unknown> | null = null;
-        try { const res = await fetch(`/api/ceilings/${ph}`, { cache: "no-store" }); sidecar = res.ok ? ((await res.json()) as Record<string, unknown>) : null; } catch { sidecar = null; }
-        let floor: { proof: Record<string, unknown>; blockFile: string } | null = null;
-        try {
-          const c = proof.commit as { counter?: string; slotCounter?: string; epochId?: string };
-          const ep = String(c.epochId ?? "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-          const br = c.counter && c.slotCounter && ep ? await fetch(`/api/timeline/bracket?epoch=${ep}&counter=${c.counter}`, { cache: "no-store" }) : null;
-          const f = br?.ok ? ((await br.json()) as { floor?: { counter?: string; digestB64?: string } | null }).floor : null;
-          if (f?.counter && f.digestB64 && Number(f.counter) + 1 === Number(c.slotCounter)) {
-            const fr = await fetch(`/api/proofs/digest/${f.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}?counter=${f.counter}&epoch=${ep}`, { cache: "no-store" });
-            const j = fr.ok ? ((await fr.json()) as { proofs?: Array<{ proof: Record<string, unknown> }>; timelineRecord?: { kind?: string; blockFile?: string } }) : null;
-            if (j?.proofs?.[0]?.proof && j.timelineRecord?.kind === "block" && j.timelineRecord.blockFile) floor = { proof: j.proofs[0].proof, blockFile: j.timelineRecord.blockFile };
-          }
-        } catch { floor = null; }
-        const bytes = buildBitGraphedFileV6(new Uint8Array(cachedFile.data), proof as unknown as Record<string, unknown>, sidecar, floor);
-        const dot = cachedFile.name.lastIndexOf(".");
-        const name = dot > 0 ? `${cachedFile.name.slice(0, dot)}.bitgraph${cachedFile.name.slice(dot)}` : `${cachedFile.name}.bitgraph`;
-        const url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type: "application/octet-stream" }));
-        const el = document.createElement("a"); el.href = url; el.download = name; el.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setCarrierMsg([sidecar || oneWriteCovers(attestedMs) ? null : rollRootCovers(attestedMs)
-          ? "This record goes to Base with its epoch\u2019s root, when the epoch closes, so this file carries the proof without that write. Download it again after that for the write too."
-          : "The Base write has not landed yet, so this file carries the proof without its ceiling. Download it again in a few seconds for the ceiling too."].filter(Boolean).join(" ") || null);
-        return;
-      }
-      // tree/1: one member's file (carrier/4), its bytes walked to the signed root document by the
-      // evidence that placed it. The same capped wait for a closing anchor on an Ethereum floor.
-      if (isTree) {
-        if (!treeBound || !treeMember) throw new Error("this file is not placed in the tree yet, so its BitGraphed file cannot be built");
-        const built = await buildMemberCarrierForProof(new Uint8Array(cachedFile.data), proof, { rootDocument: treeBound.rootDocument, commitment: treeBound.commitment }, treeMember.evidence, cachedFile.name, { waitForCeilingMs: 15000 });
-        const url = URL.createObjectURL(new Blob([built.bytes as unknown as BlobPart], { type: "application/octet-stream" }));
-        const el = document.createElement("a"); el.href = url; el.download = built.fileName; el.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setCarrierMsg(built.ceiling === "present" || built.ceiling === "none"
-          ? null
-          : `Floor inside; the closing anchor is not, yet: ${built.ceilingNote ?? "none has landed."} Drop the file back here later and it completes.`);
-        return;
-      }
-      const bytes = new Uint8Array(cachedFile.data);
-      let committed = bytes;
-      let label = cachedFile.name;
-      if (!isInlineProof(proof) && isFuseName(attr?.name) && cachedRole !== "new") {
-        const r = await rebuildFromOrigin(proof, bytes, cachedFile.name);
-        if (!r.fusedBytes) throw new Error("the new file could not be rebuilt from this original");
-        committed = new Uint8Array(r.fusedBytes);
-        label = cachedFile.name;
-      }
-      // A fresh recording's closing anchor is usually seconds away: wait a
-      // short, capped moment for it so the file leaves complete and never
-      // needs a second step. Permanent answers and the idle cadence fall
-      // through to floor-only immediately or at the cap, stated in the note.
-      const built = await buildCarrierForProof(committed, proof, label, { waitForCeilingMs: 15000 });
-      const url = URL.createObjectURL(new Blob([built.bytes as unknown as BlobPart], { type: "application/octet-stream" }));
-      const el = document.createElement("a"); el.href = url; el.download = built.fileName; el.click();
-      URL.revokeObjectURL(url);
-      // Success is silent (the download is the feedback); only a missing side speaks.
-      setCarrierMsg(built.ceiling === "present" || built.ceiling === "none"
-        ? null
-        : `Floor inside; the closing anchor is not, yet: ${built.ceilingNote ?? "none has landed."} Drop the file back here later and it completes.`);
+      const bytes = buildBitGraphedFileV6(new Uint8Array(cachedFile.data), proof as unknown as Record<string, unknown>, null, null);
+      const dot = cachedFile.name.lastIndexOf(".");
+      const name = dot > 0 ? `${cachedFile.name.slice(0, dot)}.bitgraph${cachedFile.name.slice(dot)}` : `${cachedFile.name}.bitgraph`;
+      const url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type: "application/octet-stream" }));
+      const el = document.createElement("a"); el.href = url; el.download = name; el.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       setCarrierMsg(e instanceof Error ? e.message : String(e));
     } finally {
@@ -2146,36 +1090,6 @@ export default function ProofPage() {
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (e) {
       setSvgMsg(`The print SVG could not be given: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-
-  /** One object, one file, no zip. A tick apart so the browser takes both. */
-  function saveJson(name: string, obj: unknown) {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }));
-    const el = document.createElement("a"); el.href = url; el.download = name; el.click();
-    URL.revokeObjectURL(url);
-  }
-
-  /* The anchor pair, as the ledger serves them: two self-contained proof JSONs
-     (each carries its block header in metadata). The floor is the signed
-     slotAnchor's anchor when the proof has one; the closing anchor is the
-     first after the commit, and its absence is stated, never padded. */
-  async function downloadAnchors() {
-    if (anchorsBusy || !proof) return;
-    setAnchorsBusy(true);
-    setAnchorsMsg(null);
-    try {
-      const pair = await fetchAnchorPair(proof);
-      if (!pair.floor && !pair.ceiling) throw new Error("no anchors could be read for this position");
-      if (pair.floor) saveJson("anchor-before.json", pair.floor);
-      if (pair.ceiling) { await new Promise((r) => setTimeout(r, 300)); saveJson("anchor-after.json", pair.ceiling); }
-      setAnchorsMsg(pair.ceiling
-        ? null
-        : `The floor anchor saved. ${pair.note ?? "No anchor follows this position yet."}`);
-    } catch (e) {
-      setAnchorsMsg(e instanceof Error ? e.message : String(e));
-    } finally {
-      setAnchorsBusy(false);
     }
   }
 
@@ -2232,51 +1146,9 @@ export default function ProofPage() {
       {/* 56px from the nav, as every page's top. */}
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
         <ProofView m={(() => {
-          const kind: ProofViewModel["kind"] = isEth ? "anchor" : isInterval ? "interval" : "file";
-          const stdB64 = (x: string | null | undefined) => (typeof x === "string" ? x : "");
-          // Anchor views for the window, with each anchor's own recorded instant beside it.
-          const side = (a: typeof causalWindow extends null ? never : NonNullable<typeof causalWindow>["anchorBefore"], recordedMs: number | null) =>
-            a ? { counter: a.counter, blockNumber: a.blockNumber, blockHash: a.blockHash, etherscanUrl: a.etherscanUrl, blockTime: a.blockTime ?? null, digestB64: a.digestB64 ?? null, recordedMs } : null;
-          const fromEvidence = (e: typeof evidenceSides.floor) => e ? {
-            counter: e.counter, blockNumber: e.blockNumber, blockHash: e.blockHash, etherscanUrl: `https://etherscan.io/block/${e.blockNumber}`,
-            blockTime: e.timestamp !== null ? new Date(e.timestamp * 1000).toISOString() : null, digestB64: e.digestB64, recordedMs: e.recordedMs,
-          } : null;
-          // Until the signed evidence lands, the window's anchor stands in for the floor ONLY when it is
-          // the anchor the proof signed (commit.slotAnchor). The window's "anchor before" is the one
-          // just before the COMMIT, often a later block: shown as the floor it said "17 s after the
-          // floor block" for a 29 s floor on #9,855 (2026-10-06). The floor waits instead.
-          const signedFloor = (commit as { slotAnchor?: { counter?: string | number } } | null | undefined)?.slotAnchor;
-          const windowFloor = side(causalWindow?.anchorBefore ?? null, anchorRecordedMs.before);
-          // A Base floor (enclave v10) is read from the signed proof itself; no anchor stands on either side of it.
-          const baseFloor = !isEth ? baseFloorOfProof(proof) : null;
-          // A proof made in one atomic action (v11 on) signs no anchor, so an earlier anchor in the sequence is not its
-          // floor: shown as one it read "the Ethereum block the enclave fixed when this position opened, signed into the
-          // proof" on v12's #14 (2026-10-18). Its floor, when it has one, is a floor link.
-          const atomic = (commit as { atomic?: boolean } | null | undefined)?.atomic === true;
-          const floorView = baseFloor !== null ? null : fromEvidence(evidenceSides.floor) ?? (windowFloor && !atomic && (!signedFloor || String(windowFloor.counter) === String(signedFloor.counter)) ? windowFloor : null);
-          const ceilView = baseFloor !== null ? null : fromEvidence(evidenceSides.ceiling) ?? side(causalWindow?.anchorAfter ?? null, anchorRecordedMs.after);
-          // The anchor before the commit, when it is a later anchor than the signed floor: a
-          // tighter bound on the commit itself, by hash order, said as a note.
-          const commitAfter = baseFloor === null && causalWindow?.anchorBefore && floorView && causalWindow.anchorBefore.counter !== floorView.counter && causalWindow.anchorBefore.blockNumber !== null
-            ? { counter: causalWindow.anchorBefore.counter, blockNumber: causalWindow.anchorBefore.blockNumber, blockTime: causalWindow.anchorBefore.blockTime ?? null, digestB64: causalWindow.anchorBefore.digestB64 ?? null }
-            : null;
-          // The file pane: the preview, the drop box, or the anchor's block row.
-          // Every file pane is the same outlined box with a name row and an Open pill, uniform
-          // for any file (2026-10-05): text and other files (FileCard),
-          // images (PhotoCard), and an anchor's Ethereum block here.
-          // The epoch's first record has no content card (2026-10-29): its time box names the epoch's beginning with
-          // Basescan, and its file is offered in the bottom row.
-          const filePane: React.ReactNode = epochStart ? null : isEth ? (
-            <div className="pv-filecard">
-              <div className="pv-filecard-head">
-                <span className="pv-filecard-name">
-                  <strong>Ethereum block {ethBlockNum ? `#${Number(ethBlockNum).toLocaleString("en-US")}` : "#?"}</strong>
-                  {anchorBlock?.blockTime ? <> · mined {attestedMs !== null && sameDayTz(new Date(anchorBlock.blockTime), new Date(attestedMs)) ? timeTz(new Date(anchorBlock.blockTime)) : stampTz(new Date(anchorBlock.blockTime))}</> : null}
-                </span>
-                {attr?.title && <a href={attr.title} target="_blank" rel="noopener" className="bg-action-link pv-pill pv-open" style={{ flexShrink: 0 }}><span>Open</span></a>}
-              </div>
-            </div>
-          ) : isInterval ? null : cachedFile ? null /* no picture on the page (2026-10-30): the file opens from the receipt's Open link */ : painting ? (
+          const kind: ProofViewModel["kind"] = isInterval ? "interval" : "file";
+          // The file pane: the preview or the drop box.
+          const filePane: React.ReactNode = isInterval ? null : cachedFile ? null /* no picture on the page (2026-10-30): the file opens from the receipt's Open link */ : painting ? (
             <div role="status" aria-label="Painting" style={{ padding: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "var(--muted)" }}>
               <div className="bg-spinner" style={{ width: 28, height: 28, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
               <div>Painting&hellip;</div>
@@ -2289,12 +1161,7 @@ export default function ProofPage() {
               {hosted.phase === "matched" ? null : <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} onTreeEvidence={setTreeEvidence} compact />}
             </div>
           );
-          const hashes: FieldView[] = isEth
-            ? [
-                ...(attr?.message ? [{ label: "Ethereum block hash", value: attr.message, mono: true }] : []),
-                { label: attr?.message ? `${formatHashAlg(proof.artifact.hashAlg)} of the block hash` : `${formatHashAlg(proof.artifact.hashAlg)} digest`, value: proof.artifact.digestB64, mono: true },
-              ]
-            : [
+          const hashes: FieldView[] = [
                 { label: "Commitment", value: carriedBy },
                 ...(inlineCommitment ? [{ label: "Position commitment", value: inlineCommitment, mono: true }] : []),
                 ...(isTree
@@ -2313,9 +1180,9 @@ export default function ProofPage() {
                   : placementId !== null
                     ? [{ label: "New file hash", value: proof.artifact.digestB64, mono: true }, { label: "Original file hash", value: attr?.message ?? "not declared", mono: true }]
                     : [{ label: "File hash", value: proof.artifact.digestB64, mono: true }]),
-              ];
+          ];
           // Positions: every causal position these bytes occupy, newest first, each with its
-          // role and its own recorded instant (the enclave's clock; the floor time stands in).
+          // role and its own recorded instant (the enclave's clock).
           const recordedPositions = positions.filter((p) => p.kind !== "fused");
           const fusedPositions = positions.filter((p) => p.kind === "fused");
           const positionRows: PositionRowView[] = [...positions].reverse().map((pos) => {
@@ -2323,15 +1190,8 @@ export default function ProofPage() {
             const isEarliest = pos === recordedPositions[0];
             const isEarliestFused = isFusedRow && fusedPositions.length > 1 && pos === fusedPositions[0];
             const isCurrent = String(pos.counter) === String(commit.counter) && (!pos.epoch || !commit.epochId || pos.epoch === toSafeB64(String(commit.epochId)));
-            const t1 = pos.lowerTime ? new Date(pos.lowerTime) : null;
-            const t2 = pos.upperTime ? new Date(pos.upperTime) : null;
-            const sameDay = !!(t1 && t2 && sameUtcDay(t1, t2));
             const rec = typeof pos.recordedMs === "number" ? new Date(pos.recordedMs) : null;
-            let rowDate: string | null = null;
-            if (rec) rowDate = longDate(rec);
-            else if (t1 && t2) { if (sameDay) rowDate = longDate(t2); }
-            else if (t2) rowDate = longDate(t2);
-            else if (t1) rowDate = longDate(t1);
+            const rowDate: string | null = rec ? longDate(rec) : null;
             const roleText = isFusedRow
               ? isEarliestFused ? "Earliest new file made from the original" : "New file made from the original"
               : recordedPositions.length === 1 ? "Placed" : isEarliest ? "Earliest placement" : "Placed again";
@@ -2342,10 +1202,10 @@ export default function ProofPage() {
               viewing: isCurrent,
               href: `/proof/${encodeURIComponent(rowDigest)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}&n=${positions.length}`,
               roleLine: rowDate ? `${roleText} on ${rowDate}` : roleText,
-              timeNode: rec ? timeTz(rec) : t1 ? `after ${sameDay || !t2 ? timeTz(t1) : stampTz(t1)}` : null,
+              timeNode: rec ? timeTz(rec) : null,
             };
           });
-          const showPositions = (!isEth && !isInterval) ? positions.length >= 1 : positions.length > 1;
+          const showPositions = !isInterval ? positions.length >= 1 : positions.length > 1;
           const setRowsView: SetRowView[] = setBound ? setRows.map((mrow, i) => ({
             key: String(mrow.index),
             ordinal: setBound.kind === "set/2" ? mrow.index + 1 : i + 1,
@@ -2354,75 +1214,23 @@ export default function ProofPage() {
             placement: mrow.placement,
             originDigestB64: mrow.originDigestB64,
           })) : [];
-          /* ONE Export button per position (2026-10-04: a single master export
-             button). What it downloads
-             follows the kind of position; the person chooses nothing. The pieces
-             (the proof alone, the anchors, the original, the BitGraphed file) stay
-             reachable as text under it. Before this, four pills: Export (.zip) /
-             Package (.zip) / Proof (.json) / Ethereum anchors, plus the ceiling file. */
-          // A tree member gets its own BitGraphed file (carrier/4) once the file in hand is placed in the
-          // tree and its kind of file can carry a block; every other position as before.
-          const carrierPossible = isTree
-            ? Boolean(cachedFile && treeCarrierOk)
-            : Boolean(cachedFile && !isSet && ((commit as { slotAnchor?: unknown }).slotAnchor || baseFloor !== null || atomicCarrier));
-          const treeCount = treeBound?.count ?? 0;
-          const exportAction: DownloadView | null = isEth
-            ? { label: "Export", busyLabel: "Export", onClick: downloadProof, busy: false }
-            : isTree
-            // tree/1 leaves as export/1, never as the package a single fused file
-            // or a set member gets: no original out of a wrapper. The member's
-            // BitGraphed file (carrier/4) rides inside it when it can be built.
-            ? (treeBound ? { label: "Export", busyLabel: "Exporting\u2026", onClick: exportTree, busy: exporting } : null)
-            : { label: "Export", busyLabel: "Exporting\u2026", onClick: exportZip, busy: exporting };
-          const exportInside = isEth
-            ? "The anchor's proof as one JSON file."
-            : isTree
-            ? (treeMember && cachedFile
-                ? <>{`One zip: this file's own export, which proves its place in the tree of ${treeCount.toLocaleString("en-US")}, and SPEC.md, the rules the proof pins`}{carrierPossible ? staged(", with the BitGraphed file, this file with the proof inside") : null}.</>
-                : treeCount === 1
-                ? "One zip: the tree's export, with the proof and its trust layers, and SPEC.md, the rules the proof pins. Drop the file in the box above first and the export carries its place too."
-                : `One zip: the tree's export, with the proof and its trust layers, and SPEC.md, the rules the proof pins. A file's own place among the ${treeCount.toLocaleString("en-US")} files comes with that file's export: drop it in the box above first.`)
-            : `One zip: the proof, ${baseFloor !== null ? "the floor block's header" : "the Ethereum anchors with their block headers"}, the ceiling file${cachedFile ? ", the file" : ""}${carrierPossible ? " and the BitGraphed file, the file with the proof inside" : ""}, with a README that says what each is.`;
-          const exportName = isEth
-            ? "The anchor's proof"
-            : isTree
-            ? (treeMember && cachedFile ? "This file's export" : "The tree's export")
-            : "The package";
+          // The BitGraphed file (carrier/6) is offered for a proof made in one atomic action, with the file in hand.
+          const carrierPossible = Boolean(cachedFile && !isSet && !isTree && atomicCarrier);
           const PROOF_PIECE: DownloadView = { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false, desc: "The signed proof alone, byte for byte as the ledger serves it." };
           const CARRIER_PIECE: DownloadView = { label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: () => void downloadCarrier(), busy: carrierBusy, desc: "The file with the proof inside: one file that verifies with nothing else." };
-          const ANCHORS_PIECE: DownloadView = { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy, desc: "The floor and the ceiling in position, each with its Ethereum block header." };
-          // A Base floor has no Ethereum anchors to download: the floor's header is in the export and the package.
-          const anchorsPiece: DownloadView[] = baseFloor !== null ? [] : [ANCHORS_PIECE];
-          const pieces: DownloadView[] = isEth
-            ? []
-            : isTree
-            ? [...(carrierPossible ? [CARRIER_PIECE] : []), PROOF_PIECE, ...anchorsPiece]
+          const pieces: DownloadView[] = isTree
+            ? [PROOF_PIECE]
             : [
                 ...(carrierPossible ? [CARRIER_PIECE] : []),
                 ...(redrawn && (redrawnAlgo === ART_ALGORITHM_V16 || redrawnAlgo === ART_ALGORITHM_V17 || redrawnAlgo === ART_ALGORITHM_V18 || redrawnAlgo === ART_ALGORITHM_V19) && cachedFile ? [{ label: "SVG for print", busyLabel: "SVG for print", onClick: downloadPrintSvg, busy: false, desc: "The print version inside the recorded PNG, checked against a redrawing from this proof. It prints sharp at any size." }] : []),
                 PROOF_PIECE,
                 ...(cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? [{ label: "Original file", busyLabel: "Recovering\u2026", onClick: downloadOriginal, busy: originBusy, desc: "The original, back out of the committed file." }] : []),
-                ...anchorsPiece,
               ];
-          const checkText = isEth
-            ? null
-            : isTree
-            ? <>{"An export verifies offline beside its file, one line per claim, on any machine: the file's own export for one file, the tree's export with any of its files."}{carrierPossible ? staged(" The BitGraphed file verifies with nothing but itself.") : null}</>
-            : `The BitGraphed file verifies with nothing but itself, one line per claim, on any machine. The package holds the proof, ${baseFloor !== null ? "the floor block's header" : "the anchors with their block headers"} and the ceiling file, for the offline audit.`;
-          const checkCommand = isEth
-            ? null
-            : isTree
-            ? <>{"npx @mikeargento/bitgraph-sdk verify <file> <export>.bitgraph.json"}{carrierPossible ? <>{"\n"}{staged("npx @mikeargento/bitgraph-sdk verify <file>.bitgraph<ext>")}</> : null}</>
-            : "npx @mikeargento/bitgraph-sdk verify <file>.bitgraph<ext>\nnpx @mikeargento/bitgraph-audit ./BitGraph-package/";
           const downloadNotes = [
             ...(originMsg ? [originMsg] : []),
             ...(carrierMsg ? [carrierMsg] : []),
             ...(svgMsg ? [svgMsg] : []),
-            ...(anchorsMsg ? [anchorsMsg] : []),
-            ...(treeExportMsg ? [treeExportMsg] : []),
-            ...(!cachedFile && !isEth ? ["The file itself is not on this device: the downloads carry the proof and its evidence, and the BitGraphed file needs the file in hand."] : []),
-            // A member kept as is in a kind of file a trailing block would break travels with its export instead.
-            ...(isTree && cachedFile && treeMember && treeCarrierFormat && !treeCarrierFormat.ok ? [staged(treeCarrierFormat.reason)] : []),
+            ...(!cachedFile ? ["The file itself is not on this device: the proof downloads on its own, and the BitGraphed file needs the file in hand."] : []),
           ];
           /* The checks, for a tree: the carrier checks run without bytes (a
              tree's committed artifact is its root document, never a file), and
@@ -2441,10 +1249,10 @@ export default function ProofPage() {
                 ? { id: "bytes.digest", name: "The root document is the bytes the proof names", result: "TRUE", restsOn: "SHA-256", detail: "the root document beside the proof hashes to the signed artifact digest", level: offline }
                 : { id: "bytes.digest", name: "The root document is the bytes the proof names", result: "FALSE", restsOn: "", detail: treeBinding && !treeBinding.ok ? treeBinding.reason : "no root document", level: offline },
               ...(treeBound
-                ? [{ id: "tree.root", name: "The root document carries this position's commitment", result: "TRUE" as const, restsOn: "SHA-256 over the signed position record, its nonce and the signed floor block hash", detail: `a tree of ${treeBound.count.toLocaleString()} file${treeBound.count === 1 ? "" : "s"}, root ${bytesToHex(treeBound.root).slice(0, 16)}\u2026`, level: offline }]
+                ? [{ id: "tree.root", name: "The root document carries this position's commitment", result: "TRUE" as const, restsOn: "SHA-256 over the signed position record and its nonce", detail: `a tree of ${treeBound.count.toLocaleString()} file${treeBound.count === 1 ? "" : "s"}, root ${bytesToHex(treeBound.root).slice(0, 16)}\u2026`, level: offline }]
                 : []),
               treeMember
-                ? { id: "tree.member", name: "The file in hand is in the tree", result: "TRUE", restsOn: "SHA-256 (RFC 9162 path)", detail: `file ${(treeMember.index + 1).toLocaleString()} of ${treeMember.count.toLocaleString()}; ${treeMember.floorCovers === "record" ? "kept as is: it existed by the commit, and nothing bounds it from below" : "its committed bytes were finished after the floor block; the original inside them has no floor of its own"}`, level: offline }
+                ? { id: "tree.member", name: "The file in hand is in the tree", result: "TRUE", restsOn: "SHA-256 (RFC 9162 path)", detail: `file ${(treeMember.index + 1).toLocaleString()} of ${treeMember.count.toLocaleString()}; ${treeMember.floorCovers === "record" ? "kept as is: it existed by the commit" : "its committed bytes were finished after the position opened"}`, level: offline }
                 : { id: "tree.member", name: "A file is in the tree", result: "NOT_CARRIED", restsOn: "", detail: treeBound?.count === 1 ? "drop the file above: a tree of one needs only the file" : "a file's place in the tree comes with that file's own export, or its recovery entry", level: offline },
             ];
             const at = claims.findIndex((x) => x.id.startsWith("attestation."));
@@ -2472,39 +1280,15 @@ export default function ProofPage() {
                     rows: treeMember ? [{ key: `leaf-${treeMember.index}`, ordinal: treeMember.index + 1, viewing: true, href: "", placement: treeMember.placement === "as-is" ? "as is" : treeMember.placement, originDigestB64: treeMember.originDigestB64 }] : [],
                   }
                 : null,
-            anchorBlock: isEth ? { number: ethBlockNum, minedMs: anchorBlock?.blockTime ? new Date(anchorBlock.blockTime).getTime() : null, etherscanUrl: attr?.title ?? anchorBlock?.etherscanUrl ?? null } : null,
-            anchorsBackHref,
-            floor: floorView,
-            baseFloor,
-            floorNote: isTree
-              ? treeMember?.floorCovers === "record"
-                ? "The file in hand was kept as is: bound after the floor block, but the bytes themselves are not dated."
-                : "Every file in a tree was bound after the floor block. A placed file's committed bytes were also finished after it; a file kept as is is not dated by it."
-              : null,
-            commitAfter,
-            ceilingPos: ceilView,
-            ethWait: baseFloor !== null ? false : ethWait,
-            ceilingTime: !isEth ? (baseCeiling as ProofViewModel["ceilingTime"]) : null,
-            floorLink: !isEth ? floorLink : null,
-            floorOf: !isEth ? floorOf : null,
-            epochStart,
-            treeFloor,
-            timeline: !isEth ? timeline : null,
-            blockRead,
             epochEnd,
-            ceilingFileHref: !isEth && baseCeiling?.anchor && proofHashField ? `/api/ceilings/${stdB64(proofHashField).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}` : null,
             checks: isTree ? treeChecks(checks) : checks,
-            onConfirm: confirmAgainstNodes,
-            exportAction,
             openUrl: fileOpenUrl ?? photoOpenUrl,
             openType: fileOpenUrl ? fileOpenType : photoOpenUrl ? "image/*" : null,
             openSize: cachedFile ? cachedFile.data.byteLength : null,
             fileName: cachedFile?.name ?? null,
             c2pa: fileC2pa,
             // the content box's pickers are on the page: the receipt's second button can open them
-            canConnect: !isEth && !isInterval && !epochStart && !cachedFile && hosted.phase !== "matched",
-            exportName,
-            exportInside,
+            canConnect: !isInterval && !cachedFile && hosted.phase !== "matched",
             pieces,
             downloadNotes,
             carrierNote: carrierMsg,
@@ -2515,10 +1299,8 @@ export default function ProofPage() {
               return { sourceField: null };
             })() : {}),
             bindings: bindings?.map((b) => ({ ...b, current: b.counter === Number(proof?.commit?.counter) && b.epochId === String(proof?.commit?.epochId ?? "") })) ?? [],
-            checkText,
-            checkCommand,
             hashes,
-            positions: showPositions ? { intro: positions.length === 1 ? "One position, with its own floor." : `${positions.length} positions. Each sits at its own place in the sequence, with its own floor.`, rows: positionRows } : null,
+            positions: showPositions ? { intro: positions.length === 1 ? "One position." : `${positions.length} positions. Each sits at its own place in the sequence.`, rows: positionRows } : null,
             positionRecord: slot ? [
               { label: "Position", value: `#${slot.counter}`, highlight: true },
               ...(slot.nonceB64 ? [{ label: "Nonce", value: String(slot.nonceB64), mono: true }] : []),
@@ -2532,9 +1314,6 @@ export default function ProofPage() {
               ...(!slot && commit.nonceB64 ? [{ label: "Nonce", value: commit.nonceB64, mono: true }] : []),
               ...(!slot && commit.slotCounter != null ? [{ label: "Reserved position", value: `#${commit.slotCounter}` }] : []),
               ...(commit.slotHashB64 ? [{ label: "Position record hash", value: commit.slotHashB64, mono: true }] : []),
-              ...(commit.slotAnchor ? [{ label: "Floor at allocation", value: `Ethereum block ${commit.slotAnchor.blockNumber} (anchor #${commit.slotAnchor.counter})` }, { label: "Floor block hash", value: commit.slotAnchor.blockHash, mono: true }] : []),
-              ...(commit.slotFloor ? [{ label: "Floor at allocation", value: `Base block ${commit.slotFloor.blockNumber}` }, { label: "Floor block hash", value: commit.slotFloor.blockHash, mono: true }] : []),
-              ...(commit.anchor ? [{ label: "Anchored block", value: `Ethereum block ${commit.anchor.blockNumber}`, highlight: true }, { label: "Anchored block hash", value: commit.anchor.blockHash, mono: true }] : []),
             ],
             // In the order they come about: the epoch's key, the signature it makes, then the finished proof's hash.
             signatureRows: [
@@ -2547,17 +1326,14 @@ export default function ProofPage() {
               ...(proof.environment?.attestation?.format ? [{ label: "Attestation", value: proof.environment.attestation.format }] : []),
             ],
             intervalRows: isInterval ? [
-              ...(intervalBlockNum ? [{ label: "Ethereum block", value: `https://etherscan.io/block/${intervalBlockNum}`, link: true }] : []),
-              ...(attr?.message ? [{ label: "Block hash", value: attr.message, mono: true }] : []),
-              ...(intervalBegan ? [{ label: "Window began", value: intervalBegan }] : []),
-              ...(recordedLine ? [{ label: "Window ended", value: recordedLine }] : []),
+              ...(attr?.message ? [{ label: "Note", value: attr.message, mono: true }] : []),
             ] : [],
             advisoryRows: ts ? [
               ...(ts.authority ? [{ label: "Authority", value: String(ts.authority) }] : []),
               ...(ts.time ? [{ label: "TSA time", value: String(ts.time) }] : []),
               ...(ts.digestAlg ? [{ label: "Digest algorithm", value: String(ts.digestAlg) }] : []),
             ] : [],
-            noteRows: attr && !isEth && !isInterval && !isFuseName(attr.name) ? [
+            noteRows: attr && !isInterval && !isFuseName(attr.name) ? [
               ...(attr.name ? [{ label: "Submitted by", value: attr.name }] : []),
               ...(attr.message ? [{ label: "Note", value: attr.message, mono: true }] : []),
               ...(attr.title ? [(/^https?:\/\//i.test(attr.title.trim()) ? { label: "Link", value: attr.title, link: true } : { label: "Title", value: attr.title })] : []),
@@ -2575,9 +1351,7 @@ export default function ProofPage() {
 /* ── Card ── */
 
 
-/* ── Collapsible card — same face as Card, but the header is a disclosure
-   toggle. Used for the two ETH anchor sections: their titles already state
-   the essential fact (after/before block #N), so the details are optional. ── */
+/* ── Collapsible card: the same face as Card, but the header is a disclosure toggle. ── */
 
 const btnStyle: React.CSSProperties = {
   padding: "8px 16px", fontSize: 13, fontWeight: 600, color: "var(--panel)",

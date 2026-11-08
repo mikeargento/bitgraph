@@ -44,50 +44,20 @@ export interface BatchCheckResponse {
   results: Record<string, { proofs: Array<{ proof: BitGraphProof; kind?: "recorded" | "fused"; member?: SetMemberView; setDigest?: string }> }>;
 }
 
-export interface AnchorView {
-  counter?: string;
-  attrName?: string;
-  blockNumber?: number | null;
-  blockHash?: string | null;
-  etherscanUrl?: string | null;
-  blockTime?: string | null;
-  /** When BitGraph recorded the anchor: its attestation timestamp (ms). */
-  recordedMs?: number | null;
-}
-
-/** A Base-floored record's own bounds (2026-10-11): the floor block it signs and its Base ceiling. */
-export interface BaseFloorView { chain: "base"; blockNumber: number; blockHash: string | null; blockTime: string }
-export interface BaseCeilingView { chain: "base"; blockNumber: number; blockTime: string; txHash: string | null }
-
 export interface PositionView {
   counter: string | null;
   epoch: string | null;
-  lowerTime: string | null;
-  upperTime: string | null;
   /** When BitGraph recorded this position: its attestation timestamp (ms). */
   recordedMs?: number | null;
   kind?: "recorded" | "fused";
   placement?: string | null;
   member?: SetMemberView;
-  floor?: BaseFloorView | null;
-  ceiling?: BaseCeilingView | null;
 }
 
-/**
- * GET /api/proofs/digest/{digest} response.
- * causalWindow naming note: anchorBefore is the EARLIER Ethereum block (the
- * proof was BitGraphed after it, the lower time bound); anchorAfter is the
- * next anchor in the order, a ceiling in POSITION, never a clock reading
- * (CANON 3.6): its block's mine time is not an upper bound. The time a
- * BitGraph is shown at is its own attestation timestamp.
- */
+/** GET /api/proofs/digest/{digest} response. The time a BitGraph is shown at is its own attestation timestamp. */
 export interface ProofDetailResponse {
   proofs: Array<{ proof: BitGraphProof }>;
   positions?: PositionView[];
-  causalWindow?: { anchorBefore: AnchorView | null; anchorAfter: AnchorView | null } | null;
-  anchorBlock?: AnchorView | null;
-  floor?: BaseFloorView | null;
-  ceiling?: BaseCeilingView | null;
 }
 
 /** GET /api/search response. */

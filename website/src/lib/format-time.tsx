@@ -1,17 +1,14 @@
 /**
  * Time display: UTC by default, with the zone named on every value.
  *
- * ⚠️ UTC IS THE DEFAULT, NOT THE VIEWER'S ZONE (2026-09-15: a time listed on
- * the proof must match exactly what its Ethereum link shows). Every instant the site prints is an Ethereum block time or the
- * enclave's signed clock, and the block times sit beside Etherscan links,
- * which show UTC. In the viewer's zone the same block read 1:25:47 PM here
- * and 5:25:47 PM there, so the page contradicted its own link.
+ * ⚠️ UTC IS THE DEFAULT, NOT THE VIEWER'S ZONE. Every instant the site prints
+ * is the enclave's signed clock, and the ledger's days are UTC days, so one
+ * instant reads the same on every machine.
  *
- * 2026-09-25: a LABELED local toggle is allowed on top of that rule. The
- * viewer opts in per browser, every value keeps its zone name ("9:45:01 PM
- * EDT"), so a screenshot stays unambiguous without knowing whose machine
- * took it, and Etherscan's own pages carry the same UTC/local switch for
- * the cross-check. Nothing is recorded; the preference lives in this
+ * A LABELED local toggle is allowed on top of that rule. The viewer opts in
+ * per browser, every value keeps its zone name ("9:45:01 PM EDT"), so a
+ * screenshot stays unambiguous without knowing whose machine took it.
+ * Nothing is recorded; the preference lives in this
  * browser only, and UTC returns on any machine that never chose.
  *
  * In a phrase with two times ("between X and Y"), tag only the closing

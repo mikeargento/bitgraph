@@ -6,8 +6,8 @@
  *
  * The one motif: THE SEQUENCE. A line of positions, left to right (or top to
  * bottom on a phone). A square is a position. Dotted amber is open and
- * unspent; filled ink is consumed; grey is somebody else's; blue is an
- * Ethereum anchor (a floor); purple is the anchor that follows (a ceiling).
+ * unspent; filled ink is consumed; grey is somebody else's; blue marks a
+ * position before; purple marks the position that follows.
  * A label and its square wear the same colour (2026-09-17): the slot is
  * amber, dotted while open and solid once spent; the commit that spends it is
  * green. Panel titles are NOT coloured (decided the same day): every figure's

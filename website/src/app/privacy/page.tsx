@@ -19,7 +19,7 @@ export default function PrivacyPage() {
           <li>Your email address and what you send us, when you contact us or have a commercial agreement with us.</li>
           <li>Billing details, when a paid agreement exists, handled by our payment processor. We do not store card numbers.</li>
           <li>Service logs: timestamps, request data, and IP addresses, used for security, rate limiting, abuse prevention, and diagnosing failures.</li>
-          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the position and proof metadata the enclave needs to sign a proof. These come back to you in the proof. BitGraph keeps a public copy of each proof, which holds the fingerprint but never the file. Through bitgraph.ing, BitGraph writes two Base transactions a day, carrying only the id of that day&apos;s sequence and a hash of its last record. It holds nothing about you or your file.</li>
+          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the position and proof metadata the enclave needs to sign a proof. These come back to you in the proof. BitGraph keeps a public copy of each proof, which holds the fingerprint but never the file.</li>
         </ul>
 
         <h2>2. What we do not collect</h2>
@@ -63,9 +63,7 @@ export default function PrivacyPage() {
         <h2>5. Retention</h2>
         <p>
           Ordinary service data (email, billing, support messages, and logs)
-          is kept only as long as the purposes above need it. The
-          transactions BitGraph writes to a public chain are permanent by
-          nature: nothing can remove them from the chain. BitGraph also keeps a public copy of each proof it makes, which holds a fingerprint of the file but never its contents, so the site can look proofs up. Copies already kept are under a ten-year retention lock.
+          is kept only as long as the purposes above need it. BitGraph keeps a public copy of each proof it makes, which holds a fingerprint of the file but never its contents, so the site can look proofs up. Copies already kept are under a ten-year retention lock.
         </p>
 
         <h2>6. Your rights</h2>

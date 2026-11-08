@@ -1,6 +1,6 @@
 /* ── The ledger calendar (2026-10-17), part of the ledger, which is also where files are checked, restoring the
-   earlier calendar: one page per UTC day since the running ledger began, as a month grid, the shelf the Base calendar
-   used. No fetches and no counts: every past day has a page, and one with no BitGraphs says so on its own page. ── */
+   earlier calendar: one page per UTC day since the running ledger began, as a month grid.
+   No fetches and no counts: every past day has a page, and one with no BitGraphs says so on its own page. ── */
 
 import { MonthCalendar, MonthShelf, MONTH_NAMES, type CalendarDay } from "@/components/month-calendar";
 import { LEDGER_FIRST_DAY } from "@/lib/running-ledger";

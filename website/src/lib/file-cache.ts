@@ -155,7 +155,7 @@ export async function forgetPackageInIDB(id: string): Promise<void> {
 }
 
 /* ── Finished BitGraphed files ──
- * A photo's BitGraphed file, once whole (its Base ceiling in and its pointer registered), is kept here under its
+ * A photo's BitGraphed file, once whole, is kept here under its
  * BitGraph's position and the photo's digest, so downloading it again hands over the same bytes at once instead of
  * marking the photo again. Same database and store, under a prefix no digest can collide with. */
 

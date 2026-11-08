@@ -14,12 +14,9 @@
  * and the sitemap, so none of them can disagree.
  *
  * Every URL predates the rewrite and is preserved. Only labels and grouping
- * changed. /subjects, /api-reference and /ceilings live outside /docs for
- * historical reasons (cached permanent redirects point at two of them) and
- * mount the previous/next pair themselves. "Floors" (/ledger, Ethereum anchors)
- * and "Ceilings" (/ceilings) became one item, "Base", when floors moved to Base
- * with enclave v10 (2026-10-06); /ledger stays as the history of the
- * Ethereum anchors, out of the sequence.
+ * changed. /subjects and /api-reference live outside /docs (cached
+ * permanent redirects point at them) and mount the previous/next pair
+ * themselves.
  */
 export type DocsSection = { href: string; label: string };
 
@@ -53,7 +50,6 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/verification", label: "Verification" },
       { href: "/docs/audit", label: "Audit a bundle" },
       { href: "/docs/try", label: "Make a BitGraph" },
-      { href: "/ceilings", label: "Base" },
     ],
   },
 ];
@@ -89,14 +85,13 @@ export const MENU_GROUPS: MenuGroup[] = [
       { href: "/generate", label: "Generative art", desc: "One click, an image that never existed." },
       { href: "/jev", label: "Ask AI", desc: "Two questions no one could have seen before." },
       { href: "/docs/try", label: "Make a BitGraph", desc: "Drop in any file and get its proof." },
-      { href: "/ceilings", label: "Base", desc: "The Base blocks around each BitGraph." },
     ],
   },
   {
     label: "Understand",
     question: "What is BitGraph?",
     items: [
-      { href: "/docs/overview", label: "How it works", desc: "A position, a floor and a ceiling, in one picture." },
+      { href: "/docs/overview", label: "How it works", desc: "A nonce, a file and its position, in one picture." },
       { href: "/subjects", label: "Use cases", desc: "Where a record's position matters." },
       { href: "/docs/trust-model", label: "Trust model", desc: "What you rely on, and what you don't." },
       { href: "/docs/what-bitgraph-is-not", label: "Limits", desc: "What a BitGraph does not prove." },
