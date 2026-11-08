@@ -7,38 +7,24 @@
  * stdout; without it, a short human line per result. Exit 0 on success,
  * 1 on refusal or failure, 2 on a FALSE or corrupt verdict from verify.
  *
- *   bitgraph make <paths...>          a BitGraph of each file: one atomic action in the enclave per file;
- *                                     the proof is saved beside it (record is the same command)
+ *   bitgraph record <paths...>        one new file is one BitGraph, several are one tree and one
+ *                                     BitGraph; each proof is saved beside its file (make is the same command)
  *   bitgraph check <paths|digests...> read-only: on record?
  *   bitgraph proof (--digest D | --path P | --number N)
- *   bitgraph verify <path>            offline judgment, one line per claim (BitGraphed files need nothing else;
- *                                     a file with its export: verify <file> <export.json>, or --export E;
- *                                     --eth-rpc/--base-rpc confirm the blocks, --pcr0 names the images accepted)
- *   bitgraph export complete <export.json>        fetch the floor header, the Base ceiling and its settlement into an export
- *   bitgraph export member <owner.json> <file>    one member's export from the owner's
- *   bitgraph bitgraphed <path>        write the BitGraphed file (carrier/2) beside the original
- *   bitgraph complete <path>          fetch the Base ceiling (and, on files with an Ethereum floor, the closing anchor) into a BitGraphed file
- *   bitgraph ceiling verify <proof> <ceiling>   check a ceiling in time (offline; --rpc asks Base)
+ *   bitgraph verify <path> [--proof proof.json]   offline judgment
  *   bitgraph serve [--port 8791]      the same verbs on 127.0.0.1 for every runtime
  *
  * --base-url and --api-key (or BITGRAPH_API_URL / BITGRAPH_API_KEY) point a
- * licensee at their own boundary. Recording is permanent: record only what
- * the user asked for.
+ * licensee at their own site. Recording is permanent: record only what the
+ * user asked for.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
-import { BitGraph, type VerifyOutcome } from "./bitgraph.js";
+import { readFile } from "node:fs/promises";
+import { BitGraph } from "./bitgraph.js";
 import { serve, DEFAULT_PORT } from "./serve.js";
-import { ApiError, configFromEnv } from "./api.js";
+import { ApiError } from "./api.js";
 import { carrierLine } from "./carrier-io.js";
-import { SLOT_TTL_SECONDS } from "./task.js";
-import { recoveryLine } from "./recovery.js";
-import { flushRecoveryJobs, jobFromOwnerExport, listRecoveryJobs, registerRecoveryJob, runRecoveryJob } from "./recovery-jobs.js";
-import { EXPORT_KINDS, looksLikeExport, memberExportFileName, memberExportFromOwner, readExportFile, type ExportKind } from "./exports.js";
-
-/** BitGraph's published ceiling writer on Base mainnet (bitgraph.ing/ceilings). */
-const BITGRAPH_CEILING_WRITER = "0xf3972408D853c975F86351C311f4310220bbF2a3";
+import type { RecordResult } from "./record.js";
 
 interface Parsed {
   cmd: string;
@@ -70,68 +56,46 @@ function parseArgv(argv: string[]): Parsed {
 
 const HELP = `bitgraph: make, check and verify BitGraphs from any stack
 
-  make <paths...> [--no-write]         make a BitGraph of each file: one atomic action in the
-                                       enclave per file (a fresh nonce, then the file's SHA-256,
-                                       signed with the enclave's time). Each proof is saved
-                                       beside its file as <file>.bitgraph.json (--no-write: not).
-                                       record is the same command.
+  record <paths...> [--no-write]       make BitGraphs of files. Each is one atomic action in the
+                                       enclave: a fresh nonce at one count, the SHA-256 at the next,
+                                       signed together. One new file is one BitGraph; several are
+                                       one tree and one BitGraph. Each proof is saved beside its
+                                       file as <file>.bitgraph.json (--no-write: not). Files already
+                                       on record are not made again. make is the same command.
   check <paths|digests...>             read-only: are these bytes on record?
   proof --digest D | --path P | --number N
-  verify <path> [--proof proof.json] [--eth-rpc URL] [--base-rpc URL] [--pcr0 hex,..]
-  verify <file> <export.json>          (or --export export.json; or the export alone)
-                                       offline judgment, one line per claim; exit 2 on FALSE/corrupt.
-                                       The rpc flags confirm each block against a node.
-  export complete <export.json> [--wait ms] [--out file]
-                                       fetch the floor header, the Base ceiling and its
-                                       Ethereum settlement into an export, each verified
-  export member <owner.json> <file> [--out file]
-                                       one file's own export, from the owner's
-  bitgraphed <path> [--wait ms] [--out file]
-  complete <path> [--wait ms]
-  ceiling verify <proof.json> <ceiling.json> [--rpc URL] [--writer 0x..] [--chain 8453]
-                                       check a ceiling in time offline; --rpc also
-                                       asks a Base node that the block is Base's
-  timeline verify <bundle.json> [--file path] [--base-rpc URL[,URL]] [--ethereum-rpc URL[,URL]] [--offline]
-                                       a file's place between two block reads: every proof, the
-                                       unbroken run, and the bracket's blocks and the genesis write
-                                       asked of Base and Ethereum (two URLs: both must agree).
-                                       Exit 0 verified, 3 unconfirmed, 2 failed.
+  verify <path> [--proof proof.json] [--pcr0 hex,..]
+                                       offline judgment; exit 2 on FALSE or a corrupt block
   serve [--port ${DEFAULT_PORT}]                    localhost API (127.0.0.1 only)
-  recovery list                        trees whose recovery entries are still pending
-  recovery flush [--budget ms]         write them (the next record does this too)
-  recovery keep <owner-export.json>    write a tree's entries from its owner export
 
 Every command takes --json (one JSON document on stdout), --base-url and
 --api-key (or BITGRAPH_API_URL / BITGRAPH_API_KEY). Files are read locally
 and never uploaded. A BitGraph is permanent; make one only of what was asked for.`;
 
+/** One short block per record call: the BitGraph made, with its nonce, then each file. */
+function recordLines(r: RecordResult): string {
+  const lines: string[] = [];
+  const m = r.made;
+  if (m !== null) {
+    const what = m.tree !== null ? `a tree of ${m.tree.files} files` : "1 file";
+    lines.push(`BitGraph #${m.number ?? "?"} (counts ${m.counts?.join(", ") ?? "?"}) · ${what}`);
+    lines.push(`  nonce ${m.nonce ?? "?"}`);
+    lines.push(`  ${m.proofUrl}`);
+    if (m.tree !== null && m.tree.indexError !== null) lines.push(`  index: ${m.tree.indexError}; each file's own proof still verifies`);
+  } else {
+    lines.push("nothing new to make");
+  }
+  for (const f of r.files) {
+    if (f.outcome === "made") lines.push(`made · ${f.path}${f.member !== null ? ` (file ${f.member.index + 1} of ${f.member.files})` : ""}\n  ${f.proofPath !== null ? `proof saved: ${f.proofPath}` : "proof not saved (--no-write): keep it from --json"}`);
+    else if (f.outcome === "on record") lines.push(`on record · #${f.number ?? "?"} · ${f.path}\n  ${f.proofUrl}`);
+    else lines.push(`skipped · ${f.path}: ${f.reason ?? ""}`);
+  }
+  return lines.join("\n");
+}
+
 function fail(message: string, code = 1): never {
   process.stderr.write(`${message}\n`);
   process.exit(code);
-}
-
-/** A .json file holding a bitgraph-export/1 document. Nothing else is read to find out: a binary is never parsed as text. */
-async function isExportFile(path: string): Promise<boolean> {
-  if (!path.toLowerCase().endsWith(".json")) return false;
-  try {
-    return looksLikeExport(await readFile(path, "utf8"));
-  } catch {
-    return false;
-  }
-}
-
-const isoOf = (unix: number) => new Date(unix * 1000).toISOString().replace(".000Z", "Z");
-
-/** An export's member and its three time claims as established, one line each; nothing for a carrier or a bare proof. */
-function timeLines(v: VerifyOutcome): string[] {
-  const t = v.times;
-  if (t === undefined) return [];
-  const lines: string[] = [];
-  if (v.member) lines.push(`  file: leaf ${v.member.index + 1} of ${v.member.count} (${v.member.placement})`);
-  if (t.floor) lines.push(`  floor: after ${(t.floor as { chain?: string }).chain === "base" ? "Base" : "Ethereum"} block ${t.floor.blockNumber} (${isoOf(t.floor.blockTimestamp)})`);
-  if (t.ceilingBase) lines.push(`  ceiling: existed by Base block ${t.ceilingBase.blockNumber} (${isoOf(t.ceilingBase.blockTimestamp)}${t.ceilingBase.provisional ? ", provisional until checked against Base" : ""})`);
-  if (t.ceilingEthereum) lines.push(`  settled: existed by Ethereum block ${t.ceilingEthereum.blockNumber} (${isoOf(t.ceilingEthereum.blockTimestamp)})`);
-  return lines;
 }
 
 async function main(): Promise<void> {
@@ -151,44 +115,9 @@ async function main(): Promise<void> {
     case "make":
     case "record": {
       if (args.length === 0) fail(`${cmd} needs at least one path`);
-      const bound = await bg.bind(args, { write: flags.get("no-write") !== true });
-      out(bound, () =>
-        bound
-          .map((b) => `BitGraph #${b.number ?? "?"} (counts ${b.counts?.join(", ") ?? "?"}) · ${b.path ?? b.digestB64}\n  ${b.wrote !== null ? `proof saved: ${b.wrote}` : "proof not saved (--no-write): keep it from --json"}\n  ${b.proofUrl}`)
-          .join("\n")
-      );
+      const r = await bg.record(args, { write: flags.get("no-write") !== true });
+      out(r, () => recordLines(r));
       return;
-    }
-    case "recovery": {
-      const config = { ...configFromEnv(), ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}) };
-      const sub = args[0];
-      if (sub === "list") {
-        const jobs = await listRecoveryJobs();
-        out(jobs, () => (jobs.length === 0 ? "no pending recovery entries" : jobs.map((j) => `#${j.counter ?? "?"} · tree of ${j.count} · ${j.baseUrl} · ${j.attempts} attempt${j.attempts === 1 ? "" : "s"}${j.lastReason !== null ? ` · ${j.lastReason}` : ""}\n  ${j.path}`).join("\n")));
-        return;
-      }
-      if (sub === "flush") {
-        const budget = flags.get("budget");
-        const r = await flushRecoveryJobs(config, { budgetMs: typeof budget === "string" ? Number(budget) : 10 * 60_000 });
-        out(r, () => {
-          const lines = r.worked.map((w) => `#${w.counter ?? "?"} · ${recoveryLine(w.result)}`);
-          if (r.left > 0) lines.push(`${r.left} tree${r.left === 1 ? "" : "s"} still pending`);
-          if (lines.length === 0) lines.push("no pending recovery entries");
-          return lines.join("\n");
-        });
-        return;
-      }
-      if (sub === "keep") {
-        const target = args[1];
-        if (target === undefined) fail("usage: bitgraph recovery keep <owner-export.json>");
-        const fresh = jobFromOwnerExport(JSON.parse(await readFile(target, "utf8")), config.baseUrl);
-        // A job already saved for this recording (with its progress and salts) is the one to finish; only a new one is written.
-        const { job } = await registerRecoveryJob({ proof: fresh.proof, rootDocumentHex: fresh.rootDocumentHex, leavesB64: fresh.leavesB64, ...(fresh.names !== null ? { names: fresh.names } : {}) }, config);
-        const r = await runRecoveryJob(job, { budgetMs: 10 * 60_000 });
-        out(r, () => (r === null ? "another process is writing this tree's entries" : `#${job.proof.commit?.counter ?? "?"} · ${recoveryLine({ ...r, job: r.done ? null : target })}`));
-        return;
-      }
-      fail("usage: bitgraph recovery list | bitgraph recovery flush [--budget ms] | bitgraph recovery keep <owner-export.json>");
     }
     case "check": {
       if (args.length === 0) fail("check needs paths or digests");
@@ -228,198 +157,26 @@ async function main(): Promise<void> {
       });
       return;
     }
-    case "open":
-    case "seal":
-      fail("Gone: a BitGraph is made one way, one atomic action in the enclave. Make the task file, then: bitgraph make <task-file>. Two BitGraphs bracket everything made between them.");
     case "verify": {
-      let target: string | undefined = args[0];
-      let proof: unknown;
-      // An export/1 rides as --export, as --proof, or as a positional .json beside the file (or alone).
-      const exportFlag = flags.get("export");
-      let exportPath: string | null = typeof exportFlag === "string" ? exportFlag : null;
+      const target = args[0];
+      if (target === undefined) fail("verify needs a path");
       const proofPath = flags.get("proof");
-      if (exportPath === null && typeof proofPath === "string") {
-        const text = await readFile(proofPath, "utf8");
-        if (looksLikeExport(text)) exportPath = proofPath;
-        else proof = JSON.parse(text) as unknown;
-      }
-      if (exportPath === null && args.length === 2) {
-        if (await isExportFile(args[1] as string)) exportPath = args[1] as string;
-        else if (await isExportFile(args[0] as string)) {
-          exportPath = args[0] as string;
-          target = args[1];
-        } else fail("verify takes one path, or a file and its export (a bitgraph-export/1 .json)");
-      } else if (exportPath === null && args.length === 1 && (await isExportFile(args[0] as string))) {
-        exportPath = args[0] as string;
-        target = undefined;
-      }
-      if (target === undefined && exportPath === null) fail("verify needs a path");
-      // The confirmed level: a node per chain answers whether each header is the chain's own block.
-      const rpcLookup = (url: string) => async (n: number): Promise<string | null> => {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: ["0x" + n.toString(16), false] }),
-          signal: AbortSignal.timeout(15_000),
-        });
-        const j = (await res.json()) as { result?: { hash?: string } | null };
-        return j.result?.hash ?? null;
-      };
-      const ethRpc = flags.get("eth-rpc"), baseRpc = flags.get("base-rpc"), pcr0 = flags.get("pcr0");
-      const verifyOpts = {
-        lookups: {
-          ...(typeof ethRpc === "string" ? { ethereumBlockHash: rpcLookup(ethRpc) } : {}),
-          ...(typeof baseRpc === "string" ? { baseBlockHash: rpcLookup(baseRpc) } : {}),
-        },
-        ...(typeof pcr0 === "string" ? { pins: { pcr0: pcr0.split(",").map((x) => x.trim()).filter(Boolean) } } : {}),
-      };
-      const v = exportPath !== null ? await bg.verifyExport(exportPath, target, verifyOpts) : await bg.verify(target as string, proof, verifyOpts);
+      const proof = typeof proofPath === "string" ? (JSON.parse(await readFile(proofPath, "utf8")) as unknown) : undefined;
+      const pcr0 = flags.get("pcr0");
+      const v = await bg.verify(target, proof, typeof pcr0 === "string" ? { pins: { pcr0: pcr0.split(",").map((x) => x.trim()).filter(Boolean) } } : {});
       out(v, () => {
         const lines = [`${v.verdict}${v.carrier === "corrupt" ? " (carrier block unreadable: corrupted, not judged)" : ""}`];
-        if (v.bounds) lines.push(`  ${carrierLine(v.bounds)}`);
-        lines.push(...timeLines(v));
+        if (v.view) lines.push(`  ${carrierLine(v.view)}`);
         for (const c of v.claims) {
           const mark = c.result === "TRUE" ? "ok " : c.result === "FALSE" ? "!! " : c.result === "NOT_CARRIED" ? "-- " : "?? ";
           lines.push(`  ${mark} ${c.name}${c.result === "TRUE" && c.restsOn ? ` [${c.restsOn}]` : ""}${c.result !== "TRUE" ? `: ${c.detail}` : ""}`);
         }
         if (v.claims.length === 0) for (const r of v.reasons) lines.push(`  - ${r}`);
         if (v.reading) lines.push("", `  ${v.reading}`);
-        if (v.claims.length > 0 && typeof ethRpc !== "string") lines.push("", "  add --eth-rpc <url> and --base-rpc <url> to confirm the blocks against nodes; --pcr0 <hex,...> to name the images you accept");
         return lines.join("\n");
       });
       if (v.verdict === "FALSE" || v.carrier === "corrupt") process.exit(2);
       return;
-    }
-    case "export": {
-      const sub = args[0];
-      if (sub === "complete") {
-        const target = args[1];
-        if (target === undefined) fail("usage: bitgraph export complete <export.json> [--wait ms] [--out file]");
-        const wait = flags.get("wait");
-        const outPath = flags.get("out");
-        const done = await bg.completeExport(target, { ...(typeof wait === "string" ? { waitMs: Number(wait) } : {}), ...(typeof outPath === "string" ? { out: outPath } : {}) });
-        out(done, () => {
-          const lines = [`${done.changed ? "added to" : "nothing new for"} ${done.path}`];
-          lines.push(`  floor header  ${done.floor === "present" ? "present" : "not fetched"}`);
-          lines.push(`  Base ceiling  ${done.ceiling}`);
-          lines.push(`  settlement    ${done.settlement}${done.settlement === "pending" && done.ceiling === "present" ? " (Base posts its output root to Ethereum about once an hour)" : ""}`);
-          for (const n of done.notes) lines.push(`  note: ${n}`);
-          return lines.join("\n");
-        });
-        return;
-      }
-      if (sub === "member") {
-        const ownerPath = args[1];
-        const filePath = args[2];
-        if (ownerPath === undefined || filePath === undefined) fail("usage: bitgraph export member <owner-export.json> <file> [--out file]");
-        const owner = await readExportFile(ownerPath);
-        const m = memberExportFromOwner(owner, new Uint8Array(await readFile(filePath)));
-        if (m === null) fail(`${filePath} is not in this BitGraph: neither its digest nor its committed bytes' is in the owner's list`);
-        const outPath = flags.get("out");
-        const target = typeof outPath === "string" ? outPath : join(".", memberExportFileName(basename(filePath)));
-        await writeFile(target, JSON.stringify(m.export, null, 2) + "\n", { flag: "wx" });
-        const count = m.export.tree.member?.count ?? 0;
-        out({ path: target, leaf: m.leafIndex + 1, count, name: m.name }, () => `member export written at ${target} (leaf ${m.leafIndex + 1} of ${count}${m.name ? `, ${m.name}` : ""})`);
-        return;
-      }
-      fail("usage: bitgraph export complete <export.json> | bitgraph export member <owner-export.json> <file>");
-      return;
-    }
-    case "bitgraphed": {
-      const target = args[0];
-      if (target === undefined) fail("bitgraphed needs a path to committed bytes already on record");
-      const wait = flags.get("wait");
-      const built = await bg.bitgraphedFile(target, typeof wait === "string" ? { waitForCeilingMs: Number(wait) } : {});
-      const outPath = typeof flags.get("out") === "string" ? (flags.get("out") as string) : join(dirname(target), built.fileName);
-      await writeFile(outPath, built.bytes, { flag: "wx" });
-      out({ path: outPath, ceiling: built.ceiling, ceilingInTime: built.ceilingInTime, witness: built.witness }, () =>
-        `BitGraphed file written at ${outPath}` +
-        (built.ceilingInTime === "unfetched" ? "\n  Base ceiling NOT FETCHED yet (it lands seconds after the commit); run: bitgraph complete " + JSON.stringify(outPath) : "") +
-        (built.ceiling === "unfetched" ? "\n  closing anchor NOT FETCHED yet; run: bitgraph complete " + JSON.stringify(outPath) : "") +
-        (built.witness || built.v5 ? "" : "\n  the openssl attestation witness was left out to keep this ZIP-family file under its 64 KiB limit; the proof inside still carries the attestation")
-      );
-      return;
-    }
-    case "complete": {
-      const target = args[0];
-      if (target === undefined) fail("complete needs a BitGraphed file's path");
-      const wait = flags.get("wait");
-      const done = await bg.complete(target, typeof wait === "string" ? { waitForCeilingMs: Number(wait) } : {});
-      if (done.changed) await writeFile(target, done.bytes);
-      out({ path: target, changed: done.changed, ceiling: done.ceiling, ceilingInTime: done.ceilingInTime }, () => {
-        // A Base-floor file (carrier/3) has no closing anchor ("none"): order after it is the hash chain.
-        const positionDone = done.ceiling === "present" || done.ceiling === "none";
-        const complete = positionDone && done.ceilingInTime !== "unfetched";
-        if (done.changed) return complete ? "fetched in; the window is complete" : "fetched in; still waiting for " + (!positionDone ? "the closing anchor" : "the Base ceiling");
-        return complete ? "already complete; nothing changed" : "nothing has landed yet; try again in a moment";
-      });
-      return;
-    }
-    case "ceiling": {
-      if (args[0] !== "verify" || args.length !== 3) fail("usage: bitgraph ceiling verify <proof.json> <ceiling.json> [--rpc URL] [--writer 0x..] [--chain 8453]");
-      const { readFile } = await import("node:fs/promises");
-      const { verifyCeiling, checkCeilingOnline } = await import("@mikeargento/bitgraph-verify");
-      const proof = JSON.parse(await readFile(args[1] as string, "utf8"));
-      const sidecar = JSON.parse(await readFile(args[2] as string, "utf8"));
-      const writer = typeof flags.get("writer") === "string" ? (flags.get("writer") as string) : BITGRAPH_CEILING_WRITER;
-      const chainId = typeof flags.get("chain") === "string" ? Number(flags.get("chain")) : 8453;
-      const r = await verifyCeiling(proof, sidecar, { writerAddress: writer, chainId });
-      const rpc = flags.get("rpc");
-      let online: { onChain: boolean | null; detail: string } = { onChain: null, detail: "header not checked against chain (add --rpc https://mainnet.base.org)" };
-      if (r.ok && typeof rpc === "string") {
-        online = await checkCeilingOnline(sidecar, async (n) => {
-          const res = await fetch(rpc, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: ["0x" + n.toString(16), false] }),
-            signal: AbortSignal.timeout(15_000),
-          });
-          const j = (await res.json()) as { result?: { hash?: string } | null };
-          return j.result?.hash ?? null;
-        });
-      }
-      out({ ...r, writer, chainId, onChain: online.onChain, onChainDetail: online.detail }, () => {
-        if (!r.ok) return `NOT VERIFIED: ${r.reason}`;
-        const w = r.window!;
-        const lines = [`VERIFIED  ${r.label}`];
-        const floorChain = w.floor.chain === "base" ? "Base" : "Ethereum";
-        if (w.floor.blockTimestamp != null) lines.push(`  window: ${w.widthSeconds} s, from ${floorChain} block ${w.floor.blockNumber} to Base block ${w.ceiling.blockNumber}`);
-        else lines.push(`  floor: ${floorChain} block ${w.floor.blockNumber} (no header carried, so its time needs a ${floorChain} node)`);
-        lines.push(`  ${online.detail}`);
-        for (const c of r.checks) lines.push(`  ${c.ok ? "ok " : "!! "} ${c.name}${c.detail ? `: ${c.detail}` : ""}`);
-        return lines.join("\n");
-      });
-      if (!r.ok || online.onChain === false) process.exit(2);
-      return;
-    }
-    case "timeline": {
-      if (args[0] !== "verify" || args.length !== 2) fail("usage: bitgraph timeline verify <bundle.json> [--file path] [--base-rpc URL[,URL]] [--ethereum-rpc URL[,URL]] [--offline]");
-      const { verifyTimelineBundleOnline } = await import("./timeline.js");
-      const doc = JSON.parse(await readFile(args[1] as string, "utf8")) as { bundle?: unknown; format?: string };
-      // The bundle alone, or GET /timeline/bundle's answer around it.
-      const bundle = doc.format === undefined && doc.bundle !== undefined ? doc.bundle : doc;
-      const list = (k: string) => { const v = flags.get(k); return typeof v === "string" ? v.split(",").map((x) => x.trim()).filter(Boolean) : undefined; };
-      const file = flags.get("file");
-      const base = list("base-rpc");
-      const ethereum = list("ethereum-rpc");
-      const r = await verifyTimelineBundleOnline(bundle, {
-        ...(typeof file === "string" ? { fileBytes: new Uint8Array(await readFile(file)) } : {}),
-        ...(base ? { base } : {}),
-        ...(ethereum ? { ethereum } : {}),
-        offline: flags.get("offline") === true,
-      });
-      out(r, () => {
-        const head = r.status === "verified" ? "VERIFIED" : r.status === "unconfirmed" ? "UNCONFIRMED" : "NOT VERIFIED";
-        const lines = [`${head}  file at count ${r.file?.counter ?? "?"}${typeof file === "string" ? ` (${file}, bytes checked)` : ""}`];
-        if (r.floor) lines.push(`  floor: ${r.floor.claim}`);
-        if (r.ceiling) lines.push(`  ceiling: ${r.ceiling.claim}`);
-        lines.push(`  genesis: ${r.genesis}${r.preGenesis ? " (the file was bound before it: pre-genesis)" : ""}`);
-        for (const x of r.reasons) lines.push(`  failed: ${x}`);
-        for (const x of r.unconfirmed) lines.push(`  unconfirmed: ${x}`);
-        for (const x of r.flags) lines.push(`  flag: ${x}`);
-        return lines.join("\n");
-      });
-      process.exit(r.status === "verified" ? 0 : r.status === "unconfirmed" ? 3 : 2);
     }
     case "serve": {
       const portFlag = flags.get("port");

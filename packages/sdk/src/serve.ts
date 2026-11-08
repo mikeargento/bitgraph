@@ -13,25 +13,16 @@
  * bytes anywhere: the daemon runs the same local pipelines as the class.
  *
  * Routes (all POST unless noted):
- *   GET  /            → { name, version, verbs }: the map
- *   POST /record      → { paths: string[], again?, recovery?, exportDir?, exports? } → RecordResult (one tree; exports written into exportDir)
- *   POST /check       → { paths?: string[], digests?: string[] } → CheckedInput[]
+ *   GET  /            → { name, verbs }: the map
+ *   POST /record      → { paths: string[], write? }                → RecordResult (/make is the same verb)
+ *   POST /check       → { paths?: string[], digests?: string[] }  → CheckedInput[]
  *   POST /proof       → { digest? | path? | number?, counter?, epoch? } → proof detail
- *   POST /open        → {}                                      → Slot (token included; seal within ttlSeconds)
- *   POST /seal        → { token, path? | digestB64? }           → sealed task (proof written beside path)
- *   POST /verify      → { path?, export? }                      → offline verdict and window; with export (a path), the export's claims
- *   POST /export-complete → { path, waitMs?, out? }             → the export's floor header, ceiling and settlement fetched in
- *   POST /bitgraphed  → { path, waitForCeilingMs?, out? }       → writes the BitGraphed file, returns where
- *   POST /complete    → { path, waitForCeilingMs?, out? }       → closing anchor fetched in, returns where
+ *   POST /verify      → { path, proof? }                          → offline verdict
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { BitGraph } from "./bitgraph.js";
-import { carrierFileName } from "./carrier-build.js";
 import { ApiError } from "./api.js";
-import { EXPORT_KINDS, type ExportKind } from "./exports.js";
 
 export interface ServeOptions {
   port?: number;
@@ -58,7 +49,6 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 }
 
 const str = (b: Record<string, unknown>, key: string): string | undefined => (typeof b[key] === "string" ? (b[key] as string) : undefined);
-const num = (b: Record<string, unknown>, key: string): number | undefined => (typeof b[key] === "number" ? (b[key] as number) : undefined);
 
 export function serve(options: ServeOptions = {}): Promise<RunningServer> {
   const bg = options.bitgraph ?? new BitGraph();
@@ -75,7 +65,7 @@ export function serve(options: ServeOptions = {}): Promise<RunningServer> {
       if (req.method === "GET" && url.pathname === "/") {
         send(200, {
           name: "bitgraph serve",
-          verbs: ["record", "check", "proof", "open", "seal", "verify", "export-complete", "bitgraphed", "complete"],
+          verbs: ["record", "check", "proof", "verify"],
           note: "POST JSON to each verb; 127.0.0.1 only; files are read locally and never uploaded.",
         });
         return;
@@ -88,10 +78,10 @@ export function serve(options: ServeOptions = {}): Promise<RunningServer> {
       switch (url.pathname) {
         case "/make":
         case "/record": {
-          // The one way to make a BitGraph (enclave v12): bind each file's digest, proof saved beside it unless write is false.
+          // One new file is one BitGraph, several are one tree and one BitGraph; each proof is saved beside its file unless write is false.
           const paths = Array.isArray(b["paths"]) ? (b["paths"] as string[]) : undefined;
           if (!paths || paths.length === 0) throw new ApiError(400, "paths: string[] is required");
-          send(200, await bg.bind(paths, { write: b["write"] !== false }));
+          send(200, await bg.record(paths, { write: b["write"] !== false }));
           return;
         }
         case "/check": {
@@ -111,46 +101,10 @@ export function serve(options: ServeOptions = {}): Promise<RunningServer> {
           }));
           return;
         }
-        case "/open":
-        case "/seal":
-          throw new ApiError(410, "Gone: a BitGraph is made one way, one atomic action in the enclave. Make the task file, then POST /make with its path. Two BitGraphs bracket everything made between them.");
         case "/verify": {
           const path = str(b, "path");
-          const exported = str(b, "export");
-          if (exported !== undefined) {
-            send(200, await bg.verifyExport(exported, path));
-            return;
-          }
-          if (path === undefined) throw new ApiError(400, "path is required (or export, a path to a bitgraph-export/1 file)");
-          send(200, await bg.verify(path));
-          return;
-        }
-        case "/export-complete": {
-          const path = str(b, "path");
-          if (path === undefined) throw new ApiError(400, "path is required (a bitgraph-export/1 file)");
-          const wait = num(b, "waitMs");
-          const outPath = str(b, "out");
-          send(200, await bg.completeExport(path, { ...(wait !== undefined ? { waitMs: wait } : {}), ...(outPath !== undefined ? { out: outPath } : {}) }));
-          return;
-        }
-        case "/bitgraphed": {
-          const path = str(b, "path");
           if (path === undefined) throw new ApiError(400, "path is required");
-          const wait = num(b, "waitForCeilingMs");
-          const built = await bg.bitgraphedFile(path, wait !== undefined ? { waitForCeilingMs: wait } : {});
-          const out = str(b, "out") ?? join(dirname(path), built.fileName);
-          await writeFile(out, built.bytes, { flag: "wx" });
-          send(200, { path: out, ceiling: built.ceiling });
-          return;
-        }
-        case "/complete": {
-          const path = str(b, "path");
-          if (path === undefined) throw new ApiError(400, "path is required");
-          const wait = num(b, "waitForCeilingMs");
-          const done = await bg.complete(path, wait !== undefined ? { waitForCeilingMs: wait } : {});
-          const out = str(b, "out") ?? path;
-          if (done.changed) await writeFile(out, done.bytes);
-          send(200, { path: out, changed: done.changed, ceiling: done.ceiling });
+          send(200, await bg.verify(path, b["proof"]));
           return;
         }
         default:

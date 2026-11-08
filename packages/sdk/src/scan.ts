@@ -1,26 +1,15 @@
 // Copyright (c) 2025-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
- * @mikeargento/bitgraph-mcp: the scan.
- *
- * One pass over each file yields its SHA-256 (the member's origin) and a
- * hasher left open after the placement's prefix and the file's last byte, so
- * the member's fused digest can be finished later, for whatever slot the set
- * is made under, without reading the file again. A placement is prefix,
- * original, suffix (its frame): trailer/1 has no prefix and container/2's is
- * the original's tar header, which depends on the size alone; the suffix
- * carries the commitment and is hashed at BitGraph time. Node's SHA-256 is
- * the platform's own, and a Hash can be copied mid-stream, which is the whole
- * trick: the copy takes the suffix, so no file is read twice or held in
- * memory, and the original is never touched.
+ * The scan: one streamed pass over each file for its SHA-256 and whether it
+ * carries Content Credentials (C2PA). Files are read here and never uploaded.
  */
 
-import { createHash, type Hash } from "node:crypto";
+import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { treePlacementFor } from "@mikeargento/bitgraph";
-import { getPlacement, type ByteSource } from "@mikeargento/bitgraph-verify";
+import type { ByteSource } from "@mikeargento/bitgraph-verify";
 
 /** A file on disk as a verifier source: its size now, its bytes streamed from a fresh read each time. */
 export async function fileSource(path: string): Promise<ByteSource> {
@@ -34,23 +23,12 @@ export async function fileSource(path: string): Promise<ByteSource> {
   };
 }
 
-/** The placements the scan makes: chosen from the bytes by the core, never from the name. */
-export type ScanPlacement = "trailer/1" | "container/2";
-
 export interface ScannedFile {
   path: string;
   name: string;
   size: number;
-  /** SHA-256 of the file, standard base64: the member's origin. */
+  /** SHA-256 of the file, standard base64. */
   digestB64: string;
-  originDigest: Uint8Array;
-  placement: ScanPlacement;
-  /**
-   * The hasher after the placement's prefix and the file's bytes, still open.
-   * Null when the file's length changed while it was read: its fused digest
-   * then needs the bytes again.
-   */
-  state: Hash | null;
   /** True when the bytes carry what looks like a C2PA manifest (Content Credentials). */
   c2pa: boolean;
 }
@@ -97,79 +75,18 @@ export function sniffC2paBytes(bytes: Uint8Array): boolean {
   return windowHasC2pa(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
 }
 
-/** Bytes the placement decision reads: every magic number sits in the first 16. */
-const SNIFF = 64;
-
 /** Hash one file in a single pass. Throws, before any network call, when the path is not a regular file. */
 export async function scanFile(path: string): Promise<ScannedFile> {
   const info = await stat(path);
   if (!info.isFile()) throw new Error(`Not a regular file: ${path}`);
-  const size = info.size;
-  const origin = createHash("sha256");
-  // Held in one object: the closures below assign to it.
-  const run: { fused: Hash | null; placement: ScanPlacement | null } = { fused: null, placement: null };
-  let head: Buffer | null = null;
-  let bytes = 0;
-  const start = (p: ScanPlacement) => {
-    run.placement = p;
-    // A second hasher runs over prefix and bytes when the prefix is not
-    // empty; with an empty prefix the origin hasher's own state is the fused state.
-    const prefix = getPlacement(p)?.scanPrefix?.(size) ?? null;
-    if (prefix !== null && prefix.length > 0) run.fused = createHash("sha256").update(prefix);
-  };
+  const hash = createHash("sha256");
   const sniffer = new C2paSniffer();
-  const feed = (chunk: Buffer) => {
-    origin.update(chunk);
-    if (run.fused !== null) run.fused.update(chunk);
-    sniffer.update(chunk);
-  };
   for await (const raw of createReadStream(path)) {
     const chunk = raw as Buffer;
-    if (run.placement === null) {
-      head = head === null ? chunk : Buffer.concat([head, chunk]);
-      if (head.length >= SNIFF) {
-        start(treePlacementFor(size, new Uint8Array(head.subarray(0, SNIFF))));
-        feed(head);
-        head = null;
-      }
-    } else {
-      feed(chunk);
-    }
-    bytes += chunk.length;
+    hash.update(chunk);
+    sniffer.update(chunk);
   }
-  if (run.placement === null) {
-    // A short file: decide from what there is, then hash it.
-    start(treePlacementFor(size, new Uint8Array(head ?? Buffer.alloc(0))));
-    if (head !== null) feed(head);
-  }
-  const placement = run.placement as ScanPlacement;
-  const state = bytes !== size ? null : (run.fused ?? origin);
-  // When the origin hasher is the state its digest is taken from a copy, so it stays open.
-  const digest = state === origin ? origin.copy().digest() : origin.digest();
-  return {
-    path,
-    name: basename(path),
-    size,
-    digestB64: digest.toString("base64"),
-    originDigest: Uint8Array.from(digest),
-    placement,
-    state,
-    c2pa: sniffer.found,
-  };
-}
-
-/**
- * A member's fused digest for a slot: the open hasher, copied, finished with
- * the placement's suffix for that slot's commitment. The hash of prefix,
- * original, suffix is exactly the hash of the placement's own build, which
- * a test pins.
- */
-export function fusedDigestFor(file: ScannedFile, commitment: Uint8Array): Uint8Array {
-  if (file.state === null) throw new Error(`${file.path}: the file changed while it was read`);
-  const placement = getPlacement(file.placement);
-  if (placement?.frame === undefined) throw new Error(`placement ${file.placement} has no frame`);
-  const { suffix } = placement.frame({ originalSize: file.size, originDigest: file.originDigest, commitment });
-  return Uint8Array.from(file.state.copy().update(suffix).digest());
+  return { path, name: basename(path), size: info.size, digestB64: hash.digest("base64"), c2pa: sniffer.found };
 }
 
 export interface Expansion {
@@ -195,7 +112,7 @@ export async function expandPaths(paths: readonly string[], limit: number): Prom
     if (seen.has(p)) return;
     seen.add(p);
     files.push(p);
-    if (files.length > limit) throw new Error(`more than ${limit} files; BitGraph fewer at a time`);
+    if (files.length > limit) throw new Error(`more than ${limit} files; record fewer at a time`);
   };
   const walk = async (dir: string): Promise<void> => {
     const entries = (await readdir(dir, { withFileTypes: true }))
@@ -226,7 +143,7 @@ export async function expandPaths(paths: readonly string[], limit: number): Prom
     }
   }
   if (failures.length > 0) {
-    throw new Error(`Could not read ${failures.length} path(s); nothing was BitGraphed.\n${failures.join("\n")}\nUse absolute paths to existing regular files or directories.`);
+    throw new Error(`Could not read ${failures.length} path(s); nothing was made.\n${failures.join("\n")}\nUse absolute paths to existing regular files or directories.`);
   }
   return { files, directories };
 }

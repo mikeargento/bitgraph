@@ -12,39 +12,25 @@
  */
 
 export { BitGraph } from "./bitgraph.js";
-export type { BitGraphOptions, RecordResult, RecordedFile, TreeMade, CheckedInput, VerifyOutcome, VerifyOptions, Slot } from "./bitgraph.js";
+export type { BitGraphOptions, CheckedInput, VerifyOutcome, VerifyOptions } from "./bitgraph.js";
 
-// tree/1 exports on this machine: write, read, complete, and derive a member's from the owner's.
+// Making BitGraphs: one new file is one BitGraph, several are one tree and one BitGraph.
 export {
-  EXPORT_KINDS, exportDataOf, exportSourceOf, ownerExportOf, memberExportOf, exportBaseName, memberExportFileName, safeRelativeName, relativeNames,
-  writeTreeExports, fetchPinnedSpec, readExportFile, looksLikeExport, completeExportFile, memberExportFromOwner,
-} from "./exports.js";
-export type { ExportKind, TreeExportData, WrittenExports, CompletedExportFile } from "./exports.js";
+  recordFiles, proofPathFor, isProofFile, proofPageUrl,
+  leafOfDigest, sortedLeaves, treeFromLeaves, memberPath, withMember, leafNames,
+} from "./record.js";
+export type { RecordResult, RecordedFile, MadeBitGraph, RecordOptions, DigestTree, TreeLeafRow, TreeMemberBlock } from "./record.js";
 
 // The engine, piece by piece.
-export { configFromEnv, batchCheck, getProofDetail, search, indexSetMembers, ApiError, BATCH_CHECK_LIMIT } from "./api.js";
-export type { ApiConfig, SetIndexRequest } from "./api.js";
-export { scanFile, fusedDigestFor, expandPaths, sniffC2paBytes, fileSource } from "./scan.js";
-export type { ScannedFile, ScanPlacement, Expansion } from "./scan.js";
-export { sniffCarrierTail, readCarrierFile, carrierWindowView, carrierLine } from "./carrier-io.js";
-export type { CarrierWindowView, CarrierFileResult } from "./carrier-io.js";
-export { fuseTreePipeline, fuseFilePipeline, fuseSetPipeline, classifyPath, MAX_LOADED_BYTES } from "./pipelines.js";
-export type { FuseTreeFn, TreeSummary, FuseFileFn, FuseSetFn, FusedSummary, SetSummary, CarrierRow, ClassifiedPath } from "./pipelines.js";
-export { beginTask, sealTask, decodeTaskToken, encodeTaskToken, writeProofBeside, SLOT_TTL_SECONDS } from "./task.js";
-export type { Begun, SealedTask, TaskState } from "./task.js";
-export { buildBitGraphedFile, completeBitGraphedFile, carrierFileName } from "./carrier-build.js";
-export type { BuiltCarrier, CompletedCarrier } from "./carrier-build.js";
+export { configFromEnv, bindDigest, postTreeMembers, batchCheck, getProofDetail, search, ApiError, BATCH_CHECK_LIMIT } from "./api.js";
+export type { ApiConfig, TreeRoot, TreeMemberRow } from "./api.js";
+export { scanFile, expandPaths, sniffC2paBytes, fileSource } from "./scan.js";
+export type { ScannedFile, Expansion } from "./scan.js";
+export { sniffCarrierTail, readCarrierFile, carrierWindowView, carrierLine, classifyPath, MAX_LOADED_BYTES } from "./carrier-io.js";
+export type { CarrierWindowView, CarrierFileResult, CarrierRow, ClassifiedPath } from "./carrier-io.js";
+export { lookupRecovered, recoveryTrustFromEnv } from "./recovery.js";
+export type { RecoveredRow, RecoveryLookup } from "./recovery.js";
 export { toUrlSafeB64, fromUrlSafeB64, looksLikeDigest, sha256FileB64, mapConcurrent } from "./encoding.js";
-export type { BitGraphProof, ProofDetailResponse, PositionView, AnchorView, BaseFloorView, BaseCeilingView, SetMemberView, BatchCheckResponse, SearchResponse } from "./types.js";
+export type { BitGraphProof, ProofCommit, ProofDetailResponse, PositionView, SetMemberView, BatchCheckResponse, SearchResponse } from "./types.js";
 export { serve } from "./serve.js";
-// The one way to make a BitGraph (enclave v12): bind each file's digest.
-export { bindFiles, proofPathFor } from "./bind.js";
-export type { BoundFile } from "./bind.js";
-export { lookupRecovered, keepRecoveryEntries, recoveryLine, type RecoveredRow, type RecoveryLookup, type RecoveryWriteResult, type KeptRecovery } from "./recovery.js";
-export {
-  recoveryJobsDir, registerRecoveryJob, runRecoveryJob, listRecoveryJobs, flushRecoveryJobs, jobFromOwnerExport, saveRecoveryJob, recoveryJobId, pendingMembersFor, brokenRecoveryJobs, normalizeBaseUrl, siteTag, LockLostError,
-  RECOVERY_JOB_FORMAT, RECORD_RECOVERY_BUDGET_MS, FLUSH_ON_RECORD_BUDGET_MS, LOCK_STALE_MS, LOCK_TOUCH_MS,
-  type RecoveryJobFile, type RecoveryJobSummary, type FlushResult, type RunJobOptions, type PendingMember, type PendingMembers,
-} from "./recovery-jobs.js";
 export type { ServeOptions, RunningServer } from "./serve.js";
-export { rpcTimelineLookups, verifyTimelineBundleOnline, DEFAULT_TIMELINE_RPCS } from "./timeline.js";

@@ -1,17 +1,19 @@
 // Copyright (c) 2025-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
- * @mikeargento/bitgraph-mcp: HTTP client for the hosted BitGraph API.
+ * HTTP client for the hosted BitGraph API, the same routes the site's drop box
+ * calls.
  *
- * The reads: the batch lookup, the proof detail, the number search. Making a
- * BitGraph goes through the core package's own transport against the same
- * site (its /api/fuse routes), which is what maintains the per-position
- * by-digest index that makes every member of a set discoverable afterward;
- * the one write here is a set/2's member evidence, indexed after the commit.
+ *   POST /api/commit         bind one SHA-256: a fresh nonce at count N, the
+ *                            digest at N+1, signed and attested together
+ *   POST /api/tree-members   index a tree's files under their own hashes
+ *   POST /api/proofs/batch   which digests already have a BitGraph
+ *   GET  /api/proofs/digest  one digest's proof and positions
+ *   GET  /api/search         a BitGraph number to its digest
  */
 
 import { mapConcurrent } from "./encoding.js";
-import type { BatchCheckResponse, ProofDetailResponse, SearchResponse, SetIndexResponse } from "./types.js";
+import type { BatchCheckResponse, BitGraphProof, ProofDetailResponse, SearchResponse } from "./types.js";
 
 export interface ApiConfig {
   baseUrl: string;
@@ -31,7 +33,12 @@ export const BATCH_CHECK_LIMIT = 500;
 const BATCH_CHECK_CONCURRENCY = 4;
 
 const CHECK_TIMEOUT_MS = 30_000;
-const SET_INDEX_TIMEOUT_MS = 60_000;
+const BIND_TIMEOUT_MS = 60_000;
+const TREE_INDEX_TIMEOUT_MS = 60_000;
+/** Tree members per index request, and requests in flight, as the site sends them. */
+const TREE_INDEX_BATCH = 2000;
+const TREE_INDEX_CONCURRENCY = 4;
+const TREE_INDEX_ATTEMPTS = 10;
 
 export class ApiError extends Error {
   readonly status: number;
@@ -117,32 +124,90 @@ export async function batchCheck(
     postJson<BatchCheckResponse>(config, "/api/proofs/batch", { digests: chunk }, CHECK_TIMEOUT_MS, false)
   );
   const merged: BatchCheckResponse = { results: {} };
-  for (const page of pages) Object.assign(merged.results, page.results);
+  for (const page of pages) {
+    Object.assign(merged.results, page.results);
+    if (page.environments !== undefined) merged.environments = { ...(merged.environments ?? {}), ...page.environments };
+  }
   return merged;
 }
 
-/** One request's worth of a set/2's member evidence, for the site to index. */
-export interface SetIndexRequest {
-  /** The set proof's artifact digest, URL-safe base64. */
-  setDigest: string;
-  /** The set proof's epoch id, URL-safe base64. */
-  epoch: string;
-  /** The set proof's commit counter. */
+/**
+ * Bind one SHA-256 (standard base64) in the enclave: a fresh nonce takes one
+ * count and the digest the next, both signed with the enclave's time and
+ * attested. Returns the proof. Permanent: a BitGraph is never undone.
+ */
+export async function bindDigest(config: ApiConfig, digestB64: string): Promise<BitGraphProof> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
+  const res = await fetch(`${config.baseUrl}/api/commit`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ digests: [{ digestB64, hashAlg: "sha256" }], chainId: "bitgraph:main" }),
+    redirect: "error",
+    signal: AbortSignal.timeout(BIND_TIMEOUT_MS),
+  }).catch(redirectHint);
+  if (res.status === 503) {
+    const err = await parseError(res);
+    throw new ApiError(503, "the enclave is restarting (it does once a day); nothing was made, try again in a minute", err.retryAfterSec);
+  }
+  if (!res.ok) throw await parseError(res);
+  const raw = (await res.json()) as BitGraphProof[] | { proofs?: BitGraphProof[] } | BitGraphProof;
+  const proofs = Array.isArray(raw) ? raw : "proofs" in raw && Array.isArray(raw.proofs) ? raw.proofs : [raw as BitGraphProof];
+  const proof = proofs.find((p) => p.artifact?.digestB64 === digestB64);
+  if (!proof) throw new ApiError(502, `no proof came back for ${digestB64}; look it up before trying again`);
+  return proof;
+}
+
+/** A tree's root position, as the index checks it. */
+export interface TreeRoot {
+  /** SHA-256 of the root text, standard base64: the digest the proof binds. */
+  rootDigestB64: string;
+  epochId: string;
   counter: string;
-  members: unknown[];
+  rootText: string;
+}
+
+/** One file of a tree: its SHA-256, its leaf index, and its path to the root. */
+export interface TreeMemberRow {
+  digestB64: string;
+  index: number;
+  path: string;
 }
 
 /**
- * Index members of a set/2 from their evidence. The site reads the set proof
- * from its own position, binds the root document, and checks every member's
- * path before writing a key; a row that does not bind is rejected, never
+ * Index a tree's files under their own hashes, so each is found like a file
+ * bound alone. The site reads the root's proof at its position and walks each
+ * file's hash up its path to the root before it writes anything. The root's
+ * own entry can lag its bind by a moment (404); that, a rate limit and a
+ * server error are waited out and tried again. Resolves with how many were
  * written.
  */
-export async function indexSetMembers(config: ApiConfig, body: SetIndexRequest): Promise<SetIndexResponse> {
-  return postJson<SetIndexResponse>(config, "/api/fuse/set-index", body, SET_INDEX_TIMEOUT_MS, false);
+export async function postTreeMembers(config: ApiConfig, root: TreeRoot, members: readonly TreeMemberRow[]): Promise<number> {
+  const batches: TreeMemberRow[][] = [];
+  for (let i = 0; i < members.length; i += TREE_INDEX_BATCH) batches.push(members.slice(i, i + TREE_INDEX_BATCH));
+  const written = await mapConcurrent(batches, TREE_INDEX_CONCURRENCY, async (batch) => {
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(`${config.baseUrl}/api/tree-members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...root, members: batch }),
+        redirect: "error",
+        signal: AbortSignal.timeout(TREE_INDEX_TIMEOUT_MS),
+      }).catch(() => null);
+      if (res?.ok) {
+        const j = (await res.json().catch(() => null)) as { written?: number } | null;
+        return j?.written ?? 0;
+      }
+      const retryable = res === null || res.status === 404 || res.status === 429 || res.status >= 500;
+      if (!retryable || attempt + 1 >= TREE_INDEX_ATTEMPTS) throw new Error(`the tree index answered ${res?.status ?? "nothing"}`);
+      const wait = Number(res?.headers.get("retry-after") ?? "") || 2;
+      await new Promise((r) => setTimeout(r, wait * 1000));
+    }
+  });
+  return written.reduce((a, b) => a + b, 0);
 }
 
-/** Full detail for one digest: proof, all causal positions, anchor window. */
+/** Full detail for one digest: its proof and every position the same bytes occupy. */
 export async function getProofDetail(
   config: ApiConfig,
   urlSafeDigest: string,

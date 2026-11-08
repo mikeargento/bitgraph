@@ -1,19 +1,25 @@
 // Copyright (c) 2025-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
- * @mikeargento/bitgraph-mcp: wire types.
- *
- * Minimal views of the bitgraph/1 schema and the bitgraph.ing API responses.
- * The canonical, fully documented schema lives in @mikeargento/bitgraph-verify.
- * Fields not needed for display are kept as unknown; proofs are passed through
- * verbatim when the caller asks for JSON.
+ * Wire types: minimal views of the bitgraph/1 proof and the bitgraph.ing API
+ * responses. The canonical, fully documented schema lives in
+ * @mikeargento/bitgraph-verify. Fields not needed here are kept as unknown;
+ * proofs are passed through verbatim.
  */
 
 export interface ProofCommit {
+  /** The fresh nonce the enclave drew for this BitGraph (standard base64). */
+  nonceB64?: string;
+  /** The count the content was bound at (N+1): the BitGraph's number. */
   counter?: string;
-  epochId?: string;
-  time?: number;
+  /** The nonce's count (N). */
   slotCounter?: string;
+  epochId?: string;
+  /** The enclave's signed time, Unix milliseconds. */
+  time?: number;
+  /** The hash of the previous proof this one chains to. */
+  prevB64?: string;
+  atomic?: true;
   [k: string]: unknown;
 }
 
@@ -33,7 +39,7 @@ export interface BitGraphProof {
   [k: string]: unknown;
 }
 
-/** A set member's row as the site reports it: which row of N these bytes are, and whether as the original or the new file. */
+/** A member's row as the site reports it: which row of N these bytes are. */
 export interface SetMemberView {
   index: number;
   count: number;
@@ -44,56 +50,29 @@ export interface SetMemberView {
 export interface BatchCheckResponse {
   results: Record<
     string,
-    { proofs: Array<{ proof: BitGraphProof; kind?: "recorded" | "fused"; member?: SetMemberView; setDigest?: string }> }
+    {
+      proofs: Array<{ proof: BitGraphProof; kind?: string; member?: SetMemberView; setDigest?: string; envRef?: string; writeTime?: number | null }>;
+      /** True when this digest's part of the ledger could not be read: not a "no". */
+      unavailable?: boolean;
+    }
   >;
+  /** Attestation environments shared by several proofs, referenced by envRef. */
+  environments?: Record<string, Record<string, unknown>>;
 }
-
-/** POST /api/fuse/set-index response: how many members' evidence the site wrote. */
-export interface SetIndexResponse {
-  count?: number;
-  written: number;
-  failed: number;
-  rejected: number;
-}
-
-export interface AnchorView {
-  counter?: string;
-  attrName?: string;
-  blockNumber?: number | null;
-  blockHash?: string | null;
-  etherscanUrl?: string | null;
-  blockTime?: string | null;
-}
-
-/** A Base-floored record's own bounds (2026-10-11): the floor block it signs and its Base ceiling. */
-export interface BaseFloorView { chain: "base"; blockNumber: number; blockHash: string | null; blockTime: string }
-export interface BaseCeilingView { chain: "base"; blockNumber: number; blockTime: string; txHash: string | null }
 
 export interface PositionView {
   counter: string | null;
   epoch: string | null;
-  lowerTime: string | null;
-  upperTime: string | null;
-  kind?: "recorded" | "fused";
+  kind?: string;
   placement?: string | null;
   member?: SetMemberView;
-  floor?: BaseFloorView | null;
-  ceiling?: BaseCeilingView | null;
 }
 
-/**
- * GET /api/proofs/digest/{digest} response.
- * causalWindow naming note: anchorBefore is the EARLIER Ethereum block (the
- * proof was BitGraphed after it, the lower time bound); anchorAfter is the
- * LATER block (the upper bound). Present time as "between lower and upper".
- */
+/** GET /api/proofs/digest/{digest} response. */
 export interface ProofDetailResponse {
   proofs: Array<{ proof: BitGraphProof }>;
   positions?: PositionView[];
-  causalWindow?: { anchorBefore: AnchorView | null; anchorAfter: AnchorView | null } | null;
-  anchorBlock?: AnchorView | null;
-  floor?: BaseFloorView | null;
-  ceiling?: BaseCeilingView | null;
+  [k: string]: unknown;
 }
 
 /** GET /api/search response. */

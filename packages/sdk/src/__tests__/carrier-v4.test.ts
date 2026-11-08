@@ -2,10 +2,9 @@
 
 /**
  * A tree member's BitGraphed file (bitgraph-carrier/4) through the SDK's
- * reader: the window view names the member, and the one-line form says so,
- * kept as is or placed. The tree is minted with a throwaway key over the
- * saved Base floor block the fuse/3 fixtures use (no attestation, so the
- * verdict is UNDETERMINED: the image is not established), which is enough to
+ * reader: the view names the member, and so does the one-line form. The file
+ * is built from the saved fixtures with a throwaway key (no attestation, so
+ * the verdict is not TRUE: the image is not established), which is enough to
  * show the reader carries the member through.
  */
 
@@ -63,12 +62,10 @@ test("readCarrierFile on a tree member's file: version 4, the member in the view
     assert.equal(r.status, "ok");
     assert.equal(r.innerDigestB64, b64(m.leaf.artifact), "the lookup digest is the member's committed bytes, not the envelope");
     assert.equal(r.view?.version, 4);
-    assert.deepEqual(r.view?.member, { index: i, count: 2, placement: name === "placed" ? "trailer/1" : "as-is" });
+    assert.deepEqual(r.view?.member, { index: i, count: 2 });
     assert.notEqual(r.view?.verdict, "FALSE", r.view?.reasons.join("; "));
     const line = carrierLine(r.view!);
     assert.match(line, new RegExp(`tree member: leaf ${i} of 2`));
-    if (name === "as-is") assert.match(line, /kept as is: recorded after the floor, the bytes themselves are not dated/);
-    else assert.doesNotMatch(line, /kept as is/);
-    assert.match(line, /after Base block 52271417/);
+    assert.doesNotMatch(line, /Base|anchor|ceiling|floor/);
   }
 });

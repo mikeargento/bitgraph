@@ -22,85 +22,49 @@ test("proofUrl without a position has no query string", () => {
   assert.ok(!proofUrl("https://bitgraph.ing", DIGEST).includes("?"));
 });
 
-test("record markdown mentions again=true only when something was already on record", () => {
-  const base = {
-    digest: toUrlSafeB64(DIGEST),
-    counter: "7",
-    epoch: toUrlSafeB64(EPOCH),
-    total_positions: 1,
-    proof_url: "https://bitgraph.ing/proof/x",
-  };
-  const fresh = renderRecordMarkdown([{ ...base, path: "/a", outcome: "fused", artifact_digest: "ZnVzZWQ", placement: "container/2", member: 1, member_count: 1 }]);
-  assert.ok(!fresh.includes("again=true"));
-  const mixed = renderRecordMarkdown([
-    { ...base, path: "/a", outcome: "fused", artifact_digest: "ZnVzZWQ", placement: "container/2", member: 1, member_count: 1 },
-    { ...base, path: "/b", outcome: "on record", artifact_digest: null, placement: null, member: null, member_count: null },
-  ]);
-  assert.ok(mixed.includes("again=true"));
-  assert.ok(mixed.startsWith("1 fused, 1 already on record."));
-});
+const proof = (counter: string) => ({ artifact: { digestB64: DIGEST }, commit: { nonceB64: "Tk9OQ0U=", slotCounter: String(Number(counter) - 1), counter, epochId: EPOCH } });
 
-test("record markdown names the tree once, its files by leaf, as is apart, and the export with what completes it", () => {
-  const tree = {
-    format: "tree/1" as const,
-    count: 3,
-    counter: "1386",
-    epoch: toUrlSafeB64(EPOCH),
-    artifact_digest: "dHJlZQ",
-    proof_url: "https://bitgraph.ing/proof/dHJlZQ?counter=1386",
-    root_document: "00".repeat(84),
-    floor_block: 25_000_000,
-    root_document_echoed: true,
-    recovered: false,
-    export: { kind: "owner" as const, dir: "/photos-parent", owner: "/photos-parent/bitgraph-1386.bitgraph.json", members_dir: null, members: 0, spec: "/photos-parent/SPEC.md", floor_header: true },
-    recovery: { entries: 5, kept: 5, written: 5, already_there: 0, salted: 0, blocked: 0, pending: 0, reason: null, job: null },
-  };
-  const row = { digest: toUrlSafeB64(DIGEST), counter: "1386", epoch: toUrlSafeB64(EPOCH), total_positions: 1, proof_url: tree.proof_url, artifact_digest: "ZnVzZWQ", outcome: "fused" as const, member_count: 3 };
-  const rows = [
-    { ...row, path: "/a.png", placement: "trailer/1", member: 2 },
-    { ...row, path: "/b.txt", placement: "container/2", member: 1 },
-    { ...row, path: "/c.mov", placement: "as-is", member: 3, outcome: "recorded" as const },
-  ];
-  const md = renderRecordMarkdown(rows, tree);
-  assert.ok(md.startsWith("3 files BitGraphed as one tree at #1386 (tree of 3), 0 already on record."), md);
-  assert.ok(md.includes("- #1386 · tree of 3 · https://bitgraph.ing/proof/dHJlZQ?counter=1386"), md);
-  assert.ok(md.includes("  Export, every file's leaf and name (keep it with the files): /photos-parent/bitgraph-1386.bitgraph.json"), md);
-  assert.ok(md.includes("  The rules the proof pins (SPEC.md), beside it: /photos-parent/SPEC.md"), md);
-  assert.ok(md.includes('bitgraph export complete "/photos-parent/bitgraph-1386.bitgraph.json"'), md);
-  assert.ok(md.includes("  Each file finds this proof again from its own bytes (5 sealed recovery entries kept)."), md);
-  const pending = renderRecordMarkdown(rows, { ...tree, recovery: { entries: 5, kept: 0, written: 0, already_there: 0, salted: 0, blocked: 0, pending: 5, reason: "bitgraph.ing is not taking recovery writes yet", job: null } });
-  assert.ok(pending.includes("  Not yet recoverable from the files alone: bitgraph.ing is not taking recovery writes yet."), pending);
-  assert.ok(!renderRecordMarkdown(rows, { ...tree, recovery: null }).includes("recover"), "recovery off says nothing");
-  assert.ok(!md.includes("and the floor block's header"), "the floor header is in hand");
-  assert.ok(md.includes("- fused · /a.png (2 of 3, trailer/1)"), md);
-  assert.ok(md.includes("- fused · /b.txt (1 of 3, container/2)"), md);
-  assert.ok(md.includes("- recorded as is · /c.mov (3 of 3)"), md);
-  assert.ok(md.includes("A file recorded as is was recorded after the floor block; the bytes themselves are not dated."), md);
-  assert.ok(md.includes("The proof commits only the tree's root: keep the export with the files"), md);
+test("record markdown names the BitGraph, its nonce and counts, then each file", () => {
+  const made = { kind: "file" as const, number: "7", counts: ["6", "7"] as [string, string], nonce: "Tk9OQ0U=", epoch: EPOCH, prev: null, digestB64: DIGEST, proof: proof("7"), proofUrl: "https://bitgraph.ing/proof/x?counter=7", tree: null };
+  const md = renderRecordMarkdown({ made, files: [{ path: "/a", digestB64: DIGEST, outcome: "made", number: "7", nonce: "Tk9OQ0U=", proof: proof("7"), proofUrl: made.proofUrl, proofPath: "/a.bitgraph.json", member: null }] });
+  assert.ok(md.startsWith("Made BitGraph #7 of 1 file."), md);
+  assert.ok(md.includes("- Nonce: Tk9OQ0U="), md);
+  assert.ok(md.includes("- Counts: 6, 7 (the fresh nonce at the first, the file's SHA-256 at the next)"), md);
+  assert.ok(md.includes("- made · /a\n  proof saved: /a.bitgraph.json"), md);
   assert.ok(!md.includes("\u2014"), "no em dashes");
-  const noHeader = renderRecordMarkdown(rows.slice(0, 2), { ...tree, export: { ...tree.export, floor_header: false } });
-  assert.ok(noHeader.includes("and the floor block's header"), noHeader);
-  assert.ok(!noHeader.includes("recorded as is"), "nothing as is, nothing said about it");
-  const none = renderRecordMarkdown(rows.slice(0, 1), { ...tree, export: { ...tree.export, kind: "none", dir: null, owner: null, spec: null } });
-  assert.ok(!none.includes("SPEC.md"), none);
-  assert.ok(none.includes("No export was written (exports='none')"), none);
+  assert.doesNotMatch(md, /Base|anchor|ceiling|floor|fuse/i);
 });
 
-test("proof markdown states the floor in time and the ceiling in position", () => {
+test("record markdown for a tree says how many files, which file each is, and what was already on record", () => {
+  const made = { kind: "tree" as const, number: "9", counts: ["8", "9"] as [string, string], nonce: "Tk9OQ0U=", epoch: EPOCH, prev: null, digestB64: DIGEST, proof: proof("9"), proofUrl: "https://bitgraph.ing/proof/r?counter=9", tree: { files: 2, root: "00".repeat(32), rootText: "x", indexed: 2, indexError: null } };
+  const md = renderRecordMarkdown({
+    made,
+    files: [
+      { path: "/a", digestB64: DIGEST, outcome: "made", number: "9", nonce: "Tk9OQ0U=", proof: proof("9"), proofUrl: made.proofUrl, proofPath: "/a.bitgraph.json", member: { index: 0, files: 2 } },
+      { path: "/b", digestB64: DIGEST, outcome: "made", number: "9", nonce: "Tk9OQ0U=", proof: proof("9"), proofUrl: made.proofUrl, proofPath: null, member: { index: 1, files: 2 } },
+      { path: "/c", digestB64: DIGEST, outcome: "on record", number: "3", nonce: "T0xE", proof: proof("3"), proofUrl: "https://bitgraph.ing/proof/c", proofPath: null, member: null },
+    ],
+  });
+  assert.ok(md.startsWith("Made BitGraph #9 of 2 files as one tree."), md);
+  assert.ok(md.includes("Each file is indexed under its own hash (2 of 2)."), md);
+  assert.ok(md.includes("- made · /a (file 1 of 2)"), md);
+  assert.ok(md.includes("- made · /b (file 2 of 2)\n  proof not saved (write=false)"), md);
+  assert.ok(md.includes("- already a BitGraph · #3 · /c\n  nonce T0xE"), md);
+  assert.ok(renderRecordMarkdown({ made: null, files: [] }).startsWith("Nothing new was made."));
+});
+
+test("proof markdown states the nonce, the two counts and the tree position", () => {
   const detail: ProofDetailResponse = {
-    proofs: [{ proof: { artifact: { digestB64: DIGEST }, commit: { counter: "42", epochId: EPOCH } } }],
-    positions: [{ counter: "42", epoch: toUrlSafeB64(EPOCH), lowerTime: null, upperTime: null }],
-    causalWindow: {
-      anchorBefore: { blockTime: "2026-07-01T00:00:00.000Z", blockNumber: 100 },
-      anchorAfter: { blockTime: "2026-07-01T00:00:12.000Z", blockNumber: 101 },
-    },
+    proofs: [{ proof: { ...proof("42"), commit: { ...proof("42").commit, prevB64: "UFJFVg==" } } }],
+    positions: [{ counter: "42", epoch: toUrlSafeB64(EPOCH), member: { index: 1, count: 3 } }],
   };
   const md = renderProofMarkdown(detail, "https://bitgraph.ing");
-  assert.ok(
-    md.includes("BitGraphed after 2026-07-01T00:00:00.000Z (Ethereum block 100), and before the anchoring of block 101 (that block mined 2026-07-01T00:00:12.000Z)."),
-    md
-  );
   assert.ok(md.includes("# BitGraph #42"));
+  assert.ok(md.includes("- Nonce: Tk9OQ0U="), md);
+  assert.ok(md.includes("- Counts: 41, 42"), md);
+  assert.ok(md.includes("- Previous proof: UFJFVg=="), md);
+  assert.ok(md.includes("- Tree: file 2 of 3"), md);
+  assert.doesNotMatch(md, /Base|anchor|ceiling|floor|Etherscan/);
 });
 
 test("capJson elides large attestation reports before truncating", () => {
@@ -112,19 +76,4 @@ test("capJson elides large attestation reports before truncating", () => {
   assert.ok(text.includes("elided 40000 base64 chars"));
   assert.ok(text.includes("keep me"));
   assert.ok(text.length <= 25_000 + 200);
-});
-
-test("a Base-floored proof states its Base floor and its Base ceiling, never the stale Ethereum anchor", () => {
-  const detail: ProofDetailResponse = {
-    proofs: [{ proof: { artifact: { digestB64: DIGEST }, commit: { counter: "201", epochId: EPOCH, slotFloor: { chain: "base", evmChainId: 8453, blockNumber: 52278218, blockHash: "0x92", blockTimestamp: 1791345783 } } } as never }],
-    positions: [{ counter: "201", epoch: toUrlSafeB64(EPOCH), lowerTime: null, upperTime: null }],
-    causalWindow: { anchorBefore: { blockTime: "2026-10-07T01:51:59.000Z", blockNumber: 26137339 }, anchorAfter: null },
-    ceiling: { chain: "base", blockNumber: 52278221, blockTime: "2026-10-07T04:03:09.000Z", txHash: "0xee29" },
-  };
-  const md = renderProofMarkdown(detail, "https://bitgraph.ing");
-  assert.ok(md.includes("BitGraphed after Base block 52278218 (mined 2026-10-07T04:03:03Z), and existed by Base block 52278221 (mined 2026-10-07T04:03:09Z), the ceiling."), md);
-  assert.ok(md.includes("https://basescan.org/tx/0xee29"), md);
-  assert.ok(!md.includes("26137339") && !md.includes("Etherscan"), "the Ethereum anchor is not offered for a Base-floored record");
-  const pending = renderProofMarkdown({ ...detail, ceiling: null }, "https://bitgraph.ing");
-  assert.ok(pending.includes("its Base ceiling is not written yet"), pending);
 });

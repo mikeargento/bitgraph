@@ -3,14 +3,9 @@
 /**
  * BitGraphed files through the MCP tools, end to end: a real client over an
  * in-memory transport, a mock bitgraph.ing, and REAL carriers built from the
- * verify package's fixture material (real proofs, real anchors, real block
- * headers; nothing minted, no network). The two rules under test:
- *
- *   1. The lookups use the digest of the COMMITTED bytes inside, never the
- *      envelope's, and the carried proof is judged offline (verdict, window).
- *   2. bitgraph_record NEVER mints carrier bytes: the envelope is not the
- *      recorded thing. The fake tree pipeline fails the test if a carrier
- *      reaches it.
+ * verify package's fixture material (nothing made, no network). The rule
+ * under test: the lookups use the digest of the COMMITTED bytes inside,
+ * never the envelope's, and the carried proof is judged offline.
  */
 
 import { test, before, after } from "node:test";
@@ -30,8 +25,7 @@ import {
   type CarrierProof,
   type CarrierWitness,
 } from "@mikeargento/bitgraph-verify";
-import { buildServer, type FuseTreeFn } from "../server.js";
-import { fakeTree } from "./fake-tree.js";
+import { buildServer } from "../server.js";
 import { toUrlSafeB64 } from "@mikeargento/bitgraph-sdk";
 import { sniffC2paBytes, scanFile } from "@mikeargento/bitgraph-sdk";
 
@@ -39,8 +33,8 @@ const fixtures = fileURLToPath(new URL("../../../verify/src/__tests__/fixtures/c
 const readJson = <T>(name: string): T => JSON.parse(readFileSync(join(fixtures, name), "utf-8")) as T;
 
 let mock: Server;
-let completePath = ""; // demo2: floor + ceiling inside
-let undevPath = ""; // demo1: floor inside, ceiling unfetched
+let completePath = ""; // demo2: a BitGraphed file the mock ledger knows
+let undevPath = ""; // demo1: a BitGraphed file the mock ledger does not know
 let corruptPath = ""; // demo2 carrier with a broken payload byte
 let plainPath = ""; // an ordinary file that should still mint
 let c2paPath = ""; // an ordinary file carrying a synthetic C2PA marker
@@ -165,16 +159,8 @@ after(() => {
   delete process.env["BITGRAPH_API_KEY"];
 });
 
-/** The tree pipeline fails the test when carrier bytes reach it. */
-const fusedNames: string[] = [];
-const guardFuseTree: FuseTreeFn = async (files) => {
-  for (const f of files) assert.ok(!f.name.includes(".bitgraph."), `a BitGraphed file reached the mint: ${f.name}`);
-  fusedNames.push(...files.map((f) => f.name));
-  return fakeTree(files, { counter: "500", epochId: EPOCH });
-};
-
 async function connectedClient(): Promise<Client> {
-  const server = buildServer({ fuseTree: guardFuseTree, structuredAlways: true });
+  const server = buildServer({ structuredAlways: true });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -193,18 +179,15 @@ test("check: a BitGraphed file is judged offline and looked up by its committed 
   const complete = results.find((r) => r["input"] === completePath) as Record<string, unknown>;
   assert.equal(complete["on_record"], true);
   assert.equal(complete["digest"], toUrlSafeB64(innerDigest2), "the lookup digest is the committed bytes', not the envelope's");
-  const view = complete["carrier"] as { verdict: string; not_before: { block: number }; not_after: { block: number } };
+  const view = complete["carrier"] as { verdict: string; version: number };
   assert.equal(view.verdict, "TRUE");
-  assert.ok(view.not_before.block > 0 && view.not_after.block > view.not_before.block);
+  assert.equal(view.version, 1);
 
   const undev = results.find((r) => r["input"] === undevPath) as Record<string, unknown>;
   assert.equal(undev["on_record"], false);
-  const undevView = undev["carrier"] as { verdict: string; not_after: unknown; ceiling: string };
+  const undevView = undev["carrier"] as { verdict: string };
   assert.equal(undevView.verdict, "TRUE");
-  assert.equal(undevView.not_after, null);
-  assert.equal(undevView.ceiling, "unfetched");
   assert.ok(text.includes("not in this ledger"), "a foreign carrier is stated, not called unrecorded");
-  assert.ok(text.includes("NOT FETCHED"), "an absent ceiling is stated in those words");
 
   const corrupt = results.find((r) => r["input"] === corruptPath) as Record<string, unknown>;
   assert.equal(corrupt["on_record"], false);
@@ -222,7 +205,6 @@ test("get_proof: a path to a foreign BitGraphed file answers offline from the pr
   const text = textOf(result);
   assert.ok(text.includes("Judged offline from the proof this BitGraphed file carries"), text);
   assert.ok(text.includes("carried proof TRUE"));
-  assert.ok(text.includes("NOT FETCHED"));
 });
 
 test("get_proof: a ledger-known BitGraphed file uses the ledger and states the carried verdict", async () => {

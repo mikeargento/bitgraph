@@ -21,19 +21,36 @@ make them of what you were asked to, nothing more.
 import { BitGraph } from "@mikeargento/bitgraph-sdk";
 
 const bg = new BitGraph();
-const [b] = await bg.bind("run-042.log");
-console.log(b.number, b.counts, b.proofUrl); // BitGraph number, its two counts, the public proof page
-console.log(b.wrote);                        // run-042.log.bitgraph.json: keep it with the file
+const r = await bg.record("run-042.log");
+console.log(r.made?.number, r.made?.counts); // the BitGraph's number, and its two counts [N, N+1]
+console.log(r.made?.nonce);                   // the fresh nonce this BitGraph made
+console.log(r.files[0]?.proofPath);           // run-042.log.bitgraph.json: keep it with the file
 ```
 
-`bind` takes one path or many (a directory is every regular file under it); each file is its own BitGraph. Pass
-`{ write: false }` to keep the proof in memory instead of saving it beside the file.
+Each BitGraph is its own bucket. One call makes a fresh nonce that never existed before, at count N, and binds the
+file's SHA-256 at count N+1. The proof is attested by AWS Nitro and chained to the previous proof by `prevB64`.
 
-## Work between two BitGraphs
+`record` takes one path or many (a directory is every regular file under it, hidden entries and symbolic links left
+out):
 
-Two BitGraphs bracket everything made between them: anything bound after the first and before the second sits
-between them in the sequence. Make one of the task, do the work, make one of the result. If the work uses the first
-one's nonce (in a prompt, a seed, a field), the result also shows it was made after that value existed.
+- **One new file** is one BitGraph of the file's own SHA-256.
+- **Several new files** are one tree and one BitGraph: an RFC 6962 tree whose leaves are the files' SHA-256s, sorted by
+  name, with the tree's root text bound. Each file's proof is the tree's proof with the file's place in the tree, and
+  it verifies against the file alone.
+- **Files already on record** are not made again; they come back as `"on record"` with their first BitGraph. If the
+  lookup cannot be completed, nothing is made.
+- Proof files (`*.bitgraph.json`) and BitGraphed files are never made.
+
+Each new proof is saved beside its file as `<file>.bitgraph.json`; pass `{ write: false }` to keep it in memory
+instead. The result's `made` is the one BitGraph the call made (`number`, `counts`, `nonce`, `prev`, `proof`,
+`proofUrl`, and `tree` for several files); `files` has one row per file with its `outcome`, `nonce`, `proof` and
+`proofPath`.
+
+## Use the nonce
+
+The nonce carries forward: the next BitGraph is made after it. You can also put any BitGraph's nonce into your own
+content (a prompt, a seed, a field) to make that content unique and to show it was made after the nonce existed.
+Record the result, and everything between the two BitGraphs sits between them in the sequence.
 
 ## Check and verify
 
@@ -45,22 +62,19 @@ await bg.verify("run-042.log", proof);      // offline: the file's hash, signatu
 
 Verification is free and offline, through [`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify).
 A file recorded as part of a tree verifies with its own proof the same way, and the reading says which file of the tree it is.
-Proofs and exports made in earlier formats (trees, fused files, BitGraphed files) still check and verify.
+A BitGraphed file (one that carries its proof inside) checks and verifies on its own.
 
 ## Any language
 
 ```sh
-npx -p @mikeargento/bitgraph-sdk bitgraph make run-042.log --json
+npx -p @mikeargento/bitgraph-sdk bitgraph record run-042.log --json
 npx -p @mikeargento/bitgraph-sdk bitgraph check run-042.log --json
 npx -p @mikeargento/bitgraph-sdk bitgraph verify run-042.log
-npx -p @mikeargento/bitgraph-sdk bitgraph serve        # POST /make, /check, /proof, /verify on 127.0.0.1
+npx -p @mikeargento/bitgraph-sdk bitgraph serve        # POST /record, /check, /proof, /verify on 127.0.0.1
 ```
 
 `BITGRAPH_API_URL` overrides the endpoint (default `https://bitgraph.ing`); `BITGRAPH_API_KEY`, when set, is sent as
 a Bearer token.
-
-Since 0.7.0 a BitGraph is made one way. `record()`, `open()` and `seal()`, which made BitGraphs under a position held
-ahead of the content, answer 410 and point to `bind()`.
 
 ## License
 
