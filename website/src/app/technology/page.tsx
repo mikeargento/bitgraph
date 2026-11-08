@@ -254,7 +254,7 @@ export default function TechnologyPage() {
 }`}</Code>
             <p className="sx-fine">
               The signature covers a canonical serialization of the body. A collection member also carries its inclusion path, as
-              unsigned metadata that is checked, not trusted. <a href="/evaluate/chatgpt.png.bitgraph.json" download>Download a real proof</a>, or <a href="/evaluate">verify it</a>.
+              unsigned metadata that is checked, not trusted. <a href="/proof/7roNTix7clHFjNuPKoI2pEOfXcCN5seMP2JgCgTWhrg?counter=58&epoch=2EnGlBWWcEPyBfn1N2oMZgtGgxh3nQ3MD69rqDIX0Xw">See a real proof</a>, or <a href="/evaluate">verify it</a>.
             </p>
           </section>
 
