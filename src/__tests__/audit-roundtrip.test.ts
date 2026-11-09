@@ -6,22 +6,15 @@
  * offline witness) goes through the archive builder, the resulting .tar.gz
  * goes through the full audit pipeline, and the report must come back
  * completely clean. Also covers the open-epoch snapshot manifest round
- * trip, builder determinism, and conformance of the website's independent
- * export assembly (website/src/lib/export-epoch.ts, imported by a spawned
- * node process under type stripping) against the reference builder,
- * byte for byte.
+ * trip and builder determinism.
  *
  * All data is synthetic and local. No network, no live ledger, ever.
  */
 
 import { describe, it, before } from "node:test";
 import * as assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
 import { keccak_256 } from "@noble/hashes/sha3";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
 import {
@@ -39,11 +32,8 @@ import {
   makeAnchorProof,
   makeEthereumHeader,
   makeTempDir,
-  storedProofJson,
   type CounterChainLink,
 } from "./audit-fixtures.js";
-
-const execFileAsync = promisify(execFile);
 
 const EPOCH_ID = "epoch-roundtrip-1";
 const CHAIN_ID = "bitgraph:main";
@@ -51,9 +41,6 @@ const MEASUREMENT = "test-measurement-roundtrip";
 const GENERATED_AT = "2026-07-10T00:00:00Z";
 const BLOCK_NUMBER = 987654;
 const BLOCK_TIMESTAMP = 1_720_000_000;
-
-const pad12 = (counter: string): string => counter.padStart(12, "0");
-const toSafe = (value: string): string => value.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 interface SyntheticEpoch {
   /** The four user proofs, chain order. */
@@ -295,170 +282,5 @@ describe("export round trip: buildBundleArchive -> runAudit", () => {
         }),
       /unsafe component/
     );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Website conformance: the independent assembly in
-// website/src/lib/export-epoch.ts must produce a spec-conformant bundle,
-// byte-identical to the reference builder for the same input. The website
-// lib is imported by a SPAWNED node process under type stripping (it is
-// self-contained: node builtins only), because the website's tsconfig and
-// package scope are separate from the root project.
-// ---------------------------------------------------------------------------
-
-const WEBSITE_LIB_PATH = fileURLToPath(
-  new URL("../../website/src/lib/export-epoch.ts", import.meta.url)
-);
-
-// The website lib is TypeScript and self-contained (node builtins only).
-// Transpile it to plain ESM with the TypeScript compiler rather than relying
-// on the Node runtime to strip types: native type stripping is on by default
-// only on Node 22.6 and up, so importing the .ts directly fails on the Node 20
-// floor that CI runs against. Transpiling here makes the spawned runner import
-// work identically on every supported Node version.
-const tsRequire = createRequire(import.meta.url);
-async function transpileWebsiteLib(destDir: string): Promise<string> {
-  const ts = tsRequire("typescript") as typeof import("typescript");
-  const source = await readFile(WEBSITE_LIB_PATH, "utf8");
-  const js = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2022,
-    },
-  }).outputText;
-  const libPath = join(destDir, "export-epoch.mjs");
-  await writeFile(libPath, js);
-  return pathToFileURL(libPath).href;
-}
-
-const RUNNER_SOURCE = `
-const [configPath] = process.argv.slice(2);
-const { readFile, writeFile } = await import("node:fs/promises");
-const config = JSON.parse(await readFile(configPath, "utf8"));
-const mod = await import(config.libUrl);
-const source = {
-  listProofKeys: async () => config.proofKeys,
-  listAnchorKeys: async () => config.anchorKeys,
-  getObjectText: async (key) => Object.hasOwn(config.objects, key) ? config.objects[key] : null,
-  getCurrentEpochSafeId: async () => config.currentSafeId,
-};
-const result = await mod.exportEpoch(source, config.safeEpochId, config.generatedAt);
-if (result === null) {
-  console.error("exportEpoch returned null");
-  process.exit(2);
-}
-await writeFile(config.outPath, result.archive);
-await writeFile(config.metaPath, JSON.stringify({
-  open: result.open,
-  proofCount: result.proofCount,
-  epochId: result.epochId,
-  maxCounter: result.maxCounter,
-  skipped: result.skipped,
-}));
-`;
-
-interface WebsiteRun {
-  archivePath: string;
-  meta: { open: boolean; proofCount: number; epochId: string; maxCounter: string | null; skipped: number };
-}
-
-async function runWebsiteExport(epoch: SyntheticEpoch, opts: { open: boolean }): Promise<WebsiteRun> {
-  const dir = await makeTempDir("bitgraph-roundtrip-website-");
-  const safeEpoch = toSafe(EPOCH_ID);
-
-  // The in-memory ledger view: stored-form proofs under proofs/{epoch}/,
-  // plus the anchors/ index copy of the anchor (extra unsigned "ethereum"
-  // field, no hash suffix in the key) that the exporter must dedup, never
-  // mirror.
-  const objects: Record<string, string> = {};
-  const proofKeys: string[] = [];
-  for (const member of epoch.members) {
-    const counter = (member.proof.commit as { counter?: string }).counter ?? "0";
-    const key = `proofs/${safeEpoch}/${pad12(counter)}-${toSafe(member.proofHash)}.json`;
-    objects[key] = storedProofJson(member.proof, member.proofHash);
-    proofKeys.push(key);
-  }
-  proofKeys.sort();
-  const anchorIndexKey = `anchors/${safeEpoch}/${pad12("6")}.json`;
-  objects[anchorIndexKey] = JSON.stringify({
-    ...(JSON.parse(storedProofJson(epoch.anchor.proof, epoch.anchor.proofHash)) as Record<string, unknown>),
-    ethereum: { blockNumber: BLOCK_NUMBER, blockHash: epoch.blockHash },
-  });
-
-  const runnerPath = join(dir, "runner.mjs");
-  const configPath = join(dir, "config.json");
-  const outPath = join(dir, "website-export.tar.gz");
-  const metaPath = join(dir, "meta.json");
-  const libUrl = await transpileWebsiteLib(dir);
-  await writeFile(runnerPath, RUNNER_SOURCE);
-  await writeFile(
-    configPath,
-    JSON.stringify({
-      libUrl,
-      safeEpochId: safeEpoch,
-      currentSafeId: opts.open ? safeEpoch : "some-other-epoch",
-      generatedAt: GENERATED_AT,
-      proofKeys,
-      anchorKeys: [anchorIndexKey],
-      objects,
-      outPath,
-      metaPath,
-    })
-  );
-
-  await execFileAsync(process.execPath, [runnerPath, configPath]);
-  const meta = JSON.parse(await readFile(metaPath, "utf8")) as WebsiteRun["meta"];
-  return { archivePath: outPath, meta };
-}
-
-describe("export round trip: website export-epoch conformance", () => {
-  let epoch: SyntheticEpoch;
-  before(async () => {
-    epoch = await makeSyntheticEpoch();
-  });
-
-  it("closed-epoch website export is byte-identical to the reference builder and audits clean", async () => {
-    const { archivePath, meta } = await runWebsiteExport(epoch, { open: false });
-    assert.equal(meta.open, false);
-    assert.equal(meta.proofCount, 5);
-    assert.equal(meta.epochId, EPOCH_ID);
-    assert.equal(meta.maxCounter, "10");
-    // Exactly one skip: the anchors/ index copy, deduped by stored proofHash.
-    assert.equal(meta.skipped, 1);
-
-    const websiteArchive = await readFile(archivePath);
-
-    // Reference builder, same input: all five members under proofs/ (the
-    // website exports the proofs/ listing, where anchors already live), no
-    // witnesses or artifacts (the ledger stores neither).
-    const reference = buildBundleArchive({
-      proofs: epoch.members.map((m) => ({ proof: m.proof as unknown as Record<string, unknown>, storedProofHash: m.proofHash })),
-      epochIds: [EPOCH_ID],
-      chainIds: [CHAIN_ID],
-      generatedAt: GENERATED_AT,
-    });
-    assert.ok(
-      websiteArchive.equals(Buffer.from(reference)),
-      "website assembly is byte-identical to the reference builder for the same input"
-    );
-
-    const result = await runAudit(archivePath);
-    // No artifact bytes in a ledger export: every member is
-    // artifact-unavailable at the integrity tier, and that is not a failure.
-    assertCleanAudit(result, { verified: 0, artifactUnavailable: 5, verifiedWitnesses: 0 });
-    assert.equal(result.ingest.manifest!.manifest!["artifactsIncluded"], false);
-    assert.equal(result.ingest.manifest!.manifest!["openEpochs"], undefined);
-  });
-
-  it("open-epoch website export carries the openEpochs snapshot and audits clean", async () => {
-    const { archivePath, meta } = await runWebsiteExport(epoch, { open: true });
-    assert.equal(meta.open, true);
-
-    const result = await runAudit(archivePath);
-    assertCleanAudit(result, { verified: 0, artifactUnavailable: 5, verifiedWitnesses: 0 });
-    assert.deepEqual(result.ingest.manifest!.manifest!["openEpochs"], [
-      { epochId: EPOCH_ID, counterAtSnapshot: "10" },
-    ]);
   });
 });

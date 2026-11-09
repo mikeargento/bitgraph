@@ -7,13 +7,10 @@ import { NextResponse } from "next/server";
 // which is an attack surface with no public need, so the route is turned off:
 // every request returns 404, as if the endpoint does not exist.
 //
-// The implementation is intentionally preserved for future INTERNAL/operator
-// use in website/src/lib/export-epoch.ts (spec: docs/BUNDLE-FORMAT.md). To
-// re-enable, restore a handler that calls exportEpoch behind an operator
-// authentication check, never as an open public GET.
-//
-// Nothing else changes: proof creation, verification, the audit tooling, the
-// bundle format, S3 ledger storage, the explorer, and the TEE are untouched.
+// The site has no export assembly. The bundle format (docs/BUNDLE-FORMAT.md)
+// and its reference builder, buildBundleArchive in packages/audit, are
+// unaffected. An export, if one is ever served again, sits behind an operator
+// authentication check, never an open public GET.
 
 export const dynamic = "force-dynamic";
 
