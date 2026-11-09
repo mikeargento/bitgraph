@@ -2,6 +2,11 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
+## 0.11.1 (2026-11-09)
+
+- README rewritten to describe the audit as it runs now, including that a file of a tree is not matched to its proof.
+- Settlement blobs: Base blocks that share a second are read (`rollup-schedule.ts`).
+
 ## 0.11.0 (unreleased)
 
 - A BitGraphed file of one tree member (`bitgraph-carrier/4`, verify 1.18.0) is unpacked as the member's committed bytes and its own `bitgraph-export/1`, and audited with `verifyExport` beside the file, the way every tree member travels; never as a bare `proof.json`, whose digest names the tree's root document and no file. The carrier's own verdict line names the member (`tree member: leaf i of n`). Versions 1 to 3 unpack exactly as before.

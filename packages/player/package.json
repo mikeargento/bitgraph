@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph-player",
-  "version": "0.18.1",
+  "version": "0.18.2",
   "description": "Deterministic rules over verified BitGraph proofs: the same rule and the same proofs always give the same verdict.",
   "keywords": [
     "bitgraph",

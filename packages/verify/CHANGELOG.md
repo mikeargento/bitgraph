@@ -2,6 +2,10 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.29.1 (2026-11-09)
+
+- README rewritten to describe verification as it runs now. No code change.
+
 ## 1.29.0 (2026-11-02)
 
 - **A floor for every drop.** bitgraph.ing now binds the newest Base block (a `bitgraph-block-read/1` file) on the counts right before each file, and the file's signed `prevB64` is that read's hash. `buildTimelineBundle` takes such a read, the record right before the file, as the file's own floor: the bundle is the read and the file, with no ceiling read needed (the ceiling is the file's own Base write).
