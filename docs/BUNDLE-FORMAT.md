@@ -2,7 +2,7 @@
 
 Format identifier: `bitgraph-bundle/1`
 Status: Normative
-Applies to: `@mikeargento/bitgraph-audit` (consumer), the bitgraph.ing epoch exporter (producer), and any third-party implementation of either role.
+Applies to: `@mikeargento/bitgraph-audit` (consumer, and the reference producer `buildBundleArchive`), and any third-party implementation of either role.
 
 This document defines the on-disk interchange format for collections of BitGraph proofs and their supporting evidence. It is written so that a stranger with no access to this repository can implement both a conforming producer and a conforming consumer. Where this document references source files, the references are informative pointers to the canonical implementation; the text here is self-contained.
 
@@ -62,11 +62,9 @@ This identifier is distinct from:
 
 Any future incompatible change to the bundle format increments the suffix (`bitgraph-bundle/2`). Consumers encountering an unknown manifest `version` MUST NOT guess; they report the manifest as unrecognized and MAY still process the container under the rules of the highest version they implement, clearly reporting that the manifest was not interpreted.
 
-### 3.1 Proof version rule (owner directive)
+### 3.1 Proof version rule
 
-Verbatim from the build directive, and normative here:
-
-> Only `bitgraph/1` proofs are bundle members; anything else is a foreign file that the auditor reports as `unsupported-version` if it is proof-shaped, or ignores if not.
+Only `bitgraph/1` proofs are bundle members; anything else is a foreign file that the auditor reports as `unsupported-version` if it is proof-shaped, or ignores if not.
 
 There is no compatibility mode, no tolerant parsing, no version migration, and no legacy tier. The legacy `occ/1` schema is pre-release testing data and is permanently out of scope. This matches the canonical verifier, which rejects any version other than `bitgraph/1` by strict string equality (`packages/verify/src/verifier.ts`, `validateStructure`).
 

@@ -4,8 +4,8 @@ Deterministic evaluation of causal rules over BitGraph proof bundles.
 
 BitGraph records. Player evaluates.
 
-A BitGraph proof bundle establishes facts: these bits were recorded at
-these causal positions, tied to a public timeline. Player
+A BitGraph proof bundle establishes facts: these bits were bound at
+these positions in an enclave's sequence. Player
 evaluates a rule over those facts and produces a verdict anyone can
 reproduce from the bundle alone: no network, no clock, no account, no
 trust in the machine that ran it first.
@@ -20,15 +20,9 @@ trust in the machine that ran it first.
 
     bitgraph-play rule.json bundle/ > verdict.json
 
-The bundle is a directory, `.tar`, or `.tar.gz` of BitGraph proofs:
-`proof.json` files beside the files they record, Frame files
-(`bitgraph-fuse/1`), Ethereum anchor witnesses for proofs made before
-the Base floor. This build reads through
-`@mikeargento/bitgraph-audit` 0.7.x, which does not read the export
-(`bitgraph-export/1`) a tree/1 BitGraph is kept with. So Player does not
-read exports yet; a file with its export is checked with
-`npx -p @mikeargento/bitgraph-sdk bitgraph verify <file> <export.json>`
-or with bitgraph-audit 0.9.0. Exit codes: `0` TRUE, `1` FALSE,
+The bundle is a directory, `.tar`, or `.tar.gz` of BitGraph proofs: proof
+files beside the files they record. Player reads bundles through
+`@mikeargento/bitgraph-audit`. Exit codes: `0` TRUE, `1` FALSE,
 `2` UNDETERMINED, `3` error. `--out file` writes the verdict to a file;
 `--summary` prints a bundle reconnaissance to stderr.
 
@@ -42,27 +36,26 @@ proof.json beside the file it records) and says, offline, what the bundle
 establishes about each recording in it: that the file in hand hashes to
 the recorded digest, that the Ed25519 signature and position binding verify,
 that the AWS Nitro attestation validates to the AWS root and binds this
-exact proof, that the attested PCR0 is a published BitGraph enclave
-measurement (enclave v9 included), and, from block headers in the bundle,
-the Ethereum block the recording comes after (its floor, a time) and the
-later anchor it was committed before (a position, never a clock time).
-This build predates the Base floor (`commit.slotFloor`): it states the
-floor of Ethereum-anchored proofs only.
+exact proof, and that the attested PCR0 is a published BitGraph enclave
+measurement. When a bundle carries Ethereum block headers for a proof
+that signs an Ethereum block, it also states the block the recording
+comes after.
 Every line is TRUE, FALSE, or UNDETERMINED:
 FALSE only when evidence in hand contradicts the recording (an edited
-signature, a block header that does not hash to its anchor), UNDETERMINED
-when the evidence does not decide (the file is not in the bundle, a
-witness is missing). Absence is never a verdict. The report ends with what
+signature), UNDETERMINED when the evidence does not decide (the file is
+not in the bundle). A file that is one of a tree reads UNDETERMINED on
+its file line: its proof binds the tree's root, and `check` matches a
+file only by its own hash.
+Absence is never a verdict. The report ends with what
 no offline check can establish, stated rather than implied. `--json`
 prints the `bitgraph-check/1` report; exit codes match evaluation.
 
 The same check runs in a browser: `verify.html`, built from this package
 to `dist-web/verify.html`. Open it and choose or drop a bundle, offline,
-and it renders the same report from the same code. bitgraph.ing stopped
-serving a copy on 8 September 2026: loading a checker from the party
-being checked is not an offline check. A copy you already have still
-works and always will, since it carries its own code and makes no
-network request.
+and it renders the same report from the same code. bitgraph.ing serves
+no copy: loading a checker from the party being checked is not an
+offline check. The page carries its own code and makes no network
+request.
 
 ## Start a rule
 
@@ -117,7 +110,7 @@ above it.
 
 A claim evaluates to `TRUE`, `FALSE`, or `UNDETERMINED`. Undetermined is
 the honest answer wherever the evidence does not decide: recordings whose
-order the ledger does not establish, a digest recorded more than once
+order the bundle does not establish, a digest recorded more than once
 with no pin selecting the occurrence, evidence below the rule's declared
 trust floor (`requires.ordering`). An evaluator that always answers is
 wrong on some input.

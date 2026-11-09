@@ -6,10 +6,10 @@
 
 **Everything digital is already a copy. BitGraph just puts things in order.**
 
-BitGraph gives any file or record its place in line, so anyone can see which came first. The file is never uploaded: only its SHA-256 is sent, and only that hash is ever public. Inside a measured AWS Nitro
-enclave, one atomic action binds the hash at a counted position, right after a fresh hardware nonce, signed and attested,
-and through bitgraph.ing each day's sequence is tied to Base, a public chain. The proof is a small JSON file that checks
-offline, without BitGraph.
+BitGraph gives any file or record its place in line, so anyone can see which came first. The file is never uploaded:
+only its SHA-256 is sent, and only that hash is ever public. Inside a measured AWS Nitro enclave, one atomic action
+binds the hash at a counted position, right after a fresh hardware nonce, signed and attested. The proof is a small
+JSON file that checks offline, without BitGraph. No blockchain is read or written.
 
 [Make a BitGraph](https://bitgraph.ing/demos) · [The Ledger](https://bitgraph.ing/ledger) · [Demos](https://bitgraph.ing/examples) · [Technology](https://bitgraph.ing/technology) · [Developers](https://bitgraph.ing/integrate) · [Licensing](https://bitgraph.ing/licensing)
 
@@ -45,10 +45,11 @@ offline, without BitGraph.
      └────────────────────────────────────┘
 ```
 
-When a digest arrives, the enclave draws a 32-byte nonce from the Nitro Secure Module's hardware RNG, signs a slot record at
-count N, binds the digest at count N+1 with the hash of the previous proof, asks the hardware for an attestation over the
-exact signed body, signs it with its Ed25519 key, and only then advances the counter. If any step fails, nothing is released,
-the counter does not move, and the nonce never leaves the enclave
+When a digest arrives, the enclave checks its form, draws a 32-byte nonce from the Nitro Secure Module's hardware RNG
+with no input from the request, signs a position record at count N (`slotAllocation` in the proof), binds the digest at
+count N+1 with the hash of the previous proof, asks the hardware for an attestation over the exact signed body, signs
+it with its Ed25519 key, and only then advances the counter. If any step fails, nothing is released, the counter does
+not move, and the nonce never leaves the enclave
 ([`app.ts`](server/commit-service/src/enclave/app.ts), tested in
 [`bind-failure.test.ts`](server/commit-service/src/enclave/__tests__/bind-failure.test.ts)).
 
@@ -57,21 +58,24 @@ the counter does not move, and the nonce never leaves the enclave
 1. **Position.** These exact bytes were bound at count N+1 of one enclave's sequence, immediately after a fresh hardware nonce
    at count N. Nothing was counted between them, no count is given out twice, and each proof carries the hash of the one
    before it, so gaps show.
-2. **Origin of the record.** The binding was done by a specific enclave build whose measurement (PCR0) is published and
+2. **The program.** The binding was done by a specific enclave build whose measurement (PCR0) is published and
    reproducible, as AWS Nitro hardware attests in a document signed for that exact proof.
-3. **Time.** It happened by the time in the hardware's signed attestation. Through bitgraph.ing it also came after a public
-   Base block: the newest block, read and bound as its own BitGraph at the count just before the file and chained into the
-   file's proof. Its ceiling is the next BitGraph in the sequence, which needs no chain.
+3. **Time, as evidence.** The attestation carries a time signed by AWS, the same root the proof already rests on. The
+   claim is the position; the time comes with it.
 
-Each epoch lasts a day and is tied to Base by two writes. It opens with a transaction carrying its id, and right behind
-that goes a second transaction carrying one Merkle root over the file proofs of the epoch that just ended. The first opens
-today's sequence in public; the second fixes yesterday's as it stood, so no record can be added to it, removed or reordered.
+The enclave restarts once a day, at 23:59 UTC. Each run is an epoch with a new key made inside the enclave and a count
+that starts from zero. An epoch normally ends with a closing BitGraph in its own sequence, which marks its final count. Epochs
+are not chained to each other: each stands on its own key and attestation, and order across epochs comes from the
+attested time or from one record citing another.
 
-It does not establish when content was created, who made it, or that it is true. It binds bytes. No blockchain is needed to
-verify a proof; Base is only needed to check the block a record came after and the root its epoch was closed under.
+A BitGraph does not establish when content was created, who made it, or that it is true. It binds bytes. An old file
+can be bound today. The trust root is the measured enclave and its AWS attestation, and nothing else is needed to
+verify a proof. Anyone who wants an outside anchor, such as an RFC 3161 timestamp or a transparency log, can add one
+to a proof afterward; that is not part of BitGraph.
 
-Many items are bound at once as an RFC 6962 Merkle tree in one action, and each proves its own inclusion. Two BitGraphs bracket
-everything bound between them, and work made from one BitGraph's nonce could not have existed before it.
+Many items are bound at once as an RFC 6962 Merkle tree in one action, and each proves its own inclusion. Two
+BitGraphs bracket everything bound between them, and content that contains a BitGraph's nonce was made after that
+BitGraph.
 
 Full mechanism, threat model and comparisons with signatures, RFC 3161, transparency logs, blockchain anchoring and C2PA:
 [bitgraph.ing/technology](https://bitgraph.ing/technology).
@@ -90,9 +94,7 @@ npx @mikeargento/bitgraph-sdk verify chatgpt.png --proof chatgpt.png.bitgraph.js
 ```
 TRUE
 
-  These exact bytes were bound by BitGraph's published enclave image v13, as the AWS Nitro hardware
-  attests, at 2026-11-02T06:24:05.154Z. This says where and when the bytes were bound, not when or how
-  they were made.
+  These exact bytes were bound by BitGraph's published enclave image v13, as the AWS Nitro hardware attests, at 2026-11-02T06:24:05.154Z. This says where and when the bytes were bound, not when or how they were made.
 ```
 
 Then edit any field of the proof, or one byte of the file, and verify again: each change fails, for its own reason, with
@@ -164,7 +166,8 @@ No terms are published here. Start at [bitgraph.ing/licensing](https://bitgraph.
 | [`packages/sdk`](packages/sdk) | `@mikeargento/bitgraph-sdk`. Make and check BitGraphs from code or the `bitgraph` CLI. |
 | [`packages/mcp`](packages/mcp) | `@mikeargento/bitgraph-mcp`. The same for AI agents. |
 | [`packages/audit`](packages/audit) | `@mikeargento/bitgraph-audit`, MIT. Checks a folder of proofs offline. |
-| [`website`](website) | [bitgraph.ing](https://bitgraph.ing): the technology and evaluation pages, Make, Check, the ledger and the proof pages. |
+| [`spec`](spec), [`docs`](docs) | Format specifications. `spec/SPEC.md` and `spec/SPEC-v2.md` are frozen: their hashes are signed into the tree proofs made under them. |
+| [`website`](website) | [bitgraph.ing](https://bitgraph.ing): the technology and evaluation pages, Make, the ledger and the proof pages. |
 
 ## License
 
