@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CopiesTiles, DemoRow } from "@/components/demo-row";
+import { DemoRow } from "@/components/demo-row";
 
 /**
  * The fourth demo: one picture in three files, twice (components/demo-row.tsx). The earlier set is the first row, in
@@ -22,11 +22,6 @@ export default function PicturesPage() {
           are different files, so each has its own place in line.
         </p>
         <DemoRow />
-        <p className="demo-intro">
-          One photograph, saved as three separate files. They look identical and are different files, so each has its
-          own place in line: 1st, 2nd and 3rd.
-        </p>
-        <CopiesTiles />
       </section>
     </div>
   );

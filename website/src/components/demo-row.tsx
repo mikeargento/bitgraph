@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
  *
  * DemoRow is the fourth demo (/pictures): three files, three BitGraphs, twice. A picture made with ChatGPT, copied by
  * Google, then turned into a video by Grok. They look alike and are different bytes, so each has its own proof.
- * CopiesTiles is on the same page: one photograph in three files, recorded one after the other.
+ * CopiesTiles is on the home page, under the headline: one photograph in three files, recorded one after the other.
  *
  * The page shows light display copies (resized pictures, a re-encoded silent video); each proof page shows the exact
  * file its proof covers (public/demo/, unchanged from the bytes recorded).
@@ -111,7 +111,7 @@ export function CopiesRow() {
   );
 }
 
-/** The same photograph in three files on the Copies page: tiles like the other demos, each captioned with its place. */
+/** The same photograph in three files, on the home page: tiles like the demos, each captioned with its place. */
 export function CopiesTiles() {
   return (
     <div className="demo-row is-square">

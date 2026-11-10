@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { CopiesTiles } from "@/components/demo-row";
 
 /**
- * The home page: the claim and its answer as one headline, the three buttons, then one statement in plain
- * paragraphs. Technology is the full reference.
+ * The home page: the claim and its answer as one headline, the three buttons, one photograph in three files, then
+ * one statement in plain paragraphs. Technology is the full reference.
  *
  * Claim discipline, unchanged: a BitGraph is a place in line, bound by a time and after an unpredictable value. It
  * says when bits were bound, not how old they are or who made them.
@@ -30,10 +31,12 @@ export default function HomePage() {
           <a className="bg-action-link" href="/technology">How it works</a>
           <a className="bg-action-link" href="/examples">Try a demo</a>
         </div>
+        {/* One photograph in three files, each with its own place in line: the headline, shown. */}
+        <CopiesTiles />
       </section>
 
       {/* The statement: why order is the question, and what a place in line answers. Technology is the full reference. */}
-      <section className="home-section" aria-label="Why order">
+      <section className="home-section home-statement" aria-label="Why order">
         <p>
           Real or fake? Fact or fiction? Once information is digital, the file itself cannot answer. What is the order of
           the story being told? That question has an answer.
