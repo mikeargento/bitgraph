@@ -46,31 +46,31 @@ export default function HomePage() {
           numbers, and any set of numbers could be either. Watermarks get stripped. Metadata gets forged. Detectors chase
           generators and fall behind.
         </p>
-        <p>So stop asking the object. Look at its place.</p>
+        <p>So stop asking the object. Look at its <em>place</em>.</p>
         <p>
-          A BitGraph gives a file a place: a numbered position in a counted line, opened by a value nobody could predict
-          and sealed by hardware. The line only goes one direction. No place can be prepared in advance, and none can be
+          A BitGraph gives a file a <em>place</em>: a numbered position in a counted line, opened by a value nobody could predict
+          and sealed by hardware. The line only goes one direction. No <em>place</em> can be prepared in advance, and none can be
           added behind it later.
         </p>
         <p>
-          Places settle what inspection cannot. A photograph on record before a model existed was not made by that model.
+          <em>Places</em> settle what inspection cannot. A photograph on record before a model existed was not made by that model.
           An answer that carries a question&rsquo;s value was written after the question was recorded. A draft on record
           in March existed in March, whatever anyone says in June.
         </p>
         <p>
           This was recorded before that. This one carries the value of the one before it, so it was made after. Link
-          enough places and you have the order of the story.
+          enough <em>places</em> and you have the order of the story.
         </p>
         <p>
           A BitGraph does not tell you who made a file, when it was made, or whether it is true. It tells you where the
-          file stands. Only a file that was given a place has one.
+          file stands. Only a file that was given a <em>place</em> has one.
         </p>
         <p>
           Anyone can check it, offline, with no account and nothing to look up. Your file never leaves your machine. Make
           one or a million.
         </p>
-        <p>When anyone can make anything, inspecting the object tells you less every year. Its place does not change.</p>
-        <p><em>BitGraph gives bits a place.</em></p>
+        <p>Anything can be made by anyone. A <em>place</em> cannot be backdated.</p>
+        <p>BitGraph gives bits a <em>place</em>.</p>
       </section>
     </div>
   );
