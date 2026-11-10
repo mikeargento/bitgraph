@@ -8,7 +8,7 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
  * hosted /mcp route) and the verifier (packages/verify 1.26.0, MIT). The verify snippet was run against the v13 sample.
  */
 export const metadata: Metadata = {
-  title: "Integrate",
+  title: "Developers",
   description: "Add BitGraph to your product: send a SHA-256, get a proof. The HTTP API, collections, the SDK and CLI, MCP for agents, and verifying proofs inside your own product.",
 };
 
@@ -33,10 +33,10 @@ const SECTIONS = [
 export default function IntegratePage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page">
-      <div className="home-hero"><h1 className="sr-only">Integrate.</h1></div>
+      <div className="home-hero"><h1 className="sr-only">Developers.</h1></div>
 
       <section className="home-section" aria-labelledby="i-intro">
-        <p className="home-kicker">Integrate</p>
+        <p className="home-kicker">Developers</p>
         <h2 id="i-intro">Send a <span className="term">SHA-256</span>. Get a proof.</h2>
         <p>
           Your system hashes a file or record locally, sends its SHA-256 digest, and stores the returned proof alongside the

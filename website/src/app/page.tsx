@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 /**
- * The home page: the claim and its answer as one headline, the three buttons, then a short overview of what a
- * BitGraph proves, what it does not, how it is made, and the line. Technology is the full reference.
+ * The home page: the claim and its answer as one headline, the three buttons, then one statement in plain
+ * paragraphs. Technology is the full reference.
  *
  * Claim discipline, unchanged: a BitGraph is a place in line, bound by a time and after an unpredictable value. It
  * says when bits were bound, not how old they are or who made them.
@@ -32,63 +32,41 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="home-section" aria-labelledby="ov-proves">
-        <p className="home-kicker">What it proves</p>
-        <h2 id="ov-proves">A place in line, checkable by anyone.</h2>
+      {/* The statement: why order is the question, and what a place in line answers. Technology is the full reference. */}
+      <section className="home-section" aria-label="Why order">
         <p>
-          Each BitGraph binds a file&rsquo;s SHA-256 fingerprint to a numbered place in one counted line, right after a fresh
-          value drawn by the hardware. The proof says these exact bytes took this place, after that moment, and nothing was
-          counted between them. Anyone can check it offline, with no account and nothing to look up.
-        </p>
-      </section>
-
-      <section className="home-section" aria-labelledby="ov-unique">
-        <p className="home-kicker">What it gives you</p>
-        <h2 id="ov-unique">Uniqueness on demand.</h2>
-        <p>
-          Every BitGraph starts with an unused, unpredictable value from the hardware, so any file, even one of a thousand identical copies, receives a
-          place that is its alone. Include that value in the next file you make, and that file is one of a kind, made after it.
-        </p>
-      </section>
-
-      <section className="home-section" aria-labelledby="ov-not">
-        <p className="home-kicker">What it does not prove</p>
-        <h2 id="ov-not">Order, not origin.</h2>
-        <ul className="docs-list">
-          <li><strong>When the file was made.</strong> An old file can be bound today; the proof dates the binding.</li>
-          <li><strong>Who made it, or whether it is true.</strong> It binds bytes, not authorship or meaning.</li>
-          <li><strong>That no other copy exists.</strong> It proves a record was made, not that no other was.</li>
-        </ul>
-      </section>
-
-      <section className="home-section" aria-labelledby="ov-how">
-        <p className="home-kicker">How it works</p>
-        <h2 id="ov-how">One sealed step.</h2>
-        <p>
-          The step runs inside an AWS Nitro enclave whose code is published and measured. In one indivisible action it draws a
-          fresh value nobody has seen, binds your fingerprint at the next count, and signs both into one proof that the hardware
-          attests. Your file stays on your machine; only its 32-byte fingerprint reaches BitGraph.
+          Real or fake? Fact or fiction? Once information is digital, the file itself cannot answer. What is the order of
+          the story being told? That question has an answer.
         </p>
         <p>
-          That is what sets it apart from a timestamp. Each place comes with a value nobody has seen, so no place can be
-          prepared for in advance, and the chain shows any gap or reordering when the records are checked together.
+          Bits carry no trace of where they came from. A camera&rsquo;s readout and a generated image are both just
+          numbers, and any set of numbers could be either. Watermarks get stripped. Metadata gets forged. Detectors chase
+          generators and fall behind.
         </p>
-      </section>
-
-      <section className="home-section" aria-labelledby="ov-line">
-        <p className="home-kicker">The line</p>
-        <h2 id="ov-line">Counted and chained.</h2>
+        <p>So stop asking the object. Look at its place.</p>
         <p>
-          Each proof carries the hash of the one before it, linking the records into a counted sequence. The chain makes gaps
-          and changes detectable when the records are checked together, preserving the order in which they were bound.
+          A BitGraph gives a file a place: a numbered position in a counted line, opened by a value nobody could predict
+          and sealed by hardware. The line only goes one direction. No place can be prepared in advance, and none can be
+          added behind it later.
         </p>
-      </section>
-
-      {/* The way on to the full reference, in a section of its own after the overview. */}
-      <section className="home-section home-ov-end" aria-label="More">
-        <div className="sx-cta">
-          <a className="bg-action-link" href="/technology">Read the full technology</a>
-        </div>
+        <p>
+          Places settle what inspection cannot. A photograph on record before a model existed was not made by that model.
+          An answer that carries a question&rsquo;s value was written after the question was recorded. A draft on record
+          in March existed in March, whatever anyone says in June.
+        </p>
+        <p>
+          This was recorded before that. This one carries the value of the one before it, so it was made after. Link
+          enough places and you have the order of the story.
+        </p>
+        <p>
+          A BitGraph does not tell you who made a file, when it was made, or whether it is true. It tells you where the
+          file stands. Only a file that was given a place has one.
+        </p>
+        <p>
+          Anyone can check it, offline, with no account and nothing to look up. Your file never leaves your machine. Make
+          one or a million.
+        </p>
+        <p>When anyone can make anything, inspecting the object tells you less every year. Its place does not change.</p>
       </section>
     </div>
   );
