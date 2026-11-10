@@ -27,7 +27,7 @@ export default function HomePage() {
         <h1 id="home-h">Everything digital{" "}<br className="home-ov-br" />is already a copy. <span className="home-ov-order">BitGraph just puts{" "}<br className="home-ov-br" />things in order.</span></h1>
         {/* Where to go next: make one, see how it works, try the demos. The same button row as the other pages. */}
         <div className="sx-cta">
-          <a className="bg-action-link is-make" href="/demos">Make a BitGraph</a>
+          <a className="bg-action-link is-make" href="/demos">Make / Verify</a>
           <a className="bg-action-link" href="/technology">How it works</a>
           <a className="bg-action-link" href="/examples">Try a demo</a>
         </div>

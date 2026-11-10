@@ -388,10 +388,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <div key="n" className="pv-row pv-row-head">
           <div className="pv-row-value pv-name">
             {`BitGraph #${fmtNum(m.proof.commit?.counter ?? "")}${m.epochEnd ? " · the epoch's last" : ""}`}
-            {/* With the file open, the link in the corner goes back to the ledger (what people reach for there); a file
-                that opens on request still gets its Open file button. */}
+            {/* A file that opens on request gets its Open file button; with the file open the corner is empty. */}
             {m.openUrl && fileOpen
-              ? <a className="pv-link pv-open-link" href="/ledger">Back to the ledger</a>
+              ? null
               : m.openUrl ? <button type="button" className="pv-link-btn pv-open-link" aria-expanded={fileOpen} onClick={() => setFileOpen((v) => !v)}>Open file</button> : null}
           </div>
         </div>,

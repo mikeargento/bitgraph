@@ -7,7 +7,7 @@ import { DropBox } from "@/components/drop-box";
  */
 
 export const metadata: Metadata = {
-  title: "Make",
+  title: "Make / Verify",
   description: "Drop files to make their BitGraph. Each file is hashed in your browser; only its SHA-256 is sent.",
 };
 
@@ -15,12 +15,12 @@ export default function MakePage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page">
       <div className="home-hero">
-        <h1 className="sr-only">Make.</h1>
+        <h1 className="sr-only">Make / Verify.</h1>
       </div>
 
       <section className="home-section" aria-labelledby="m-intro">
-        <p className="home-kicker">Make</p>
-        <h2 id="m-intro">Record a BitGraph of your files.</h2>
+        <p className="home-kicker">Make / Verify</p>
+        <h2 id="m-intro">Make or Verify a BitGraph.</h2>
         <p>
           A BitGraph fixes where these exact bits were bound in a counted sequence, right after a value nobody could predict. Many files
           at once become one tree and one BitGraph, and each file in it can be checked on its own. BitGraphs are permanent, and a file

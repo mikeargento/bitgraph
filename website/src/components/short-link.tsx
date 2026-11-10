@@ -23,9 +23,9 @@ export async function ShortLink({ code, bare = false }: { code: string; bare?: b
       {!ok ? (
         <p className="lede">A short link is <code>bitgraph.ing/</code> followed by at least the first eight characters of a record&rsquo;s digest.</p>
       ) : failed ? (
-        <p className="lede">The ledger could not be read just now. Try the link again in a moment.</p>
+        <p className="lede">The proof could not be looked up just now. Try the link again in a moment.</p>
       ) : found.length === 0 ? (
-        <p className="lede">No BitGraph on the ledger has a digest beginning <code>{code}</code>.</p>
+        <p className="lede">No BitGraph has a digest beginning <code>{code}</code>.</p>
       ) : (
         <>
           <p className="lede">More than one BitGraph has a digest beginning <code>{code}</code>. Each one:</p>

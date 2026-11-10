@@ -15,7 +15,7 @@ const DEMOS = [
   { href: "/pictures", title: "Copies", body: "Demo: A picture, a copy of it, and a video of it. Three files that look alike, each with its own BitGraph." },
 ];
 const HOME = [
-  { href: "/demos", title: "Make a BitGraph", body: "Drop any file. Its hash is bound at the next place in line, and the file stays with you." },
+  { href: "/demos", title: "Make / Verify", body: "Drop any file. Its hash is bound at the next place in line, and the file stays with you." },
   { href: "/technology", title: "How it works", body: "One sealed step puts each file in its place in line, checkable by anyone." },
   { href: "/examples", title: "Demos", body: "Working examples, each built on real BitGraphs you can check." },
 ];

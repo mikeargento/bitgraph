@@ -7,25 +7,23 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 /**
- * The bar: the wordmark, then five links beside it in a light weight, and at the far right two pills, Contact in a
- * soft fill and Make a BitGraph in ink. The light and dark switch lives in the footer. On phones the links and the button fold
+ * The bar: the wordmark, then four links beside it in a light weight, and at the far right two pills, Contact in a
+ * soft fill and Make / Verify in ink. The light and dark switch lives in the footer. On phones the links and the button fold
  * into a sheet behind a round menu button.
  */
 type NavLink = { href: string; label: string; also?: string[] };
-// The bar is for people taking photos: the ledger, an Info menu holding everything technical, and the one button.
-// Five across (2026-11-04): how it works, how to build on it and license it, the demos, and the ledger.
+// Four across: how it works, how to build on it and license it, and the demos.
 // Applications is reached from Technology and the home page; the reference from Developers; Evaluate from Licensing.
 const LINKS: NavLink[] = [
   { href: "/technology", label: "Technology", also: ["/applications"] },
   { href: "/integrate", label: "Developers", also: ["/tools"] },
   { href: "/licensing", label: "Licensing", also: ["/evaluate"] },
   { href: "/examples", label: "Demos", also: ["/jev", "/generate", "/exam", "/pictures"] },
-  { href: "/ledger", label: "Ledger" },
 ];
 // Contact is the grey pill beside the white one.
 const CONTACT: NavLink = { href: "/contact", label: "Contact" };
 // The button is the one action a visitor should take: a drop proves the product in a minute.
-const CTA = { href: "/demos", label: "Make a BitGraph", also: ["/make"] };
+const CTA = { href: "/demos", label: "Make / Verify", also: ["/make"] };
 
 export function SiteNav() {
   const pathname = usePathname();
@@ -69,7 +67,7 @@ export function SiteNav() {
           ))}
           {/* The sun and moon button sits before the pills; on phones it is in the sheet. */}
           <Link href={CONTACT.href} className="nav-cta-2" aria-current={current(CONTACT.href)}>{CONTACT.label}</Link>
-          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}><span className="nav-cta-long">{CTA.label}</span><span className="nav-cta-short" aria-hidden="true">Make</span></Link>
+          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}><span className="nav-cta-long">{CTA.label}</span><span className="nav-cta-short" aria-hidden="true">Make / Verify</span></Link>
           <button type="button" className="nav-burger" style={{ borderRadius: "50%" }} aria-label={menu ? "Close menu" : "Menu"} aria-expanded={menu} aria-controls="nav-sheet" onClick={() => setMenu((m) => !m)}>
             {menu
               ? <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden><path d="M4 4l10 10M14 4L4 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
