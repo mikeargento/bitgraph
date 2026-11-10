@@ -36,17 +36,18 @@ export const DEMOS: Demo[] = [
   { place: "3rd", caption: "Animated by Grok", counter: "38", proof: `/proof/UXTJPyhZgvAOmkZpSOdhPBZ9PET5xf9sG9VR6qRNu50?counter=38&epoch=${NEW}`, display: "/demo/display/grok-38-poster.jpg", video: { src: "/demo/display/grok-38.mp4" } },
 ];
 
-// The home page's three (2026-11-06): one photograph in three files, recorded one after the other as #58, #62 and #66
-// of one epoch. The pixels are identical and the bytes are not: each file carries a one-line comment, "Copy 1 of 3",
-// "Copy 2 of 3" and "Copy 3 of 3", so any two differ by a single character and each has its own hash and its own
-// proof. None had been recorded before. Nothing in the pictures tells them apart; their places in line do. All three
-// tiles show one display copy; each proof page shows the exact file its proof covers.
-const COPIES_EPOCH = "2EnGlBWWcEPyBfn1N2oMZgtGgxh3nQ3MD69rqDIX0Xw";
+// The home page's three: one photograph in three files, recorded one second apart as #20, #22 and #24 of one epoch,
+// one unbroken run (2026-11-10). The pixels are identical and the bytes are not: each file carries a one-line comment,
+// "Copy 1 of 3", "Copy 2 of 3" and "Copy 3 of 3", so any two differ by a single character and each has its own hash
+// and its own proof. Nothing in the pictures tells them apart; their places in line do. All three tiles show one
+// display copy; each proof page shows the exact file its proof covers. The same three files also hold #58, #62 and
+// #66 of an earlier epoch, which is where the names of the files in public/demo/ come from.
+const COPIES_EPOCH = "lz0ooY9N_eJ1rXvmIl0eLdcSQX4-0Vh9ppOSEzfm2fo";
 const COPIES_ALT = "Boats moored along a dock in a harbor, with shingled buildings behind them";
 export const COPIES: Demo[] = [
-  { caption: "1st", alt: COPIES_ALT, eager: true, counter: "58", proof: `/proof/7roNTix7clHFjNuPKoI2pEOfXcCN5seMP2JgCgTWhrg?counter=58&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
-  { caption: "2nd", alt: COPIES_ALT, eager: true, counter: "62", proof: `/proof/bz7-raVGaSIYKEPO7DIgGcEdoIvb2wSQ4ekyw1pOFhg?counter=62&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
-  { caption: "3rd", alt: COPIES_ALT, eager: true, counter: "66", proof: `/proof/9EDdSdS1KUrBbfoTx0Bmn1OLzeIRGQb5BHLtDn-GTOo?counter=66&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
+  { caption: "1st", alt: COPIES_ALT, eager: true, counter: "20", proof: `/proof/7roNTix7clHFjNuPKoI2pEOfXcCN5seMP2JgCgTWhrg?counter=20&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
+  { caption: "2nd", alt: COPIES_ALT, eager: true, counter: "22", proof: `/proof/bz7-raVGaSIYKEPO7DIgGcEdoIvb2wSQ4ekyw1pOFhg?counter=22&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
+  { caption: "3rd", alt: COPIES_ALT, eager: true, counter: "24", proof: `/proof/9EDdSdS1KUrBbfoTx0Bmn1OLzeIRGQb5BHLtDn-GTOo?counter=24&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
 ];
 
 // Each set's place in line (1st, 2nd, 3rd) leads its caption on the demo tiles.
