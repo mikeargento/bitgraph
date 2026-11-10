@@ -3,13 +3,19 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * Ask Jev on two BitGraphs. live.occproof.com (repo ~/Code/bitgraph-live, branch jev-two-bitgraphs) binds A (the
- * request), makes two questions from A's nonce, asks Jev, and binds B (the record), streaming each step. This page
- * shows it, and does not take the service's word for the questions: it fetches A's proof from bitgraph.ing itself,
- * reads the nonce, and makes the questions again here. A result survives leaving the page: /jev?p=<B's id>.
+ * Ask Jev on two BitGraphs. The service at live.occproof.com binds A (the request), makes two questions from A's
+ * nonce, asks Jev, and binds B (the record), streaming each step. This page shows it, and does not take the service's
+ * word for the questions: it fetches A's proof from bitgraph.ing itself, reads the nonce, and makes the questions
+ * again here. A result survives leaving the page: /jev?p=<B's id>.
+ *
+ * The two files are kept in this browser, as Generate image keeps its own, so each proof page shows its file the way
+ * it shows any file in hand. If they cannot be fetched, the proof links carry ?files= and the proof page reads them
+ * from the service instead.
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { unzipSync } from "fflate";
 import { SandwichFigure } from "@/components/primitive-figures";
+import { cacheArtifactToIDB } from "@/lib/file-cache";
 
 // The service runs on the enclave host behind its Cloudflare tunnel (2026-10-24), whose zone is occproof.com.
 const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.occproof.com";
@@ -19,7 +25,7 @@ const fmt = (n: number | string) => Number(n).toLocaleString("en-US");
 const urlSafe = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 interface Questions { version: string; code: string; both: { digit: string; letter: string; text: string }; first: { a: string; b: string; text: string } }
-interface Side { id: string; counter: string; nonceCounter: string }
+interface Side { id: string; counter: string; nonceCounter: string; epoch?: string }
 interface Asked {
   id: string; a: Side; b: Side; code: string; questions: Questions;
   truth: { both: boolean; first: string; at: { digit: number; letter: number; a: number; b: number } };
@@ -27,10 +33,34 @@ interface Asked {
   jevError: string | null; right: { both: boolean; first: boolean } | null; jev: { model: string; reported: string | null };
 }
 
-/** A proof page that also shows the file itself: ?files= is the record's download, which the proof page reads from
- *  live.occproof.com (an approved host) and shows only if a file in it has the proof's signed digest. */
-const proofLink = (id: string, recordId: string) =>
-  `/proof/${id}?files=${encodeURIComponent(`${LIVE}/api/result/${recordId}/download`)}`;
+/** A proof page, opened at its position. With the file kept in this browser the page shows it as a file in hand;
+ *  without it, ?files= is the record's download, which the proof page reads from live.occproof.com (an approved host)
+ *  and shows only if a file in it has the proof's signed digest. */
+const proofLink = (side: Side, recordId: string, kept: boolean) => {
+  const at = side.epoch ? `counter=${side.counter}&epoch=${encodeURIComponent(side.epoch)}` : "";
+  if (kept) return `/proof/${side.id}${at ? `?${at}` : ""}`;
+  return `/proof/${side.id}?${at ? `${at}&` : ""}files=${encodeURIComponent(`${LIVE}/api/result/${recordId}/download`)}`;
+};
+
+const b64 = (u: Uint8Array) => { let x = ""; for (const c of u) x += String.fromCharCode(c); return btoa(x); };
+
+/** Keep the request and the record in this browser, each under its own SHA-256, and say whether both are the files
+ *  the two proofs bind. Nothing is kept unless its hash is the one its proof page is opened by. */
+async function keepFiles(rec: Asked): Promise<boolean> {
+  const res = await fetch(`${LIVE}/api/result/${rec.id}/download`);
+  if (!res.ok) return false;
+  const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
+  let kept = 0;
+  for (const [name, side] of [["request.json", rec.a], ["record.json", rec.b]] as const) {
+    const bytes = files[name];
+    if (!bytes) continue;
+    const digest = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes.slice())));
+    if (urlSafe(digest) !== side.id) continue;
+    await cacheArtifactToIDB(new File([bytes.slice()], `bitgraph-${side.counter}-${name}`, { type: "application/json" }), digest);
+    kept++;
+  }
+  return kept === 2;
+}
 
 /** The questions, made from the code exactly as the service makes them (questions.ts). */
 async function questionsFor(code: string): Promise<Questions> {
@@ -57,6 +87,9 @@ export function JevAsker() {
   const [r, setR] = useState<Asked | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [derived, setDerived] = useState<"checking" | "match" | "mismatch" | "unavailable" | null>(null);
+  /** Whether both files are in this browser, so the proof links open them as files in hand. */
+  const [kept, setKept] = useState(false);
+  const keep = useCallback((rec: Asked) => { setKept(false); void keepFiles(rec).then(setKept).catch(() => setKept(false)); }, []);
 
   /** The check that does not rest on the service: A's proof from bitgraph.ing, its nonce, the questions made here. */
   const checkQuestions = useCallback(async (rec: Asked) => {
@@ -80,10 +113,10 @@ export function JevAsker() {
         const res = await fetch(`${LIVE}/api/result/${p}`);
         if (!res.ok) return;
         const rec = (await res.json()) as Asked;
-        setR(rec); setState("done"); void checkQuestions(rec);
+        setR(rec); setState("done"); void checkQuestions(rec); keep(rec);
       } catch { /* the page still asks */ }
     })();
-  }, [checkQuestions]);
+  }, [checkQuestions, keep]);
 
   const askNow = async () => {
     setState("running"); setError(null); setR(null); setDerived(null); setStep("Making BitGraph A…");
@@ -111,7 +144,7 @@ export function JevAsker() {
       if (!rec) throw new Error("it did not finish");
       setR(rec); setState("done");
       window.history.replaceState(null, "", `/jev?p=${rec.id}`);
-      void checkQuestions(rec);
+      void checkQuestions(rec); keep(rec);
     } catch (e) {
       setError((e as Error).message); setState("error");
     }
@@ -172,8 +205,8 @@ export function JevAsker() {
           </p>
           {/* The links are buttons (2026-10-19), like View proof on Make. */}
           <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <a className="bg-action-link" style={{ margin: 0 }} href={proofLink(r.a.id, r.id)}>BitGraph A #{fmt(r.a.counter)}, the request</a>
-            <a className="bg-action-link" style={{ margin: 0 }} href={proofLink(r.id, r.id)}>BitGraph B #{fmt(r.b.counter)}, the record</a>
+            <a className="bg-action-link" style={{ margin: 0 }} href={proofLink(r.a, r.id, kept)}>BitGraph A #{fmt(r.a.counter)}, the request</a>
+            <a className="bg-action-link" style={{ margin: 0 }} href={proofLink(r.b, r.id, kept)}>BitGraph B #{fmt(r.b.counter)}, the record</a>
             <a className="bg-action-link" style={{ margin: 0 }} href={`${LIVE}/api/result/${r.id}/download`}>Download both files and proofs</a>
           </div>
         </section>
