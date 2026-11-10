@@ -70,7 +70,7 @@ export default function HomePage() {
           one or a million.
         </p>
         <p>When anyone can make anything, inspecting the object tells you less every year. Its place does not change.</p>
-        <p>BitGraph gives bits a place.</p>
+        <p><em>BitGraph gives bits a place.</em></p>
       </section>
     </div>
   );
