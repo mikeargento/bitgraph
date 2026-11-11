@@ -48,9 +48,9 @@ export default function HomePage() {
         </p>
         <p>So stop asking the object. Look at its <em>place</em>.</p>
         <p>
-          A BitGraph gives a file a <em>place</em>: a numbered position in a counted line, opened by a value nobody could predict
-          and sealed by hardware. The line only goes one direction. No <em>place</em> can be prepared in advance, and none can be
-          added behind it later.
+          A BitGraph is a <em>place</em> that did not exist before a file consumed it: a numbered position in a counted
+          line, opened by a value nobody could predict and sealed by hardware. The line only goes one direction, and
+          nothing can be added behind it later.
         </p>
         <p>
           <em>Places</em> settle what inspection cannot. A photograph on record before a model existed was not made by that model.
