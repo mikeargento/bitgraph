@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 
 /**
- * The home page: an eyebrow and a headline that says what a BitGraph is, set as on every other page, then one
- * statement in plain paragraphs. Technology is the full reference.
+ * The home page: a headline that says what BitGraph does, set like every other page's, then three plain
+ * paragraphs. Technology is the full reference.
  *
  * Claim discipline, unchanged: a BitGraph is a place in line, bound by a time and after an unpredictable value. It
  * says when bits were bound, not how old they are or who made them.
  */
 
-const TITLE = "BitGraph establishes a cryptographic position that is unused before a file consumes it";
+const TITLE = "BitGraph just puts things in order";
 const DESCRIPTION =
   "Everything digital is already a copy. Any file or record gets a numbered place in line, with a proof anyone can check offline, in seconds.";
 
@@ -24,24 +24,24 @@ export default function HomePage() {
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-ov">
       <div className="home-hero"><h1 className="sr-only">BitGraph.</h1></div>
 
-      {/* The eyebrow and headline, then the statement: a roll of film as the picture of what a place is, what a
-          BitGraph does not say, and how it is checked. The film is an explanation, never the claim.
-          The eyebrow is a div so the statement's paragraph size does not reach it; it is styled by its class. */}
+      {/* The headline, with no eyebrow over it, then three paragraphs: how a place is made, what the order makes
+          possible, and what a person keeps and what it does not say. */}
       <section className="home-section home-statement" aria-labelledby="home-h">
-        <div className="home-kicker">Provenance</div>
-        <h2 id="home-h">BitGraph establishes a cryptographic position that is unused before a file consumes&nbsp;it.</h2>
+        <h2 id="home-h">BitGraph just puts things in&nbsp;order.</h2>
         <p>
-          On a roll of film, every frame is blank until it&rsquo;s exposed. Each frame can be used only once, and the
-          frames stay in order.
+          Inside secure hardware, a number nobody could predict is drawn and recorded first. The file&rsquo;s hash takes
+          the very next place. That place has never been used before and can never be used again.
         </p>
-        <p>Make all the prints you like. They all point back to one frame.</p>
-        <p>Digital lost that. Every file is already a copy, and nothing in it says which copy came first.</p>
         <p>
-          BitGraph brings that back. A file gets a <em>place</em> in a counted line, one that has never been used before
-          and can never be used again.
+          The parts are not new. What matters is the order. Because the number comes first and could not have been
+          predicted, anything that contains it must have been finished afterward. Now one recording can establish
+          what had to come before another, without a clock to trust, a ledger to keep, or a network that has to agree.
         </p>
-        <p>It doesn&rsquo;t say who made the file or whether it&rsquo;s true. It says that this file belongs to this <em>place</em>.</p>
-        <p>Anyone can check its place, offline, and what&rsquo;s in your file stays private.</p>
+        <p>
+          What you keep is a small proof anyone can check, offline, without us. Your file never leaves your machine.
+          The proof says where your file was recorded. It does not say who made it, when it was created, or whether it
+          is true.
+        </p>
         {/* Where to go next, on phones only: there the bar folds to a menu, so the page offers the three ways on.
             Wide screens have them in the bar. */}
         <div className="sx-cta home-next">

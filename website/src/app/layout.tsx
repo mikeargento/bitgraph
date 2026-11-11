@@ -99,14 +99,14 @@ export const metadata: Metadata = {
     "hardware enclave", "offline verification",
   ],
   openGraph: {
-    title: "BitGraph establishes a cryptographic position that is unused before a file consumes it",
+    title: "BitGraph just puts things in order",
     description: SITE_DESCRIPTION,
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary",
-    title: "BitGraph establishes a cryptographic position that is unused before a file consumes it",
+    title: "BitGraph just puts things in order",
     description: SITE_DESCRIPTION,
   },
   robots: { index: true, follow: true },
