@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { DemoRow } from "@/components/demo-row";
+import { CopiesTiles, DemoRow } from "@/components/demo-row";
 
 /**
- * The fourth demo: one picture in three files, twice (components/demo-row.tsx). The earlier set is the first row, in
- * black and white; the newer set is the second row, in color. Each row runs in the order its files were made.
+ * The fourth demo: one source in three files, twice (components/demo-row.tsx). The first row, in black and white, is a
+ * picture, a copy of it and a video of it. The second row, in color, is one photograph saved three times. Each row
+ * runs in the order its files were recorded.
  */
 export const metadata: Metadata = {
   title: "Copies",
@@ -22,6 +23,11 @@ export default function PicturesPage() {
           are different files, so each has its own place in line.
         </p>
         <DemoRow />
+        <p className="demo-intro">
+          One photograph saved three times. The pictures are the same and the files are not, so each has its own place
+          in line.
+        </p>
+        <CopiesTiles />
       </section>
     </div>
   );

@@ -7,9 +7,9 @@ import { useEffect, useState } from "react";
 /**
  * Pictures with their proofs, as tiles: a caption, the picture, and a link to its proof.
  *
- * DemoRow is the fourth demo (/pictures): three files, three BitGraphs, twice. A picture made with ChatGPT, copied by
- * Google, then turned into a video by Grok. They look alike and are different bytes, so each has its own proof.
- * CopiesTiles is on the home page, under the headline: one photograph in three files, recorded one after the other.
+ * Both rows are the fourth demo (/pictures): three files, three BitGraphs, twice. DemoRow is a picture made with
+ * ChatGPT, copied by Google, then turned into a video by Grok. They look alike and are different bytes, so each has
+ * its own proof. CopiesTiles is one photograph in three files, recorded one after the other.
  *
  * The page shows light display copies (resized pictures, a re-encoded silent video); each proof page shows the exact
  * file its proof covers (public/demo/, unchanged from the bytes recorded).
@@ -19,24 +19,18 @@ import { useEffect, useState } from "react";
  */
 type Demo = { caption: string; place?: string; alt?: string; eager?: boolean; counter: string; proof: string; display: string; video?: { src: string }; bw?: boolean };
 
-// Two sets, six files: the earlier three, re-recorded 2026-11-02 in the first epoch of per-record Base writes, and a
-// new picture, its copy and its video (2026-11-05, #30, #34 and #38 of one epoch). Each caption follows the Content
-// Credentials inside its file (OpenAI's, Google's with the OpenAI picture as its ingredient, xAI's). They are the
-// fourth demo (/pictures) since 2026-11-06, one set per row in the order it was made: the earlier set first, shown in
-// black and white (bw), then the new set in color. Black and white is a filter on the display copy; each proof covers
-// its file as it is.
-const NEW = "GCFxJ90RSg66_o4_Ri5ya4n9A626Jmp6k2zSeqxphgc";
+// The demo's first row: a picture, its copy and its video, recorded 2026-11-02 as #304, #308 and #312 of one epoch.
+// Each caption follows the Content Credentials inside its file (OpenAI's, Google's with the OpenAI picture as its
+// ingredient, xAI's). The row is shown in black and white (bw), a filter on the display copy; each proof covers its
+// file as it is.
 const EARLIER = "KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs";
 export const DEMOS: Demo[] = [
   { place: "1st", caption: "Created by ChatGPT", counter: "304", proof: `/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=304&epoch=${EARLIER}`, display: "/demo/display/chatgpt.jpg", bw: true },
   { place: "2nd", caption: "Copied by Google", counter: "308", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=308&epoch=${EARLIER}`, display: "/demo/display/google.jpg", bw: true },
   { place: "3rd", caption: "Animated by Grok", counter: "312", proof: `/proof/VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM?counter=312&epoch=${EARLIER}`, display: "/demo/display/grok-poster.jpg", video: { src: "/demo/display/grok.mp4" }, bw: true },
-  { place: "1st", caption: "Created by ChatGPT", counter: "30", proof: `/proof/Mcr7iOK5afl1x1iwwcTrwn3nFGR31RmRyTyTsHCU_JM?counter=30&epoch=${NEW}`, display: "/demo/display/chatgpt-30.jpg" },
-  { place: "2nd", caption: "Copied by Google", counter: "34", proof: `/proof/hQU63cRe-SH06EW0ivMBewEj5u1OsrNIvlKpjpPOt_A?counter=34&epoch=${NEW}`, display: "/demo/display/google-34.jpg" },
-  { place: "3rd", caption: "Animated by Grok", counter: "38", proof: `/proof/UXTJPyhZgvAOmkZpSOdhPBZ9PET5xf9sG9VR6qRNu50?counter=38&epoch=${NEW}`, display: "/demo/display/grok-38-poster.jpg", video: { src: "/demo/display/grok-38.mp4" } },
 ];
 
-// The home page's three: one photograph in three files, recorded one second apart as #20, #22 and #24 of one epoch,
+// The demo's second row: one photograph in three files, recorded one second apart as #20, #22 and #24 of one epoch,
 // one unbroken run (2026-11-10). The pixels are identical and the bytes are not: each file carries a one-line comment,
 // "Copy 1 of 3", "Copy 2 of 3" and "Copy 3 of 3", so any two differ by a single character and each has its own hash
 // and its own proof. Nothing in the pictures tells them apart; their places in line do. All three tiles show one
@@ -45,13 +39,12 @@ export const DEMOS: Demo[] = [
 const COPIES_EPOCH = "lz0ooY9N_eJ1rXvmIl0eLdcSQX4-0Vh9ppOSEzfm2fo";
 const COPIES_ALT = "Boats moored along a dock in a harbor, with shingled buildings behind them";
 export const COPIES: Demo[] = [
-  { caption: "1st", alt: COPIES_ALT, eager: true, counter: "20", proof: `/proof/7roNTix7clHFjNuPKoI2pEOfXcCN5seMP2JgCgTWhrg?counter=20&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
-  { caption: "2nd", alt: COPIES_ALT, eager: true, counter: "22", proof: `/proof/bz7-raVGaSIYKEPO7DIgGcEdoIvb2wSQ4ekyw1pOFhg?counter=22&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
-  { caption: "3rd", alt: COPIES_ALT, eager: true, counter: "24", proof: `/proof/9EDdSdS1KUrBbfoTx0Bmn1OLzeIRGQb5BHLtDn-GTOo?counter=24&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
+  { caption: "1st", alt: COPIES_ALT, counter: "20", proof: `/proof/7roNTix7clHFjNuPKoI2pEOfXcCN5seMP2JgCgTWhrg?counter=20&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
+  { caption: "2nd", alt: COPIES_ALT, counter: "22", proof: `/proof/bz7-raVGaSIYKEPO7DIgGcEdoIvb2wSQ4ekyw1pOFhg?counter=22&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
+  { caption: "3rd", alt: COPIES_ALT, counter: "24", proof: `/proof/9EDdSdS1KUrBbfoTx0Bmn1OLzeIRGQb5BHLtDn-GTOo?counter=24&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
 ];
 
-// Each set's place in line (1st, 2nd, 3rd) leads its caption on the demo tiles.
-// The home page's three sit at the top of their page and load at once (eager); the demo's tiles load as they come into view.
+// Each set's place in line (1st, 2nd, 3rd) leads its caption on the demo tiles. The tiles load as they come into view.
 function Media({ d }: { d: Demo }) {
   if (d.video) return <video className="demo-media" src={d.video.src} poster={d.display} autoPlay loop muted playsInline aria-label={d.alt ?? d.caption} />;
   return <img className="demo-media" src={d.display} alt={d.alt ?? d.caption} loading={d.eager ? "eager" : "lazy"} />;
@@ -112,7 +105,7 @@ export function CopiesRow() {
   );
 }
 
-/** The same photograph in three files, on the home page: tiles like the demos, each captioned with its place. */
+/** The demo's second row, in color and square: the same photograph in three files, each captioned with its place. */
 export function CopiesTiles() {
   return (
     <div className="demo-row is-square">

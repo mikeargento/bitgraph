@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
-import { CopiesTiles } from "@/components/demo-row";
 
 /**
- * The home page: the claim and its answer as one headline, the three buttons, one photograph in three files, then
- * one statement in plain paragraphs. Technology is the full reference.
+ * The home page: an eyebrow and a headline that says what a BitGraph is, set as on every other page, then one
+ * statement in plain paragraphs. Technology is the full reference.
  *
  * Claim discipline, unchanged: a BitGraph is a place in line, bound by a time and after an unpredictable value. It
  * says when bits were bound, not how old they are or who made them.
  */
 
-const TITLE = "BitGraph just puts things in order";
+const TITLE = "BitGraph establishes a cryptographic position that is unused before a file consumes it";
 const DESCRIPTION =
   "Everything digital is already a copy. Any file or record gets a numbered place in line, with a proof anyone can check offline, in seconds.";
 
@@ -23,20 +22,13 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-ov">
-      <section className="home-section home-ov-hero" aria-labelledby="home-h">
-        <h1 id="home-h">Everything digital{" "}<br className="home-ov-br" />is already a copy. <span className="home-ov-order">BitGraph just puts{" "}<br className="home-ov-br" />things in order.</span></h1>
-        {/* Where to go next: make one, see how it works, try the demos. The same button row as the other pages. */}
-        <div className="sx-cta">
-          <a className="bg-action-link is-make" href="/demos">Make / Verify</a>
-          <a className="bg-action-link" href="/technology">How it works</a>
-          <a className="bg-action-link" href="/examples">Try a demo</a>
-        </div>
-        {/* One photograph in three files, each with its own place in line: the headline, shown. */}
-        <CopiesTiles />
-      </section>
+      <div className="home-hero"><h1 className="sr-only">BitGraph.</h1></div>
 
-      {/* The statement: why order is the question, and what a place in line answers. Technology is the full reference. */}
-      <section className="home-section home-statement" aria-label="Why order">
+      {/* The eyebrow and headline, then the statement: why order is the question, and what a place in line answers.
+          The eyebrow is a div so the statement's paragraph size does not reach it; it is styled by its class. */}
+      <section className="home-section home-statement" aria-labelledby="home-h">
+        <div className="home-kicker">Provenance</div>
+        <h2 id="home-h">BitGraph establishes a cryptographic position that is unused before a file consumes&nbsp;it.</h2>
         <p>
           Real or fake? Fact or fiction? Once information is digital, the file itself cannot answer. What is the order of
           the story being told? That question has an answer.
@@ -48,7 +40,7 @@ export default function HomePage() {
         </p>
         <p>So stop asking the object. Look at its <em>place</em>.</p>
         <p>
-          A BitGraph is a <em>place</em> that did not exist before a file consumed it: a numbered position in a counted
+          A BitGraph is a <em>place</em> that was unused before a file consumed it: a numbered position in a counted
           line, opened by a value nobody could predict and sealed by hardware. The line only goes one direction, and
           nothing can be added behind it later.
         </p>
@@ -71,6 +63,13 @@ export default function HomePage() {
         </p>
         <p>Anything can be made by anyone. A <em>place</em> cannot be backdated.</p>
         <p>BitGraph gives bits a <em>place</em>.</p>
+        {/* Where to go next, on phones only: there the bar folds to a menu, so the page offers the three ways on.
+            Wide screens have them in the bar. */}
+        <div className="sx-cta home-next">
+          <a className="bg-action-link is-make" href="/demos">Make / Verify</a>
+          <a className="bg-action-link" href="/technology">How it works</a>
+          <a className="bg-action-link" href="/examples">Try a demo</a>
+        </div>
       </section>
     </div>
   );
