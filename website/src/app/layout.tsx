@@ -92,13 +92,13 @@ export const viewport: Viewport = { themeColor: "#ffffff" };
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */
 const SITE_DESCRIPTION =
-  "Everything digital is already a copy. BitGraph gives any file or record its place in line, without uploading it. Anyone can check which came first, offline, in seconds.";
+  "BitGraph gives any file or record its place in line, without uploading it. Anyone can check which came first, offline, in seconds.";
 
 export const metadata: Metadata = {
   title: {
-    // Home's tab title is set in page.tsx; the template below brands every other page's tab.
+    // Every tab reads "BitGraph | Page", and Home reads "BitGraph" alone.
     default: "BitGraph",
-    template: "%s | BitGraph",
+    template: "BitGraph | %s",
   },
   description: SITE_DESCRIPTION,
   keywords: [
@@ -106,14 +106,14 @@ export const metadata: Metadata = {
     "hardware enclave", "offline verification",
   ],
   openGraph: {
-    title: "BitGraph just puts things in order",
+    title: "BitGraph",
     description: SITE_DESCRIPTION,
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary",
-    title: "BitGraph just puts things in order",
+    title: "BitGraph",
     description: SITE_DESCRIPTION,
   },
   robots: { index: true, follow: true },

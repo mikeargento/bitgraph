@@ -11,9 +11,9 @@ import { CopiesTiles } from "@/components/demo-row";
  * says when bits were bound, not how old they are or who made them.
  */
 
-const TITLE = "BitGraph just puts things in order";
+const TITLE = "BitGraph";
 const DESCRIPTION =
-  "Everything digital is already a copy. Any file or record gets a numbered place in line, with a proof anyone can check offline, in seconds.";
+  "Any file or record gets a numbered place in line, with a proof anyone can check offline, in seconds.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },

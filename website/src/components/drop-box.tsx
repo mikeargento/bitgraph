@@ -861,7 +861,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false, hero
           <span className="db-zone-touch"><span className="db-zone-pick">Choose files</span>{mode === "check" ? " to check" : " to BitGraph"}</span></>}</div>
         {/* Something is happening: a thin moving bar under the line that says what (2026-10-18). */}
         {status && <div className="bg-working" role="progressbar" aria-label={status} />}
-        <div className="db-zone-sub">Each file is hashed in your browser. <br className="sub-br" />Only its SHA-256 is&nbsp;sent.</div>
+        <div className="db-zone-sub">Only the file&rsquo;s SHA-256 is&nbsp;sent.</div>
         <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
         {/* @ts-expect-error webkitdirectory is a non-standard attribute every current browser supports */}
         <input ref={folderRef} type="file" webkitdirectory="" multiple style={{ display: "none" }} onChange={(e) => { void take(Array.from(e.target.files ?? []).filter((f) => !f.name.startsWith("."))); e.target.value = ""; }} />
