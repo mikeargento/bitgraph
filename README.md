@@ -4,7 +4,7 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
-**Everything digital is already a copy. BitGraph just puts things in order.**
+**Blockchain order. Without blockchain.**
 
 BitGraph gives any file or record its place in line, so anyone can see which came first. The file is never uploaded:
 only its SHA-256 is sent, and only that hash is ever public. Inside a measured AWS Nitro enclave, one atomic action

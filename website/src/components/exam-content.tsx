@@ -1,6 +1,7 @@
 // The sealed exam's content, shared by its own page and the demos page (2026-11-04).
 import { CopyCode } from "@/components/copy-code";
 import { SandwichFigure } from "@/components/primitive-figures";
+import { GoArrow } from "@/components/go-arrow";
 
 /**
  * The sealed exam, on two BitGraphs (2026-10-19, shipped together with the repo's release v3 and npm 0.3.0).
@@ -45,9 +46,9 @@ export function ExamContent() {
           sheet is bound as BitGraph B, after A in the same sequence. Anyone checks the whole sitting offline, with nothing
           but Node.
         </p>
-        <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <a className="bg-action-link" style={{ margin: 0 }} href={ZIP_URL}>Download the package</a>
-          <a className="bg-action-link" style={{ margin: 0 }} href={REPO_URL} target="_blank" rel="noopener">Source on GitHub</a>
+        <div className="demo-bars" style={{ marginTop: 24 }}>
+          <a className="bg-action-link is-bar" style={{ margin: 0 }} href={ZIP_URL}>Download the package<GoArrow /></a>
+          <a className="bg-action-link is-bar" style={{ margin: 0 }} href={REPO_URL} target="_blank" rel="noopener">Source on GitHub<GoArrow /></a>
         </div>
       </section>
 
@@ -60,9 +61,9 @@ export function ExamContent() {
           attested time. The bank is small and easy on purpose: this is about
           freshness, not difficulty.
         </p>
-        <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <a className="bg-action-link" style={{ margin: 0 }} href={`/proof/${SITTING.a.id}`}>BitGraph A #{SITTING.a.n}, the request</a>
-          <a className="bg-action-link" style={{ margin: 0 }} href={`/proof/${SITTING.b.id}`}>BitGraph B #{SITTING.b.n}, the answers</a>
+        <div className="demo-bars" style={{ marginTop: 20 }}>
+          <a className="bg-action-link is-bar" style={{ margin: 0 }} href={`/proof/${SITTING.a.id}`}>BitGraph A #{SITTING.a.n}, the request<GoArrow /></a>
+          <a className="bg-action-link is-bar" style={{ margin: 0 }} href={`/proof/${SITTING.b.id}`}>BitGraph B #{SITTING.b.n}, the answers<GoArrow /></a>
         </div>
       </section>
 

@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { unzipSync } from "fflate";
 import { SandwichFigure } from "@/components/primitive-figures";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
+import { GoArrow } from "@/components/go-arrow";
 
 // The service runs on the enclave host behind its Cloudflare tunnel (2026-10-24), whose zone is occproof.com.
 const LIVE = process.env.NEXT_PUBLIC_JEV_LIVE_URL ?? "https://live.occproof.com";
@@ -160,10 +161,12 @@ export function JevAsker() {
           the record is bound as BitGraph B, after A in the same sequence. Nothing about the questions existed before&nbsp;A.
         </p>
         <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {/* The primary action, filled (2026-10-20) so it stands out as the one thing to press. The record dot was tried
-              and left off: on a button it reads as "this site will record you". */}
-          <button type="button" className="bg-action-link is-make" style={{ margin: 0, minWidth: "9.5em", justifyContent: "center" }} disabled={state === "running"} onClick={() => void askNow()}>
+          {/* The primary action, filled (2026-10-20) so it stands out as the one thing to press: the home page's bar,
+              its label at the left and an arrow at the right. The record dot was tried and left off: on a button it
+              reads as "this site will record you". */}
+          <button type="button" className="bg-action-link is-make is-bar" style={{ margin: 0 }} disabled={state === "running"} onClick={() => void askNow()}>
             {r ? "Ask again" : "Ask AI"}
+            <GoArrow />
           </button>
           {/* While it runs the button keeps its label and a bar fills, one part per step, instead of the label changing
               at each BitGraph (2026-10-19): a label swapped per step made the button blink. */}
@@ -203,11 +206,11 @@ export function JevAsker() {
             {derived === "mismatch" && <span className="db-bad">The questions do not match A&rsquo;s nonce on bitgraph.ing.</span>}
             {derived === "unavailable" && "A’s proof could not be read just now to remake the questions here; the links below still open both proofs."}
           </p>
-          {/* The links are buttons (2026-10-19), like View proof on Make. */}
-          <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <a className="bg-action-link" style={{ margin: 0 }} href={proofLink(r.a, r.id, kept)}>BitGraph A #{fmt(r.a.counter)}, the request</a>
-            <a className="bg-action-link" style={{ margin: 0 }} href={proofLink(r.b, r.id, kept)}>BitGraph B #{fmt(r.b.counter)}, the record</a>
-            <a className="bg-action-link" style={{ margin: 0 }} href={`${LIVE}/api/result/${r.id}/download`}>Download both files and proofs</a>
+          {/* The links are bars (2026-11-12): the home page's bar in ink, a label at the left and an arrow at the right. */}
+          <div className="demo-bars" style={{ marginTop: 20 }}>
+            <a className="bg-action-link is-bar" style={{ margin: 0 }} href={proofLink(r.a, r.id, kept)}>BitGraph A #{fmt(r.a.counter)}, the request<GoArrow /></a>
+            <a className="bg-action-link is-bar" style={{ margin: 0 }} href={proofLink(r.b, r.id, kept)}>BitGraph B #{fmt(r.b.counter)}, the record<GoArrow /></a>
+            <a className="bg-action-link is-bar" style={{ margin: 0 }} href={`${LIVE}/api/result/${r.id}/download`}>Download both files and proofs<GoArrow /></a>
           </div>
         </section>
         </div></div>

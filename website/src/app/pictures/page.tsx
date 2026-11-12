@@ -1,33 +1,27 @@
 import type { Metadata } from "next";
-import { CopiesTiles, DemoRow } from "@/components/demo-row";
+import { HarborRow } from "@/components/demo-row";
 
 /**
- * The fourth demo: one source in three files, twice (components/demo-row.tsx). The first row, in black and white, is a
- * picture, a copy of it and a video of it. The second row, in color, is one photograph saved three times. Each row
- * runs in the order its files were recorded.
+ * The fourth demo: one photograph saved three times (components/demo-row.tsx), in the order the files were recorded.
  */
 export const metadata: Metadata = {
   title: "Copies",
-  description: "A picture, a copy of it, and a video of it: three files that look alike, each with its own BitGraph.",
+  description: "One photograph saved three times: three files that look alike, each with its own BitGraph.",
 };
 
 export default function PicturesPage() {
   return (
-    <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page">
+    <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page copies-page">
       <div className="home-hero"><h1 className="sr-only">Copies.</h1></div>
       <section className="home-section" aria-labelledby="pictures-h">
-        <p className="home-kicker">Copies</p>
-        <h2 id="pictures-h">One source, three files</h2>
-        <p className="demo-intro">
-          A picture made with ChatGPT, a copy of it made by Google, and a video of it made by Grok. They look alike and
-          are different files, so each has its own place in line.
+        <h2 id="pictures-h" className="copies-h"><span className="copies-h-a">Same picture.</span>{" "}<span className="copies-h-b">Three places in line.</span></h2>
+        <HarborRow />
+        {/* What the three are, in plain words. The claim stops at the order they were recorded in. */}
+        <p className="copies-note">
+          These three pictures look exactly alike, but they are three separate files. Each file got its own BitGraph,
+          one right after another. You can&rsquo;t tell them apart by looking. Their proofs can: each one shows
+          whether its file was recorded 1st, 2nd or 3rd.
         </p>
-        <DemoRow />
-        <p className="demo-intro">
-          One photograph saved three times. The pictures are the same and the files are not, so each has its own place
-          in line.
-        </p>
-        <CopiesTiles />
       </section>
     </div>
   );

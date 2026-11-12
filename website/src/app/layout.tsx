@@ -1,6 +1,6 @@
 import { MENU_ICON_NAMES } from "@/components/menu-icons";
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro, IBM_Plex_Mono, Newsreader, Geist } from "next/font/google";
+import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro, IBM_Plex_Mono, Newsreader, Geist, Inter_Tight } from "next/font/google";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
@@ -62,6 +62,13 @@ const newsreader = Newsreader({
   display: "swap",
 });
 
+/* Inter Tight, the fallback behind Acumin Pro for headings and the wordmark: a browser shows it if the kit is missing. */
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  variable: "--font-inter-tight",
+  display: "swap",
+});
+
 /* Geist, the site's face for part of 2026-11-05, before Newsreader. Kept declared and not preloaded, so the older
    rules that name it still resolve. */
 const geist = Geist({
@@ -71,16 +78,16 @@ const geist = Geist({
   preload: false,
 });
 
+/* Inter, the face for the text, the bar and the buttons, in every weight. */
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
-  preload: false,
 });
 
 /* The tab strip and the phone's chrome take the page colour: white, Google's ground,
    since 2026-09-18 (dark before that). Keep it equal to --bg. */
-export const viewport: Viewport = { themeColor: "#f0eee6" };
+export const viewport: Viewport = { themeColor: "#ffffff" };
 
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */
@@ -123,17 +130,20 @@ import { Analytics } from "@vercel/analytics/next";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // suppressHydrationWarning: the head script below marks <html> data-js before React loads.
-    <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${newsreader.variable} ${geist.variable}`}>
+    <html lang="en" data-theme="light" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${newsreader.variable} ${geist.variable} ${interTight.variable}`}>
       <head>
-        {/* Two modes (2026-11-05): the site loads light, whatever the system's setting; a visitor who picks dark with
-            the button in the bar keeps it. Set before the first paint. */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var t;try{t=localStorage.getItem("theme")}catch(e){}document.documentElement.dataset.theme=t==="dark"?"dark":"light"})()` }} />
+        {/* One mode: the site is light, whatever the system's setting. data-theme="light" on <html> says so to the
+            stylesheet; there is no switch. */}
         {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
             700 and italics). PREVIEW 2026-09-16: --font-term in globals.css
             points at it. */}
         {/* The Adobe kit link came out 2026-10-17: the site reads in system-ui, code in its own Source Code Pro. */}
         {/* The site's one face since 2026-10-17 (dark, terminal): source-code-pro, from the Adobe Fonts kit below (code-saver, then adaptive-mono, before). */}
-        {/* The Adobe Fonts kit (Acumin Pro, 2026-10-18 to 2026-11-05) is gone: the face is Geist, loaded by next/font above. */}
+        {/* Acumin Pro, Regular, Bold and Black, the face for headings and the wordmark, from the Adobe Fonts kit. The v on
+            its address is raised whenever the kit's weights change, so no browser keeps an older list. Inter, for the text, and
+            Inter Tight, the fallback behind Acumin, are served by the site itself (next/font above). */}
+        <link rel="preconnect" href="https://use.typekit.net" crossOrigin="anonymous" />
+        <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css?v=2" />
         {/* Google's Material Symbols, only the icons the Menu uses. */}
         <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=${MENU_ICON_NAMES}&display=block`} />
         {/* Runs during parse, before the browser restores scroll. On a reload

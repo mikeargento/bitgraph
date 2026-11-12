@@ -7,9 +7,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 /**
- * The bar: the wordmark, then four links beside it in a light weight, and at the far right two pills, Contact in a
- * soft fill and Make / Verify in ink. The light and dark switch lives in the footer. On phones the links and the button fold
- * into a sheet behind a round menu button.
+ * The bar: the wordmark at the left, five links in a light weight in the middle of the bar, Contact the last of
+ * them, and at the far right the one button, Drop a file, in the main button's color. On narrower screens the links
+ * and the button fold into a sheet behind a menu button.
  */
 type NavLink = { href: string; label: string; also?: string[] };
 // Four across: how it works, how to build on it and license it, and the demos.
@@ -23,7 +23,7 @@ const LINKS: NavLink[] = [
 // Contact is the grey pill beside the white one.
 const CONTACT: NavLink = { href: "/contact", label: "Contact" };
 // The button is the one action a visitor should take: a drop proves the product in a minute.
-const CTA = { href: "/demos", label: "Make / Verify", also: ["/make"] };
+const CTA = { href: "/demos", label: "Drop a file", also: ["/make"] };
 
 export function SiteNav() {
   const pathname = usePathname();
@@ -60,14 +60,15 @@ export function SiteNav() {
           BitGraph
         </Link>
         <nav aria-label="Site" className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
-          {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="nav-btn nav-box nav-desk" aria-current={current(l.href, l.also)} style={{ textDecoration: "none" }}>
-              {l.label}
-            </Link>
-          ))}
-          {/* The sun and moon button sits before the pills; on phones it is in the sheet. */}
-          <Link href={CONTACT.href} className="nav-cta-2" aria-current={current(CONTACT.href)}>{CONTACT.label}</Link>
-          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}><span className="nav-cta-long">{CTA.label}</span><span className="nav-cta-short" aria-hidden="true">Make / Verify</span></Link>
+          {/* The links and Contact, as one group: on wide screens it stands in the middle of the bar. */}
+          <div className="nav-mid">
+            {[...LINKS, CONTACT].map((l) => (
+              <Link key={l.href} href={l.href} className="nav-btn nav-box nav-desk" aria-current={current(l.href, l.also)} style={{ textDecoration: "none" }}>
+                {l.label}
+              </Link>
+            ))}
+          </div>
+          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}><span className="nav-cta-long">{CTA.label}</span><span className="nav-cta-short" aria-hidden="true">Drop a file</span></Link>
           <button type="button" className="nav-burger" style={{ borderRadius: "50%" }} aria-label={menu ? "Close menu" : "Menu"} aria-expanded={menu} aria-controls="nav-sheet" onClick={() => setMenu((m) => !m)}>
             {menu
               ? <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden><path d="M4 4l10 10M14 4L4 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>

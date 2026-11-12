@@ -252,7 +252,7 @@ async function firstsOf(digests: string[], onProgress?: (done: number) => void):
   return out;
 }
 
-export function DropBox({ mode = "make", variant = "zone", canMake = false }: { mode?: "make" | "check"; variant?: "zone" | "buttons"; canMake?: boolean }) {
+export function DropBox({ mode = "make", variant = "zone", canMake = false, hero = false }: { mode?: "make" | "check"; variant?: "zone" | "buttons"; canMake?: boolean; hero?: boolean }) {
   // The drop box on /make makes and checks (2026-10-17), both in one box. The ledger's search
   // (mode "check", variant "buttons": two Finder buttons, no box) only looks files up and never makes one.
   const [rows, setRows] = useState<Row[]>([]);
@@ -831,9 +831,17 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         onDragOver={(e) => { e.preventDefault(); setOver(true); }}
         onDragLeave={() => setOver(false)}
         onDrop={(e) => { e.preventDefault(); setOver(false); const dt = e.dataTransfer; setStatus("Reading the drop…"); void filesOfDrop(dt, setStatus).then((fs) => { if (fs.length === 0) { setStatus(null); return; } return take(fs); }).catch((err: unknown) => { setStatus(null); setPlugError(`Could not read the drop: ${err instanceof Error && err.message ? err.message : String(err)}. Try choosing the folder instead.`); }); }}
-        className="db-zone"
+        className={hero ? "db-zone is-hero" : "db-zone"}
         data-over={over ? "1" : undefined}
       >
+        {/* The page's own headline, inside the box, when the box is the page (hero): what to do, in three words. It
+            gives way to the status line while a drop is being read. */}
+        {hero && !status && (
+          <div className="db-zone-hero" aria-hidden="true">
+            <span className="db-hero-desk">Drop a file</span>
+            <span className="db-hero-touch">Choose a file</span>
+          </div>
+        )}
         {/* The old drop prompt's two sheets (components/drop-prompt.tsx), back in the box (2026-10-18). */}
         <svg className="db-zone-icon" width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
           <path d="M16 12V8a3 3 0 0 1 3-3h11l8 8v17a3 3 0 0 1-3 3h-4" />
@@ -846,7 +854,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false }: { 
         {/* A touch screen cannot drop a file or choose a folder: there the box only offers to choose files, and the
             whole box is the tap (globals.css, .db-zone-touch). */}
         <div className="db-zone-title">{status ?? <>
-          <span className="db-zone-desk">{mode === "check" ? "Drop files here to check them, or choose" : "Drop files or a folder here, or choose"}{" "}
+          <span className="db-zone-desk">{mode === "check" ? "Drop files here to check them, or choose" : hero ? "Drop it here to make or check a BitGraph, or choose" : "Drop files or a folder here, or choose"}{" "}
               <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>files</button>
               {" · "}
               <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); folderRef.current?.click(); }}>a folder</button></span>

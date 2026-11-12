@@ -18,6 +18,7 @@ import { ART_ALGORITHM_V19 } from "@/lib/commitment-art";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
 import { SandwichFigure } from "@/components/primitive-figures";
 import { bindFile } from "@/lib/bind-file";
+import { GoArrow } from "@/components/go-arrow";
 
 const fmt = (n: number | string) => Number(n).toLocaleString("en-US");
 const b64 = (u: Uint8Array) => { let s = ""; for (const x of u) s += String.fromCharCode(x); return btoa(s); };
@@ -110,16 +111,18 @@ export function ArtTwo() {
     <>
       <section className="home-section" aria-labelledby="gen-h">
         <p className="home-kicker">Generate image</p>
-        <h2 id="gen-h">A file that could not exist before BitGraph&nbsp;A</h2>
+        <h2 id="gen-h">A file that could not exist before BitGraph&nbsp;<span className="h-paren">(</span>A<span className="h-paren">)</span></h2>
         <p style={{ marginTop: 24 }}>
           One click makes BitGraph A. Its nonce, unseen until A is bound, is the only input to the drawing. The picture is
           bound as BitGraph B, after A in the same sequence. Anyone can draw it again from A&rsquo;s proof and get the same&nbsp;bytes.
         </p>
         <div style={{ marginTop: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {/* The primary action, filled (2026-10-20) so it stands out as the one thing to press. The record dot was tried
-              and left off: on a button it reads as "this site will record you". */}
-          <button type="button" className="bg-action-link is-make" style={{ margin: 0, minWidth: "12.5em", justifyContent: "center" }} disabled={state === "running"} onClick={() => void makeNow()}>
+          {/* The primary action, filled (2026-10-20) so it stands out as the one thing to press: the home page's bar,
+              its label at the left and an arrow at the right. The record dot was tried and left off: on a button it
+              reads as "this site will record you". */}
+          <button type="button" className="bg-action-link is-make is-bar" style={{ margin: 0 }} disabled={state === "running"} onClick={() => void makeNow()}>
             {made ? "Generate another" : "Generate image"}
+            <GoArrow />
           </button>
           {/* While it runs the button keeps its label and a bar fills, one part per step, instead of the label changing
               at each BitGraph (2026-10-19): a label swapped per step made the button blink. */}
@@ -143,11 +146,11 @@ export function ArtTwo() {
           <div style={{ paddingTop: 40 }}><p className="home-kicker">Drawn from BitGraph A&rsquo;s nonce</p></div>
           <div className="gen-nonce"><pre className="jev-code">{urlSafe(a.commit!.nonceB64!)}</pre></div>
           {!b && <p className="db-bad">This picture has no BitGraph B.</p>}
-          {/* The links are buttons (2026-10-19), like View proof on Make. */}
-          <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <a className="bg-action-link" style={{ margin: 0 }} href={proofHref(a, made.aDigest)}>BitGraph A #{fmt(a.commit!.counter!)}, the request</a>
-            {b && <a className="bg-action-link" style={{ margin: 0 }} href={proofHref(b, made.bDigest)}>BitGraph B #{fmt(b.commit!.counter!)}, the picture</a>}
-            <a className="bg-action-link" style={{ margin: 0 }} href={made.url} download={`bitgraph-${b?.commit?.counter ?? a.commit!.counter}.png`}>Download the picture</a>
+          {/* The links are bars (2026-11-12): the home page's bar in ink, a label at the left and an arrow at the right. */}
+          <div className="demo-bars" style={{ marginTop: 20 }}>
+            <a className="bg-action-link is-bar" style={{ margin: 0 }} href={proofHref(a, made.aDigest)}>BitGraph A #{fmt(a.commit!.counter!)}, the request<GoArrow /></a>
+            {b && <a className="bg-action-link is-bar" style={{ margin: 0 }} href={proofHref(b, made.bDigest)}>BitGraph B #{fmt(b.commit!.counter!)}, the picture<GoArrow /></a>}
+            <a className="bg-action-link is-bar" style={{ margin: 0 }} href={made.url} download={`bitgraph-${b?.commit?.counter ?? a.commit!.counter}.png`}>Download the picture<GoArrow /></a>
           </div>
         </section>
         </div></div>

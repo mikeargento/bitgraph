@@ -112,14 +112,14 @@ export default function ToolsPage() {
 
             <h3 className="tl-h3">Many files, one BitGraph</h3>
             <p>
-              Drop more than one file on the Make / Verify page and make them, and they become one BitGraph: the drop is one moment, so they take one position.
+              Drop more than one file at once on the Drop a file page and make them, and they become one BitGraph: the drop is one moment, so they take one position.
               The files are hashed into a Merkle tree in your browser (RFC 6962, SHA-256: a leaf is SHA-256 of a zero byte and the file, a
               node is SHA-256 of a one byte and its two children, and an odd last node rises unchanged). One BitGraph is made of{" "}
               <span className="nb"><code>merkle-root.txt</code>,</span> a short text file holding the root. You keep <span className="nb"><code>merkle-tree.json</code>,</span> which lists every
               file&rsquo;s leaf and every level. One position covers a million files as well as one.
             </p>
             <p>
-              To check a file, drop it on the Make / Verify page by itself. When the tree is made, each file gets a sealed entry that only its own
+              To check a file, drop it there by itself. When the tree is made, each file gets a sealed entry that only its own
               bytes can open; the page finds it, walks the file up the tree to the root, and checks the root against its BitGraph. With{" "}
               <code>merkle-tree.json</code> and <code>merkle-root.txt</code> it works without any entry. By hand: hash the file as a leaf,
               combine it with its neighbors up the levels, compare with the root in <span className="nb"><code>merkle-root.txt</code>,</span> and verify{" "}
