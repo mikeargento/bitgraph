@@ -854,7 +854,7 @@ export function DropBox({ mode = "make", variant = "zone", canMake = false, hero
         {/* A touch screen cannot drop a file or choose a folder: there the box only offers to choose files, and the
             whole box is the tap (globals.css, .db-zone-touch). */}
         <div className="db-zone-title">{status ?? <>
-          <span className="db-zone-desk">{mode === "check" ? "Drop files here to check them, or choose" : hero ? "Drop it here to make or check a BitGraph, or choose" : "Drop files or a folder here, or choose"}{" "}
+          <span className="db-zone-desk">{mode === "check" ? "Drop files here to check them, or choose" : hero ? "Drop a file here, or choose" : "Drop files or a folder here, or choose"}{" "}
               <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>files</button>
               {" · "}
               <button type="button" className="db-zone-pick" onClick={(e) => { e.stopPropagation(); folderRef.current?.click(); }}>a folder</button></span>

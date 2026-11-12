@@ -5,10 +5,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { GoArrow } from "@/components/go-arrow";
 
 /**
  * The bar: the wordmark at the left, five links in a light weight in the middle of the bar, Contact the last of
- * them, and at the far right the one button, Drop a file, in the main button's color. On narrower screens the links
+ * them, and at the far right the one button, Drop a file, in the main button's color with the bars' arrow at its
+ * right. On narrower screens the links
  * and the button fold into a sheet behind a menu button.
  */
 type NavLink = { href: string; label: string; also?: string[] };
@@ -68,7 +70,7 @@ export function SiteNav() {
               </Link>
             ))}
           </div>
-          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}><span className="nav-cta-long">{CTA.label}</span><span className="nav-cta-short" aria-hidden="true">Drop a file</span></Link>
+          <Link href={CTA.href} className="nav-cta-sx" aria-current={current(CTA.href)}><span className="nav-cta-long">{CTA.label}</span><span className="nav-cta-short" aria-hidden="true">Drop a file</span><GoArrow /></Link>
           <button type="button" className="nav-burger" style={{ borderRadius: "50%" }} aria-label={menu ? "Close menu" : "Menu"} aria-expanded={menu} aria-controls="nav-sheet" onClick={() => setMenu((m) => !m)}>
             {menu
               ? <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden><path d="M4 4l10 10M14 4L4 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>

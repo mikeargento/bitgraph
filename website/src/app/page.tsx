@@ -3,9 +3,10 @@ import { CopiesTiles } from "@/components/demo-row";
 
 /**
  * The home page: what BitGraph is as the headline, three files recorded back to back (a picture, its video and its
- * copy), each with its proof link on it, and the three buttons under them. At every width the headline is two
- * lines, each as wide as the row of pictures: a drawn arrow between the two words of the first line takes up the
- * difference. There is no running text; Technology is the full reference.
+ * copy), each with its proof link on it, and the three buttons under them. The headline is two short sentences,
+ * one to a line on wide screens and one word to a line on narrow ones, with "order." in the accent color; each word
+ * is in its own span so the stylesheet can break the lines. There is no running text; Technology is the full
+ * reference.
  *
  * Claim discipline, unchanged: a BitGraph is a place in line, bound by a time and after an unpredictable value. It
  * says when bits were bound, not how old they are or who made them.
@@ -35,7 +36,7 @@ export default function HomePage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-ov">
       <section className="home-section home-ov-hero" aria-labelledby="home-h">
-        <h1 id="home-h"><span className="home-h-line is-1">Blockchain <span className="home-h-ink"><span className="home-h-to" aria-hidden="true" />order.</span></span>{" "}<span className="home-h-line is-2">Without blockchain.</span></h1>
+        <h1 id="home-h"><span className="home-h-line is-1"><span className="home-h-w">Blockchain</span> <span className="home-h-ink">order.</span></span>{" "}<span className="home-h-line is-2"><span className="home-h-w">Without</span> <span className="home-h-w">blockchain.</span></span></h1>
         {/* A picture, its video and its copy, each with its own place in line: the headline, shown. */}
         <CopiesTiles />
         {/* Where to go next: make one, see how it works, try the demos. One bar under each picture: the label at its
