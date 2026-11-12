@@ -12,7 +12,7 @@ import "katex/dist/katex.min.css";
    self-hosted by next/font, with real italics and weights; the serif carries
    its optical-size axis, so 17px text and a 15px caption each get their cut.
    JetBrains Mono and Inter stay only as fallbacks behind them and no longer
-   preload. Acumin (Typekit) remains for the wordmark and the data views. */
+   preload. */
 const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
   style: ["normal", "italic"],
@@ -85,9 +85,8 @@ const inter = Inter({
   display: "swap",
 });
 
-/* The tab strip and the phone's chrome take the page colour: white, Google's ground,
-   since 2026-09-18 (dark before that). Keep it equal to --bg. */
-export const viewport: Viewport = { themeColor: "#ffffff" };
+/* The tab strip and the phone's chrome take the page colour, the ivory of the page. Keep it equal to --bg. */
+export const viewport: Viewport = { themeColor: "#f0eee6" };
 
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */
@@ -134,16 +133,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* One mode: the site is light, whatever the system's setting. data-theme="light" on <html> says so to the
             stylesheet; there is no switch. */}
-        {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
-            700 and italics). PREVIEW 2026-09-16: --font-term in globals.css
-            points at it. */}
-        {/* The Adobe kit link came out 2026-10-17: the site reads in system-ui, code in its own Source Code Pro. */}
-        {/* The site's one face since 2026-10-17 (dark, terminal): source-code-pro, from the Adobe Fonts kit below (code-saver, then adaptive-mono, before). */}
-        {/* Acumin Pro, Regular, Bold and Black, the face for headings and the wordmark, from the Adobe Fonts kit. The v on
-            its address is raised whenever the kit's weights change, so no browser keeps an older list. Inter, for the text, and
-            Inter Tight, the fallback behind Acumin, are served by the site itself (next/font above). */}
-        <link rel="preconnect" href="https://use.typekit.net" crossOrigin="anonymous" />
-        <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css?v=2" />
+        {/* The site is set in Newsreader, which the site serves itself (next/font above). No outside font kit is loaded. */}
         {/* Google's Material Symbols, only the icons the Menu uses. */}
         <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=${MENU_ICON_NAMES}&display=block`} />
         {/* Runs during parse, before the browser restores scroll. On a reload
