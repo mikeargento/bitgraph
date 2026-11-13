@@ -50,3 +50,18 @@ export function publicationKey(epochId: string, counter: string | number): strin
   const safe = epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   return `publication/proofs/${safe}/${String(counter).padStart(12, "0")}.json`;
 }
+
+/** The ledger key of a floor BitGraph's record: the note it binds and the hourly write that note names. */
+export function floorKey(epochId: string, counter: string | number): string {
+  const safe = epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `publication/floors/${safe}/${String(counter).padStart(12, "0")}.json`;
+}
+
+/** What a floor's page shows: the write it binds. Null when the record is not one. */
+export function floorWrite(record: unknown): { chainId: number; blockNumber: number; blockTimestamp: number; txHash: string } | null {
+  const r = record as { format?: string; write?: { chainId?: unknown; blockNumber?: unknown; blockTimestamp?: unknown; txHash?: unknown } } | null;
+  if (!r || r.format !== "bitgraph-hour-floor/1" || !r.write) return null;
+  const w = r.write;
+  if (typeof w.chainId !== "number" || typeof w.blockNumber !== "number" || typeof w.blockTimestamp !== "number" || typeof w.txHash !== "string") return null;
+  return { chainId: w.chainId, blockNumber: w.blockNumber, blockTimestamp: w.blockTimestamp, txHash: w.txHash };
+}

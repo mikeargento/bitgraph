@@ -38,7 +38,7 @@ import {
 } from "@mikeargento/bitgraph-audit";
 import { epochEndFileText } from "../parent/epoch-end.js";
 import type { Chain } from "./base.js";
-import type { Line, Store } from "./ledger.js";
+import type { FloorRecord, Line, Store } from "./ledger.js";
 
 export interface PublisherOptions {
   stateDir: string;
@@ -68,6 +68,8 @@ interface FloorState {
   chainHashB64: string;
   /** Where the floor sits once a write covers it, and whether its note names the write before that tree. */
   tree?: { calldata: string; link: string; leafIndex: number; path: string; ok: boolean };
+  /** Whether its record (publication/floors/...) has been kept, so the ledger can name it. */
+  indexed?: boolean;
 }
 
 interface EpochState {
@@ -153,6 +155,7 @@ export class Publisher {
     if (this.busy) return "busy";
     this.busy = true;
     try {
+      await this.indexFloors();
       if (this.state.pending) return await this.progress();
       // A floor still to bind is tried first; if the parent cannot take it, the hour's write still goes out when due
       // (and gives the floor up, see write()).
@@ -393,6 +396,30 @@ export class Publisher {
 
   // ── the floor ─────────────────────────────────────────────────────────────
 
+  /** Keep a record of every floor not yet recorded: the ledger lists them by it, and a floor's page links its write. */
+  private async indexFloors(): Promise<void> {
+    let changed = false;
+    for (const [epochId, es] of Object.entries(this.state.epochs)) {
+      for (const f of es.floors) {
+        if (f.indexed) continue;
+        const n = parseFloorNote(f.note);
+        if (!n) { f.indexed = true; changed = true; continue; }
+        const record: FloorRecord = {
+          format: "bitgraph-hour-floor/1", epochId, counter: String(f.counter), digestB64: floorNoteDigestB64(f.note), note: f.note,
+          write: { chainId: n.chainId, blockNumber: n.blockNumber, blockHash: n.blockHash, blockTimestamp: n.blockTimestamp, txHash: n.txHash, link: n.writeLinkHex },
+        };
+        try {
+          await this.o.store.putFloor(epochId, f.counter, record);
+          f.indexed = true;
+          changed = true;
+        } catch (e) {
+          this.o.log({ type: "floor-index-error", epochId, counter: f.counter, error: (e as Error).message.slice(0, 300) });
+        }
+      }
+    }
+    if (changed) this.save();
+  }
+
   private async bindFloor(): Promise<string> {
     const pf = this.state.pendingFloor!;
     const note = floorNoteText({ chainId: pf.chainId, blockNumber: pf.blockNumber, blockHash: pf.blockHash, blockTimestamp: pf.blockTimestamp, txHash: pf.txHash, writeLinkHex: pf.link });
@@ -416,6 +443,7 @@ export class Publisher {
     this.state.pendingFloor = null;
     this.save();
     this.o.log({ type: "floor-bound", epochId, counter, blockNumber: pf.blockNumber, link: pf.link });
+    await this.indexFloors();
     return "floor";
   }
 }

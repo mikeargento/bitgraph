@@ -157,6 +157,12 @@ describe("hourly publication", () => {
     assert.equal(checks(E1, 22).floor?.floorCounter, "20");
     assert.ok(allCheck(E1) >= 11);
     assert.deepEqual(checkHourChain(hours(E1)).problems, [], "the records list in write order");
+    // Every floor has its record, naming the write its note names.
+    const floors = readdirSync(join(dir, "store", "publication", "floors", safeEpoch(E1))).sort();
+    assert.deepEqual(floors, ["000000000008.json", "000000000014.json", "000000000016.json", "000000000020.json", "000000000024.json"]);
+    const f8 = JSON.parse(readFileSync(join(dir, "store", "publication", "floors", safeEpoch(E1), "000000000008.json"), "utf8"));
+    assert.equal(f8.write.blockNumber, hours(E1)[0]!.write.blockNumber);
+    assert.equal(f8.write.txHash, hours(E1)[0]!.write.txHash);
   });
 
   test("a gap waits one hour, then is recorded as missing; an epoch's first count is not skipped", async () => {

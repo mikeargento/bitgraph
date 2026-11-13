@@ -79,7 +79,7 @@ function Row({ r, newestOfEpoch = false }: { r: LedgerRow; newestOfEpoch?: boole
   const inner = (
     <>
       <span className="rl-num">#{fmt(r.counter)}</span>
-      <span className="rl-what">{epochEnd ? "Closed the epoch" : r.digest ? <code>{r.digest.slice(0, 16)}</code> : ""}</span>
+      <span className="rl-what">{epochEnd ? "Closed the epoch" : r.floor ? "Published on Base" : r.digest ? <code>{r.digest.slice(0, 16)}</code> : ""}</span>
       {r.recordedMs !== null && <span className="rl-when" title={local(r.recordedMs)}>{ago(r.recordedMs, now)}</span>}
       <GoArrow />
     </>

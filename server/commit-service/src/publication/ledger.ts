@@ -9,6 +9,7 @@
  * What it keeps, create-only and under the ledger's Object Lock like the proofs:
  *   publication/hours/<epoch>/<Base block, 12 digits>-<link, first 16 hex>.json   one bitgraph-hour/1 record per write, in write order
  *   publication/proofs/<epoch>/<count, 12 digits>.json                            one bitgraph-publication/1 block per BitGraph
+ *   publication/floors/<epoch>/<count, 12 digits>.json                            one record per floor BitGraph: its note and the write it names
  *
  * Epochs in keys are URL-safe base64 without padding, as in proofs/.
  */
@@ -26,15 +27,27 @@ export interface Line {
   proofs(epochId: string, after: number): Promise<StoredProof[]>;
 }
 
+/** A floor BitGraph, as the ledger lists it: which count it is, the note it binds, and the write that note names. */
+export interface FloorRecord {
+  format: "bitgraph-hour-floor/1";
+  epochId: string;
+  counter: string;
+  digestB64: string;
+  note: string;
+  write: { chainId: number; blockNumber: number; blockHash: string; blockTimestamp: number; txHash: string; link: string };
+}
+
 export interface Store {
   putHour(epochId: string, record: HourRecord): Promise<void>;
   putBlock(epochId: string, counter: number, block: PublicationBlock): Promise<void>;
+  putFloor(epochId: string, counter: number, record: FloorRecord): Promise<void>;
 }
 
 export const safeEpoch = (b64: string): string => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 export const pad12 = (n: number): string => String(n).padStart(12, "0");
 export const hourKey = (epochId: string, r: HourRecord): string => `publication/hours/${safeEpoch(epochId)}/${pad12(r.write.blockNumber)}-${r.link.slice(0, 16)}.json`;
 export const blockKey = (epochId: string, counter: number): string => `publication/proofs/${safeEpoch(epochId)}/${pad12(counter)}.json`;
+export const floorKey = (epochId: string, counter: number): string => `publication/floors/${safeEpoch(epochId)}/${pad12(counter)}.json`;
 
 /** Proofs as stored carry `proofHash`, which the ledger added; the proof itself is everything else. */
 function asProof(raw: unknown): Record<string, unknown> | null {
@@ -144,6 +157,7 @@ export function s3Store(o: { bucket: string; region: string; retainDays?: number
   return {
     putHour: (epochId, r) => put(hourKey(epochId, r), r),
     putBlock: (epochId, counter, b) => put(blockKey(epochId, counter), b),
+    putFloor: (epochId, counter, r) => put(floorKey(epochId, counter), r),
   };
 }
 
@@ -161,6 +175,7 @@ export function fileStore(dir: string): Store {
   return {
     putHour: async (epochId, r) => put(hourKey(epochId, r), r),
     putBlock: async (epochId, counter, b) => put(blockKey(epochId, counter), b),
+    putFloor: async (epochId, counter, r) => put(floorKey(epochId, counter), r),
   };
 }
 

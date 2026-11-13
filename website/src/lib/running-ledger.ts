@@ -34,6 +34,8 @@ export interface LedgerRow {
   /** The bound content's SHA-256, URL-safe base64: the proof page's address. Public since 2026-10-17 (every
    *  row links to its proof; a hash cannot be turned back into the file). */
   digest: string | null;
+  /** True when the BitGraph is an hourly publication floor: the note that binds that hour's write on Base. */
+  floor?: boolean;
 }
 
 /** The UTC day an epoch belongs to: rotation runs at 23:59, so a few minutes after birth. */
@@ -83,7 +85,28 @@ const rowOfKey = unstable_cache(async (key: string): Promise<LedgerRow | null> =
 async function rowsOfKeys(keys: string[]): Promise<LedgerRow[]> {
   const rows: Array<LedgerRow | null> = new Array(keys.length).fill(null);
   await runPool(keys.map((k, i) => ({ k, i })), 24, async ({ k, i }) => { rows[i] = await rowOfKey(k); });
-  return rows.filter((r): r is LedgerRow => r !== null).reverse(); // newest first
+  return markFloors(rows.filter((r): r is LedgerRow => r !== null).reverse()); // newest first
+}
+
+/** The counts of an epoch's hourly publication floors, from the publisher's records (publication/floors/<epoch>/<count,
+ *  12 digits>.json): about 24 keys a day, listed again after ten seconds so a new floor is named soon after it lands. */
+const floorSets = new Map<string, { at: number; counts: Set<string> }>();
+async function floorCounts(epoch: string): Promise<Set<string>> {
+  const hit = floorSets.get(epoch);
+  if (hit && Date.now() - hit.at < 10_000) return hit.counts;
+  let counts = new Set<string>();
+  try {
+    const keys = await listKeysUnderPrefix(`publication/floors/${epoch}/`, 10_000);
+    counts = new Set(keys.map((k) => k.match(/\/(\d{12})\.json$/)?.[1]).filter((x): x is string => !!x).map((x) => String(Number(x))));
+  } catch { /* unnamed for now; the row still shows */ }
+  floorSets.set(epoch, { at: Date.now(), counts });
+  return counts;
+}
+
+async function markFloors(rows: LedgerRow[]): Promise<LedgerRow[]> {
+  const epochs = [...new Set(rows.map((r) => r.key.split("/")[1]).filter((e): e is string => !!e))];
+  const sets = new Map(await Promise.all(epochs.map(async (e) => [e, await floorCounts(e)] as const)));
+  return rows.map((r) => (sets.get(r.key.split("/")[1] ?? "")?.has(r.counter) ? { ...r, floor: true } : r));
 }
 
 const pad = (n: number) => String(n).padStart(12, "0");

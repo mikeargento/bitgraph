@@ -19,7 +19,7 @@ import { decodeNitroAttestation, treeMemberOf } from "@mikeargento/bitgraph-veri
 import { CopyIcon, useCopied } from "@/components/copy-icon";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
-import { PUBLICATION_METADATA_KEY, explorerTx, summarize } from "@/lib/publication";
+import { PUBLICATION_METADATA_KEY, explorerTx, floorWrite, summarize } from "@/lib/publication";
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
 const safe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -357,6 +357,19 @@ export function ProofView({ m }: { m: ProofViewModel }) {
     return () => { gone = true; };
   }, [commit.epochId, commit.counter]);
   const published = summarize(pub);
+  // When this BitGraph is an hourly publication floor: the write on Base it binds.
+  const [floorRec, setFloorRec] = useState<unknown>(null);
+  useEffect(() => {
+    const e = commit.epochId, c = commit.counter;
+    if (!e || !c) return;
+    let gone = false;
+    fetch(`/api/publication?epoch=${encodeURIComponent(safe(e))}&counter=${encodeURIComponent(c)}&kind=floor`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: unknown) => { if (!gone) setFloorRec(j); })
+      .catch(() => {});
+    return () => { gone = true; };
+  }, [commit.epochId, commit.counter]);
+  const binds = floorWrite(floorRec);
   const proofFile = `bitgraph-${contentCount ?? safe(m.proof.artifact.digestB64).slice(0, 12)}.json`;
   const download = () => {
     // The download carries the publication block in its unsigned metadata when the hour is published, so the file
@@ -453,6 +466,20 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       ])}
       {/* Published on Base: the block of its hour's write (it existed by then) and the block its floor names (it was made
           after that). Shown once the hour's write has landed. */}
+      {binds && (
+        <div className="pv-receipt-group">
+          <div className="pv-section-title">Hourly publication</div>
+          <div className="pv-counter-grid">
+            <div className="pv-row">
+              <div className="pv-row-label">Binds the write in</div>
+              <div className="pv-row-value">
+                <a className="pv-link" href={explorerTx(binds.chainId, binds.txHash)} target="_blank" rel="noopener">{`Block ${fmtNum(binds.blockNumber)}`}</a>
+                {`, ${stampTz(new Date(binds.blockTimestamp * 1000))}`}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {published && (
         <div className="pv-receipt-group">
           <div className="pv-section-title">Published on Base</div>
