@@ -17,7 +17,7 @@ const DEMOS = [
 ];
 const HOME = [
   { href: "/demos", title: "Drop a file", body: "Drop any file. Its hash is bound at the next place in line, and the file stays with you." },
-  { href: "/technology", title: "How it works", body: "One sealed step puts each file in its place in line, checkable by anyone." },
+  { href: "/#t-mech", title: "How it works", body: "One sealed step puts each file in its place in line, checkable by anyone." },
   { href: "/examples", title: "Demos", body: "Working examples, each built on real BitGraphs you can check." },
 ];
 

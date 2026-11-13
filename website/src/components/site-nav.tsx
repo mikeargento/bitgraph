@@ -8,16 +8,16 @@ import { useEffect, useState } from "react";
 import { GoArrow } from "@/components/go-arrow";
 
 /**
- * The bar: the wordmark at the left, five links in a light weight in the middle of the bar, Contact the last of
+ * The bar: the wordmark at the left (it opens the home page, which is also the mechanism), four links in a light
+ * weight in the middle of the bar, Contact the last of
  * them, and at the far right the one button, Drop a file, in the main button's color with the bars' arrow at its
- * right. On narrower screens the links
+ * right, on every page. On narrower screens the links
  * and the button fold into a sheet behind a menu button.
  */
 type NavLink = { href: string; label: string; also?: string[] };
-// Four across: how it works, how to build on it and license it, and the demos.
+// How to build on it and license it, and the demos. How it works is the home page itself.
 // Applications is reached from Technology and the home page; the reference from Developers; Evaluate from Licensing.
 const LINKS: NavLink[] = [
-  { href: "/technology", label: "Technology", also: ["/applications"] },
   { href: "/integrate", label: "Developers", also: ["/tools"] },
   { href: "/licensing", label: "Licensing", also: ["/evaluate"] },
   { href: "/examples", label: "Demos", also: ["/jev", "/generate", "/exam", "/pictures"] },

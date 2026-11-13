@@ -448,7 +448,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       {/* Checking a proof without BitGraph is a step for people who want it: a link to how the open verifier works,
           not a command on a photo's page. */}
       <div className="pv-receipt-group">
-        <a className="pv-link pv-details-btn" href="/technology#t-verify"><span className="pv-details-word">Check it offline</span> <span className="pv-details-chev" aria-hidden="true">&rsaquo;</span></a>
+        <a className="pv-link pv-details-btn" href="/#t-verify"><span className="pv-details-word">Check it offline</span> <span className="pv-details-chev" aria-hidden="true">&rsaquo;</span></a>
       </div>
       <div className="pv-receipt-group pv-details">
         <div className="pv-section-title">Raw JSON</div>

@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
       { source: "/find", destination: "/check", permanent: false },
       { source: "/docs", destination: docs, permanent: false },
       { source: "/how-it-works", destination: home, permanent: false },
+      // Technology became the home page's body (2026-11-12)
+      { source: "/technology", destination: home, permanent: false },
       { source: "/docs/:path+", destination: docs, permanent: false },
       { source: "/api-reference", destination: docs, permanent: false },
       { source: "/overview", destination: docs, permanent: false },

@@ -128,7 +128,7 @@ npm test --workspace=packages/verify`}</Code>
               For a deeper evaluation: a proof-of-concept on your own data, keyed access above the public limits, the threat model in
               detail, and technical diligence materials under NDA.
             </p>
-            <p>Read first: <a href="/technology">the mechanism and threat model</a>, and <a href="/integrate">the integration interface</a>.</p>
+            <p>Read first: <a href="/#t-mech">the mechanism and threat model</a>, and <a href="/integrate">the integration interface</a>.</p>
           </div>
           <div>
             <p className="home-kicker">Request</p>
