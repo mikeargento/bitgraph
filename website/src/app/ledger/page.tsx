@@ -67,7 +67,6 @@ export default async function LedgerPageView({ searchParams }: { searchParams: P
       <section className="home-section" aria-labelledby="ledger-h">
         <p className="home-kicker">Ledger</p>
         <h2 id="ledger-h">{day ? longLabel(day) : "Every BitGraph, in order."}</h2>
-        <p>Newest first, one UTC day to a page. Each row is one BitGraph: its number, the start of the SHA-256 it bound and when it was made. Open one for its proof.</p>
         {dayLinks}
         {failed || !page ? (
           <p className="rl-empty">The ledger could not be read. Try again in a moment.</p>

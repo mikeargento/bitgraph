@@ -123,6 +123,15 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   "Mcr7iOK5afl1x1iwwcTrwn3nFGR31RmRyTyTsHCU_JM": { path: "/demo/chatgpt-30.png", name: "ChatGPT Image.png", mime: "image/png" },
   "hQU63cRe-SH06EW0ivMBewEj5u1OsrNIvlKpjpPOt_A": { path: "/demo/google-34.jpeg", name: "Gemini Image.jpeg", mime: "image/jpeg" },
   "UXTJPyhZgvAOmkZpSOdhPBZ9PET5xf9sG9VR6qRNu50": { path: "/demo/grok-38.mp4", name: "grok-video.mp4", mime: "video/mp4" },
+  // The home page's example since 2026-11-12: three versions of one synthetic patient's Continuity of Care Document
+  // (every detail invented), recorded in order as #10, #12 and #14 of epoch tRroje…, an unbroken run.
+  "Z6qNJ2vty831Jy2H2v-3PKzS3xhBUYylo3zOEu2pO-w": { path: "/demo/records/record-v1.xml", name: "record-v1.xml", mime: "application/xml" },
+  "sTHu4Xg4YWbZ2lXHAssLj_q_8gfIvFJ7Dktl4Uoujxk": { path: "/demo/records/record-v2.xml", name: "record-v2.xml", mime: "application/xml" },
+  "Osx-oKwjGlfwUp0jlLycQTThiErEfH8o0l0t93Ftptg": { path: "/demo/records/record-v3.xml", name: "record-v3.xml", mime: "application/xml" },
+  // The same three versions with an earlier invented patient name, #4, #6 and #8 of the same epoch.
+  "e5QTvO9fFEfZ7BECbcGYyy8Ckm0SMtotq9tdk9EF9Ko": { path: "/demo/records/earlier/record-v1.xml", name: "record-v1.xml", mime: "application/xml" },
+  "xiohk40gYseezFN6pLFFu-GxwJB9cFk-agBebGwVuOU": { path: "/demo/records/earlier/record-v2.xml", name: "record-v2.xml", mime: "application/xml" },
+  "gwLtgiuu1suJpKR-nDTBtrzy6ljNhfvphNPerUnByVQ": { path: "/demo/records/earlier/record-v3.xml", name: "record-v3.xml", mime: "application/xml" },
   // The home page's three (2026-11-06): one photograph in three files with identical pixels, recorded one after the
   // other (#58, #62, #66, epoch 2EnG…). The files differ by one character of a comment inside them.
   "7roNTix7clHFjNuPKoI2pEOfXcCN5seMP2JgCgTWhrg": { path: "/demo/harbor-58.jpg", name: "harbor-1.jpg", mime: "image/jpeg" },

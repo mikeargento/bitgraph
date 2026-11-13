@@ -3,6 +3,7 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 import { useEffect, useState } from "react";
+import { GoArrow } from "@/components/go-arrow";
 
 /**
  * Pictures with their proofs, as tiles: a caption, the picture, and a link to its proof.
@@ -145,6 +146,71 @@ function PlaceTile({ d }: { d: Demo }) {
         </div>
       </figcaption>
     </figure>
+  );
+}
+
+/**
+ * Three versions of one synthetic patient's Continuity of Care Document (HL7 C-CDA), the home page's example
+ * (public/demo/records/record-v1.xml to -v3.xml, made for this demonstration: every name, number and date in them is
+ * invented). Each card draws the record as a page: the patient, the version, its date and what changed, and the three
+ * sections, with the one that changed in that version marked; the page opens the file itself. A bar at the foot of the
+ * card names its place in line and opens its proof.
+ */
+// The three files were recorded in order as #10, #12 and #14 of one epoch on 2026-11-13 (UTC), an unbroken run. (An
+// earlier set with another invented patient name holds #4, #6 and #8 of the same epoch; its files are in
+// public/demo/records/earlier/.)
+const RECORDS_EPOCH = "tRrojeHqAp3LaHBZaYe9azMhyvY16jvZReoXXx2VLQo";
+type RecordVersion = { place: string; what: string; date: string; file: string; proof?: string; changed?: "Allergies" | "Medications";
+  rows: { Allergies: string; Medications: string; Problems: string } };
+export const RECORDS: RecordVersion[] = [
+  { place: "1st", what: "First visit", date: "March 4, 2026", file: "/demo/records/record-v1.xml", proof: `/proof/Z6qNJ2vty831Jy2H2v-3PKzS3xhBUYylo3zOEu2pO-w?counter=10&epoch=${RECORDS_EPOCH}`,
+    rows: { Allergies: "None known", Medications: "Lisinopril 10 mg daily", Problems: "Essential hypertension" } },
+  { place: "2nd", what: "Allergy added", date: "June 17, 2026", file: "/demo/records/record-v2.xml", proof: `/proof/sTHu4Xg4YWbZ2lXHAssLj_q_8gfIvFJ7Dktl4Uoujxk?counter=12&epoch=${RECORDS_EPOCH}`, changed: "Allergies",
+    rows: { Allergies: "Penicillin (hives)", Medications: "Lisinopril 10 mg daily", Problems: "Essential hypertension" } },
+  { place: "3rd", what: "Dose changed", date: "November 10, 2026", file: "/demo/records/record-v3.xml", proof: `/proof/Osx-oKwjGlfwUp0jlLycQTThiErEfH8o0l0t93Ftptg?counter=14&epoch=${RECORDS_EPOCH}`, changed: "Medications",
+    rows: { Allergies: "Penicillin (hives)", Medications: "Lisinopril 20 mg daily", Problems: "Essential hypertension" } },
+];
+
+function RecordTile({ r, n }: { r: RecordVersion; n: number }) {
+  const page = (
+    <>
+      {/* The page: the record as it reads in this version. */}
+      <div className="rec-body">
+        <div className="rec-head">
+          <span className="rec-kicker">Continuity of Care Document</span>
+          <span className="rec-ver">v{n}</span>
+        </div>
+        <p className="rec-name">Marty McFly</p>
+        <p className="rec-meta">{r.date} &middot; {r.what}</p>
+        <dl className="rec-rows">
+          {(["Allergies", "Medications", "Problems"] as const).map((k) => (
+            <div key={k} className={r.changed === k ? "rec-row is-changed" : "rec-row"}>
+              <dt>{k}</dt>
+              <dd>{r.rows[k]}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      {/* Its place in line: a bar at the foot of the card with the arrow. */}
+      <span className={r.proof ? "rec-proof" : "rec-proof is-pending"}>{r.proof ? `${r.place} proof` : r.place}{r.proof ? <GoArrow /> : null}</span>
+    </>
+  );
+  // The whole card is one link, to its proof; the proof page shows the record file itself.
+  return (
+    <figure className="demo-tile rec-tile">
+      {r.proof
+        ? <a className="rec-card" href={r.proof} aria-label={`Version ${n} of the record, ${r.date}, ${r.what}: ${r.place} proof`}>{page}</a>
+        : <div className="rec-card">{page}</div>}
+    </figure>
+  );
+}
+
+/** The home page's three record versions, in the order they were made. */
+export function RecordTiles() {
+  return (
+    <div className="demo-row is-records">
+      {RECORDS.map((r, i) => <RecordTile key={r.file} r={r} n={i + 1} />)}
+    </div>
   );
 }
 

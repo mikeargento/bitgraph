@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A synthetic Continuity of Care Document, version 2 of 3, made for a public demonstration of BitGraph.
+     The patient, the practice, the clinician, every identifier and every date are invented. Identifiers use HL7's
+     example root, 2.16.840.1.113883.19. -->
+<ClinicalDocument xmlns="urn:hl7-org:v3" xmlns:sdtc="urn:hl7-org:sdtc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <realmCode code="US"/>
+  <typeId root="2.16.840.1.113883.1.3" extension="POCD_HD000040"/>
+  <templateId root="2.16.840.1.113883.10.20.22.1.1" extension="2015-08-01"/>
+  <templateId root="2.16.840.1.113883.10.20.22.1.2" extension="2015-08-01"/>
+  <id root="8c2f7a10-3e5b-4d61-9b0a-1f6e2d4c8a02"/>
+  <code code="34133-9" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Summary of episode note"/>
+  <title>Continuity of Care Document</title>
+  <effectiveTime value="20260617141500-0400"/>
+  <confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25"/>
+  <languageCode code="en-US"/>
+  <setId root="5b0c1e2a-6d9f-4c3e-8a71-2f4b9d0e7c13"/>
+  <versionNumber value="2"/>
+  <recordTarget>
+    <patientRole>
+      <id root="2.16.840.1.113883.19.5" extension="SYN-000431"/>
+      <addr use="HP"><streetAddressLine>100 Example Street</streetAddressLine><city>Exampleton</city><state>NY</state><postalCode>00000</postalCode><country>US</country></addr>
+      <telecom nullFlavor="UNK"/>
+      <patient>
+        <name use="L"><given>Riley</given><family>Sample</family></name>
+        <administrativeGenderCode code="F" codeSystem="2.16.840.1.113883.5.1" displayName="Female"/>
+        <birthTime value="19840312"/>
+        <languageCommunication><languageCode code="en"/><preferenceInd value="true"/></languageCommunication>
+      </patient>
+    </patientRole>
+  </recordTarget>
+  <author>
+    <time value="20260617141500-0400"/>
+    <assignedAuthor>
+      <id root="2.16.840.1.113883.19.6" extension="SYN-CLIN-07"/>
+      <addr nullFlavor="UNK"/>
+      <telecom nullFlavor="UNK"/>
+      <assignedPerson><name><given>Jordan</given><family>Example</family><suffix>MD</suffix></name></assignedPerson>
+    </assignedAuthor>
+  </author>
+  <custodian>
+    <assignedCustodian>
+      <representedCustodianOrganization>
+        <id root="2.16.840.1.113883.19.7" extension="SYN-ORG-1"/>
+        <name>Example Family Medicine</name>
+        <telecom nullFlavor="UNK"/>
+        <addr><streetAddressLine>1 Sample Plaza</streetAddressLine><city>Exampleton</city><state>NY</state><postalCode>00000</postalCode><country>US</country></addr>
+      </representedCustodianOrganization>
+    </assignedCustodian>
+  </custodian>
+  <relatedDocument typeCode="RPLC">
+    <parentDocument>
+      <id root="8c2f7a10-3e5b-4d61-9b0a-1f6e2d4c8a01"/>
+      <setId root="5b0c1e2a-6d9f-4c3e-8a71-2f4b9d0e7c13"/>
+      <versionNumber value="1"/>
+    </parentDocument>
+  </relatedDocument>
+  <component>
+    <structuredBody>
+      <component>
+        <section>
+          <templateId root="2.16.840.1.113883.10.20.22.2.6.1" extension="2015-08-01"/>
+          <code code="48765-2" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Allergies and adverse reactions Document"/>
+          <title>Allergies</title>
+          <text>
+            <table border="1">
+              <thead><tr><th>Substance</th><th>Reaction</th><th>Status</th><th>Since</th></tr></thead>
+              <tbody><tr><td>Penicillin</td><td>Hives</td><td>Active</td><td>June 17, 2026</td></tr></tbody>
+            </table>
+          </text>
+          <entry typeCode="DRIV">
+            <act classCode="ACT" moodCode="EVN">
+              <templateId root="2.16.840.1.113883.10.20.22.4.30" extension="2015-08-01"/>
+              <id root="2.16.840.1.113883.19.1.1" extension="ALG-2"/>
+              <code code="CONC" codeSystem="2.16.840.1.113883.5.6"/>
+              <statusCode code="active"/>
+              <effectiveTime><low value="20260617"/></effectiveTime>
+              <entryRelationship typeCode="SUBJ">
+                <observation classCode="OBS" moodCode="EVN">
+                  <templateId root="2.16.840.1.113883.10.20.22.4.7" extension="2014-06-09"/>
+                  <id root="2.16.840.1.113883.19.1.2" extension="ALG-2-OBS"/>
+                  <code code="ASSERTION" codeSystem="2.16.840.1.113883.5.4"/>
+                  <statusCode code="completed"/>
+                  <effectiveTime><low value="20260617"/></effectiveTime>
+                  <value xsi:type="CD" code="416098002" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Allergy to drug"/>
+                  <participant typeCode="CSM"><participantRole classCode="MANU"><playingEntity classCode="MMAT"><code code="70618" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm" displayName="Penicillin"/></playingEntity></participantRole></participant>
+                  <entryRelationship typeCode="MFST" inversionInd="true">
+                    <observation classCode="OBS" moodCode="EVN">
+                      <templateId root="2.16.840.1.113883.10.20.22.4.9" extension="2014-06-09"/>
+                      <id root="2.16.840.1.113883.19.1.3" extension="ALG-2-RXN"/>
+                      <code code="ASSERTION" codeSystem="2.16.840.1.113883.5.4"/>
+                      <statusCode code="completed"/>
+                      <value xsi:type="CD" code="247472004" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Hives"/>
+                    </observation>
+                  </entryRelationship>
+                </observation>
+              </entryRelationship>
+            </act>
+          </entry>
+        </section>
+      </component>
+      <component>
+        <section>
+          <templateId root="2.16.840.1.113883.10.20.22.2.1.1" extension="2014-06-09"/>
+          <code code="10160-0" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="History of Medication use Narrative"/>
+          <title>Medications</title>
+          <text>
+            <table border="1">
+              <thead><tr><th>Medication</th><th>Directions</th><th>Status</th><th>Since</th></tr></thead>
+              <tbody><tr><td>Lisinopril 10 mg oral tablet</td><td>One tablet by mouth once a day</td><td>Active</td><td>March 4, 2026</td></tr></tbody>
+            </table>
+          </text>
+          <entry typeCode="DRIV">
+            <substanceAdministration classCode="SBADM" moodCode="INT">
+              <templateId root="2.16.840.1.113883.10.20.22.4.16" extension="2014-06-09"/>
+              <id root="2.16.840.1.113883.19.2.1" extension="MED-10"/>
+              <statusCode code="active"/>
+              <effectiveTime xsi:type="IVL_TS"><low value="20260304"/></effectiveTime>
+              <effectiveTime xsi:type="PIVL_TS" institutionSpecified="true" operator="A"><period value="24" unit="h"/></effectiveTime>
+              <routeCode code="C38288" codeSystem="2.16.840.1.113883.3.26.1.1" codeSystemName="NCI Thesaurus" displayName="ORAL"/>
+              <doseQuantity value="1"/>
+              <consumable>
+                <manufacturedProduct classCode="MANU">
+                  <templateId root="2.16.840.1.113883.10.20.22.4.23" extension="2014-06-09"/>
+                  <manufacturedMaterial><code code="314076" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm" displayName="lisinopril 10 MG Oral Tablet"/></manufacturedMaterial>
+                </manufacturedProduct>
+              </consumable>
+            </substanceAdministration>
+          </entry>
+        </section>
+      </component>
+      <component>
+        <section>
+          <templateId root="2.16.840.1.113883.10.20.22.2.5.1" extension="2015-08-01"/>
+          <code code="11450-4" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Problem list - Reported"/>
+          <title>Problems</title>
+          <text>
+            <table border="1">
+              <thead><tr><th>Problem</th><th>Status</th><th>Since</th></tr></thead>
+              <tbody><tr><td>Essential hypertension</td><td>Active</td><td>March 4, 2026</td></tr></tbody>
+            </table>
+          </text>
+          <entry typeCode="DRIV">
+            <act classCode="ACT" moodCode="EVN">
+              <templateId root="2.16.840.1.113883.10.20.22.4.3" extension="2015-08-01"/>
+              <id root="2.16.840.1.113883.19.3.1" extension="PRB-1"/>
+              <code code="CONC" codeSystem="2.16.840.1.113883.5.6"/>
+              <statusCode code="active"/>
+              <effectiveTime><low value="20260304"/></effectiveTime>
+              <entryRelationship typeCode="SUBJ">
+                <observation classCode="OBS" moodCode="EVN">
+                  <templateId root="2.16.840.1.113883.10.20.22.4.4" extension="2015-08-01"/>
+                  <id root="2.16.840.1.113883.19.3.2" extension="PRB-1-OBS"/>
+                  <code code="55607006" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Problem"/>
+                  <statusCode code="completed"/>
+                  <effectiveTime><low value="20260304"/></effectiveTime>
+                  <value xsi:type="CD" code="59621000" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Essential hypertension"/>
+                </observation>
+              </entryRelationship>
+            </act>
+          </entry>
+        </section>
+      </component>
+    </structuredBody>
+  </component>
+</ClinicalDocument>
