@@ -380,6 +380,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
     </div>
   ) : null;
   const prevB64 = (commit as { prevB64?: string }).prevB64;
+  const tee = m.proof.environment?.enforcement === "measured-tee";
   const receipt = (
     <section className="pv-card pv-receipt">
       {/* The card opens on its name, "BitGraph #38", with no eyebrow over it. */}
@@ -420,11 +421,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {m.canConnect && searching && <div style={{ marginTop: 14 }}>{m.filePane}</div>}
         {m.carrierNote && <div className="pv-offline-text" role="status">{m.carrierNote}</div>}
       </div>
-      <div className="pv-receipt-group pv-details-toggle">
-        <button type="button" className="pv-link pv-link-btn pv-details-btn" aria-expanded={details} onClick={() => setDetails((v) => !v)}><span className="pv-details-word">View details</span> <span className="pv-details-chev" aria-hidden="true">&rsaquo;</span></button>
-      </div>
-      {details && (
-        <>
+      {/* What the BitGraph is, always open: the bind (the nonce at one count, the content hash at the next) and its place
+          in line. They are short, and they are the claim. */}
       {group("The bind", [
         nonceCount !== null ? <Row key="nonce" f={{ label: `#${fmtNum(nonceCount)}: Nonce`, value: commit.nonceB64, mono: true }} /> : null,
         contentCount !== null ? <Row key="hash" f={{ label: `#${fmtNum(contentCount)}: Content hash`, value: m.proof.artifact.digestB64, mono: true }} /> : null,
@@ -435,11 +433,18 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         commit.epochId ? <Row key="epoch" f={{ label: "Epoch", value: commit.epochId, mono: true }} /> : null,
         prevB64 ? <Row key="prev" f={{ label: "Previous BitGraph", value: prevB64, mono: true }} /> : null,
       ])}
-      {/* Attest, then sign: the enclave's image and its attestation first, then the key, the signature and the hash. */}
+      {/* The hardware, open in one line: the enclave image (PCR0) that made it. The rest of the hardware's signature and
+          the raw proof are folded below, under a label that names them. */}
+      {group(tee ? "Signed by the hardware" : "Signed in software", m.enclaveRows.slice(0, 1).map((f) => <Row key={f.label} f={f} />))}
+      <div className="pv-receipt-group pv-details-toggle">
+        <button type="button" className="pv-link pv-link-btn pv-details-btn" aria-expanded={details} onClick={() => setDetails((v) => !v)}><span className="pv-details-word">{tee ? "Hardware signature and raw proof" : "Signature and raw proof"}</span> <span className="pv-details-chev" aria-hidden="true">&rsaquo;</span></button>
+      </div>
+      {details && (
+        <>
+      {/* Attest, then sign: the rest of the enclave's attestation first, then the key, the signature and the hash. */}
       <div className="pv-receipt-group">
-        <div className="pv-section-title">{m.proof.environment?.enforcement === "measured-tee" ? "Signed by the hardware" : "Signed in software"}</div>
         <div className="pv-counter-grid">
-          {m.enclaveRows.map((f) => <Row key={f.label} f={f} />)}
+          {m.enclaveRows.slice(1).map((f) => <Row key={f.label} f={f} />)}
           <EnclaveDecoded proof={m.proof} />
           {m.signatureRows.map((f) => <Row key={f.label} f={f} />)}
         </div>

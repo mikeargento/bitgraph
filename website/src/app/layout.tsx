@@ -85,8 +85,8 @@ const inter = Inter({
   display: "swap",
 });
 
-/* The tab strip and the phone's chrome take the page colour, the ivory of the page. Keep it equal to --bg. */
-export const viewport: Viewport = { themeColor: "#f0eee6" };
+/* The tab strip and the phone's chrome take the bar's shade, so the browser's own top edge runs into the bar. Keep it equal to --panel. */
+export const viewport: Viewport = { themeColor: "#e8e6dc" };
 
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */
