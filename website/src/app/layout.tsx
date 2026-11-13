@@ -121,6 +121,7 @@ export const metadata: Metadata = {
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
+import { SmoothAnchors } from "@/components/smooth-anchors";
 import { NoOrphans } from "@/components/no-orphans";
 import { FigMarkers } from "@/components/figures/fig";
 // Page views, counted anonymously by Vercel Web Analytics: no cookies (2026-10-12; the privacy page says so).
@@ -165,6 +166,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Figure arrowheads, once per page, before any figure (see FigMarkers in components/figures/fig.tsx). */}
         <FigMarkers />
         <ScrollToTop />
+        <SmoothAnchors />
         {/* No one-word last lines in prose (2026-09-17: a lone "it" was being orphaned). */}
         <NoOrphans />
         <SiteNav />

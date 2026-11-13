@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
  * The captions on the demo say who made each file. That is our caption, not a claim of the proof: a BitGraph proves
  * where the exact bytes stand in the sequence and when, not which tool made them.
  */
-type Demo = { caption: string; place?: string; alt?: string; eager?: boolean; counter: string; proof: string; display: string; video?: { src: string }; bw?: boolean };
+type Demo = { caption: string; place?: string; maker?: string; alt?: string; eager?: boolean; counter: string; proof: string; display: string; video?: { src: string }; bw?: boolean };
 
 // Two sets, six files: the earlier three, re-recorded 2026-11-02 in the first epoch of per-record Base writes, and a
 // new picture, its copy and its video (2026-11-05, #30, #34 and #38 of one epoch). Each caption follows the Content
@@ -53,13 +53,15 @@ export const COPIES: Demo[] = [
 // The home page's three: the ChatGPT picture, the Grok video made from it and the Google copy, recorded in that order
 // as #12, #14 and #16 of one epoch, an unbroken run (2026-11-12): each proof carries the hash of the one before it.
 // They are the same three files as an earlier set, so the same bytes also hold #304, #312 and #308 of an earlier epoch.
-// Shown in black and white, a filter on the display copy; each proof covers its file as it is.
+// Shown in black and white, a filter on the display copy; each proof covers its file as it is. Each tag names its place
+// and its maker, as the Content Credentials inside the file say (OpenAI's, xAI's, Google's): our caption, not a claim
+// of the proof.
 const HOME_EPOCH = "msKwxNshHGn8sMFM9VBerOSMv-zJcovcOv5R_TqGf8g";
 const HOME_ALT = "A woman walking under an umbrella on a rainy city street at night";
 export const HOME: Demo[] = [
-  { caption: "1st", alt: HOME_ALT, eager: true, counter: "12", proof: `/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=12&epoch=${HOME_EPOCH}`, display: "/demo/display/chatgpt.jpg", bw: true },
-  { caption: "2nd", alt: `${HOME_ALT}, as a short video`, eager: true, counter: "14", proof: `/proof/VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM?counter=14&epoch=${HOME_EPOCH}`, display: "/demo/display/grok-poster.jpg", video: { src: "/demo/display/grok.mp4" }, bw: true },
-  { caption: "3rd", alt: `${HOME_ALT}, a copy`, eager: true, counter: "16", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=16&epoch=${HOME_EPOCH}`, display: "/demo/display/google.jpg", bw: true },
+  { caption: "1st", maker: "Created by ChatGPT", alt: HOME_ALT, eager: true, counter: "12", proof: `/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=12&epoch=${HOME_EPOCH}`, display: "/demo/display/chatgpt.jpg", bw: true },
+  { caption: "2nd", maker: "Animated by Grok", alt: `${HOME_ALT}, as a short video`, eager: true, counter: "14", proof: `/proof/VqIapIXBNyc-qhSurPKetHl1fpeznjL91M_uNDqIdpM?counter=14&epoch=${HOME_EPOCH}`, display: "/demo/display/grok-poster.jpg", video: { src: "/demo/display/grok.mp4" }, bw: true },
+  { caption: "3rd", maker: "Copied by Google", alt: `${HOME_ALT}, a copy`, eager: true, counter: "16", proof: `/proof/gZmj_LsVVoSgLYf8g0cZWNE5-5zXcSmNfpqTpqNShE8?counter=16&epoch=${HOME_EPOCH}`, display: "/demo/display/google.jpg", bw: true },
 ];
 
 // Each set's place in line (1st, 2nd, 3rd) leads its caption on the demo tiles.
@@ -124,19 +126,22 @@ export function CopiesRow() {
   );
 }
 
-/** A home tile: the picture or video, and under it one link that names its place and opens its proof: "1st proof".
+/** A tile: the picture or video and one link that names its place and opens its proof, "1st proof". The link is a tag on
+ *  the picture, except on the home page, where it sits under the picture followed by the file's maker:
+ *  "1st proof · Created by ChatGPT".
  *  With reduced motion asked for, the video shows its still frame. */
 function PlaceTile({ d }: { d: Demo }) {
   const [still, setStill] = useState(false);
   useEffect(() => { setStill(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false); }, []);
   const shown = still && d.video ? { ...d, video: undefined } : d;
   return (
-    <figure className={`demo-tile${d.video ? " is-video" : ""}${d.bw ? " is-bw" : ""}`}>
-      {/* The picture opens its proof too; the link below is the one in the tab order. */}
+    <figure className={`demo-tile${d.video ? " is-video" : ""}${d.bw ? " is-bw" : ""}${d.maker ? " has-maker" : ""}`}>
+      {/* The picture opens its proof too; the link is the one in the tab order. */}
       <a className="demo-media-link" href={d.proof} tabIndex={-1} aria-hidden="true"><Media d={shown} /></a>
       <figcaption>
         <div className="demo-links">
           <a href={d.proof}>{d.caption} proof</a>
+          {d.maker ? <span className="demo-maker"> &middot; {d.maker}</span> : null}
         </div>
       </figcaption>
     </figure>

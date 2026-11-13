@@ -36,11 +36,8 @@ const nextConfig: NextConfig = {
       { source: "/api-reference", destination: docs, permanent: false },
       { source: "/overview", destination: docs, permanent: false },
       { source: "/spec", destination: docs, permanent: false },
-      // the site lists no BitGraphs: every ledger address goes home
-      { source: "/ledger", destination: home, permanent: false },
-      { source: "/ledger/:path*", destination: home, permanent: false },
-      { source: "/roll", destination: home, permanent: false },
-      { source: "/rolls", destination: home, permanent: false },
+      { source: "/roll", destination: "/ledger", permanent: false },
+      { source: "/rolls", destination: "/ledger", permanent: false },
       ...[
         "/generate/:path+", "/benchmark", "/ceilings", "/ceilings/:path*", "/deck",
         "/fuse", "/subjects", "/uses", "/why", "/solutions", "/image", "/portrait", "/painting",
