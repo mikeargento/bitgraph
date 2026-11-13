@@ -426,6 +426,12 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               : m.openUrl ? <button type="button" className="pv-link-btn pv-open-link" aria-expanded={fileOpen} onClick={() => setFileOpen((v) => !v)}>Open file</button> : null}
           </div>
         </div>,
+        // The check, as one line under the name: it runs in this browser against the proof itself.
+        c.state === "running" || c.state === "idle"
+          ? <div key="verified" className="pv-verified is-running">Checking in your browser</div>
+          : c.state === "done" && c.verdict === "TRUE"
+            ? <div key="verified" className="pv-verified is-valid">{`Valid proof \u00b7 ${okCount} checks passed in your browser`}</div>
+            : null,
         fileOpen && m.openUrl ? <FileInPlace key="open" url={m.openUrl} type={m.openType ?? null} name={m.fileName ?? null} /> : null,
         m.fileName ? <Row key="file" f={{ label: "File", value: m.fileName }} /> : null,
         commit.epochId && commit.counter && !treeMemberOf(m.proof) ? <TreeFileList key="tree" digestB64={m.proof.artifact.digestB64} epochId={commit.epochId} counter={commit.counter} /> : null,
@@ -468,7 +474,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           after that). Shown once the hour's write has landed. */}
       {binds && (
         <div className="pv-receipt-group">
-          <div className="pv-section-title">Hourly publication</div>
+          <div className="pv-section-title is-signal">Hourly publication</div>
           <div className="pv-counter-grid">
             <div className="pv-row">
               <div className="pv-row-label">Binds the write in</div>
@@ -482,7 +488,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
       )}
       {published && (
         <div className="pv-receipt-group">
-          <div className="pv-section-title">Published on Base</div>
+          <div className="pv-section-title is-signal">Published on Base</div>
           <div className="pv-counter-grid">
             <div className="pv-row">
               <div className="pv-row-label">Published in</div>

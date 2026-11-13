@@ -6,8 +6,10 @@ import { useEffect } from "react";
 
 /**
  * A contents list's links ("On this page", .tl-toc) slide the page to their section in a fixed 320 ms, fast at the start
- * and settling at the end, instead of jumping. The heading lands where a jump would put it (its scroll-margin-top under
- * the bar), the address takes the section's #hash, and focus moves to the section for keyboard and screen reader users.
+ * and settling at the end, instead of jumping. So does a footer fact that points to a section of the page already open
+ * (the enclave on Home); from any other page it loads that page at the section, as a link does. The heading lands where
+ * a jump would put it (its scroll-margin-top under the bar), the address takes the section's #hash, and focus moves to
+ * the section for keyboard and screen reader users.
  * Where reduced motion is asked for, the link jumps as before. Any other link is left alone.
  */
 const DURATION = 320;
@@ -18,9 +20,9 @@ export function SmoothAnchors() {
     let frame = 0;
     const onClick = (e: MouseEvent) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const link = (e.target as Element | null)?.closest?.<HTMLAnchorElement>(".tl-toc a[href^='#']");
-      if (!link) return;
-      const id = decodeURIComponent(link.getAttribute("href")!.slice(1));
+      const link = (e.target as Element | null)?.closest?.<HTMLAnchorElement>(".tl-toc a[href^='#'], .bg-footer-facts a[href*='#']");
+      if (!link || link.pathname !== location.pathname) return;
+      const id = decodeURIComponent(link.hash.slice(1));
       const target = id ? document.getElementById(id) : null;
       if (!target) return;
       if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;

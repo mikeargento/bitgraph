@@ -1,6 +1,6 @@
 import { MENU_ICON_NAMES } from "@/components/menu-icons";
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro, IBM_Plex_Mono, Newsreader, Geist, Inter_Tight } from "next/font/google";
+import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro, IBM_Plex_Mono, IBM_Plex_Sans, Newsreader, Geist, Inter_Tight } from "next/font/google";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
@@ -52,6 +52,15 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+// The instrument look (2026-11-13): IBM Plex Sans for the text, beside Plex Mono for the data.
+const plexSans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-plex-sans",
+  display: "swap",
+});
+
 /* Newsreader, the site's face since 2026-11-05 (headings only from 2026-10-21): a variable serif with an optical-size
    axis, self-hosted by next/font like the others. */
 const newsreader = Newsreader({
@@ -86,7 +95,7 @@ const inter = Inter({
 });
 
 /* The tab strip and the phone's chrome take the bar's shade, so the browser's own top edge runs into the bar. Keep it equal to --panel. */
-export const viewport: Viewport = { themeColor: "#e8e6dc" };
+export const viewport: Viewport = { themeColor: "#ecedea" };
 
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */
@@ -130,7 +139,7 @@ import { Analytics } from "@vercel/analytics/next";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // suppressHydrationWarning: the head script below marks <html> data-js before React loads.
-    <html lang="en" data-theme="light" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${newsreader.variable} ${geist.variable} ${interTight.variable}`}>
+    <html lang="en" data-theme="light" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable} ${plexMono.variable} ${plexSans.variable} ${newsreader.variable} ${geist.variable} ${interTight.variable}`}>
       <head>
         {/* One mode: the site is light, whatever the system's setting. data-theme="light" on <html> says so to the
             stylesheet; there is no switch. */}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { CopyCode } from "@/components/copy-code";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
+import { codeLang } from "@/lib/code-lang";
 
 /**
  * Integrate (2026-10-27): the managed service's real interface, from the code: /api/commit (website/src/app/api/commit),
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 
 function Code({ children }: { children: string }) {
   return (
-    <div className="code-block mk-code">
+    <div className="code-block mk-code" data-lang={codeLang(children)}>
       <pre className="hiw-code">{children}</pre>
       <CopyCode />
     </div>

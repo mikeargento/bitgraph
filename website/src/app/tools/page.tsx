@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CopyCode } from "@/components/copy-code";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
+import { codeLang } from "@/lib/code-lang";
 
 /**
  * Tools (2026-10-18: the docs page became a tools page; the home page is the explanation). What a builder needs,
@@ -26,7 +27,7 @@ const NITRO_ROOT_SHA256 = "641a0321a3e244efe456463195d606317ed7cdcc3c1756e09893f
 
 function Code({ children }: { children: string }) {
   return (
-    <div className="code-block mk-code">
+    <div className="code-block mk-code" data-lang={codeLang(children)}>
       <pre className="hiw-code">{children}</pre>
       <CopyCode />
     </div>
@@ -129,8 +130,9 @@ export default function ToolsPage() {
             <h3 className="tl-h3">Outside anchors, optional and afterward</h3>
             <p>
               The sequence is a closed system. Inside it, order is certain: every BitGraph names the one before it, the counter only goes
-              up, and the hardware&rsquo;s time is signed into each proof by AWS. That needs nothing outside the sequence, and BitGraph
-              writes nothing to any blockchain and reads nothing from one.
+              up, and the hardware&rsquo;s time is signed into each proof by AWS. That needs nothing outside the sequence. Every hour
+              BitGraph also publishes the sequence on Base, one small transaction, as a public record of it; nothing is read from a
+              chain to make a BitGraph.
             </p>
             <p>
               Anyone who wants more can add an outside anchor of their own to a finished proof: an RFC&nbsp;3161 timestamp authority, a

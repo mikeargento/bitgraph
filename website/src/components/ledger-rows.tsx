@@ -79,7 +79,7 @@ function Row({ r, newestOfEpoch = false }: { r: LedgerRow; newestOfEpoch?: boole
   const inner = (
     <>
       <span className="rl-num">#{fmt(r.counter)}</span>
-      <span className="rl-what">{epochEnd ? "Closed the epoch" : r.floor ? "Published on Base" : r.digest ? <code>{r.digest.slice(0, 16)}</code> : ""}</span>
+      <span className={r.floor && !epochEnd ? "rl-what is-floor" : "rl-what"}>{epochEnd ? "Closed the epoch" : r.floor ? "Published on Base" : r.digest ? <code>{r.digest.slice(0, 16)}</code> : ""}</span>
       {r.recordedMs !== null && <span className="rl-when" title={local(r.recordedMs)}>{ago(r.recordedMs, now)}</span>}
       <GoArrow />
     </>
@@ -151,6 +151,13 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: s
   const epochOf = (x: LedgerRow) => x.key.split("/")[1];
   return (
     <>
+      {/* The columns, named once above the rows; today's ledger says it is live (it fills in on its own). */}
+      <div className="rl-head" aria-hidden="true">
+        <span className="rl-num">No.</span>
+        <span className="rl-what">Bound</span>
+        <span className="rl-when">{live && <span className="rl-live">Live</span>}Recorded</span>
+        <span className="rl-head-arrow" />
+      </div>
       <div className="rl-rows">
         {rows.map((r, i) => {
           const epoch = epochOf(r);

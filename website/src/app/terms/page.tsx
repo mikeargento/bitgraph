@@ -31,8 +31,9 @@ export default function TermsPage() {
           A sealed environment mints a single-use position, then binds your
           file&apos;s SHA-256 fingerprint to it in one indivisible step.
           Positions form a counted, forward-only chain. Each day&apos;s
-          sequence ends with a closing record of its own. The service does
-          not write to or read from any blockchain.
+          sequence ends with a closing record of its own. Every hour the
+          service publishes a fingerprint of the sequence on the Base
+          blockchain; it does not read from any blockchain to make a record.
         </p>
         <p>
           Only fingerprints are bound. Files are fingerprinted on your

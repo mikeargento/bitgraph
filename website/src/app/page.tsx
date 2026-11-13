@@ -29,6 +29,8 @@ export default function HomePage() {
       <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-ov">
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
           <h1 id="home-h"><span className="home-h-m">BitGraph creates</span>{" "}<span className="home-h-m">a receipt<span className="home-h-br" aria-hidden="true" /> for</span>{" "}<span className="home-h-m">every file in</span>{" "}<span className="home-h-m">your care.</span></h1>
+          {/* Each feature stays whole on its line; a phone breaks only between them. */}
+          <p className="home-ov-sub"><span className="home-ov-keep">Instant,</span> <span className="home-ov-keep">confidential,</span> <span className="home-ov-keep">verifiable offline,</span> <span className="home-ov-keep">and impossible to backdate.</span></p>
           {/* Three versions of one synthetic patient record, each with its own place in line: the headline, shown. */}
           <RecordTiles />
         </section>

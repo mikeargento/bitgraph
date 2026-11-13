@@ -22,6 +22,13 @@
 
 
 
+import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
+
+/** The reproducible build's pins: how to rebuild the enclave image and get the same PCR0. */
+const PINS_URL = "https://github.com/mikeargento/bitgraph/blob/main/server/commit-service/reproducible-build/PINS.md";
+/** The hourly publisher's address on Base: every write it has made. */
+const WRITER_URL = "https://basescan.org/address/0xf3972408D853c975F86351C311f4310220bbF2a3";
+
 const links: Array<{ href: string; label: string }> = [
   // The source (2026-10-17): the site had no GitHub link, and the footer is its place.
   // Demos is in the bar and on the home page, so it is not repeated here; Contact (the form) is.
@@ -47,7 +54,21 @@ export function SiteFooter() {
       }}
     >
       <div className="bg-footer-inner">
-        <div>© {year} Argento Computing Inc.</div>
+        <div>
+          <div>© {year} Argento Computing Inc.</div>
+          {/* What the site runs on, stated plainly: the measured enclave by its image, and the hourly publication. */}
+          {/* Each fact opens its evidence: the enclave in the mechanism, the image's measurement in the reproducible build, and
+              every hourly write at the publisher's address on Base. */}
+          <div className="bg-footer-facts">
+            {/* A plain link, not next/link: on Home the page's own slide takes the click (SmoothAnchors). */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a href="/#t-attest">AWS Nitro enclave</a>
+            {" \u00b7 "}
+            <a href={PINS_URL} target="_blank" rel="noopener">{`PCR0 ${PUBLISHED_PCR0.slice(0, 12)}\u2026`}</a>
+            {" \u00b7 "}
+            <a href={WRITER_URL} target="_blank" rel="noopener">Published hourly on Base</a>
+          </div>
+        </div>
         {/* Plain dim links with space between them, no dots or underlines (2026-10-18): the old footer looked dated. */}
         <div className="bg-footer-links">
           {links.map((l) => (

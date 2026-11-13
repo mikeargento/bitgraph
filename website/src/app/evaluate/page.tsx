@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CopyCode } from "@/components/copy-code";
 import { InquiryForm } from "@/components/inquiry-form";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
+import { codeLang } from "@/lib/code-lang";
 
 /**
  * Evaluate (2026-10-27): a technical buyer reproduces the guarantees without a call. The sample in /evaluate is a real
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 
 function Code({ children }: { children: string }) {
   return (
-    <div className="code-block mk-code">
+    <div className="code-block mk-code" data-lang={codeLang(children)}>
       <pre className="hiw-code">{children}</pre>
       <CopyCode />
     </div>

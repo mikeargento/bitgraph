@@ -3,6 +3,7 @@
 import { CopyCode } from "@/components/copy-code";
 import { MechanismFigure } from "@/components/mechanism-figure";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
+import { codeLang } from "@/lib/code-lang";
 
 /**
  * The mechanism, for a CTO or security architect, from the code: the body of the home page under its headline, with
@@ -14,7 +15,7 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
  */
 function Code({ children }: { children: string }) {
   return (
-    <div className="code-block mk-code">
+    <div className="code-block mk-code" data-lang={codeLang(children)}>
       <pre className="hiw-code">{children}</pre>
       <CopyCode />
     </div>
@@ -178,9 +179,11 @@ export function TechnologyBody() {
             <li><strong>When an epoch closes.</strong> At the end of the UTC day the enclave makes a closing BitGraph in its own line, binding a short note naming the epoch. Nothing is bound after it, and its proof names the hash of the one before, so the whole sequence ends there.</li>
           </ul>
           <p>
-            BitGraph writes nothing to any blockchain and reads nothing from one. Anyone who wants an outside anchor can add their
-            own afterward: an RFC&nbsp;3161 timestamp authority, a transparency log, or a blockchain. That is optional and is not
-            part of BitGraph.
+            Every hour, BitGraph publishes the line on Base: one small transaction holding a fingerprint of the BitGraphs made since
+            the last one and a link to the one before. Right after it lands, BitGraph binds that transaction back into the line, so
+            every later BitGraph is after it. The order itself comes from the enclave; the publication is a public record of it, kept
+            on a chain someone else runs. Nothing is read from a chain to make a BitGraph. Anyone who wants another outside anchor can
+            add their own: an RFC&nbsp;3161 timestamp authority, a transparency log, or another chain.
           </p>
           <div className="sx-cards is-3">
             <article className="tl-card">

@@ -2,6 +2,7 @@
 import { CopyCode } from "@/components/copy-code";
 import { SandwichFigure } from "@/components/primitive-figures";
 import { GoArrow } from "@/components/go-arrow";
+import { codeLang } from "@/lib/code-lang";
 
 /**
  * The sealed exam, on two BitGraphs (2026-10-19, shipped together with the repo's release v3 and npm 0.3.0).
@@ -26,7 +27,7 @@ const SITTING = {
 
 function Code({ children }: { children: string }) {
   return (
-    <div className="code-block mk-code">
+    <div className="code-block mk-code" data-lang={codeLang(children)}>
       <pre className="hiw-code">{children}</pre>
       <CopyCode />
     </div>

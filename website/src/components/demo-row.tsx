@@ -192,7 +192,11 @@ function RecordTile({ r, n }: { r: RecordVersion; n: number }) {
         </dl>
       </div>
       {/* Its place in line: a bar at the foot of the card with the arrow. */}
-      <span className={r.proof ? "rec-proof" : "rec-proof is-pending"}>{r.proof ? `${r.place} proof` : r.place}{r.proof ? <GoArrow /> : null}</span>
+      <span className={r.proof ? "rec-proof" : "rec-proof is-pending"}>
+        <span className="rec-proof-label">{r.proof ? `${r.place} proof` : r.place}</span>
+        {r.proof ? <span className="rec-proof-n">{`#${new URL(r.proof, "https://bitgraph.ing").searchParams.get("counter") ?? ""}`}</span> : null}
+        {r.proof ? <GoArrow /> : null}
+      </span>
     </>
   );
   // The whole card is one link, to its proof; the proof page shows the record file itself.
