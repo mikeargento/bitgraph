@@ -473,7 +473,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <div className="pv-row">
               <div className="pv-row-label">Binds the write in</div>
               <div className="pv-row-value">
-                <a className="pv-link" href={explorerTx(binds.chainId, binds.txHash)} target="_blank" rel="noopener">{`Block ${fmtNum(binds.blockNumber)}`}</a>
+                <a className="pv-link pv-pub-link" href={explorerTx(binds.chainId, binds.txHash)} target="_blank" rel="noopener">{`Block ${fmtNum(binds.blockNumber)}`}</a>
                 {`, ${stampTz(new Date(binds.blockTimestamp * 1000))}`}
               </div>
             </div>
@@ -487,7 +487,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <div className="pv-row">
               <div className="pv-row-label">Published in</div>
               <div className="pv-row-value">
-                <a className="pv-link" href={explorerTx(published.chainId, published.publishedIn.txHash)} target="_blank" rel="noopener">{`Block ${fmtNum(published.publishedIn.blockNumber)}`}</a>
+                <a className="pv-link pv-pub-link" href={explorerTx(published.chainId, published.publishedIn.txHash)} target="_blank" rel="noopener">{`Block ${fmtNum(published.publishedIn.blockNumber)}`}</a>
                 {`, ${stampTz(new Date(published.publishedIn.blockTimestamp * 1000))}`}
               </div>
             </div>
@@ -495,7 +495,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               <div className="pv-row">
                 <div className="pv-row-label">Made after</div>
                 <div className="pv-row-value">
-                  <a className="pv-link" href={explorerTx(published.chainId, published.madeAfter.txHash)} target="_blank" rel="noopener">{`Block ${fmtNum(published.madeAfter.blockNumber)}`}</a>
+                  <a className="pv-link pv-pub-link" href={explorerTx(published.chainId, published.madeAfter.txHash)} target="_blank" rel="noopener">{`Block ${fmtNum(published.madeAfter.blockNumber)}`}</a>
                   {`, ${stampTz(new Date(published.madeAfter.blockTimestamp * 1000))}`}
                 </div>
               </div>
