@@ -19,6 +19,7 @@ import { decodeNitroAttestation, treeMemberOf } from "@mikeargento/bitgraph-veri
 import { CopyIcon, useCopied } from "@/components/copy-icon";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
+import { PUBLICATION_METADATA_KEY, explorerTx, summarize } from "@/lib/publication";
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
 const safe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -343,9 +344,26 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const commit = m.proof.commit;
   const nonceCount = commit.slotCounter ?? null;
   const contentCount = commit.counter ?? null;
+  // The hour this BitGraph was published in on Base, once that hour's write has landed (lib/publication.ts).
+  const [pub, setPub] = useState<unknown>(null);
+  useEffect(() => {
+    const e = commit.epochId, c = commit.counter;
+    if (!e || !c) return;
+    let gone = false;
+    fetch(`/api/publication?epoch=${encodeURIComponent(safe(e))}&counter=${encodeURIComponent(c)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: unknown) => { if (!gone) setPub(j); })
+      .catch(() => {});
+    return () => { gone = true; };
+  }, [commit.epochId, commit.counter]);
+  const published = summarize(pub);
   const proofFile = `bitgraph-${contentCount ?? safe(m.proof.artifact.digestB64).slice(0, 12)}.json`;
   const download = () => {
-    const blob = new Blob([JSON.stringify(m.proof, null, 2)], { type: "application/json" });
+    // The download carries the publication block in its unsigned metadata when the hour is published, so the file
+    // checks against Base offline (checkPublication in @mikeargento/bitgraph-audit).
+    const md = (m.proof as { metadata?: Record<string, unknown> }).metadata;
+    const out = published ? { ...m.proof, metadata: { ...(md ?? {}), [PUBLICATION_METADATA_KEY]: pub } } : m.proof;
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = proofFile;
@@ -433,6 +451,31 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         commit.epochId ? <Row key="epoch" f={{ label: "Epoch", value: commit.epochId, mono: true }} /> : null,
         prevB64 ? <Row key="prev" f={{ label: "Previous BitGraph", value: prevB64, mono: true }} /> : null,
       ])}
+      {/* Published on Base: the block of its hour's write (it existed by then) and the block its floor names (it was made
+          after that). Shown once the hour's write has landed. */}
+      {published && (
+        <div className="pv-receipt-group">
+          <div className="pv-section-title">Published on Base</div>
+          <div className="pv-counter-grid">
+            <div className="pv-row">
+              <div className="pv-row-label">Published in</div>
+              <div className="pv-row-value">
+                <a className="pv-link" href={explorerTx(published.chainId, published.publishedIn.txHash)} target="_blank" rel="noopener">{`Block ${fmtNum(published.publishedIn.blockNumber)}`}</a>
+                {`, ${stampTz(new Date(published.publishedIn.blockTimestamp * 1000))}`}
+              </div>
+            </div>
+            {published.madeAfter && (
+              <div className="pv-row">
+                <div className="pv-row-label">Made after</div>
+                <div className="pv-row-value">
+                  <a className="pv-link" href={explorerTx(published.chainId, published.madeAfter.txHash)} target="_blank" rel="noopener">{`Block ${fmtNum(published.madeAfter.blockNumber)}`}</a>
+                  {`, ${stampTz(new Date(published.madeAfter.blockTimestamp * 1000))}`}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {/* The hardware, open in one line: the enclave image (PCR0) that made it. The rest of the hardware's signature and
           the raw proof are folded below, under a label that names them. */}
       {group(tee ? "Signed by the hardware" : "Signed in software", m.enclaveRows.slice(0, 1).map((f) => <Row key={f.label} f={f} />))}

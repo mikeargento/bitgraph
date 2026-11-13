@@ -149,3 +149,15 @@ export type {
   BundleArchiveWitnessEntry,
   BundleArchiveArtifactFile,
 } from "./export.js";
+
+/* Hourly publication on Base (bitgraph-hour/1, bitgraph-publication/1): the formats and the offline check. */
+export {
+  PUBLICATION_METADATA_KEY, HOUR_RECORD_FORMAT, FLOOR_NOTE_FORMAT, HOUR_MAGIC,
+  encodeHourCalldata, decodeHourCalldata, hourLink, hourLeaf, hourTree,
+  floorNoteText, parseFloorNote, floorNoteDigestB64, publicationOf, publishedChainHash,
+  checkPublication, verifyPublication, checkHourChain, toHex as publicationHex,
+} from "./publication.js";
+export type {
+  HourWrite, HourTree, FloorNote, WriteEvidence, PublicationFloor, PublicationBlock,
+  PublicationCheck, PublicationCheckOptions, PublicationVerifyOptions, HourRecord, HourChainCheck,
+} from "./publication.js";
