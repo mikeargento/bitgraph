@@ -127,22 +127,19 @@ export function CopiesRow() {
   );
 }
 
-/** A tile: the picture or video and one link that names its place and opens its proof, "1st proof". The link is a tag on
- *  the picture, except for the picture, its video and its copy, where it sits under the picture followed by the file's maker:
- *  "1st proof · Created by ChatGPT".
- *  With reduced motion asked for, the video shows its still frame. */
+/** A tile: the picture or video and one link that names its place and opens its proof, "1st proof", as a tag on the
+ *  picture. With reduced motion asked for, the video shows its still frame. */
 function PlaceTile({ d }: { d: Demo }) {
   const [still, setStill] = useState(false);
   useEffect(() => { setStill(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false); }, []);
   const shown = still && d.video ? { ...d, video: undefined } : d;
   return (
-    <figure className={`demo-tile${d.video ? " is-video" : ""}${d.bw ? " is-bw" : ""}${d.maker ? " has-maker" : ""}`}>
+    <figure className={`demo-tile${d.video ? " is-video" : ""}${d.bw ? " is-bw" : ""}`}>
       {/* The picture opens its proof too; the link is the one in the tab order. */}
       <a className="demo-media-link" href={d.proof} tabIndex={-1} aria-hidden="true"><Media d={shown} /></a>
       <figcaption>
         <div className="demo-links">
           <a href={d.proof}>{d.caption} proof</a>
-          {d.maker ? <span className="demo-maker"> &middot; {d.maker}</span> : null}
         </div>
       </figcaption>
     </figure>
@@ -219,11 +216,16 @@ export function RecordTiles() {
 }
 
 /** The picture, its video and its copy (/pictures, under the harbor row), in the order they were recorded: each with
- *  one link, its place, followed by its maker. */
+ *  its place as a tag on the picture, as the harbor row has, and its maker in a line under the picture. */
 export function CopiesTiles() {
   return (
-    <div className="demo-row">
-      {HOME.map((d) => <PlaceTile key={d.counter} d={d} />)}
+    <div className="demo-row is-tagged is-made">
+      {HOME.map((d) => (
+        <div className="demo-made" key={d.counter}>
+          <PlaceTile d={d} />
+          <p className="demo-made-by">{d.maker}</p>
+        </div>
+      ))}
     </div>
   );
 }

@@ -7,22 +7,19 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { GoArrow } from "@/components/go-arrow";
 import { slideToId, slideToTop } from "@/components/smooth-anchors";
-import { BAR, HOW_IT_WORKS_ID, SECTIONS, inSection, type SitePage, type SiteSection } from "@/lib/site-map";
+import { BAR, DROP, HOW_IT_WORKS_ID, SECTIONS, inSection, type SitePage } from "@/lib/site-map";
 
 /**
- * The bar: the wordmark at the left (it opens the home page), then every link in one row and one size (Drop a file,
- * How it works, Demos, Developers, Reference, Evaluate, Licensing, Use cases, Contact), and at the far right the one
- * button, Ledger, with the arrow. There is no second row. On narrower screens the links are in a sheet behind a menu
+ * The bar: the wordmark at the left (it opens the home page), then every link in one row and one size (How it works,
+ * Ledger, Demos, Developers, Reference, Evaluate, Licensing, Use cases, Contact), and at the far right the one button,
+ * Make a BitGraph, with the arrow. There is no second row. On narrower screens the links are in a sheet behind a menu
  * button, one to a line, over the same button. The pages are listed once, in lib/site-map.
  */
-/** The ledger's entry in the list of sections: the bar shows it as a button, apart from the links. */
-const LEDGER = SECTIONS.find((s) => s.href === "/ledger");
 const DEMOS = SECTIONS.find((s) => s.href === "/examples");
 
 export function SiteNav() {
   const pathname = usePathname();
   const on = (href: string) => pathname === href || pathname.startsWith(href + "/");
-  const current = (s: SiteSection) => (inSection(pathname, s) ? "page" : undefined);
   // A link is marked on its own page. Demos is also marked on each demo, which has no link of its own in the bar.
   const isCurrent = (p: SitePage) => ((p.href === DEMOS?.href ? inSection(pathname, DEMOS) : on(p.href)) ? "page" : undefined);
   // The phone sheet: every link, opened by the round button; a new page or Esc closes it.
@@ -70,8 +67,8 @@ export function SiteNav() {
                 </Link>
               ))}
             </div>
-            {/* The bar's one button: the ledger, the line itself, live. */}
-            {LEDGER ? <Link href={LEDGER.href} className="nav-cta-sx" aria-current={current(LEDGER)}><span className="nav-cta-long">{LEDGER.label}</span><span className="nav-cta-short" aria-hidden="true">{LEDGER.label}</span><GoArrow /></Link> : null}
+            {/* The bar's one button: the thing to do here, make a BitGraph. */}
+            <Link href={DROP.href} className="nav-cta-sx" aria-current={on(DROP.href) ? "page" : undefined}><span className="nav-cta-long">{DROP.action}</span><span className="nav-cta-short" aria-hidden="true">{DROP.short}</span><GoArrow /></Link>
             <button type="button" className="nav-burger" style={{ borderRadius: "50%" }} aria-label={menu ? "Close menu" : "Menu"} aria-expanded={menu} aria-controls="nav-sheet" onClick={() => setMenu((m) => !m)}>
               {menu
                 ? <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden><path d="M4 4l10 10M14 4L4 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
@@ -87,8 +84,8 @@ export function SiteNav() {
                 <Link href={p.href} className="nav-index-top" aria-current={isCurrent(p)} onClick={(e) => toSection(e, p)}>{p.label}</Link>
               </div>
             ))}
-            {/* The one button, as in the bar: the ledger. */}
-            {LEDGER ? <Link href={LEDGER.href} className="nav-sheet-cta nav-index-cta" aria-current={current(LEDGER)}><span>{LEDGER.label}</span><GoArrow /></Link> : null}
+            {/* The one button, as in the bar. */}
+            <Link href={DROP.href} className="nav-sheet-cta nav-index-cta" aria-current={on(DROP.href) ? "page" : undefined}><span>{DROP.action}</span><GoArrow /></Link>
           </div>
         )}
       </div>

@@ -437,6 +437,9 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         m.fileName ? <Row key="file" f={{ label: "File", value: m.fileName }} /> : null,
         commit.epochId && commit.counter && !treeMemberOf(m.proof) ? <TreeFileList key="tree" digestB64={m.proof.artifact.digestB64} epochId={commit.epochId} counter={commit.counter} /> : null,
       ])}
+      {/* What the file says about itself, when it carries Content Credentials: under the file's name and before
+          anything the BitGraph records, under its own eyebrow, so the two are not read as one claim. */}
+      {m.c2pa?.present && <div className="pv-receipt-group"><ContentCredentials c2pa={m.c2pa} /></div>}
       {/* When: the attestation's time, signed by AWS Nitro hardware. */}
       {group("When", [
         attested !== null ? <Row key="rec" f={{ label: "Recorded", value: stampTz(new Date(attested)) }} /> : null,
@@ -526,7 +529,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {m.signatureRows.map((f) => <Row key={f.label} f={f} />)}
         </div>
       </div>
-      {m.c2pa?.present && <div className="pv-receipt-group"><ContentCredentials c2pa={m.c2pa} /></div>}
       {/* Checking a proof without BitGraph is a step for people who want it: a link to how the open verifier works,
           not a command on a photo's page. */}
       <div className="pv-receipt-group">

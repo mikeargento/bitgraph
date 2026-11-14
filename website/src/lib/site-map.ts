@@ -36,14 +36,15 @@ export const SECTIONS: SiteSection[] = [
   { href: "/contact", label: "Contact" },
 ];
 
-/** Where a BitGraph is made: the first of the bar's links. */
-export const DROP: SitePage = { href: "/demos", label: "Drop a file" };
+/** Where a BitGraph is made: the bar's one button. `label` is its name in lists of pages; `action` is the button's text. */
+export const DROP: SitePage & { action: string; short: string } = { href: "/demos", label: "Drop a file", action: "Make a BitGraph", short: "Make" };
 
 /**
- * The bar's links, in one row and one size: Drop a file, then each section and, right after it, the pages inside it.
- * The ledger is the bar's one button, not a link here, and the single demos are reached from Demos.
+ * The bar's links, in one row and one size: each section and, right after it, the pages inside it. Making a BitGraph
+ * is the bar's one button, not a link here; the single demos are reached from Demos and the calendar from the Ledger.
  */
-export const BAR: SitePage[] = [DROP, ...SECTIONS.filter((s) => s.href !== "/ledger").flatMap((s) => [s, ...(s.href === "/examples" ? [] : s.pages ?? [])])];
+const LISTED_FROM_THEIR_SECTION = ["/examples", "/ledger"];
+export const BAR: SitePage[] = SECTIONS.flatMap((s) => [s, ...(LISTED_FROM_THEIR_SECTION.includes(s.href) ? [] : s.pages ?? [])]);
 
 const at = (pathname: string, href: string) => pathname === href || pathname.startsWith(href + "/");
 
