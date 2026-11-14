@@ -4,12 +4,13 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
-**Blockchain order. Without blockchain.**
+**BitGraph creates a receipt for every file in your care.**
 
 BitGraph gives any file or record its place in line, so anyone can see which came first. The file is never uploaded:
 only its SHA-256 is sent, and only that hash is ever public. Inside a measured AWS Nitro enclave, one atomic action
 binds the hash at a counted position, right after a fresh hardware nonce, signed and attested. The proof is a small
-JSON file that checks offline, without BitGraph. No blockchain is read or written.
+JSON file that checks offline, without BitGraph. Once an hour a fingerprint of the sequence is published on Base;
+no blockchain is read to make a proof.
 
 [Make a BitGraph](https://bitgraph.ing/demos) · [The Ledger](https://bitgraph.ing/ledger) · [Demos](https://bitgraph.ing/examples) · [Technology](https://bitgraph.ing/technology) · [Developers](https://bitgraph.ing/integrate) · [Licensing](https://bitgraph.ing/licensing)
 
