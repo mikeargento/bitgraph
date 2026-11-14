@@ -7,10 +7,11 @@ import { useEffect } from "react";
 /**
  * A contents list's links ("On this page", .tl-toc) slide the page to their section in a fixed 320 ms, fast at the start
  * and settling at the end, instead of jumping. So does a footer link that points to a section of the page already open
- * (the enclave and How it works, on Home); from any other page it loads that page at the section, as a link does. The heading lands where
- * a jump would put it (its scroll-margin-top under the bar), the address takes the section's #hash, and focus moves to
- * the section for keyboard and screen reader users. Where reduced motion is asked for, the link jumps as before. Any
- * other link is left alone. The bar's "How it works" calls slideToId itself, on Home.
+ * (the enclave and How it works, on Home), and Home's own How it works button; from any other page such a link loads
+ * that page at the section, as a link does. The heading lands where a jump would put it (its scroll-margin-top under
+ * the bar), the address takes the section's #hash, and focus moves to the section for keyboard and screen reader
+ * users. Where reduced motion is asked for, the link jumps as before. Any other link is left alone. The bar calls
+ * slideToId itself for "How it works" on Home, and slideToTop for the wordmark there.
  */
 const DURATION = 320;
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -42,11 +43,28 @@ export function slideToId(id: string): boolean {
   return true;
 }
 
+/** Slides the page back to its top, in the same 320 ms, and takes any #section off the address. False when reduced
+ *  motion is asked for, so the caller jumps instead. */
+export function slideToTop(): boolean {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return false;
+  cancelAnimationFrame(frame);
+  const from = window.scrollY;
+  const start = performance.now();
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / DURATION);
+    window.scrollTo(0, from * (1 - ease(t)));
+    if (t < 1) frame = requestAnimationFrame(step);
+    else if (location.hash) history.pushState(null, "", location.pathname + location.search);
+  };
+  frame = requestAnimationFrame(step);
+  return true;
+}
+
 export function SmoothAnchors() {
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const link = (e.target as Element | null)?.closest?.<HTMLAnchorElement>(".tl-toc a[href^='#'], :is(.bg-footer-facts, .bg-footer-index) a[href*='#']");
+      const link = (e.target as Element | null)?.closest?.<HTMLAnchorElement>(".tl-toc a[href^='#'], .home-ov-actions a[href^='#'], :is(.bg-footer-facts, .bg-footer-index) a[href*='#']");
       if (!link || link.pathname !== location.pathname) return;
       if (slideToId(decodeURIComponent(link.hash.slice(1)))) e.preventDefault();
     };

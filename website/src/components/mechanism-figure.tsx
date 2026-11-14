@@ -33,7 +33,7 @@ export function MechanismFigure() {
           <div className="mf-note">One atomic action. If any step fails, nothing is released and the counter does not move.</div>
         </div>
         <Arrow />
-        <Box title="Attested proof" sub="Checks offline, by anyone" />
+        <Box title="Attested proof" sub={<><span className="mf-keep">Checks offline,</span> <span className="mf-keep">by anyone</span></>} />
       </figure>
     </div>
   );

@@ -8,7 +8,8 @@ import { codeLang } from "@/lib/code-lang";
 
 /**
  * The mechanism, for a CTO or security architect, from the code: the body of the home page under its headline, with
- * its own contents list. Its first section is the short statement that headed the Technology page. Sources:
+ * its own contents list. Its first section is the short statement of what a BitGraph is; the mechanism and its figure
+ * come second. Sources:
  * the v13 enclave (server/commit-service/src/enclave/app.ts, the enclave-v13 branch), the verifier (packages/verify:
  * attested.ts, verifier.ts, stretch.ts, nitro.ts, tree-member.ts), the host (parent/server.ts, rate-limit.ts) and the
  * build pins (server/commit-service/reproducible-build/PINS.md). A claim that is not in that code is not in this text.
@@ -25,8 +26,8 @@ function Code({ children }: { children: string }) {
 
 const SECTIONS = [
   ["t-intro", "Technology"],
-  ["t-proves", "What it establishes"],
   ["t-mech", "The mechanism"],
+  ["t-proves", "What it establishes"],
   ["t-atomic", "Atomic by construction"],
   ["t-seq", "The sequence"],
   ["t-attest", "The measured enclave"],
@@ -65,6 +66,26 @@ export function TechnologyBody() {
             </p>
           </section>
 
+          <section className="home-section" aria-labelledby="t-mech">
+            <p className="home-kicker">The mechanism</p>
+            <h2 id="t-mech">How a receipt is made.</h2>
+            <MechanismFigure />
+            <ol className="tl-steps">
+              <li><strong>Gate.</strong> The enclave refuses to bind until the host has initialized it, and accepts only a canonical 32-byte&nbsp;SHA-256.</li>
+              <li><strong>Nonce.</strong> 32 bytes are drawn from the Nitro Secure Module&rsquo;s hardware RNG, after the digest arrives and inside the enclave. Nobody, the host included, sees it before the proof is released.</li>
+              <li><strong>Count N: the slot.</strong> A slot record (nonce, count N, epoch, key) is signed with the enclave&rsquo;s Ed25519 key and hashed.</li>
+              <li><strong>Count N+1: the content.</strong> The commit names the digest, count N+1, the slot&rsquo;s count and hash, the epoch, and the hash of the previous proof.</li>
+              <li><strong>Attest, then sign.</strong> The hardware is asked for an attestation whose user data is the SHA-256 of the canonical signed body; the body is then signed.</li>
+              <li><strong>Advance.</strong> Only now does the counter move to N+1 and the chain hash update. The proof is released.</li>
+            </ol>
+            <p>
+              Why the nonce: it is what makes the position its own. Because it is drawn after the digest arrives, a position cannot be
+              reserved in advance and filled later, and every proof carries a value no one could have known before it existed. Work made
+              from one BitGraph&rsquo;s published nonce could not have existed before that BitGraph, which is how two BitGraphs bracket
+              work between them.
+            </p>
+          </section>
+
         <section className="home-section" aria-labelledby="t-proves">
           <p className="home-kicker">What it establishes</p>
           <h2 id="t-proves">Two statements, each checkable.</h2>
@@ -88,25 +109,6 @@ export function TechnologyBody() {
           </ul>
         </section>
 
-        <section className="home-section" aria-labelledby="t-mech">
-          <p className="home-kicker">The mechanism</p>
-          <h2 id="t-mech">What happens when a digest arrives.</h2>
-          <MechanismFigure />
-          <ol className="tl-steps">
-            <li><strong>Gate.</strong> The enclave refuses to bind until the host has initialized it, and accepts only a canonical 32-byte&nbsp;SHA-256.</li>
-            <li><strong>Nonce.</strong> 32 bytes are drawn from the Nitro Secure Module&rsquo;s hardware RNG, after the digest arrives and inside the enclave. Nobody, the host included, sees it before the proof is released.</li>
-            <li><strong>Count N: the slot.</strong> A slot record (nonce, count N, epoch, key) is signed with the enclave&rsquo;s Ed25519 key and hashed.</li>
-            <li><strong>Count N+1: the content.</strong> The commit names the digest, count N+1, the slot&rsquo;s count and hash, the epoch, and the hash of the previous proof.</li>
-            <li><strong>Attest, then sign.</strong> The hardware is asked for an attestation whose user data is the SHA-256 of the canonical signed body; the body is then signed.</li>
-            <li><strong>Advance.</strong> Only now does the counter move to N+1 and the chain hash update. The proof is released.</li>
-          </ol>
-          <p>
-            Why the nonce: it is what makes the position its own. Because it is drawn after the digest arrives, a position cannot be
-            reserved in advance and filled later, and every proof carries a value no one could have known before it existed. Work made
-            from one BitGraph&rsquo;s published nonce could not have existed before that BitGraph, which is how two BitGraphs bracket
-            work between them.
-          </p>
-        </section>
 
         <section className="home-section" aria-labelledby="t-atomic">
           <p className="home-kicker">Atomic by construction</p>

@@ -10,7 +10,7 @@
 export type SitePage = { href: string; label: string };
 export type SiteSection = SitePage & { first?: string; pages?: SitePage[] };
 
-/** The first section of the home page, where the mechanism starts. */
+/** The first section of the home page, where "How it works" leads: the short statement, then the mechanism. */
 export const HOW_IT_WORKS_ID = "t-intro";
 
 export const SECTIONS: SiteSection[] = [
@@ -36,14 +36,14 @@ export const SECTIONS: SiteSection[] = [
   { href: "/contact", label: "Contact" },
 ];
 
-/**
- * The bar's links, in one row and one size: each section and, right after it, the pages inside it. The ledger is a
- * button, not a link here, and the single demos are reached from Demos.
- */
-export const BAR: SitePage[] = SECTIONS.filter((s) => s.href !== "/ledger").flatMap((s) => [s, ...(s.href === "/examples" ? [] : s.pages ?? [])]);
-
-/** The one action in the bar. */
+/** Where a BitGraph is made: the first of the bar's links. */
 export const DROP: SitePage = { href: "/demos", label: "Drop a file" };
+
+/**
+ * The bar's links, in one row and one size: Drop a file, then each section and, right after it, the pages inside it.
+ * The ledger is the bar's one button, not a link here, and the single demos are reached from Demos.
+ */
+export const BAR: SitePage[] = [DROP, ...SECTIONS.filter((s) => s.href !== "/ledger").flatMap((s) => [s, ...(s.href === "/examples" ? [] : s.pages ?? [])])];
 
 const at = (pathname: string, href: string) => pathname === href || pathname.startsWith(href + "/");
 
