@@ -95,7 +95,7 @@ const inter = Inter({
 });
 
 /* The tab strip and the phone's chrome take the bar's shade, so the browser's own top edge runs into the bar. Keep it equal to --panel. */
-export const viewport: Viewport = { themeColor: "#e3e5e1" };
+export const viewport: Viewport = { themeColor: "#e3e6ea" };
 
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */

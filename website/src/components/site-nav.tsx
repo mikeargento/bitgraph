@@ -10,12 +10,15 @@ import { slideToId } from "@/components/smooth-anchors";
 import { DROP, HOW_IT_WORKS_ID, SECTIONS, inSection, rowFor, type SiteSection } from "@/lib/site-map";
 
 /**
- * The bar: the wordmark at the left (it opens the home page), the site's sections in the middle of the bar, and at the
- * far right the one button, Drop a file, on every page. Under the bar, on a page that belongs to a section with pages
+ * The bar: the wordmark at the left (it opens the home page), the site's sections after it, and at the far right two
+ * buttons on every page: Ledger, outlined, and Drop a file, the main one. Under the bar, on a page that belongs to a section with pages
  * of its own (Demos, Developers, Licensing), one row lists that section's pages side by side, the open one marked: it is
  * how a visitor moves between them without going back. On narrower screens the sections fold into a sheet behind a menu
  * button, and the sheet lists every page, each section's pages under it. The pages are listed once, in lib/site-map.
  */
+/** The ledger's entry in the list of sections: the bar shows it as a button, apart from the links. */
+const LEDGER = SECTIONS.find((s) => s.href === "/ledger");
+
 export function SiteNav() {
   const pathname = usePathname();
   const on = (href: string) => pathname === href || pathname.startsWith(href + "/");
@@ -60,12 +63,14 @@ export function SiteNav() {
           <nav aria-label="Site" className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
             {/* The sections, as one group: on wide screens it stands in the middle of the bar. */}
             <div className="nav-mid">
-              {SECTIONS.map((s) => (
+              {SECTIONS.filter((s) => s !== LEDGER).map((s) => (
                 <Link key={s.href} href={s.href} className="nav-btn nav-box nav-desk" aria-current={current(s)} onClick={(e) => toSection(e, s)} style={{ textDecoration: "none" }}>
                   {s.label}
                 </Link>
               ))}
             </div>
+            {/* The ledger is not a page to read but the line itself, live: on wide screens it is a button beside the main one. */}
+            {LEDGER ? <Link href={LEDGER.href} className="nav-ledger" aria-current={current(LEDGER)}>{LEDGER.label}</Link> : null}
             <Link href={DROP.href} className="nav-cta-sx" aria-current={on(DROP.href) ? "page" : undefined}><span className="nav-cta-long">{DROP.label}</span><span className="nav-cta-short" aria-hidden="true">{DROP.label}</span><GoArrow /></Link>
             <button type="button" className="nav-burger" style={{ borderRadius: "50%" }} aria-label={menu ? "Close menu" : "Menu"} aria-expanded={menu} aria-controls="nav-sheet" onClick={() => setMenu((m) => !m)}>
               {menu
@@ -75,9 +80,9 @@ export function SiteNav() {
           </nav>
         </div>
         {menu && (
-          // The sheet: every page. Each section is a line, and its pages are listed under it.
+          // The sheet: each section is a line with its pages listed under it, then the two buttons.
           <div id="nav-sheet" className="nav-sheet nav-index">
-            {SECTIONS.map((s) => (
+            {SECTIONS.filter((s) => s !== LEDGER).map((s) => (
               <div key={s.href} className="nav-index-group">
                 <Link href={s.href} className="nav-index-top" aria-current={pathname === s.href ? "page" : undefined} onClick={(e) => toSection(e, s)}>{s.label}</Link>
                 {s.pages ? (
@@ -89,6 +94,8 @@ export function SiteNav() {
                 ) : null}
               </div>
             ))}
+            {/* The two buttons, as in the bar on wide screens: the ledger, outlined, and the main one. */}
+            {LEDGER ? <Link href={LEDGER.href} className="nav-index-ledger" aria-current={current(LEDGER)}>{LEDGER.label}</Link> : null}
             <Link href={DROP.href} className="nav-sheet-cta nav-index-cta" aria-current={on(DROP.href) ? "page" : undefined}><span>{DROP.label}</span><GoArrow /></Link>
           </div>
         )}
