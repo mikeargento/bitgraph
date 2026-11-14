@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { GoArrow } from "@/components/go-arrow";
 import { TechnologyBody } from "@/components/technology-body";
-import { USE_CASES } from "@/lib/use-case-links";
+import { USE_CASE_ROWS } from "@/lib/use-case-links";
 
 /**
  * The home page: what BitGraph is as the headline, at the top left, with the names of where it applies right under it
@@ -32,9 +32,14 @@ export default function HomePage() {
       <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-ov">
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
           <h1 id="home-h"><span className="home-h-m">BitGraph creates</span>{" "}<span className="home-h-m">a receipt<span className="home-h-br" aria-hidden="true" /> for</span>{" "}<span className="home-h-m">every file in</span>{" "}<span className="home-h-m">your care.</span></h1>
-          {/* Where it applies, by name: plain text, each name kept whole on its line. */}
+          {/* Where it applies, by name: plain text. Each row is one line on a phone; on wider screens the rows run on. */}
           <p className="home-ov-fields">
-            {USE_CASES.map((n, i) => <span key={n}><span className="home-ov-keep">{n}</span>{i < USE_CASES.length - 1 ? ", " : ""}</span>)}
+            {USE_CASE_ROWS.map((row, r) => (
+              <span className="home-ov-row" key={row[0]}>
+                {row.map((n, i) => <span key={n}><span className="home-ov-keep">{n}</span>{r < USE_CASE_ROWS.length - 1 || i < row.length - 1 ? "," : ""}{i < row.length - 1 ? " " : ""}</span>)}
+                {r < USE_CASE_ROWS.length - 1 ? " " : ""}
+              </span>
+            ))}
           </p>
           {/* Each feature stays whole on its line; a phone breaks only between them. */}
           <p className="home-ov-sub"><span className="home-ov-keep">Instant,</span> <span className="home-ov-keep">confidential,</span> <span className="home-ov-keep">verifiable offline,</span> <span className="home-ov-keep">and impossible to backdate.</span></p>
