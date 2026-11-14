@@ -7,7 +7,7 @@ import { useEffect } from "react";
 /**
  * A contents list's links ("On this page", .tl-toc) slide the page to their section in a fixed 320 ms, fast at the start
  * and settling at the end, instead of jumping. So does a footer link that points to a section of the page already open
- * (the enclave and How it works, on Home), and Home's own How it works button; from any other page such a link loads
+ * (the enclave and How it works, on Home); from any other page such a link loads
  * that page at the section, as a link does. The heading lands where a jump would put it (its scroll-margin-top under
  * the bar), the address takes the section's #hash, and focus moves to the section for keyboard and screen reader
  * users. Where reduced motion is asked for, the link jumps as before. Any other link is left alone. The bar calls
@@ -64,7 +64,7 @@ export function SmoothAnchors() {
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const link = (e.target as Element | null)?.closest?.<HTMLAnchorElement>(".tl-toc a[href^='#'], .home-ov-actions a[href^='#'], :is(.bg-footer-facts, .bg-footer-index) a[href*='#']");
+      const link = (e.target as Element | null)?.closest?.<HTMLAnchorElement>(".tl-toc a[href^='#'], :is(.bg-footer-facts, .bg-footer-index) a[href*='#']");
       if (!link || link.pathname !== location.pathname) return;
       if (slideToId(decodeURIComponent(link.hash.slice(1)))) e.preventDefault();
     };
