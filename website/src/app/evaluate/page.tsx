@@ -88,7 +88,7 @@ ${V} chatgpt.png --proof moved.json`}</Code>
 ${V} yourfile --proof yourfile.bitgraph.json`}</Code>
         <p className="sx-fine">
           BitGraphs are permanent, and anyone who holds the same file can find its proof by its digest. Bind a file you are
-          content to have on record, or a fresh random one. Or drop files on <a href="/make">Make</a> in a browser.
+          content to have on record, or a fresh random one. Or drop files on <a href="/demos">Drop a file</a> in a browser.
         </p>
       </section>
 

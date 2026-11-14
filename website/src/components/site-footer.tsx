@@ -23,19 +23,28 @@
 
 
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
+import { DROP, SECTIONS, type SitePage } from "@/lib/site-map";
 
 /** The reproducible build's pins: how to rebuild the enclave image and get the same PCR0. */
 const PINS_URL = "https://github.com/mikeargento/bitgraph/blob/main/server/commit-service/reproducible-build/PINS.md";
 /** The hourly publisher's address on Base: every write it has made. */
 const WRITER_URL = "https://basescan.org/address/0xf3972408D853c975F86351C311f4310220bbF2a3";
 
+/** The legal pages, at the right of the last row. Every other page is in the index above it. */
 const links: Array<{ href: string; label: string }> = [
-  // The source (2026-10-17): the site had no GitHub link, and the footer is its place.
-  // Demos is in the bar and on the home page, so it is not repeated here; Contact (the form) is.
-  { href: "/contact", label: "Contact" },
-  { href: "https://github.com/mikeargento/bitgraph", label: "GitHub" },
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
+];
+
+const GITHUB_URL = "https://github.com/mikeargento/bitgraph";
+const section = (label: string) => SECTIONS.find((s) => s.label === label)!;
+/** The index: every page of the site in four columns, so each page has a path from every other. Built from the same
+ *  list as the bar. */
+const INDEX: Array<{ title: string; pages: SitePage[] }> = [
+  { title: "BitGraph", pages: [section("How it works"), DROP, section("Ledger"), ...(section("Ledger").pages ?? [])] },
+  { title: "Demos", pages: [{ href: section("Demos").href, label: "All demos" }, ...(section("Demos").pages ?? [])] },
+  { title: "Developers", pages: [{ href: section("Developers").href, label: "API and SDK" }, ...(section("Developers").pages ?? []), { href: GITHUB_URL, label: "GitHub" }] },
+  { title: "Business", pages: [section("Licensing"), ...(section("Licensing").pages ?? []), section("Contact")] },
 ];
 
 const linkStyle: React.CSSProperties = { color: "var(--accent)", textDecoration: "none" };
@@ -53,6 +62,18 @@ export function SiteFooter() {
         color: "var(--dim)",
       }}
     >
+      {/* The index of pages, then the row that was the whole footer: who runs the site, what it runs on, the legal pages. */}
+      <nav className="bg-footer-index" aria-label="All pages">
+        {INDEX.map((col) => (
+          <div key={col.title} className="bg-footer-col">
+            <div className="bg-footer-col-title">{col.title}</div>
+            {col.pages.map((p) => (
+              // Plain links: the one to a section of Home slides there when Home is open (SmoothAnchors).
+              <a key={p.href} href={p.href} {...(p.href.startsWith("http") ? { target: "_blank", rel: "noopener" } : {})}>{p.label}</a>
+            ))}
+          </div>
+        ))}
+      </nav>
       <div className="bg-footer-inner">
         <div>
           <div>© {year} Argento Computing Inc.</div>

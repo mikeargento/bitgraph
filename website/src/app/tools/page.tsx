@@ -11,7 +11,8 @@ import { codeLang } from "@/lib/code-lang";
  *
  * Facts checked against the enclave source (server/commit-service/src/enclave/app.ts) on 2026-10-17: epochId =
  * base64(SHA-256(publicKeyB64 + ":" + bootNonceB64)); each epoch's counter starts at 0. Enclave v13 (2026-10-19): epochs
- * are not chained; each one ends with a closing BitGraph (epoch-end.json) in its own line.
+ * share no key; each one ends with a closing BitGraph (epoch-end.json) in its own line, and the hourly publication on
+ * Base links one to the next.
  *
  * Layout (2026-10-30 split): the four ways in live on /integrate; this page is the reference. The offline check as one
  * wide card at the top, then the reference beside a contents list that stays in view on desktop. Questions fold open; the proof's fields are a table.
@@ -46,7 +47,7 @@ export default function ToolsPage() {
         <h2 id="t-intro">What a BitGraph is, and how it checks.</h2>
         <p>
           The mechanism, its trees and trust layers, its epochs, its limits, and the full check, step by step. The ways to call it,
-          MCP, SDK, CLI and HTTP, are on <Link href="/integrate">Integrate</Link>. Checking a proof needs none of them, and nothing of
+          MCP, SDK, CLI and HTTP, are on <Link href="/integrate">Developers</Link>. Checking a proof needs none of them, and nothing of
           BitGraph&rsquo;s running.
         </p>
 
@@ -106,9 +107,9 @@ export default function ToolsPage() {
             <p className="home-kicker">Trees and trust layers</p>
             <h2 id="d-plugins">Built on ordinary BitGraphs.</h2>
             <p>
-              Two things build on a BitGraph without changing it: a drop of many files becomes one tree, bound as one ordinary BitGraph,
-              and an outside anchor can be added to a finished proof by whoever wants one. Nothing about either one changes the bind or
-              the proof format.
+              Three things build on a BitGraph without changing it: a drop of many files becomes one tree, bound as one ordinary
+              BitGraph; once an hour the whole line is published on Base; and an outside anchor can be added to a finished proof by
+              whoever wants one. None of them changes the bind or the proof format.
             </p>
 
             <h3 className="tl-h3">Many files, one BitGraph</h3>
@@ -127,17 +128,28 @@ export default function ToolsPage() {
               <code>merkle-root.txt</code> against its proof like any file.
             </p>
 
-            <h3 className="tl-h3">Outside anchors, optional and afterward</h3>
+            <h3 className="tl-h3">Hourly publication on Base</h3>
             <p>
-              The sequence is a closed system. Inside it, order is certain: every BitGraph names the one before it, the counter only goes
-              up, and the hardware&rsquo;s time is signed into each proof by AWS. That needs nothing outside the sequence. Every hour
-              BitGraph also publishes the sequence on Base, one small transaction, as a public record of it; nothing is read from a
-              chain to make a BitGraph.
+              Inside an epoch, order needs nothing outside the enclave: every BitGraph names the one before it, the counter only goes
+              up, and the hardware&rsquo;s time is signed into each proof by AWS. Once an hour, on the hour (UTC), BitGraph also
+              publishes the line on Base. One small transaction carries the root of a tree of every BitGraph made since the last
+              write (RFC&nbsp;6962, SHA-256, each leaf the hash of a whole proof), the first and last counts it covers, and the hash
+              of the write before it. BitGraph then makes one ordinary BitGraph of a note naming that transaction and its block, so
+              every later BitGraph was made after that block.
             </p>
             <p>
+              That gives each BitGraph two public marks about an hour apart, the block it was made after and the block it existed
+              by, and it puts the epochs in one order on a record BitGraph does not run. Nothing is read from a chain to make a
+              BitGraph, and checking a proof does not use Base. A proof&rsquo;s download carries its own evidence of publication: its
+              path to the hour&rsquo;s root, the transaction and the block&rsquo;s header. The steps, and how to check them, are
+              on <Link href="/#t-publish">Hourly publication</Link>.
+            </p>
+
+            <h3 className="tl-h3">Your own anchors, optional and afterward</h3>
+            <p>
               Anyone who wants more can add an outside anchor of their own to a finished proof: an RFC&nbsp;3161 timestamp authority, a
-              transparency log, or a blockchain. The rule is the same for any trust layer: it carries the proof&rsquo;s hash, or the proof
-              binds its record, never merely placed beside it. That is optional and is not part of BitGraph.
+              transparency log, or another blockchain. The rule is the same for any trust layer: it carries the proof&rsquo;s hash, or
+              the proof binds its record, never merely placed beside it. That is optional and is not part of BitGraph.
             </p>
           </section>
 
@@ -151,8 +163,9 @@ export default function ToolsPage() {
               ran).
             </p>
             <p>
-              Epochs are not chained to one another; each stands on its own key and its own attestation, and the AWS-signed time in each
-              proof places it in time. Before the enclave shuts down, the epoch ends with a closing BitGraph in its own line, binding a short
+              No key carries over from one epoch to the next; each stands on its own key and its own attestation. What links them is
+              the hourly publication on Base: every write names the one before it, across the change of epoch too, and the
+              AWS-signed time in each proof is further evidence. Before the enclave shuts down, the epoch ends with a closing BitGraph in its own line, binding a short
               closing note (<code>epoch-end.json</code>) naming the epoch; nothing is bound after it, and its proof names the hash of the
               one before, so the whole sequence ends there.
             </p>
@@ -203,6 +216,10 @@ export default function ToolsPage() {
               is a one-time decision, not an ongoing dependency: a proof is portable and checks without asking anyone.
             </p>
             <p>
+              The hourly publication adds one thing to rely on, for one question only: where a BitGraph sits among other epochs, and
+              that its hour has not been rewritten, rests on Base&rsquo;s history. Whether a proof is valid does not.
+            </p>
+            <p>
               The design prevents reusing a nonce, swapping positions, changing any signed field, and signing new proofs as an epoch that has
               ended: its key is destroyed when the epoch ends, so only a key stolen while the epoch ran could. It does not protect against a
               malicious client or a compromised build pipeline, and a flaw in the enclave image would affect every epoch that runs it. The
@@ -210,8 +227,9 @@ export default function ToolsPage() {
             </p>
             <p>
               BitGraph controls availability and publication. Anyone can verify a proof independently, but a proof alone cannot establish that
-              every commitment has been disclosed. A proof withheld from the middle of the published sequence shows as a missing count; the
-              most recent ones, withheld, would not show at all.
+              every commitment has been disclosed. A proof withheld from the middle of the published sequence shows as a missing count,
+              and each hour&rsquo;s write on Base states the counts it covers; the ones made since the last write, withheld, would not
+              show until the next write.
             </p>
             <p>
               Privacy: a digest is public once it is bound, and digests are not salted. A hash does not reveal the file, but a file someone can
@@ -238,6 +256,10 @@ export default function ToolsPage() {
               <details>
                 <summary>Why not just trust a timestamp?</summary>
                 <p>A time written by the party a check exists to catch is a claim, not evidence. A BitGraph&rsquo;s place comes from a counter and a value nobody could predict, signed by measured hardware.</p>
+              </details>
+              <details>
+                <summary>Does BitGraph use a blockchain?</summary>
+                <p>Not to make a BitGraph: the place in line comes from the enclave, and nothing is read from a chain. Once an hour BitGraph publishes a fingerprint of the line on Base, as a public record of its order.</p>
               </details>
               <details>
                 <summary>Does an outside anchor change the BitGraph?</summary>

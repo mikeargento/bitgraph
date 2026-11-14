@@ -26,8 +26,8 @@ const nextConfig: NextConfig = {
     const docs = "/tools";
     return [
       // Watermarks, then Find, became Check, which looks up any file and finds a copy's original by its looks
-      { source: "/watermarks", destination: "/check", permanent: false },
-      { source: "/find", destination: "/check", permanent: false },
+      { source: "/watermarks", destination: "/demos", permanent: false },
+      { source: "/find", destination: "/demos", permanent: false },
       { source: "/docs", destination: docs, permanent: false },
       { source: "/how-it-works", destination: home, permanent: false },
       // Technology became the home page's body (2026-11-12)

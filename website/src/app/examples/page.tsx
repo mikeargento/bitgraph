@@ -4,7 +4,7 @@ import { DemoCards } from "@/components/demo-cards";
 /** The four demos, two to a row (components/demo-cards.tsx). */
 export const metadata: Metadata = {
   title: "Demos",
-  description: "Demos: work made between two BitGraphs, and one picture in three files.",
+  description: "Working examples, each on real BitGraphs you can check: two live demos and two recorded ones.",
 };
 
 export default function ExamplesPage() {
@@ -13,7 +13,7 @@ export default function ExamplesPage() {
       <div className="home-hero"><h1 className="sr-only">Demos.</h1></div>
       <section className="home-section" aria-labelledby="demos-h">
         <p className="home-kicker">Demos</p>
-        <h2 id="demos-h">Made between two BitGraphs</h2>
+        <h2 id="demos-h">Working examples, each on real BitGraphs.</h2>
         <DemoCards />
       </section>
     </div>

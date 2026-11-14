@@ -300,7 +300,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "bitgraph", version: SERVER_VERSION },
     instructions:
-      "BitGraph is one atomic action inside a hardware enclave: a fresh value nobody can see takes one count, and a SHA-256 digest is bound at the very next count, both signed together and attested by the hardware. It proves the bits hold a counted position right after a value nobody could predict, and could not have been bound before it; it says nothing about how old the content is. The time on a proof is the attestation's AWS-signed time. Identity or an outside anchor are optional trust layers someone can add afterward. " +
+      "BitGraph is one atomic action inside a hardware enclave: a fresh value nobody can see takes one count, and a SHA-256 digest is bound at the very next count, both signed together and attested by the hardware. It proves the bits hold a counted position right after a value nobody could predict, and could not have been bound before it; it says nothing about how old the content is. The time on a proof is the attestation's AWS-signed time. Making a BitGraph reads no blockchain; once an hour the line is published on Base as a public record of its order. Identity or a further outside anchor are optional trust layers someone can add afterward. " +
       "bitgraph_bind is the only way to make a BitGraph: send the SHA-256 of each file the user asked for. File contents never travel. BitGraphs are permanent: never generate content just to record it. " +
       "bitgraph_check and bitgraph_get_proof are read-only. Two BitGraphs bracket everything bound between them: bind a start, do the work, bind the result.",
   }

@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
 /**
- * Applications (2026-10-27): where the recording step fits in products that already exist, by category. These are
+ * Use cases (the page at /applications, 2026-10-27): where the recording step fits in products that already exist, by category. These are
  * integration patterns, not partnerships: no company is named. Finding the original by looks, and Content Credentials
  * recorded with their file, run on this site today (Check, Make); the others are designs on the same interface.
  */
 export const metadata: Metadata = {
-  title: "Applications",
+  title: "Use cases",
   description: "Where BitGraph's order sits under existing products: Content Credentials, finding the original from a copy, trusted capture, asset registries, AI agents, software supply chains and research records.",
 };
 
@@ -69,10 +69,10 @@ const PATTERNS: Pattern[] = [
 export default function ApplicationsPage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page">
-      <div className="home-hero"><h1 className="sr-only">Applications.</h1></div>
+      <div className="home-hero"><h1 className="sr-only">Use cases.</h1></div>
 
       <section className="home-section" aria-labelledby="app-h">
-        <p className="home-kicker">Applications</p>
+        <p className="home-kicker">Use cases</p>
         <h2 id="app-h">Different products. One order&nbsp;underneath.</h2>
         <p>
           BitGraph does not replace a provenance product; it sits under one. Whatever your system already produces, an asset, a

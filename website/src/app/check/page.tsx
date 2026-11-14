@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Check is Make (2026-10-29): a drop is the check. A file already recorded opens its proof; a new one becomes one. */
+/** A drop is the check: a file already recorded opens its proof, a new one gets its BitGraph. That page is /demos. */
 export default function CheckPage() {
-  redirect("/make");
+  redirect("/demos");
 }

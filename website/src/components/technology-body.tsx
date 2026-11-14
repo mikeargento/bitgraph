@@ -1,5 +1,6 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
+import Link from "next/link";
 import { CopyCode } from "@/components/copy-code";
 import { MechanismFigure } from "@/components/mechanism-figure";
 import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
@@ -30,6 +31,7 @@ const SECTIONS = [
   ["t-seq", "The sequence"],
   ["t-attest", "The measured enclave"],
   ["t-time", "Time"],
+  ["t-publish", "Hourly publication"],
   ["t-trees", "Collections"],
   ["t-redact", "Without disclosure"],
   ["t-format", "The proof"],
@@ -71,16 +73,18 @@ export function TechnologyBody() {
             <li><strong>Origin of the record.</strong> The binding was performed by a specific enclave build whose measurement (PCR0) is published, as AWS Nitro hardware attests in a document signed for that exact proof.</li>
           </ol>
           <p>
-            That is the whole of the mechanism: order, from attested hardware. It needs no clock and no blockchain. Everything else a
-            record can carry, a time, an identity, a public witness, is a trust layer bound on top of that position. The
-            hardware&rsquo;s own signed time comes with every attestation, and it can be checked; it is not what the proof rests on.
+            That is the whole of the mechanism: order, from attested hardware. Making a BitGraph reads no clock and no blockchain.
+            Everything else a record can carry, a time, an identity, a public witness, is a trust layer bound on top of that
+            position. Two come built in: the hardware&rsquo;s own signed time in every attestation, and the{" "}
+            <a href="#t-publish">hourly publication</a> of the line on Base. Both can be checked; neither is what a proof&rsquo;s
+            validity rests on.
           </p>
           <h3 className="tl-h3">What it does not establish</h3>
           <ul className="docs-list">
             <li><strong>When the content was created.</strong> An old file can be bound today. The proof fixes where in the sequence its digest was recorded; a time layer bound to that position associates it with a timestamp or a time window. Either way, that is when the digest was recorded, not when the content was made.</li>
             <li><strong>Who made it, or whether it is true.</strong> It binds bytes, not authorship or meaning.</li>
             <li><strong>That nothing else exists.</strong> It proves a record was made, not that no other record was.</li>
-            <li><strong>Order across epochs</strong> from the counts alone. Each epoch is its own sequence; the attested time in each proof places epochs relative to each other.</li>
+            <li><strong>Order across epochs</strong> from the counts alone. Counts start again with each epoch. The hourly publication on Base puts the epochs in order, and the attested time in each proof is further evidence.</li>
           </ul>
         </section>
 
@@ -131,8 +135,9 @@ export function TechnologyBody() {
           <h3 className="tl-h3">Epochs</h3>
           <p>
             The enclave&rsquo;s key and counter live only in its memory, so each start is a new epoch: a new key, a counter from zero,
-            and an <code>epochId</code> signed into every proof. Epochs are independent sequences. On bitgraph.ing an epoch runs for one
-            UTC day and ends with a closing BitGraph inside its own line.
+            and an <code>epochId</code> signed into every proof. No key carries over from one epoch to the next; the{" "}
+            <a href="#t-publish">hourly publication</a> is what links them. On bitgraph.ing an epoch runs for one UTC day and ends
+            with a closing BitGraph inside its own line.
           </p>
         </section>
 
@@ -179,11 +184,9 @@ export function TechnologyBody() {
             <li><strong>When an epoch closes.</strong> At the end of the UTC day the enclave makes a closing BitGraph in its own line, binding a short note naming the epoch. Nothing is bound after it, and its proof names the hash of the one before, so the whole sequence ends there.</li>
           </ul>
           <p>
-            Every hour, BitGraph publishes the line on Base: one small transaction holding a fingerprint of the BitGraphs made since
-            the last one and a link to the one before. Right after it lands, BitGraph binds that transaction back into the line, so
-            every later BitGraph is after it. The order itself comes from the enclave; the publication is a public record of it, kept
-            on a chain someone else runs. Nothing is read from a chain to make a BitGraph. Anyone who wants another outside anchor can
-            add their own: an RFC&nbsp;3161 timestamp authority, a transparency log, or another chain.
+            One public layer is built in: every hour the line is published on Base and that publication is bound back into the
+            line, as the next section describes. Anyone who wants another outside anchor can add their own: an RFC&nbsp;3161
+            timestamp authority, a transparency log, or another chain.
           </p>
           <div className="sx-cards is-3">
             <article className="tl-card">
@@ -199,6 +202,47 @@ export function TechnologyBody() {
               <p>Check the hardware attestation, signatures and counted sequence offline, with no service and no network.</p>
             </article>
           </div>
+        </section>
+
+        <section className="home-section" aria-labelledby="t-publish">
+          <p className="home-kicker">Hourly publication</p>
+          <h2 id="t-publish">Once an hour, the line goes on public record.</h2>
+          <p>
+            The enclave gives every BitGraph its place in line. Once an hour, BitGraph publishes that line on Base, a public
+            blockchain that settles on Ethereum, so its order is also held on a record BitGraph does not run and cannot edit. The
+            write goes out on the hour (UTC) whether or not anything was made, so a skipped hour shows.
+          </p>
+          <ol className="tl-steps">
+            <li><strong>Fingerprint.</strong> The BitGraphs made since the last write are hashed into one tree (RFC&nbsp;6962, SHA-256), each leaf the hash of a whole proof. The tree&rsquo;s root stands for all of them, in order.</li>
+            <li><strong>Write.</strong> One small transaction on Base carries the root, the epoch, the first and last counts it covers, how many BitGraphs that is, and the hash of the write before it. An epoch&rsquo;s first write also names the epoch&rsquo;s public key.</li>
+            <li><strong>Confirm.</strong> The write is kept once ten more blocks have been built on top of it and its block is still part of the chain.</li>
+            <li><strong>Bind back.</strong> BitGraph then makes one ordinary BitGraph of a short note naming that transaction and its block. On the <Link href="/ledger">Ledger</Link> that row reads &ldquo;Published on Base&rdquo;. Every BitGraph after it was made after that block.</li>
+          </ol>
+          <h3 className="tl-h3">What it gives</h3>
+          <ul className="docs-list">
+            <li><strong>Two public marks around every BitGraph.</strong> It was made after the Base block named by the last publication before it, and it existed by the block of the write that covers it. The two are about an hour apart. An epoch&rsquo;s first BitGraphs, made before its first publication is bound, have the second mark only. Both are places on a public chain; neither is the age of the file.</li>
+            <li><strong>The days in one line.</strong> Each write names the one before it, and that holds across the daily change of key, so the epochs follow one another on public record.</li>
+            <li><strong>A past that cannot be changed quietly.</strong> An hour that was altered, forked or replaced would contradict what is already on Base, and a proof made later cannot be placed in an hour already published.</li>
+          </ul>
+          <h3 className="tl-h3">What it does not change</h3>
+          <p>
+            Making a BitGraph reads nothing from a chain and waits on none. A proof still checks offline against the enclave&rsquo;s
+            measurement and AWS&rsquo;s signature, and that check does not use Base. The publication answers a different question:
+            where a BitGraph sits in the whole public line. BitGraphs made since the last write rest on the enclave alone until the
+            next one, at most about an hour.
+          </p>
+          <h3 className="tl-h3">Checking it</h3>
+          <p>
+            Once its hour is written, a proof&rsquo;s page shows the block it was published in and the block it was made after, each
+            linked to a block explorer. The downloaded proof carries the evidence with it: its path to the hour&rsquo;s root, the
+            transaction, and the block&rsquo;s header. With those, anyone can check offline that the proof is in the hour&rsquo;s tree,
+            that the root is in the transaction, and that the transaction is in the block (<code>verifyPublication</code> in the
+            open{" "}
+            <a href="https://github.com/mikeargento/bitgraph/blob/main/packages/audit/src/publication.ts" target="_blank" rel="noopener">audit package</a>).
+            Whether that block is part of Base is a question for any Base node or explorer. Every write BitGraph has made is listed
+            at{" "}
+            <a href="https://basescan.org/address/0xf3972408D853c975F86351C311f4310220bbF2a3" target="_blank" rel="noopener">the publisher&rsquo;s address</a>.
+          </p>
         </section>
 
         <section className="home-section" aria-labelledby="t-trees">
@@ -284,7 +328,7 @@ export function TechnologyBody() {
               <tbody>
                 <tr>
                   <td>The host operator (BitGraph included)</td>
-                  <td>Forge a proof that passes the attested check; see or choose a nonce; reuse a count; insert or reorder proofs inside a sequence without breaking the counts and hash links; change a proof&rsquo;s attested time by releasing it late.</td>
+                  <td>Forge a proof that passes the attested check; see or choose a nonce; reuse a count; insert or reorder proofs inside a sequence without breaking the counts and hash links; change a proof&rsquo;s attested time by releasing it late; alter an hour already published on Base without contradicting that record.</td>
                   <td>Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbors); restart the enclave to begin a new epoch.</td>
                 </tr>
                 <tr>
@@ -319,6 +363,10 @@ export function TechnologyBody() {
             Not trusted: BitGraph&rsquo;s website, its servers, its storage, or its word. A proof that checks offline against the
             published measurement checks whether or not BitGraph is still running.
           </p>
+          <p>
+            The hourly publication adds one thing to rely on, for one question only. Where a BitGraph sits among other epochs, and
+            that its hour has not been rewritten, rests on Base&rsquo;s history. Whether a proof is valid does not.
+          </p>
         </section>
 
         <section className="home-section" aria-labelledby="t-compare">
@@ -337,7 +385,7 @@ export function TechnologyBody() {
                 <tr><td><a href="https://csrc.nist.gov/pubs/fips/186-5/final" target="_blank" rel="noopener">Digital signature</a></td><td>These bytes were signed with a particular private key.</td><td>The key&rsquo;s security and any claimed link between that key and an identity.</td><td>BitGraph adds a counted position enforced by measured enclave code, with hardware attestation bound to each proof.</td></tr>
                 <tr><td><a href="https://www.rfc-editor.org/rfc/rfc3161.html" target="_blank" rel="noopener">Timestamp authority (RFC&nbsp;3161)</a></td><td>A TSA issued a signed token associating a digest with a stated time.</td><td>The TSA&rsquo;s signing key, time source and operating practices.</td><td>BitGraph provides counted, chained records and carries Nitro&rsquo;s signed attestation time. A TSA token can be bound as additional time evidence.</td></tr>
                 <tr><td><a href="https://docs.sigstore.dev/logging/overview/" target="_blank" rel="noopener">Transparency log (CT, Sigstore&rsquo;s Rekor, SCITT)</a></td><td>An entry is included in a signed log state. Consistency proofs allow checks of append-only growth.</td><td>The log&rsquo;s signing key, consistency checks, and the monitors or witnesses used to detect conflicting views.</td><td>BitGraph enforces each binding inside an attested enclave. Its proofs can also be published in a transparency log.</td></tr>
-                <tr><td><a href="https://opentimestamps.org/" target="_blank" rel="noopener">Blockchain anchoring</a></td><td>A digest, directly or through a batch commitment, is linked to a commitment included in a particular block.</td><td>The chain&rsquo;s consensus, finality and rules for interpreting block time.</td><td>Finished proofs can be anchored this way too, afterward and optionally. What BitGraph adds is the position: a counted place in line, bound with a fresh hardware nonce, with no chain needed.</td></tr>
+                <tr><td><a href="https://opentimestamps.org/" target="_blank" rel="noopener">Blockchain anchoring</a></td><td>A digest, directly or through a batch commitment, is linked to a commitment included in a particular block.</td><td>The chain&rsquo;s consensus, finality and rules for interpreting block time.</td><td>BitGraph does this itself, once an hour, for the whole line. What BitGraph adds is the position: a counted place in line, bound with a fresh hardware nonce, made without reading a chain or waiting on one.</td></tr>
                 <tr><td><a href="https://spec.c2pa.org/specifications/specifications/2.5/specs/C2PA_Specification.html" target="_blank" rel="noopener">Content Credentials (C2PA)</a></td><td>A signer signed assertions cryptographically bound to an asset.</td><td>The signer, certificate trust chain and any timestamp authority used.</td><td>BitGraph can bind the asset and its manifest to a counted position, adding independently verifiable recording evidence.</td></tr>
                 <tr><td><a href="https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html" target="_blank" rel="noopener">Remote attestation</a></td><td>A platform signed evidence identifying measured software and associated attested data.</td><td>The platform&rsquo;s security and the hardware vendor&rsquo;s attestation root.</td><td>BitGraph uses attestation for a specific recording protocol: atomic binding, fresh nonces, consecutive counts and linked proofs.</td></tr>
               </tbody>
@@ -356,7 +404,7 @@ export function TechnologyBody() {
           <div className="sx-cta">
             <a className="bg-action-link is-make" href="/evaluate">Evaluate the technology</a>
             <a className="bg-action-link" href="/applications">Where it fits</a>
-            <a className="bg-action-link" href="/integrate">Integrate</a>
+            <a className="bg-action-link" href="/integrate">For developers</a>
           </div>
         </section>
       </div>
