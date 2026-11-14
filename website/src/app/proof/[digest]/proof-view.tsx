@@ -430,7 +430,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         c.state === "running" || c.state === "idle"
           ? <div key="verified" className="pv-verified is-running">Checking in your browser</div>
           : c.state === "done" && c.verdict === "TRUE"
-            ? <div key="verified" className="pv-verified is-valid">{`Valid proof \u00b7 ${okCount} checks passed in your browser`}</div>
+            // Two parts, so a phone sets them as two whole lines instead of breaking the second one mid-phrase.
+            ? <div key="verified" className="pv-verified is-valid"><span className="pv-verified-a">Valid proof</span><span className="pv-verified-sep">{" \u00b7 "}</span><span className="pv-verified-b">{`${okCount} checks passed in your browser`}</span></div>
             : null,
         fileOpen && m.openUrl ? <FileInPlace key="open" url={m.openUrl} type={m.openType ?? null} name={m.fileName ?? null} /> : null,
         m.fileName ? <Row key="file" f={{ label: "File", value: m.fileName }} /> : null,
