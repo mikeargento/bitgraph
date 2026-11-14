@@ -13,7 +13,8 @@ import { BAR, DROP, HOW_IT_WORKS_ID, SECTIONS, inSection, type SitePage } from "
  * The bar: the wordmark at the left (it opens the home page), then every link in one row and one size (How it works,
  * Ledger, Demos, Developers, Reference, Evaluate, Licensing, Use cases, Contact), and at the far right the one button,
  * Make a BitGraph, with the arrow. There is no second row. On narrower screens the links are in a sheet behind a menu
- * button, one to a line, over the same button. The pages are listed once, in lib/site-map.
+ * button, one to a line, and the button stays in the bar beside the menu button. The pages are listed once, in
+ * lib/site-map.
  */
 const DEMOS = SECTIONS.find((s) => s.href === "/examples");
 
@@ -77,15 +78,13 @@ export function SiteNav() {
           </nav>
         </div>
         {menu && (
-          // The sheet: the bar's links, one to a line, then the one button.
+          // The sheet: the bar's links, one to a line. The one button stays in the bar above it.
           <div id="nav-sheet" className="nav-sheet nav-index">
             {BAR.map((p) => (
               <div key={p.href} className="nav-index-group">
                 <Link href={p.href} className="nav-index-top" aria-current={isCurrent(p)} onClick={(e) => toSection(e, p)}>{p.label}</Link>
               </div>
             ))}
-            {/* The one button, as in the bar. */}
-            <Link href={DROP.href} className="nav-sheet-cta nav-index-cta" aria-current={on(DROP.href) ? "page" : undefined}><span>{DROP.action}</span><GoArrow /></Link>
           </div>
         )}
       </div>
