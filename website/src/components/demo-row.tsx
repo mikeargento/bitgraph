@@ -9,7 +9,7 @@ import { GoArrow } from "@/components/go-arrow";
  * Pictures with their proofs, as tiles: a caption, the picture, and a link to its proof.
  *
  * HarborRow is the fourth demo (/pictures): one photograph saved as three files, so the pictures are the same and the
- * bytes are not, and each has its own proof. CopiesTiles is on the home page, under the headline: a picture made with
+ * bytes are not, and each has its own proof. CopiesTiles is the second example on that page: a picture made with
  * ChatGPT, the video Grok made of it and the copy Google made of it, recorded back to back.
  *
  * The page shows light display copies (resized pictures, a re-encoded silent video); each proof page shows the exact
@@ -51,7 +51,7 @@ export const COPIES: Demo[] = [
   { caption: "3rd", alt: COPIES_ALT, eager: true, counter: "24", proof: `/proof/9EDdSdS1KUrBbfoTx0Bmn1OLzeIRGQb5BHLtDn-GTOo?counter=24&epoch=${COPIES_EPOCH}`, display: "/demo/display/harbor.jpg" },
 ];
 
-// The home page's three: the ChatGPT picture, the Grok video made from it and the Google copy, recorded in that order
+// The second example on /pictures: the ChatGPT picture, the Grok video made from it and the Google copy, recorded in that order
 // as #12, #14 and #16 of one epoch, an unbroken run (2026-11-12): each proof carries the hash of the one before it.
 // They are the same three files as an earlier set, so the same bytes also hold #304, #312 and #308 of an earlier epoch.
 // Shown in black and white, a filter on the display copy; each proof covers its file as it is. Each tag names its place
@@ -66,7 +66,7 @@ export const HOME: Demo[] = [
 ];
 
 // Each set's place in line (1st, 2nd, 3rd) leads its caption on the demo tiles.
-// The home page's three sit at the top of their page and load at once (eager); the demo's tiles load as they come into view.
+// The tiles marked eager load at once; the others load as they come into view.
 function Media({ d }: { d: Demo }) {
   if (d.video) return <video className="demo-media" src={d.video.src} poster={d.display} autoPlay loop muted playsInline aria-label={d.alt ?? d.caption} />;
   return <img className="demo-media" src={d.display} alt={d.alt ?? d.caption} loading={d.eager ? "eager" : "lazy"} />;
@@ -128,7 +128,7 @@ export function CopiesRow() {
 }
 
 /** A tile: the picture or video and one link that names its place and opens its proof, "1st proof". The link is a tag on
- *  the picture, except on the home page, where it sits under the picture followed by the file's maker:
+ *  the picture, except for the picture, its video and its copy, where it sits under the picture followed by the file's maker:
  *  "1st proof · Created by ChatGPT".
  *  With reduced motion asked for, the video shows its still frame. */
 function PlaceTile({ d }: { d: Demo }) {
@@ -218,7 +218,8 @@ export function RecordTiles() {
   );
 }
 
-/** The home page's three tiles, in the order they were recorded: each with one link, its place. */
+/** The picture, its video and its copy (/pictures, under the harbor row), in the order they were recorded: each with
+ *  one link, its place, followed by its maker. */
 export function CopiesTiles() {
   return (
     <div className="demo-row">
