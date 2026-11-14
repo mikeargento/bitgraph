@@ -3,8 +3,8 @@
 /**
  * The demos as cards. Three make two BitGraphs as bookends: A opens, the work is made from A's nonce, B closes. The
  * fourth is one picture in three files, each with its own BitGraph. Every result is a real BitGraph and checks
- * offline. The Demos page shows them two to a row, and one to a row on phones: each a white card with its number, whether it
- * runs live, its title and one line about it, and a strip at its foot.
+ * offline. The Demos page shows them two to a row, and one to a row on phones: each a white card with its title, one line about
+ * it, and a strip at its foot.
  *
  * The home page has its own three cards in a row under the pictures: the three places a visitor goes next, which are
  * making a BitGraph, the ledger, and the demos.
@@ -29,7 +29,7 @@ type Card = { href: string; title: string; body: string; live?: boolean };
 function Cards({ cards, row }: { cards: Card[]; row: boolean }) {
   return (
     <div className={`sx-cards is-stack${row ? " is-row" : " is-two"}`}>
-      {cards.map((d, i) => d.live === undefined ? (
+      {cards.map((d) => d.live === undefined ? (
         <a key={d.href} className="tl-card sx-link" href={d.href}>
           <h3>{d.title}</h3>
           <p>{d.body}</p>
@@ -38,13 +38,9 @@ function Cards({ cards, row }: { cards: Card[]; row: boolean }) {
           </svg>
         </a>
       ) : (
-        // A demo's card: its number and whether it runs live at the top, and a strip at its foot that says what a click does.
+        // A demo's card: its title and one line about it, and a strip at its foot that says what a click does.
         <a key={d.href} className="tl-card sx-link demo-card" href={d.href}>
           <div className="demo-card-body">
-            <div className="demo-card-top">
-              <span>{String(i + 1).padStart(2, "0")}</span>
-              <span className={d.live ? "demo-card-kind is-live" : "demo-card-kind"}>{d.live ? "Live" : "Recorded"}</span>
-            </div>
             <h3>{d.title}</h3>
             <p>{d.body}</p>
           </div>

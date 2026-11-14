@@ -152,12 +152,6 @@ export function LedgerRows({ day, live, initial, newestKey, hasOlder }: { day: s
   return (
     <>
       {/* The columns, named once above the rows; today's ledger says it is live (it fills in on its own). */}
-      <div className="rl-head" aria-hidden="true">
-        <span className="rl-num">No.</span>
-        <span className="rl-what">Bound</span>
-        <span className="rl-when">{live && <span className="rl-live">Live</span>}Recorded</span>
-        <span className="rl-head-arrow" />
-      </div>
       <div className="rl-rows">
         {rows.map((r, i) => {
           const epoch = epochOf(r);

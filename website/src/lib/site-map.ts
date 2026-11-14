@@ -28,13 +28,19 @@ export const SECTIONS: SiteSection[] = [
   {
     href: "/integrate", label: "Developers", first: "API and SDK",
     pages: [
-      { href: "/tools", label: "Docs" },
+      { href: "/tools", label: "Reference" },
       { href: "/evaluate", label: "Evaluate" },
     ],
   },
   { href: "/licensing", label: "Licensing", first: "Licensing", pages: [{ href: "/applications", label: "Use cases" }] },
   { href: "/contact", label: "Contact" },
 ];
+
+/**
+ * The bar's links, in one row and one size: each section and, right after it, the pages inside it. The ledger is a
+ * button, not a link here, and the single demos are reached from Demos.
+ */
+export const BAR: SitePage[] = SECTIONS.filter((s) => s.href !== "/ledger").flatMap((s) => [s, ...(s.href === "/examples" ? [] : s.pages ?? [])]);
 
 /** The one action in the bar. */
 export const DROP: SitePage = { href: "/demos", label: "Drop a file" };

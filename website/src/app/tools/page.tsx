@@ -19,7 +19,7 @@ import { codeLang } from "@/lib/code-lang";
  */
 
 export const metadata: Metadata = {
-  title: "Docs",
+  title: "Reference",
   description:
     "What a BitGraph is and how it checks: the atomic action, trees and trust layers, epochs, limits, and the full check step by step.",
 };
@@ -39,11 +39,11 @@ export default function ToolsPage() {
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page">
       <div className="home-hero">
-        <h1 className="sr-only">Docs.</h1>
+        <h1 className="sr-only">Reference.</h1>
       </div>
 
       <section className="home-section" aria-labelledby="t-intro">
-        <p className="home-kicker">Docs</p>
+        <p className="home-kicker">Reference</p>
         <h2 id="t-intro">What a BitGraph is, and how it checks.</h2>
         <p>
           The mechanism, its trees and trust layers, its epochs, its limits, and the full check, step by step. The ways to call it,
@@ -60,7 +60,7 @@ export default function ToolsPage() {
               accepted. Rely on a check you run; a verdict on BitGraph&rsquo;s own pages is a convenience.
             </p>
             <Code>{`npx @mikeargento/bitgraph-sdk verify <file> --proof <proof>.json --pcr0 ${PUBLISHED_PCR0}`}</Code>
-            <p className="tl-note">What it checks, step by step, and how to rebuild the enclave image yourself: <a href="#d-ref">Reference</a>.</p>
+            <p className="tl-note">What it checks, step by step, and how to rebuild the enclave image yourself: <a href="#d-ref">The proof and the check</a>.</p>
           </article>
         </div>
       </section>
@@ -75,7 +75,7 @@ export default function ToolsPage() {
             <li><a href="#d-proves">Limits</a></li>
             <li><a href="#d-trust">What you trust</a></li>
             <li><a href="#d-faq">Questions</a></li>
-            <li><a href="#d-ref">Reference</a></li>
+            <li><a href="#d-ref">The proof and the check</a></li>
           </ul>
         </nav>
 
@@ -277,7 +277,7 @@ export default function ToolsPage() {
           </section>
 
           <section className="home-section" aria-labelledby="d-ref">
-            <p className="home-kicker">Reference</p>
+            <p className="home-kicker">The proof and the check</p>
             <h2 id="d-ref">The proof, and the full check.</h2>
             <p>A small signed JSON document:</p>
             <dl className="tl-fields">

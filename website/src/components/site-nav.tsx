@@ -7,27 +7,28 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { GoArrow } from "@/components/go-arrow";
 import { slideToId } from "@/components/smooth-anchors";
-import { DROP, HOW_IT_WORKS_ID, SECTIONS, inSection, rowFor, type SiteSection } from "@/lib/site-map";
+import { BAR, DROP, HOW_IT_WORKS_ID, SECTIONS, inSection, type SitePage, type SiteSection } from "@/lib/site-map";
 
 /**
- * The bar: the wordmark at the left (it opens the home page), the site's sections after it, and at the far right two
- * buttons on every page: Ledger, outlined, and Drop a file, the main one. Under the bar, on a page that belongs to a section with pages
- * of its own (Demos, Developers, Licensing), one row lists that section's pages side by side, the open one marked: it is
- * how a visitor moves between them without going back. On narrower screens the sections fold into a sheet behind a menu
- * button, and the sheet lists every page, each section's pages under it. The pages are listed once, in lib/site-map.
+ * The bar: the wordmark at the left (it opens the home page), then every link in one row and one size (How it works,
+ * Demos, Developers, Docs, Evaluate, Licensing, Use cases, Contact), and at the far right two buttons on every page:
+ * Ledger, outlined, and Drop a file, the main one. There is no second row. On narrower screens the links are in a
+ * sheet behind a menu button, one to a line, over the same two buttons. The pages are listed once, in lib/site-map.
  */
 /** The ledger's entry in the list of sections: the bar shows it as a button, apart from the links. */
 const LEDGER = SECTIONS.find((s) => s.href === "/ledger");
+const DEMOS = SECTIONS.find((s) => s.href === "/examples");
 
 export function SiteNav() {
   const pathname = usePathname();
   const on = (href: string) => pathname === href || pathname.startsWith(href + "/");
   const current = (s: SiteSection) => (inSection(pathname, s) ? "page" : undefined);
-  const row = rowFor(pathname);
+  // A link is marked on its own page. Demos is also marked on each demo, which has no link of its own in the bar.
+  const isCurrent = (p: SitePage) => ((p.href === DEMOS?.href ? inSection(pathname, DEMOS) : on(p.href)) ? "page" : undefined);
   // The phone sheet: every link, opened by the round button; a new page or Esc closes it.
   const [menu, setMenu] = useState(false);
   // "How it works" is the home page's first section: on Home it slides there, as the contents links do.
-  const toSection = (e: React.MouseEvent, s: SiteSection) => {
+  const toSection = (e: React.MouseEvent, s: SitePage) => {
     if (!s.href.startsWith("/#") || pathname !== "/" || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     if (slideToId(HOW_IT_WORKS_ID)) { e.preventDefault(); setMenu(false); }
   };
@@ -63,9 +64,9 @@ export function SiteNav() {
           <nav aria-label="Site" className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
             {/* The sections, as one group: on wide screens it stands in the middle of the bar. */}
             <div className="nav-mid">
-              {SECTIONS.filter((s) => s !== LEDGER).map((s) => (
-                <Link key={s.href} href={s.href} className="nav-btn nav-box nav-desk" aria-current={current(s)} onClick={(e) => toSection(e, s)} style={{ textDecoration: "none" }}>
-                  {s.label}
+              {BAR.map((p) => (
+                <Link key={p.href} href={p.href} className="nav-btn nav-box nav-desk" aria-current={isCurrent(p)} onClick={(e) => toSection(e, p)} style={{ textDecoration: "none" }}>
+                  {p.label}
                 </Link>
               ))}
             </div>
@@ -80,18 +81,11 @@ export function SiteNav() {
           </nav>
         </div>
         {menu && (
-          // The sheet: each section is a line with its pages listed under it, then the two buttons.
+          // The sheet: the bar's links, one to a line, then the two buttons.
           <div id="nav-sheet" className="nav-sheet nav-index">
-            {SECTIONS.filter((s) => s !== LEDGER).map((s) => (
-              <div key={s.href} className="nav-index-group">
-                <Link href={s.href} className="nav-index-top" aria-current={pathname === s.href ? "page" : undefined} onClick={(e) => toSection(e, s)}>{s.label}</Link>
-                {s.pages ? (
-                  <div className="nav-index-pages">
-                    {s.pages.map((p) => (
-                      <Link key={p.href} href={p.href} className="nav-index-page" aria-current={on(p.href) ? "page" : undefined}>{p.label}</Link>
-                    ))}
-                  </div>
-                ) : null}
+            {BAR.map((p) => (
+              <div key={p.href} className="nav-index-group">
+                <Link href={p.href} className="nav-index-top" aria-current={isCurrent(p)} onClick={(e) => toSection(e, p)}>{p.label}</Link>
               </div>
             ))}
             {/* The two buttons, as in the bar on wide screens: the ledger, outlined, and the main one. */}
@@ -100,19 +94,6 @@ export function SiteNav() {
           </div>
         )}
       </div>
-      {row ? (
-        // The open section's pages, side by side under the bar's own links, in the bar's shade. The bar's ink line names the
-        // section, so the row carries no label. It scrolls away with the page; the bar stays.
-        <nav className="bg-subnav" aria-label={`${row.label} pages`}>
-          <div className="bg-subnav-inner">
-            <div className="bg-subnav-pages">
-              {[{ href: row.href, label: row.first ?? row.label }, ...(row.pages ?? [])].map((p) => (
-                <Link key={p.href} href={p.href} aria-current={pathname === p.href || (p.href !== row.href && on(p.href)) ? "page" : undefined}>{p.label}</Link>
-              ))}
-            </div>
-          </div>
-        </nav>
-      ) : null}
     </>
   );
 }

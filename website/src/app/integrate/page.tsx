@@ -118,7 +118,7 @@ await bg.verify("run-042.log", proof);      // offline: hash, signature, two cou
             <Code>{`npx -p @mikeargento/bitgraph-sdk bitgraph record run-042.log --json
 npx -p @mikeargento/bitgraph-sdk bitgraph check run-042.log --json
 npx -p @mikeargento/bitgraph-sdk bitgraph serve   # POST /record, /check, /proof, /verify on 127.0.0.1`}</Code>
-            <p className="sx-fine">MIT licensed. <code>--api-key</code> or <code>BITGRAPH_API_KEY</code> for keyed access. Full reference: <a href="/tools">Docs</a>.</p>
+            <p className="sx-fine">MIT licensed. <code>--api-key</code> or <code>BITGRAPH_API_KEY</code> for keyed access. In full: <a href="/tools">Reference</a>.</p>
           </section>
 
           <section className="home-section" aria-labelledby="mcp">
@@ -163,7 +163,7 @@ r.treeMember     // { index, files } for an item of a collection`}</Code>
             <div className="sx-cta">
               <a className="bg-action-link is-make" href="/evaluate">Evaluate the technology</a>
               <a className="bg-action-link" href="/licensing#lic-form">Request an API key</a>
-              <a className="bg-action-link" href="/tools">Read the docs</a>
+              <a className="bg-action-link" href="/tools">Read the reference</a>
             </div>
           </section>
         </div>
