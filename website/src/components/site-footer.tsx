@@ -65,8 +65,9 @@ export function SiteFooter() {
             <a href="/#t-attest">AWS Nitro enclave</a>
             {" \u00b7 "}
             <a href={PINS_URL} target="_blank" rel="noopener">{`PCR0 ${PUBLISHED_PCR0.slice(0, 12)}\u2026`}</a>
-            {" \u00b7 "}
-            <a href={WRITER_URL} target="_blank" rel="noopener">Published hourly on Base</a>
+            {/* On a phone the publication fact takes a line of its own, so this dot is dropped there. */}
+            <span className="bg-footer-facts-sep">{" \u00b7 "}</span>
+            <a className="bg-footer-facts-own" href={WRITER_URL} target="_blank" rel="noopener">Published hourly on Base</a>
           </div>
         </div>
         {/* Plain dim links with space between them, no dots or underlines (2026-10-18): the old footer looked dated. */}
