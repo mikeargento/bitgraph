@@ -58,7 +58,7 @@ export function TechnologyBody() {
           <section className="home-section" aria-labelledby="t-for">
             <p className="home-kicker">BitGraph</p>
             <h2 id="t-for">For records in your care that may be questioned later.</h2>
-            <p>BitGraph gives any file a numbered place in line and a receipt anyone can check.</p>
+            <p>BitGraph gives any file a numbered place in line and a receipt anyone can check offline, without trusting BitGraph.</p>
             <div className="home-for">
               <p className="home-for-label">Built for</p>
               <ul>
