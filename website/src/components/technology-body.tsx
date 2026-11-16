@@ -7,7 +7,7 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 import { codeLang } from "@/lib/code-lang";
 
 /**
- * The whole home page, with its contents list. The first section says what BitGraph is for and is the page's headline.
+ * The body of the home page under its hero, with its contents list. The first section says what BitGraph is for.
  * The rest is the mechanism, for a CTO or security architect, from the code: the second section is the short statement
  * of what a BitGraph is, and the mechanism and its figure come next. Sources:
  * the v13 enclave (server/commit-service/src/enclave/app.ts, the enclave-v13 branch), the verifier (packages/verify:
@@ -25,7 +25,7 @@ function Code({ children }: { children: string }) {
 }
 
 const SECTIONS = [
-  ["home-h", "BitGraph"],
+  ["t-for", "BitGraph"],
   ["t-intro", "Technology"],
   ["t-mech", "The mechanism"],
   ["t-proves", "What it establishes"],
@@ -53,11 +53,11 @@ export function TechnologyBody() {
 
       <div className="tl-main">
           {/* The first section: its label and heading read as one line, BitGraph, for records that may be questioned
-              later; one line says what BitGraph does, and a short ruled list under it names the records it is built for. Its
-              heading is the page's top heading, set as the other sections' headings are. */}
-          <section className="home-section" aria-labelledby="home-h">
+              later; one line says what BitGraph does, and a short ruled list under it names the records it is built
+              for. Its heading is bold, a step above the other sections' headings. */}
+          <section className="home-section" aria-labelledby="t-for">
             <p className="home-kicker">BitGraph</p>
-            <h2 id="home-h" role="heading" aria-level={1}>For records in your care that may be questioned later.</h2>
+            <h2 id="t-for">For records in your care that may be questioned later.</h2>
             <p>BitGraph gives any file a numbered place in line and a receipt anyone can check.</p>
             <div className="home-for">
               <p className="home-for-label">Built for</p>
@@ -408,10 +408,10 @@ export function TechnologyBody() {
             <li><strong>A file that stays with you.</strong> Only its hash is sent.</li>
             <li><strong>No chain to wait on, and none to pay per record.</strong> BitGraph makes one write an hour that covers every record made in that hour, for a fraction of a cent.</li>
           </ul>
-          <h3 className="tl-h3" id="t-compare-chart">Against what people use today.</h3>
+          <h3 className="tl-h3" id="t-compare-chart">Compared with the alternatives.</h3>
           <div className="sx-table-wrap">
             <table className="sx-table sx-table-diff">
-              <thead><tr><th>What people use today</th><th>What it gives you</th><th>Where it leaves you short</th><th>With BitGraph</th></tr></thead>
+              <thead><tr><th>The alternative</th><th>What it gives you</th><th>Where it leaves you short</th><th>With BitGraph</th></tr></thead>
               <tbody>
                 <tr>
                   <td>A public blockchain</td>
@@ -463,8 +463,9 @@ export function TechnologyBody() {
             The same comparison for a technical reader: what each system establishes, what you trust in it, and how BitGraph
             fits with it. They provide different kinds of evidence and can be used together.
           </p>
+          {/* The same chart as the one above, for a technical reader: the same columns, type and BitGraph column. */}
           <div className="sx-table-wrap">
-            <table className="sx-table">
+            <table className="sx-table sx-table-diff is-tech">
               <thead><tr><th>System</th><th>What it establishes</th><th>What you trust</th><th>How BitGraph fits</th></tr></thead>
               <tbody>
                 <tr><td><a href="https://csrc.nist.gov/pubs/fips/186-5/final" target="_blank" rel="noopener">Digital signature</a></td><td>These bytes were signed with a particular private key.</td><td>The key&rsquo;s security and any claimed link between that key and an identity.</td><td>BitGraph adds a counted position enforced by measured enclave code, with hardware attestation bound to each proof.</td></tr>
