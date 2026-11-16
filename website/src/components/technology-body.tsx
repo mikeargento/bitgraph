@@ -7,9 +7,9 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 import { codeLang } from "@/lib/code-lang";
 
 /**
- * The mechanism, for a CTO or security architect, from the code: the body of the home page under its headline, with
- * its own contents list. Its first section is the short statement of what a BitGraph is; the mechanism and its figure
- * come second. Sources:
+ * The whole home page, with its contents list. The first section says what BitGraph is for and is the page's headline.
+ * The rest is the mechanism, for a CTO or security architect, from the code: the second section is the short statement
+ * of what a BitGraph is, and the mechanism and its figure come next. Sources:
  * the v13 enclave (server/commit-service/src/enclave/app.ts, the enclave-v13 branch), the verifier (packages/verify:
  * attested.ts, verifier.ts, stretch.ts, nitro.ts, tree-member.ts), the host (parent/server.ts, rate-limit.ts) and the
  * build pins (server/commit-service/reproducible-build/PINS.md). A claim that is not in that code is not in this text.
@@ -25,6 +25,7 @@ function Code({ children }: { children: string }) {
 }
 
 const SECTIONS = [
+  ["home-h", "BitGraph"],
   ["t-intro", "Technology"],
   ["t-mech", "The mechanism"],
   ["t-proves", "What it establishes"],
@@ -51,6 +52,26 @@ export function TechnologyBody() {
       </nav>
 
       <div className="tl-main">
+          {/* The first section: its label and heading read as one line, BitGraph, for records that may be questioned
+              later; one line says what BitGraph does, and a short ruled list under it names the records it is built for. Its
+              heading is the page's top heading, set as the other sections' headings are. */}
+          <section className="home-section" aria-labelledby="home-h">
+            <p className="home-kicker">BitGraph</p>
+            <h2 id="home-h" role="heading" aria-level={1}>For records in your care that may be questioned later.</h2>
+            <p>BitGraph gives any file a numbered place in line and a receipt anyone can check.</p>
+            <div className="home-for">
+              <p className="home-for-label">Built for</p>
+              <ul>
+                <li>Medical records</li>
+                <li>Clinical trials</li>
+                <li>AI agent activity</li>
+                <li>Financial transactions</li>
+                <li>Court evidence</li>
+                <li>Chain of custody</li>
+              </ul>
+            </div>
+          </section>
+
           <section className="home-section" aria-labelledby="t-intro">
             <p className="home-kicker">Technology</p>
             <h2 id="t-intro">One atomic action, inside measured&nbsp;hardware.</h2>

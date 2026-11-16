@@ -37,14 +37,14 @@ export const SECTIONS: SiteSection[] = [
 ];
 
 /** Where a BitGraph is made: the bar's one button. `label` is its name in lists of pages; `action` is the button's text. */
-export const DROP: SitePage & { action: string; short: string } = { href: "/demos", label: "Drop a file", action: "Make a BitGraph", short: "Make" };
+export const DROP: SitePage & { action: string; short: string } = { href: "/demos", label: "Drop a file", action: "Try it", short: "Try it" };
 
 /**
- * The bar's links, in one row and one size: each section and, right after it, the pages inside it. Making a BitGraph
- * is the bar's one button, not a link here; the single demos are reached from Demos and the calendar from the Ledger.
+ * The bar's links: the five sections that are pages of their own, so the bar stays short. Home's own section, "How it
+ * works", is not one of them: the wordmark opens Home, which starts with it. Making a BitGraph is the bar's one
+ * button, not a link here. The pages inside a section are reached from that section's page and from the footer's index.
  */
-const LISTED_FROM_THEIR_SECTION = ["/examples", "/ledger"];
-export const BAR: SitePage[] = SECTIONS.flatMap((s) => [s, ...(LISTED_FROM_THEIR_SECTION.includes(s.href) ? [] : s.pages ?? [])]);
+export const BAR: SiteSection[] = SECTIONS.filter((s) => !s.href.startsWith("/#"));
 
 const at = (pathname: string, href: string) => pathname === href || pathname.startsWith(href + "/");
 

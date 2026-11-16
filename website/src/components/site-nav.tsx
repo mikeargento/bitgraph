@@ -6,30 +6,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { GoArrow } from "@/components/go-arrow";
-import { slideToId, slideToTop } from "@/components/smooth-anchors";
-import { BAR, DROP, HOW_IT_WORKS_ID, SECTIONS, inSection, type SitePage } from "@/lib/site-map";
+import { slideToTop } from "@/components/smooth-anchors";
+import { BAR, DROP, inSection, type SiteSection } from "@/lib/site-map";
 
 /**
- * The bar: the wordmark at the left (it opens the home page), then every link in one row and one size (How it works,
- * Ledger, Demos, Developers, Reference, Evaluate, Licensing, Use cases, Contact), and at the far right the one button,
- * Make a BitGraph, with the arrow. There is no second row. On narrower screens the links are in a sheet behind a menu
+ * The bar: the wordmark at the left (it opens the home page), then the five sections in one row and one size (Ledger,
+ * Demos, Developers, Licensing, Contact), and at the far right the one button, Try it, with
+ * the arrow. The pages inside a section are reached from its page and from the footer. There is no second row. On narrower screens the links are in a sheet behind a menu
  * button, one to a line, and the button stays in the bar beside the menu button. The pages are listed once, in
  * lib/site-map.
  */
-const DEMOS = SECTIONS.find((s) => s.href === "/examples");
 
 export function SiteNav() {
   const pathname = usePathname();
   const on = (href: string) => pathname === href || pathname.startsWith(href + "/");
-  // A link is marked on its own page. Demos is also marked on each demo, which has no link of its own in the bar.
-  const isCurrent = (p: SitePage) => ((p.href === DEMOS?.href ? inSection(pathname, DEMOS) : on(p.href)) ? "page" : undefined);
+  // A section's link is marked on its own page and on each page inside it, which has no link of its own in the bar.
+  const isCurrent = (s: SiteSection) => (inSection(pathname, s) ? "page" : undefined);
   // The phone sheet: every link, opened by the round button; a new page or Esc closes it.
   const [menu, setMenu] = useState(false);
-  // "How it works" is the home page's first section: on Home it slides there, as the contents links do.
-  const toSection = (e: React.MouseEvent, s: SitePage) => {
-    if (!s.href.startsWith("/#") || pathname !== "/" || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    if (slideToId(HOW_IT_WORKS_ID)) { e.preventDefault(); setMenu(false); }
-  };
   useEffect(() => { setMenu(false); }, [pathname]);
   useEffect(() => {
     if (!menu) return;
@@ -63,12 +57,12 @@ export function SiteNav() {
             {/* The sections, as one group: on wide screens it stands in the middle of the bar. */}
             <div className="nav-mid">
               {BAR.map((p) => (
-                <Link key={p.href} href={p.href} className="nav-btn nav-box nav-desk" aria-current={isCurrent(p)} onClick={(e) => toSection(e, p)} style={{ textDecoration: "none" }}>
+                <Link key={p.href} href={p.href} className="nav-btn nav-box nav-desk" aria-current={isCurrent(p)} style={{ textDecoration: "none" }}>
                   {p.label}
                 </Link>
               ))}
             </div>
-            {/* The bar's one button: the thing to do here, make a BitGraph. */}
+            {/* The bar's one button: the thing to do here, try it by making a BitGraph. */}
             <Link href={DROP.href} className="nav-cta-sx" aria-current={on(DROP.href) ? "page" : undefined}><span className="nav-cta-long">{DROP.action}</span><span className="nav-cta-short" aria-hidden="true">{DROP.short}</span><GoArrow /></Link>
             <button type="button" className="nav-burger" style={{ borderRadius: "50%" }} aria-label={menu ? "Close menu" : "Menu"} aria-expanded={menu} aria-controls="nav-sheet" onClick={() => setMenu((m) => !m)}>
               {menu
@@ -82,7 +76,7 @@ export function SiteNav() {
           <div id="nav-sheet" className="nav-sheet nav-index">
             {BAR.map((p) => (
               <div key={p.href} className="nav-index-group">
-                <Link href={p.href} className="nav-index-top" aria-current={isCurrent(p)} onClick={(e) => toSection(e, p)}>{p.label}</Link>
+                <Link href={p.href} className="nav-index-top" aria-current={isCurrent(p)}>{p.label}</Link>
               </div>
             ))}
           </div>
