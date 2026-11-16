@@ -39,7 +39,7 @@ const SECTIONS = [
   ["t-verify", "Verification"],
   ["t-threat", "Threat model"],
   ["t-trust", "What you trust"],
-  ["t-compare", "Comparisons"],
+  ["t-compare", "How it\u2019s different"],
 ] as const;
 
 export function TechnologyBody() {
@@ -54,6 +54,7 @@ export function TechnologyBody() {
           <section className="home-section" aria-labelledby="t-intro">
             <p className="home-kicker">Technology</p>
             <h2 id="t-intro">One atomic action, inside measured&nbsp;hardware.</h2>
+            <p>Each BitGraph is one of one: a place in line never used before and never used again.</p>
             <p>A BitGraph is an attested record made inside an AWS Nitro enclave running a published, reproducible build.</p>
             <p>
               In one atomic operation, the enclave records a fresh hardware-generated nonce at count N and binds your data&rsquo;s
@@ -372,13 +373,74 @@ export function TechnologyBody() {
         </section>
 
         <section className="home-section" aria-labelledby="t-compare">
-          <p className="home-kicker">Comparisons</p>
-          <h2 id="t-compare">How BitGraph fits.</h2>
+          <p className="home-kicker">How it&rsquo;s different</p>
+          <h2 id="t-compare">A place, not a stamp.</h2>
           <p>
-            These systems provide different kinds of evidence and can be used together. Each attaches something to content that
-            already exists: a signature, a token, a log entry, a block. What BitGraph adds is the place itself. Each count comes
-            with a nonce nobody could predict, drawn at the moment the place is taken, so no place in line can be prepared for,
-            reserved, or reused.
+            The usual ways of showing that a record has not been changed add something to it after it exists: a signature, a
+            timestamp, a log entry, a block. BitGraph makes the place first. A fresh value nobody could predict takes a count,
+            and your file&rsquo;s hash is bound at the very next count, in one step, inside measured hardware.
+          </p>
+          <ul className="docs-list">
+            <li><strong>A place of its own.</strong> Each receipt has one. It is never a second or a block shared with other records.</li>
+            <li><strong>A place nobody can save for later.</strong> It starts from a value drawn the moment it is taken, so it cannot be held back and filled in afterward, or used twice.</li>
+            <li><strong>A receipt that checks on its own.</strong> It is one file, checked offline, with no server, no account and without BitGraph.</li>
+            <li><strong>A file that stays with you.</strong> Only its hash is sent.</li>
+            <li><strong>No chain to wait on, and none to pay per record.</strong> BitGraph makes one write an hour that covers every record made in that hour, for a fraction of a cent.</li>
+          </ul>
+          <h3 className="tl-h3" id="t-compare-chart">Against what people use today.</h3>
+          <div className="sx-table-wrap">
+            <table className="sx-table sx-table-diff">
+              <thead><tr><th>What people use today</th><th>What it gives you</th><th>Where it leaves you short</th><th>With BitGraph</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>A public blockchain</td>
+                  <td>A hash recorded in a block that no single party can rewrite.</td>
+                  <td>You wait minutes to hours for a block. Records are ordered only to the block. Each write costs a fee, from cents to dollars depending on the chain and the day, and needs a wallet. Checking a proof means reading the chain.</td>
+                  <td><strong className="diff-lead">Instant, with no fee per record.</strong> Each record gets a place of its own, with no wallet or token. One write an hour covers every record made in that hour.</td>
+                </tr>
+                <tr>
+                  <td>A timestamp service</td>
+                  <td>An instant signed statement that a hash existed at a stated time.</td>
+                  <td>It gives a time, not an order: it does not put two records in sequence. You trust the service&rsquo;s key and its clock.</td>
+                  <td><strong className="diff-lead">A place in line, not a time.</strong> Records are put in order, and each receipt names the published code that made it.</td>
+                </tr>
+                <tr>
+                  <td>A hash calendar</td>
+                  <td>Fast signatures on hashes, in rounds of one second, checked against a published code.</td>
+                  <td>Everything signed in the same second shares that second.</td>
+                  <td><strong className="diff-lead">One place for each receipt.</strong> Each comes one after another, in order.</td>
+                </tr>
+                <tr>
+                  <td>A transparency log</td>
+                  <td>Numbered entries in a log that outside parties watch, so a rewrite gets caught.</td>
+                  <td>Entries are added after the fact, and a full check means consulting the log or the parties watching it.</td>
+                  <td><strong className="diff-lead">One file that checks on its own.</strong> Each place starts from a value nobody could predict.</td>
+                </tr>
+                <tr>
+                  <td>A cloud ledger database</td>
+                  <td>Ordered records that show tampering, some kept in secure hardware, with a receipt for each write.</td>
+                  <td>What you write lives in the vendor&rsquo;s ledger, inside that cloud.</td>
+                  <td><strong className="diff-lead">Your file never leaves your device.</strong> Only its hash is sent, and the receipt is a file you keep.</td>
+                </tr>
+                <tr>
+                  <td>Locked storage</td>
+                  <td>Records that cannot be changed after they are written.</td>
+                  <td>It is the provider&rsquo;s promise. There is no proof to hand to someone outside.</td>
+                  <td><strong className="diff-lead">A proof anyone can check.</strong> It works alongside your storage and does not replace it.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3 className="tl-h3" id="t-compare-limits">What BitGraph does not do.</h3>
+          <ul className="docs-list">
+            <li><strong>It does not remove the operator.</strong> A blockchain has no single one. BitGraph rests on measured hardware from one provider, AWS, and publishes its line to a blockchain every hour as an outside record.</li>
+            <li><strong>It is not the best tool for catching an operator who shows two histories.</strong> A transparency log is, and a BitGraph proof can be published in one.</li>
+            <li><strong>It does not say who made a file, whether it is true, or how old it is.</strong> A receipt says where the file stands in line.</li>
+          </ul>
+          <h3 className="tl-h3" id="t-compare-fit">In technical terms: how each fits.</h3>
+          <p>
+            The same comparison for a technical reader: what each system establishes, what you trust in it, and how BitGraph
+            fits with it. They provide different kinds of evidence and can be used together.
           </p>
           <div className="sx-table-wrap">
             <table className="sx-table">
