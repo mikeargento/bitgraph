@@ -395,15 +395,15 @@ export function TechnologyBody() {
 
         <section className="home-section" aria-labelledby="t-compare">
           <p className="home-kicker">How it&rsquo;s different</p>
-          <h2 id="t-compare">A place, not a stamp.</h2>
+          <h2 id="t-compare">A place in line, not a stamp.</h2>
           <p>
             The usual ways of showing that a record has not been changed add something to it after it exists: a signature, a
-            timestamp, a log entry, a block. BitGraph makes the place first. A fresh value nobody could predict takes a count,
+            timestamp, a log entry, a block. BitGraph makes the place in line first. A fresh value nobody could predict takes a count,
             and your file&rsquo;s hash is bound at the very next count, in one step, inside measured hardware.
           </p>
           <ul className="docs-list">
             <li><strong>A place of its own.</strong> Each receipt has one. It is never a second or a block shared with other records.</li>
-            <li><strong>A place nobody can save for later.</strong> It starts from a value drawn the moment it is taken, so it cannot be held back and filled in afterward, or used twice.</li>
+            <li><strong>A place in line nobody can reserve.</strong> It starts from a value drawn the moment it is taken, so it cannot be held back and filled in afterward, or used twice.</li>
             <li><strong>A receipt that checks on its own.</strong> It is one file, checked offline, with no server, no account and without BitGraph.</li>
             <li><strong>A file that stays with you.</strong> Only its hash is sent.</li>
             <li><strong>No chain to wait on, and none to pay per record.</strong> BitGraph makes one write an hour that covers every record made in that hour, for a fraction of a cent.</li>
@@ -417,7 +417,7 @@ export function TechnologyBody() {
                   <td>A public blockchain</td>
                   <td>A hash recorded in a block that no single party can rewrite.</td>
                   <td>You wait minutes to hours for a block. Records are ordered only to the block. Each write costs a fee, from cents to dollars depending on the chain and the day, and needs a wallet. Checking a proof means reading the chain.</td>
-                  <td><strong className="diff-lead">Instant, with no fee per record.</strong> Each record gets a place of its own, with no wallet or token. One write an hour covers every record made in that hour.</td>
+                  <td><strong className="diff-lead">Instant, with no fee per record.</strong> Each record gets its own place in line, with no wallet or token. One write an hour covers every record made in that hour.</td>
                 </tr>
                 <tr>
                   <td>A timestamp service</td>
@@ -429,7 +429,7 @@ export function TechnologyBody() {
                   <td>A hash calendar</td>
                   <td>Fast signatures on hashes, in rounds of one second, checked against a published code.</td>
                   <td>Everything signed in the same second shares that second.</td>
-                  <td><strong className="diff-lead">One place for each receipt.</strong> Each comes one after another, in order.</td>
+                  <td><strong className="diff-lead">One place in line for each receipt.</strong> Each comes one after another, in order.</td>
                 </tr>
                 <tr>
                   <td>A transparency log</td>
