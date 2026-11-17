@@ -32,7 +32,7 @@ export default function HomePage() {
         {/* The hero: the page's headline, one line on wide screens and two on phones (one span each), and two sentences
             under it, then two buttons. */}
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
-          <h1 id="home-h"><span className="home-h-m">Public proof.</span>{" "}<span className="home-h-m">Private records.</span></h1>
+          <h1 id="home-h"><span className="home-h-m">Public order.</span>{" "}<span className="home-h-m">Private records.</span></h1>
           <p className="home-ov-sub">
             BitGraph creates receipts inside a trusted execution environment (TEE). Each one is cryptographically
             verifiable evidence of a record&rsquo;s integrity and order, without the records ever leaving your custody.
