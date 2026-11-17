@@ -20,7 +20,6 @@ export default function ContactPage() {
               BitGraph is built and run by Argento Computing Inc. Questions about the technology, an integration, licensing, or anything
               else reach us directly. Nothing you send is published.
             </p>
-            <p>For a licensing conversation or a technical evaluation, the <a href="/licensing#lic-form">licensing</a> and <a href="/evaluate">evaluation</a> forms ask the right questions.</p>
           </div>
           <div>
             <InquiryForm topic="Contact" />

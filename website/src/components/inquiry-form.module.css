@@ -1,0 +1,51 @@
+/* The Contact form's one choice, as a row of square buttons: what the message is about. */
+.about {
+  border: 0;
+  padding: 0;
+  margin: 0 0 20px;
+  min-width: 0;
+}
+.aboutLabel {
+  display: block;
+  padding: 0;
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.choice {
+  appearance: none;
+  box-sizing: border-box;
+  height: 46px;
+  padding: 0 18px;
+  margin: 0;
+  border: 1px solid #c2c7ce;
+  border-radius: 0;
+  background: #fbfcfd;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+.choice[aria-checked="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #ffffff;
+}
+.choice:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .choice[aria-checked="false"]:hover { border-color: #9aa1ab; }
+}
+@media (max-width: 640px) {
+  .choices { flex-direction: column; }
+  .choice { width: 100%; text-align: left; }
+}
