@@ -35,7 +35,7 @@ export default function HomePage() {
           <h1 id="home-h"><span className="home-h-m">Public proof.</span>{" "}<span className="home-h-m">Private records.</span></h1>
           <p className="home-ov-sub">
             BitGraph creates receipts inside a trusted execution environment (TEE). Each one is cryptographically
-            verifiable evidence of a record&rsquo;s integrity and order, without your records ever leaving your custody.
+            verifiable evidence of a record&rsquo;s integrity and order, without the records ever leaving your custody.
           </p>
           {/* The two things to do from here: make one, or see how it differs from the alternatives (that link
               slides down to the chart). */}
