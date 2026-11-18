@@ -15,7 +15,7 @@ export const HOW_IT_WORKS_ID = "t-intro";
 
 export const SECTIONS: SiteSection[] = [
   { href: `/#${HOW_IT_WORKS_ID}`, label: "How it works" },
-  { href: "/ledger", label: "Ledger", pages: [{ href: "/ledger/calendar", label: "Calendar" }] },
+  { href: "/ledger", label: "Calendar", pages: [{ href: "/ledger/calendar", label: "All days" }] },
   {
     href: "/examples", label: "Demos", first: "All demos",
     pages: [

@@ -53,12 +53,16 @@ export function TechnologyBody() {
 
       <div className="tl-main">
           {/* The first section: its label and heading read as one line, BitGraph, for records that may be questioned
-              later; one line says what BitGraph does, and a short ruled list under it names the records it is built
-              for. Its heading is bold, a step above the other sections' headings. */}
+              later; three sentences say what BitGraph does, a short ruled list under them names the records it is built
+              for, and two buttons follow: make one, or connect a system. Its heading is the page's headline, set like the other pages' headlines. */}
           <section className="home-section" aria-labelledby="t-for">
             <p className="home-kicker">BitGraph</p>
-            <h2 id="t-for">For records in your care that may be questioned later.</h2>
-            <p>BitGraph gives any file a numbered place in line and a receipt anyone can check offline, without trusting BitGraph.</p>
+            <h1 id="t-for">For records in your care that may be questioned later.</h1>
+            <p>
+              BitGraph makes proofs inside a trusted execution environment (TEE). Each one is verifiable evidence of a
+              record&rsquo;s integrity and order. It checks by itself, with no ledger to consult, and your records never leave
+              your custody.
+            </p>
             <div className="home-for">
               <p className="home-for-label">Built for</p>
               <ul>
@@ -69,6 +73,11 @@ export function TechnologyBody() {
                 <li>Court evidence</li>
                 <li>Chain of custody</li>
               </ul>
+            </div>
+            {/* The two things to do from here: make one, or connect a system through the API and SDK. */}
+            <div className="home-ov-actions">
+              <Link className="bg-action-link is-make" href="/demos">Make a BitGraph</Link>
+              <Link className="bg-action-link is-plain" href="/integrate">Connect your system</Link>
             </div>
           </section>
 

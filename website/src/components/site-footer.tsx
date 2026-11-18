@@ -41,7 +41,7 @@ const section = (label: string) => SECTIONS.find((s) => s.label === label)!;
 /** The index: every page of the site in four columns, so each page has a path from every other. Built from the same
  *  list as the bar. */
 const INDEX: Array<{ title: string; pages: SitePage[] }> = [
-  { title: "BitGraph", pages: [section("How it works"), DROP, section("Ledger"), ...(section("Ledger").pages ?? [])] },
+  { title: "BitGraph", pages: [section("How it works"), DROP, section("Calendar"), ...(section("Calendar").pages ?? [])] },
   { title: "Demos", pages: [{ href: section("Demos").href, label: "All demos" }, ...(section("Demos").pages ?? [])] },
   { title: "Developers", pages: [{ href: section("Developers").href, label: "API and SDK" }, ...(section("Developers").pages ?? []), { href: GITHUB_URL, label: "GitHub" }] },
   { title: "Business", pages: [section("Licensing"), ...(section("Licensing").pages ?? []), section("Contact")] },
