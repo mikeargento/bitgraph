@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { TechnologyBody } from "@/components/technology-body";
 
 /**
- * The home page is one run of numbered sections with a contents list (components/technology-body.tsx). The first says
- * what BitGraph is for and what it does, names the records it is built for, and ends with two buttons: one to make a
- * BitGraph and one to the API and SDK page. The mechanism follows from the
- * second. The example of one record in three versions is on the Demos page.
+ * The home page opens with a hero on a band of the panel color: the headline, three sentences on what BitGraph makes,
+ * the six kinds of record it is built for, and two buttons (make a BitGraph; connect a system). Under it is one run of
+ * numbered sections with a contents list (components/technology-body.tsx), starting with the technology. The example
+ * of one record in three versions is on the Demos page.
  *
  * Claim discipline, unchanged: a BitGraph is a place in line, bound by a time and after an unpredictable value. It
  * says when bits were bound, not how old they are or who made them.
@@ -25,6 +26,36 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <>
+      <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-ov">
+        {/* The hero: the page's headline, one line on wide screens and two on phones (one span each), three sentences
+            on what BitGraph makes, the records it is built for, and two buttons. The last two words of the
+            paragraph are tied and the no-orphans pass adds the word before them, so the last line holds at least
+            three words. */}
+        <section className="home-section home-ov-hero" aria-labelledby="home-h">
+          <h1 id="home-h"><span className="home-h-m home-h-it">Trust is costly.</span>{" "}<span className="home-h-m">Proof isn&rsquo;t.</span></h1>
+          <p className="home-ov-sub">
+            BitGraph makes a standalone proof for any digital record. Without consulting a database, anyone can
+            confirm the record hasn&rsquo;t changed and verify its place in order. Each proof is made inside a
+            trusted execution environment (TEE), without exposing your&nbsp;data.
+          </p>
+          <div className="home-for">
+            <p className="home-for-label">Built for</p>
+            <ul>
+              <li>Medical records</li>
+              <li>Clinical trials</li>
+              <li>AI agent activity</li>
+              <li>Financial transactions</li>
+              <li>Court evidence</li>
+              <li>Chain of custody</li>
+            </ul>
+          </div>
+          {/* The two things to do from here: make one, or connect a system through the API and SDK. */}
+          <div className="home-ov-actions">
+            <Link className="bg-action-link is-make" href="/demos">Make a BitGraph</Link>
+            <Link className="bg-action-link is-plain" href="/integrate">Connect your system</Link>
+          </div>
+        </section>
+      </div>
       <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-tech">
         <TechnologyBody />
       </div>

@@ -25,7 +25,6 @@ function Code({ children }: { children: string }) {
 }
 
 const SECTIONS = [
-  ["t-for", "BitGraph"],
   ["t-intro", "Technology"],
   ["t-mech", "The mechanism"],
   ["t-proves", "What it establishes"],
@@ -52,39 +51,6 @@ export function TechnologyBody() {
       </nav>
 
       <div className="tl-main">
-          {/* The first section: its label and heading read as one line, BitGraph, for records that may be questioned
-              later; three sentences say what BitGraph does, a short ruled list under them names the records it is built
-              for, and two buttons follow: make one, or connect a system. Its heading is the page's headline, set like the other pages' headlines. */}
-          <section className="home-section" aria-labelledby="t-for">
-            <p className="home-kicker">BitGraph</p>
-            <h1 id="t-for">For records in your care that may be questioned later.</h1>
-            {/* "own place" is tied with a no-break space so the lines stay even on phones about 390px wide. The last
-                two words are tied here and the no-orphans pass adds the word before them, so the last line holds
-                at least three words. Longer ties strand a short line on narrow screens. */}
-            <p>
-              BitGraph makes an original of any digital record, and that original is its own independent ledger.
-              Copy the record a million times; there&rsquo;s still only one BitGraph, and it carries its
-              own&nbsp;place in order. Each is made inside a trusted execution environment (TEE), without ever
-              exposing your&nbsp;data.
-            </p>
-            <div className="home-for">
-              <p className="home-for-label">Built for</p>
-              <ul>
-                <li>Medical records</li>
-                <li>Clinical trials</li>
-                <li>AI agent activity</li>
-                <li>Financial transactions</li>
-                <li>Court evidence</li>
-                <li>Chain of custody</li>
-              </ul>
-            </div>
-            {/* The two things to do from here: make one, or connect a system through the API and SDK. */}
-            <div className="home-ov-actions">
-              <Link className="bg-action-link is-make" href="/demos">Make a BitGraph</Link>
-              <Link className="bg-action-link is-plain" href="/integrate">Connect your system</Link>
-            </div>
-          </section>
-
           <section className="home-section" aria-labelledby="t-intro">
             <p className="home-kicker">Technology</p>
             <h2 id="t-intro">One atomic action, inside measured&nbsp;hardware.</h2>
