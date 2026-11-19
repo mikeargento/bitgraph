@@ -72,8 +72,8 @@ export function TechnologyBody() {
             <h2 id="t-mech">How a proof is made.</h2>
             <p>
               First a number nobody could predict, then your record, bound right after it in a single atomic
-              action. That order is the difference: a label goes on something already made, but with BitGraph, the{" "}
-              <em>place</em> exists before anything is put&nbsp;there.
+              action. That order is the difference: a label goes on something already made, but with BitGraph, the
+              place exists before anything is put&nbsp;there.
             </p>
             <MechanismFigure />
             <ol className="tl-steps">

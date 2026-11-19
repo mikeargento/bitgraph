@@ -36,7 +36,7 @@ export default function HomePage() {
         {/* On phones the hero's paragraph is narrowed until its lines are about the same length. */}
         <BalanceLines selector=".home-ov-hero .home-ov-sub" />
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
-          <h1 id="home-h"><span className="home-h-m home-h-it">Trust is costly.</span>{" "}<span className="home-h-m">Proof isn&rsquo;t.</span></h1>
+          <h1 id="home-h"><span className="home-h-m">Trust is costly.</span>{" "}<span className="home-h-m">Proof isn&rsquo;t.</span></h1>
           <p className="home-ov-sub">
             BitGraph gives any digital record a proof that stands on its own. Anyone can confirm the record
             hasn&rsquo;t changed and where it stands in order, with no database to consult. Each proof is made inside
