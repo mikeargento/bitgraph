@@ -16,7 +16,7 @@ import { TechnologyBody } from "@/components/technology-body";
 /* The tab and link-preview title carries the tagline after the name. */
 const TITLE = "BitGraph: Proof that stands on its own";
 const DESCRIPTION =
-  "Any file or record gets a numbered place in line, with a proof anyone can check offline, in seconds.";
+  "BitGraph gives any digital record a proof that stands on its own. Anyone can confirm the record hasn't changed and where it stands in order, with no database to consult.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },

@@ -100,7 +100,7 @@ export const viewport: Viewport = { themeColor: "#ffffff" };
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */
 const SITE_DESCRIPTION =
-  "BitGraph gives any file or record its place in line, without uploading it. Anyone can check which came first, offline, in seconds.";
+  "BitGraph gives any digital record a proof that stands on its own. Anyone can confirm the record hasn't changed and where it stands in order, with no database to consult.";
 
 export const metadata: Metadata = {
   title: {
