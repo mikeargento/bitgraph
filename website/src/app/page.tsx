@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BalanceLines } from "@/components/balance-lines";
 import { TechnologyBody } from "@/components/technology-body";
 
 /**
@@ -31,6 +32,8 @@ export default function HomePage() {
             on what BitGraph makes, the records it is built for, and two buttons. The last two words of the
             paragraph are tied and the no-orphans pass adds the word before them, so the last line holds at least
             three words. */}
+        {/* On phones the hero's paragraph is narrowed until its lines are about the same length. */}
+        <BalanceLines selector=".home-ov-hero .home-ov-sub" />
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
           <h1 id="home-h"><span className="home-h-m home-h-it">Trust is costly.</span>{" "}<span className="home-h-m">Proof isn&rsquo;t.</span></h1>
           <p className="home-ov-sub">
