@@ -70,6 +70,11 @@ export function TechnologyBody() {
           <section className="home-section" aria-labelledby="t-mech">
             <p className="home-kicker">The mechanism</p>
             <h2 id="t-mech">How a proof is made.</h2>
+            <p>
+              First a number nobody could predict, then your record, bound right after it in a single atomic
+              action. That order is the difference: a label goes on something already made, but with BitGraph, the{" "}
+              <em>place</em> exists before anything is put&nbsp;there.
+            </p>
             <MechanismFigure />
             <ol className="tl-steps">
               <li><strong>Gate.</strong> The enclave refuses to bind until the host has initialized it, and accepts only a canonical 32-byte&nbsp;SHA-256.</li>
