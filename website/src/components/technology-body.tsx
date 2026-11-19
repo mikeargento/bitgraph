@@ -99,7 +99,7 @@ export function TechnologyBody() {
 
           <section className="home-section" aria-labelledby="t-mech">
             <p className="home-kicker">The mechanism</p>
-            <h2 id="t-mech">How a receipt is made.</h2>
+            <h2 id="t-mech">How a proof is made.</h2>
             <MechanismFigure />
             <ol className="tl-steps">
               <li><strong>Gate.</strong> The enclave refuses to bind until the host has initialized it, and accepts only a canonical 32-byte&nbsp;SHA-256.</li>
@@ -249,7 +249,7 @@ export function TechnologyBody() {
             <li><strong>Fingerprint.</strong> The BitGraphs made since the last write are hashed into one tree (RFC&nbsp;6962, SHA-256), each leaf the hash of a whole proof. The tree&rsquo;s root stands for all of them, in order.</li>
             <li><strong>Write.</strong> One small transaction on Base carries the root, the epoch, the first and last counts it covers, how many BitGraphs that is, and the hash of the write before it. An epoch&rsquo;s first write also names the epoch&rsquo;s public key.</li>
             <li><strong>Confirm.</strong> The write is kept once ten more blocks have been built on top of it and its block is still part of the chain.</li>
-            <li><strong>Bind back.</strong> BitGraph then makes one ordinary BitGraph of a short note naming that transaction and its block. On the <Link href="/ledger">Ledger</Link> that row reads &ldquo;Published on Base&rdquo;. Every BitGraph after it was made after that block.</li>
+            <li><strong>Bind back.</strong> BitGraph then makes one ordinary BitGraph of a short note naming that transaction and its block. On the <Link href="/ledger">Calendar</Link> that row reads &ldquo;Published on Base&rdquo;. Every BitGraph after it was made after that block.</li>
           </ol>
           <h3 className="tl-h3">What it gives</h3>
           <ul className="docs-list">
@@ -411,9 +411,9 @@ export function TechnologyBody() {
             and your file&rsquo;s hash is bound at the very next count, in one step, inside measured hardware.
           </p>
           <ul className="docs-list">
-            <li><strong>A place of its own.</strong> Each receipt has one. It is never a second or a block shared with other records.</li>
+            <li><strong>A place of its own.</strong> Each proof has one. It is never a second or a block shared with other records.</li>
             <li><strong>A place in line nobody can reserve.</strong> It starts from a value drawn the moment it is taken, so it cannot be held back and filled in afterward, or used twice.</li>
-            <li><strong>A receipt that checks on its own.</strong> It is one file, checked offline, with no server, no account and without BitGraph.</li>
+            <li><strong>A proof that checks on its own.</strong> It is one file, checked offline, with no server, no account and without BitGraph.</li>
             <li><strong>A file that stays with you.</strong> Only its hash is sent.</li>
             <li><strong>No chain to wait on, and none to pay per record.</strong> BitGraph makes one write an hour that covers every record made in that hour, for a fraction of a cent.</li>
           </ul>
@@ -432,13 +432,13 @@ export function TechnologyBody() {
                   <td>A timestamp service</td>
                   <td>An instant signed statement that a hash existed at a stated time.</td>
                   <td>It gives a time, not an order: it does not put two records in sequence. You trust the service&rsquo;s key and its clock.</td>
-                  <td><strong className="diff-lead">A place in line, not a time.</strong> Records are put in order, and each receipt names the published code that made it.</td>
+                  <td><strong className="diff-lead">A place in line, not a time.</strong> Records are put in order, and each proof names the published code that made it.</td>
                 </tr>
                 <tr>
                   <td>A hash calendar</td>
                   <td>Fast signatures on hashes, in rounds of one second, checked against a published code.</td>
                   <td>Everything signed in the same second shares that second.</td>
-                  <td><strong className="diff-lead">One place in line for each receipt.</strong> Each comes one after another, in order.</td>
+                  <td><strong className="diff-lead">One place in line for each proof.</strong> Each comes one after another, in order.</td>
                 </tr>
                 <tr>
                   <td>A transparency log</td>
@@ -450,7 +450,7 @@ export function TechnologyBody() {
                   <td>A cloud ledger database</td>
                   <td>Ordered records that show tampering, some kept in secure hardware, with a receipt for each write.</td>
                   <td>What you write lives in the vendor&rsquo;s ledger, inside that cloud.</td>
-                  <td><strong className="diff-lead">Your file never leaves your device.</strong> Only its hash is sent, and the receipt is a file you keep.</td>
+                  <td><strong className="diff-lead">Your file never leaves your device.</strong> Only its hash is sent, and the proof is a file you keep.</td>
                 </tr>
                 <tr>
                   <td>Locked storage</td>
@@ -465,7 +465,7 @@ export function TechnologyBody() {
           <ul className="docs-list">
             <li><strong>It does not remove the operator.</strong> A blockchain has no single one. BitGraph rests on measured hardware from one provider, AWS, and publishes its line to a blockchain every hour as an outside record.</li>
             <li><strong>It is not the best tool for catching an operator who shows two histories.</strong> A transparency log is, and a BitGraph proof can be published in one.</li>
-            <li><strong>It does not say who made a file, whether it is true, or how old it is.</strong> A receipt says where the file stands in line.</li>
+            <li><strong>It does not say who made a file, whether it is true, or how old it is.</strong> A proof says where the file stands in line.</li>
           </ul>
           <h3 className="tl-h3" id="t-compare-fit">In technical terms: how each fits.</h3>
           <p>

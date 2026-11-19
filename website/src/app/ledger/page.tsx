@@ -12,7 +12,7 @@ import { LEDGER_FIRST_DAY, ledgerPage, type LedgerPage } from "@/lib/running-led
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Ledger",
+  title: "Calendar",
   description: "Every BitGraph, in order, newest first. Open any one for its proof.",
 };
 
@@ -57,7 +57,7 @@ export default async function LedgerPageView({ searchParams }: { searchParams: P
     <div className="rl-days">
       {prev >= LEDGER_FIRST_DAY && <a href={`/ledger?day=${prev}`}>&lsaquo; {shortLabel(prev)}</a>}
       {next && <a href={next >= todayUTC ? "/ledger" : `/ledger?day=${next}`}>{next >= todayUTC ? "Today" : shortLabel(next)} &rsaquo;</a>}
-      <Link href="/ledger/calendar">Calendar</Link>
+      <Link href="/ledger/calendar">All days</Link>
     </div>
   );
 
@@ -65,7 +65,7 @@ export default async function LedgerPageView({ searchParams }: { searchParams: P
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page ledger-page">
       <div className="home-hero"><h1 className="sr-only">Ledger.</h1></div>
       <section className="home-section" aria-labelledby="ledger-h">
-        <p className="home-kicker">Ledger</p>
+        <p className="home-kicker">Calendar</p>
         <h2 id="ledger-h">{day ? longLabel(day) : "Every BitGraph, in order."}</h2>
         {dayLinks}
         {failed || !page ? (

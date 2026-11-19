@@ -5,7 +5,7 @@ import { MonthCalendar, MonthShelf, MONTH_NAMES, type CalendarDay } from "@/comp
 import { LEDGER_FIRST_DAY } from "@/lib/running-ledger";
 
 export const dynamic = "force-dynamic"; // "today" must not freeze at build time
-export const metadata = { title: "Calendar" };
+export const metadata = { title: "All days" };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
@@ -36,11 +36,11 @@ export default function LedgerCalendarPage() {
   const months = buildMonths(todayISO);
   return (
     <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page ledger-page">
-      <div className="home-hero"><h1 className="sr-only">Calendar.</h1></div>
+      <div className="home-hero"><h1 className="sr-only">All days.</h1></div>
       <section className="home-section" aria-labelledby="cal-h">
-        <p className="home-kicker">Ledger</p>
-        <h2 id="cal-h">Calendar.</h2>
-        <p>One ledger page per UTC day. Today&rsquo;s is still open.</p>
+        <p className="home-kicker">Calendar</p>
+        <h2 id="cal-h">All days.</h2>
+        <p>One page per UTC day. Today&rsquo;s is still open.</p>
         <MonthShelf>
           {months.map((mo) => (
             <MonthCalendar key={mo.label} title={mo.label} leading={mo.leading} days={mo.days} />
