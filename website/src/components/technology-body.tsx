@@ -58,10 +58,14 @@ export function TechnologyBody() {
           <section className="home-section" aria-labelledby="t-for">
             <p className="home-kicker">BitGraph</p>
             <h1 id="t-for">For records in your care that may be questioned later.</h1>
+            {/* "own place" is tied with a no-break space so the lines stay even on phones about 390px wide. The last
+                two words are tied here and the no-orphans pass adds the word before them, so the last line holds
+                at least three words. Longer ties strand a short line on narrow screens. */}
             <p>
-              BitGraph makes proofs inside a trusted execution environment (TEE). Each one is verifiable evidence of a
-              record&rsquo;s integrity and order. It checks by itself, with no ledger to consult, and your records never leave
-              your custody.
+              BitGraph makes an original of any digital record, and that original is its own independent ledger.
+              Copy the record a million times; there&rsquo;s still only one BitGraph, and it carries its
+              own&nbsp;place in order. Each is made inside a trusted execution environment (TEE), without ever
+              exposing your&nbsp;data.
             </p>
             <div className="home-for">
               <p className="home-for-label">Built for</p>
