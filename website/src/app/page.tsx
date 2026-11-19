@@ -13,7 +13,8 @@ import { TechnologyBody } from "@/components/technology-body";
  * says when bits were bound, not how old they are or who made them.
  */
 
-const TITLE = "BitGraph";
+/* The tab and link-preview title carries the tagline after the name. */
+const TITLE = "BitGraph: Proof that stands on its own";
 const DESCRIPTION =
   "Any file or record gets a numbered place in line, with a proof anyone can check offline, in seconds.";
 
@@ -37,9 +38,9 @@ export default function HomePage() {
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
           <h1 id="home-h"><span className="home-h-m home-h-it">Trust is costly.</span>{" "}<span className="home-h-m">Proof isn&rsquo;t.</span></h1>
           <p className="home-ov-sub">
-            BitGraph makes a standalone proof for any digital record. Without consulting a database, anyone can
-            confirm the record hasn&rsquo;t changed and verify its place in order. Each proof is made inside a
-            trusted execution environment (TEE), without exposing your&nbsp;data.
+            BitGraph gives any digital record a proof that stands on its own. Anyone can confirm the record
+            hasn&rsquo;t changed and where it stands in order, with no database to consult. Each proof is made inside
+            a trusted execution environment (TEE), without exposing your&nbsp;data.
           </p>
           <div className="home-for">
             <p className="home-for-label">Built for</p>
