@@ -4,11 +4,10 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
-**BitGraph proves order by ruling out the past.**
+**Prove order by ruling out the past.**
 
-BitGraph gives any digital record a proof that stands on its own. Anyone can confirm the record hasn't changed and
-where it stands in order, with no database to consult. Each proof is made inside a trusted execution environment
-(TEE), without exposing your data.
+BitGraph gives any record a proof that could not have existed before its position was created. The proof verifies
+offline, and needs no database.
 
 Each proof is a place in line, so anyone can see which record came first. The file is never uploaded:
 only its SHA-256 is sent, and only that hash is ever public. Inside a measured AWS Nitro enclave, one atomic action

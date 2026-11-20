@@ -14,9 +14,9 @@ import { TechnologyBody } from "@/components/technology-body";
  */
 
 /* The tab and link-preview title carries the tagline after the name. */
-const TITLE = "BitGraph: Proof that stands on its own";
+const TITLE = "BitGraph: Prove order by ruling out the past";
 const DESCRIPTION =
-  "BitGraph gives any digital record a proof that stands on its own. Anyone can confirm the record hasn't changed and where it stands in order, with no database to consult.";
+  "BitGraph gives any record a proof that could not have existed before its position was created. The proof verifies offline, and needs no database.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -36,11 +36,9 @@ export default function HomePage() {
         {/* On phones the hero's paragraph is narrowed until its lines are about the same length. */}
         <BalanceLines selector=".home-ov-hero .home-ov-sub" />
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
-          <h1 id="home-h"><span className="home-h-m"><span className="home-h-w">BitGraph</span>{" "}<span className="home-h-w">proves order</span></span>{" "}<span className="home-h-m"><span className="home-h-w">by ruling out</span>{" "}<span className="home-h-w">the past.</span></span></h1>
+          <h1 id="home-h"><span className="home-h-m">Prove order <br className="home-br-m" />by <br className="home-br-d" />ruling out <br className="home-br-m" />the past.</span></h1>
           <p className="home-ov-sub">
-            BitGraph gives any digital record a proof that stands on its own. Anyone can confirm the record
-            hasn&rsquo;t changed and where it stands in order, with no database to consult. Each proof is made inside
-            a trusted execution environment (TEE), without exposing your&nbsp;data.
+            BitGraph gives any record a proof that could not have existed before its position was created. The proof verifies offline, and needs no&nbsp;database.
           </p>
           <div className="home-for">
             <p className="home-for-label">Built for</p>
