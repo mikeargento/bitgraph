@@ -16,7 +16,7 @@ import { TechnologyBody } from "@/components/technology-body";
 /* The tab and link-preview title carries the tagline after the name. */
 const TITLE = "BitGraph: Prove order by ruling out the past";
 const DESCRIPTION =
-  "BitGraph gives any record a unique position that could not have existed before. It binds the record's exact bits to that position, creating verifiable evidence of its place in history. Anyone can check the proof offline, without a database.";
+  "BitGraph gives any record a unique position that could not have existed before. It binds the record's exact bits to that position, creating verifiable evidence of its place in history without exposing its contents. Anyone can check the proof offline, without a database.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -38,7 +38,7 @@ export default function HomePage() {
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
           <h1 id="home-h"><span className="home-h-m">Prove order <br className="home-br-m" />by <br className="home-br-d" />ruling out <br className="home-br-m" />the past.</span></h1>
           <p className="home-ov-sub">
-            BitGraph gives any record a unique position that could not have existed before. It binds the record&rsquo;s exact bits to that position, creating verifiable evidence of its place in history. Anyone can check the proof offline, without a&nbsp;database.
+            BitGraph gives any record a unique position that could not have existed before. It binds the record&rsquo;s exact bits to that position, creating verifiable evidence of its place in history without exposing its contents. Anyone can check the proof offline, without a&nbsp;database.
           </p>
           <p className="home-ov-tag">No&nbsp;wallets, no&nbsp;tokens, no&nbsp;waiting.</p>
           {/* The two things to do from here: make one, or connect a system through the API and SDK. */}
