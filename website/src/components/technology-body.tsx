@@ -55,14 +55,36 @@ export function TechnologyBody() {
           <section className="home-section" aria-labelledby="t-for">
             <p className="home-kicker">Use cases</p>
             <h2 id="t-for">When order&nbsp;matters.</h2>
-            <div className="home-for">
+            <div className="home-for home-uses">
               <ul>
-                <li>Medical records</li>
-                <li>Clinical trials</li>
-                <li>AI agent activity</li>
-                <li>Financial transactions</li>
-                <li>Court evidence</li>
-                <li>Chain of custody</li>
+                <li>
+                  <span className="use-name">Medical records</span>
+                  <span className="use-tag">Backdated notes</span>
+                  <span className="use-fake">A warning is added to the chart after the reaction, and dated the day before.</span>
+                  <span className="use-with">With BitGraph</span>
+                  <span className="use-fix"><strong>A late note has a late place.</strong> Its position is fixed the moment it is recorded, to the count, whatever date is typed on it.</span>
+                </li>
+                <li>
+                  <span className="use-name">Clinical trials</span>
+                  <span className="use-tag">Rigged assignment</span>
+                  <span className="use-fake">Someone sees which treatment comes next, and picks the patient to match.</span>
+                  <span className="use-with">With BitGraph</span>
+                  <span className="use-fix"><strong>A draw nobody chose.</strong> The assignment comes from a number created the instant a patient is enrolled. It can&rsquo;t be known ahead, and every draw is counted.</span>
+                </li>
+                <li>
+                  <span className="use-name">AI agent activity</span>
+                  <span className="use-tag">Staged logs</span>
+                  <span className="use-fake">An agent acts first, then writes the log that explains it, in the order that reads best.</span>
+                  <span className="use-with">With BitGraph</span>
+                  <span className="use-fix"><strong>Order at machine speed.</strong> Each action takes its place the instant it is logged, thousands a minute, each linked to the one before.</span>
+                </li>
+                <li>
+                  <span className="use-name">Financial transactions</span>
+                  <span className="use-tag">Late trading</span>
+                  <span className="use-fake">An order comes in at 4:02 and is booked at 3:59.</span>
+                  <span className="use-with">With BitGraph</span>
+                  <span className="use-fix"><strong>Before or after the close, to the count.</strong> The close is one place in line. Every order stands on one side of it.</span>
+                </li>
               </ul>
             </div>
           </section>
