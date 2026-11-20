@@ -7,9 +7,9 @@ import { PUBLISHED_PCR0 } from "@/lib/enclave-measurements";
 import { codeLang } from "@/lib/code-lang";
 
 /**
- * The body of the home page under its hero, with its contents list. The first section says what BitGraph is for.
- * The rest is the mechanism, for a CTO or security architect, from the code: the second section is the short statement
- * of what a BitGraph is, and the mechanism and its figure come next. Sources:
+ * The body of the home page under its hero, with its contents list. The first section names its use cases.
+ * The rest is the mechanism, for a CTO or security architect, from the code: the second section is the short
+ * statement of what a BitGraph is, and the mechanism and its figure come next. Sources:
  * the v13 enclave (server/commit-service/src/enclave/app.ts, the enclave-v13 branch), the verifier (packages/verify:
  * attested.ts, verifier.ts, stretch.ts, nitro.ts, tree-member.ts), the host (parent/server.ts, rate-limit.ts) and the
  * build pins (server/commit-service/reproducible-build/PINS.md). A claim that is not in that code is not in this text.
@@ -25,6 +25,7 @@ function Code({ children }: { children: string }) {
 }
 
 const SECTIONS = [
+  ["t-for", "Use cases"],
   ["t-intro", "Technology"],
   ["t-mech", "The mechanism"],
   ["t-proves", "What it establishes"],
@@ -51,6 +52,21 @@ export function TechnologyBody() {
       </nav>
 
       <div className="tl-main">
+          <section className="home-section" aria-labelledby="t-for">
+            <p className="home-kicker">Use cases</p>
+            <h2 id="t-for">When order&nbsp;matters.</h2>
+            <div className="home-for">
+              <ul>
+                <li>Medical records</li>
+                <li>Clinical trials</li>
+                <li>AI agent activity</li>
+                <li>Financial transactions</li>
+                <li>Court evidence</li>
+                <li>Chain of custody</li>
+              </ul>
+            </div>
+          </section>
+
           <section className="home-section" aria-labelledby="t-intro">
             <p className="home-kicker">Technology</p>
             <h2 id="t-intro">One atomic action, inside measured&nbsp;hardware.</h2>

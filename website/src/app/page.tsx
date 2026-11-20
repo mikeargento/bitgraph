@@ -40,17 +40,6 @@ export default function HomePage() {
           <p className="home-ov-sub">
             BitGraph gives any record a proof that could not have existed before its position was created. The proof verifies offline, and needs no&nbsp;database.
           </p>
-          <div className="home-for">
-            <p className="home-for-label">Built for</p>
-            <ul>
-              <li>Medical records</li>
-              <li>Clinical trials</li>
-              <li>AI agent activity</li>
-              <li>Financial transactions</li>
-              <li>Court evidence</li>
-              <li>Chain of custody</li>
-            </ul>
-          </div>
           {/* The two things to do from here: make one, or connect a system through the API and SDK. */}
           <div className="home-ov-actions">
             <Link className="bg-action-link is-make" href="/demos">Make a BitGraph</Link>
