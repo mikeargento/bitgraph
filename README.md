@@ -4,8 +4,6 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
-**Prove order by ruling out the past.**
-
 BitGraph gives any record a unique position that could not have existed before. It binds the record's exact bits to that
 position, creating verifiable evidence of its place in history without exposing its contents. Anyone can check the proof
 offline, without a database.
