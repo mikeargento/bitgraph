@@ -40,7 +40,6 @@ export default function HomePage() {
           <p className="home-ov-sub">
             BitGraph gives any record a unique position that could not have existed before. It binds the record&rsquo;s exact bits to that position, creating verifiable evidence of its place in history without exposing its contents. Anyone can check the proof offline, without a&nbsp;database.
           </p>
-          <p className="home-ov-tag">No&nbsp;wallets, no&nbsp;tokens, no&nbsp;waiting.</p>
           {/* The two things to do from here: make one, or connect a system through the API and SDK. */}
           <div className="home-ov-actions">
             <Link className="bg-action-link is-make" href="/demos">Make a BitGraph</Link>
