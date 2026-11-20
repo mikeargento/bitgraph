@@ -6,7 +6,7 @@
 
 **Prove order by ruling out the past.**
 
-BitGraph gives any record a position that could not have existed before. It binds the record's exact bits to that
+BitGraph gives any record a unique position that could not have existed before. It binds the record's exact bits to that
 position, creating verifiable evidence of its place in history. Anyone can check the proof offline, without a database.
 
 Each proof is a place in line, so anyone can see which record came first. The file is never uploaded:
