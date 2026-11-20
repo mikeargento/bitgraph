@@ -4,7 +4,7 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
-**Trust is costly. Proof isn't.**
+**BitGraph proves order by ruling out the past.**
 
 BitGraph gives any digital record a proof that stands on its own. Anyone can confirm the record hasn't changed and
 where it stands in order, with no database to consult. Each proof is made inside a trusted execution environment
