@@ -30,15 +30,14 @@ export default function HomePage() {
     <>
       <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-ov">
         {/* The hero: the page's headline (two lines on wide screens, three on phones), two sentences on what
-            BitGraph makes, one bold line on what it does not need, and two buttons. */}
+            BitGraph makes, ending in one bold sentence on what it does not need, and two buttons. */}
         {/* On phones the hero's paragraph is narrowed until its lines are about the same length. */}
         <BalanceLines selector=".home-ov-hero .home-ov-sub" />
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
           <h1 id="home-h"><span className="home-h-m">Non-Fungible <br className="home-br-m" />Records <br className="home-br-d" />for the <br className="home-br-m" />artificial&nbsp;era.</span></h1>
           <p className="home-ov-sub">
-            BitGraph gives any digital record a unique position that could not have existed before. It binds the record&rsquo;s exact bits to that position, creating a proof anyone can verify offline, without a&nbsp;database.
+            BitGraph gives any digital record a unique position that could not have existed before. It binds the record&rsquo;s exact bits to that position, creating a proof anyone can verify offline, without a&nbsp;database. <strong>No wallets, no tokens, no blockchain required.</strong>
           </p>
-          <p className="home-ov-tag">No&nbsp;wallets, no&nbsp;tokens, <br className="home-tag-br" />no&nbsp;blockchain&nbsp;required.</p>
           {/* The two things to do from here: make one, or connect a system through the API and SDK. */}
           <div className="home-ov-actions">
             <Link className="bg-action-link is-make" href="/demos">Make a BitGraph</Link>

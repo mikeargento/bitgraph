@@ -54,11 +54,11 @@ export function TechnologyBody() {
       <div className="tl-main">
           <section className="home-section" aria-labelledby="t-for">
             <p className="home-kicker">Use cases</p>
-            <h2 id="t-for">AI can fake any file. It&nbsp;can&rsquo;t fake a&nbsp;BitGraph.</h2>
+            <h2 id="t-for">Automate records with&nbsp;confidence.</h2>
             <p>
-              A model can now write a month of notes, logs, or orders in minutes, consistent down to the last detail. Every record
-              can carry a valid signature. BitGraph gives each record a unique, verifiable position that cannot be created
-              retroactively.
+              Software now writes notes, logs, and orders faster than anyone can review them, and every one can carry a valid
+              signature. A signature doesn&rsquo;t show that a record wasn&rsquo;t written after the fact. BitGraph gives each record a
+              unique, verifiable position that cannot be created&nbsp;retroactively.
             </p>
             <div className="home-for">
               <ul>
