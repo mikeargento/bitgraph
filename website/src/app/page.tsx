@@ -16,7 +16,7 @@ import { TechnologyBody } from "@/components/technology-body";
 /* The tab and link-preview title is the name alone. */
 const TITLE = "BitGraph";
 const DESCRIPTION =
-  "BitGraph gives any record a unique position that could not have existed before. It binds the record's exact bits to that position, creating verifiable evidence of its place in history without exposing its contents. Anyone can check the proof offline, without a database.";
+  "BitGraph gives any digital record a unique position that could not have existed before. It binds the record's exact bits to that position, creating a proof anyone can verify offline, without a database.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -29,18 +29,16 @@ export default function HomePage() {
   return (
     <>
       <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-ov">
-        {/* The hero: the page's headline, one line on wide screens and two on phones (one span each), three sentences
-            on what BitGraph makes, the records it is built for, and two buttons. The last two words of the
-            paragraph are tied and the no-orphans pass adds the word before them, so the last line holds at least
-            three words. */}
+        {/* The hero: the page's headline (two lines on wide screens, three on phones), two sentences on what
+            BitGraph makes, one bold line on what it does not need, and two buttons. */}
         {/* On phones the hero's paragraph is narrowed until its lines are about the same length. */}
         <BalanceLines selector=".home-ov-hero .home-ov-sub" />
-        <section className="home-section home-ov-hero is-lead" aria-labelledby="home-h">
-          {/* The name is in the bar right above; the page's heading is kept for screen readers and search. */}
-          <h1 id="home-h" className="sr-only">BitGraph</h1>
+        <section className="home-section home-ov-hero" aria-labelledby="home-h">
+          <h1 id="home-h"><span className="home-h-m">Non-Fungible <br className="home-br-m" />Records <br className="home-br-d" />for the <br className="home-br-m" />artificial&nbsp;era.</span></h1>
           <p className="home-ov-sub">
-            BitGraph gives any record a unique position that could not have existed before. It binds the record&rsquo;s exact bits to that position, creating verifiable evidence of its place in history without exposing its contents. Anyone can check the proof offline, without a&nbsp;database.
+            BitGraph gives any digital record a unique position that could not have existed before. It binds the record&rsquo;s exact bits to that position, creating a proof anyone can verify offline, without a&nbsp;database.
           </p>
+          <p className="home-ov-tag">No&nbsp;wallets, no&nbsp;tokens, <br className="home-tag-br" />no&nbsp;blockchain&nbsp;required.</p>
           {/* The two things to do from here: make one, or connect a system through the API and SDK. */}
           <div className="home-ov-actions">
             <Link className="bg-action-link is-make" href="/demos">Make a BitGraph</Link>

@@ -4,9 +4,8 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
-BitGraph gives any record a unique position that could not have existed before. It binds the record's exact bits to that
-position, creating verifiable evidence of its place in history without exposing its contents. Anyone can check the proof
-offline, without a database.
+BitGraph gives any digital record a unique position that could not have existed before. It binds the record's exact
+bits to that position, creating a proof anyone can verify offline, without a database.
 
 Each proof is a place in line, so anyone can see which record came first. The file is never uploaded:
 only its SHA-256 is sent, and only that hash is ever public. Inside a measured AWS Nitro enclave, one atomic action
