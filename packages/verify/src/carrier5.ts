@@ -23,7 +23,7 @@
 import { sha256 } from "@noble/hashes/sha256";
 import { CARRIER_VERSION_5, CARRIER_VERSION_6, buildCarrier, type CarrierPayload, type CarrierBounds } from "./carrier.js";
 import { parseBlockReadFile } from "./block-read.js";
-import { computeChainHash } from "./proof-hash.js";
+import { chainLinkMatches } from "./proof-hash.js";
 import { verifyAttested } from "./attested.js";
 import { verifyCeiling, type CeilingSidecar } from "./ceiling.js";
 import { checkTreeFloor, treeMemberOf } from "./tree-member.js";
@@ -108,7 +108,7 @@ export async function verifyCarrierV5(payloadIn: CarrierPayload, inner: Uint8Arr
     const f = parseBlockReadFile(fl.blockFile);
     const sameEpoch = fp.commit?.epochId === proof.commit?.epochId && f?.epochId === proof.commit?.epochId;
     const next = !!fp.commit?.counter && !!proof.commit?.slotCounter && BigInt(fp.commit.counter) + 1n === BigInt(proof.commit.slotCounter);
-    const chained = proof.commit?.prevB64 === computeChainHash(fp);
+    const chained = chainLinkMatches(proof.commit?.prevB64, fp);
     const ok = fr.valid && f !== null && f.chain === "base" && f.chainId === "eip155:8453" && sameEpoch && next && chained;
     const why = !fr.valid ? `the floor's proof does not verify: ${fr.reason ?? "invalid"}` : f === null ? "the floor's block file is not a bitgraph-block-read/1 file" : f.chain !== "base" || f.chainId !== "eip155:8453" ? "the floor is not a Base mainnet block" : !sameEpoch ? "the floor is not of this file's epoch" : !next ? "the floor is not the record right before this file" : "this file's prevB64 is not the floor's hash";
     add("floor.read", "The floor is the Base block read bound right before this file", ok ? "TRUE" : "FALSE", "BitGraph's previous record, chained by prevB64", ok ? `BitGraph #${fp.commit.counter} bound Base block ${f!.number} (${f!.hash.slice(0, 12)}…), and this file's signed prevB64 is that record's hash: the bind came after the block existed` : why);

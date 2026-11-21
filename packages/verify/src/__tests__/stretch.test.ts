@@ -94,3 +94,28 @@ test("another epoch or key is refused", () => {
   (s[1]! as unknown as { commit: { epochId: string } }).commit.epochId = "other";
   assert.equal(verifyStretch(s).ok, false);
 });
+
+test("a copy that has gained unsigned metadata still links, and is still found between A and B", () => {
+  const s = run(2435, 4);
+  const withMeta = s.map((p) => ({ ...p, metadata: { "bitgraph-publication/1": { format: "bitgraph-publication/1" } } }) as unknown as BitGraphProof);
+  const r = verifyStretch(withMeta);
+  assert.equal(r.ok, true, r.reasons.join("; "));
+  // Mixed: the stretch has metadata, the record in hand does not, and the other way round.
+  assert.equal(verifyBetween(withMeta, s[1]!).ok, true);
+  assert.equal(verifyBetween(s, withMeta[2]!).ok, true);
+});
+
+test("metadata does not excuse a changed proof: the link still fails when anything else differs", () => {
+  const s = run(2435, 3);
+  const tampered = { ...s[1]!, metadata: { note: "x" }, artifact: { hashAlg: "sha256", digestB64: Buffer.alloc(32, 9).toString("base64") } } as unknown as BitGraphProof;
+  const r = verifyStretch([s[0]!, tampered, s[2]!]);
+  assert.equal(r.ok, false);
+  assert.ok(r.reasons.some((x) => /does not link/.test(x)));
+});
+
+test("a proof linked over its metadata still links", () => {
+  const a = { ...run(2435, 1)[0]!, metadata: { made: "with" } } as unknown as BitGraphProof;
+  const b = run(2437, 1)[0]!;
+  (b as unknown as { commit: { prevB64: string } }).commit.prevB64 = computeChainHash(a);
+  assert.equal(verifyStretch([a, b]).ok, true);
+});

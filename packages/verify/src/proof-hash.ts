@@ -162,6 +162,38 @@ export function computeChainHash(proof: BitGraphProof | Record<string, unknown>)
   return base64(sha256(bytes));
 }
 
+/**
+ * Does `prevB64` name `predecessor`? True when it is the predecessor's chain hash, taken with or without the
+ * predecessor's `metadata`.
+ *
+ * `metadata` is unsigned and is added to a copy of a proof after the enclave made it (a tree member's block, the hourly
+ * publication block), so the enclave's link was computed over the proof without it. A copy that has since gained
+ * metadata must still link. The hash with metadata is tried as well, because a proof made with metadata already in
+ * place is linked over the whole of it.
+ */
+export function chainLinkMatches(prevB64: string | undefined, predecessor: BitGraphProof | Record<string, unknown>): boolean {
+  if (prevB64 === undefined) return false;
+  if (prevB64 === computeChainHash(predecessor)) return true;
+  if (!Object.prototype.hasOwnProperty.call(predecessor, "metadata")) return false;
+  return prevB64 === computeChainHash(withoutMetadata(predecessor));
+}
+
+/** A shallow copy of a proof without its unsigned `metadata`. */
+function withoutMetadata(proof: BitGraphProof | Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(proof as Record<string, unknown>)) if (k !== "metadata") out[k] = v;
+  return out;
+}
+
+/**
+ * The chain hash of a proof with its unsigned `metadata` left out: the same value for every copy of one proof,
+ * whatever metadata a copy has gained. For telling whether two copies are the same record, not for checking a link
+ * (use chainLinkMatches for that).
+ */
+export function computeChainHashWithoutMetadata(proof: BitGraphProof | Record<string, unknown>): string {
+  return computeChainHash(withoutMetadata(proof));
+}
+
 // Base64-standard encode (works in both Node.js and browser).
 function base64(hash: Uint8Array): string {
   if (typeof Buffer !== "undefined") {

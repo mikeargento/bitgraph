@@ -18,7 +18,7 @@
  * and measurement are verify()'s job; run it on every proof as well.
  */
 
-import { computeChainHash } from "./proof-hash.js";
+import { chainLinkMatches, computeChainHashWithoutMetadata } from "./proof-hash.js";
 import type { BitGraphProof } from "./types.js";
 
 export interface StretchResult {
@@ -75,7 +75,7 @@ export function verifyStretch(proofs: readonly BitGraphProof[]): StretchResult {
     } catch {
       reasons.push(`proof ${i - 1} has a counter that does not parse`);
     }
-    if (p.commit.prevB64 !== computeChainHash(prev)) {
+    if (!chainLinkMatches(p.commit.prevB64, prev)) {
       reasons.push(`${at} does not link to the proof before it (prevB64)`);
     }
   }
@@ -99,8 +99,8 @@ export function verifyStretch(proofs: readonly BitGraphProof[]): StretchResult {
 export function verifyBetween(stretch: readonly BitGraphProof[], record: BitGraphProof): StretchResult {
   const s = verifyStretch(stretch);
   if (!s.ok) return s;
-  const target = computeChainHash(record);
-  const idx = stretch.findIndex((p) => computeChainHash(p) === target);
+  const target = computeChainHashWithoutMetadata(record);
+  const idx = stretch.findIndex((p) => computeChainHashWithoutMetadata(p) === target);
   if (idx <= 0 || idx >= stretch.length - 1) {
     return { ...s, ok: false, reasons: ["the record is not strictly between A and B in this stretch"] };
   }

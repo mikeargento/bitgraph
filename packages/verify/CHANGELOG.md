@@ -2,6 +2,10 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.29.2 (2026-11-21)
+
+- **A proof that has gained metadata still links.** `verifyStretch`, `verifyBetween` and the carrier's floor check compared `commit.prevB64` with the chain hash of the previous proof exactly as held. A copy carrying unsigned `metadata` added after the enclave made it (a tree member's block, the hourly publication block) has a different hash, so a valid run was reported as broken. The link is now checked with `chainLinkMatches`, which accepts the previous proof's chain hash taken with or without its `metadata`; nothing else about the proof may differ. `verifyBetween` finds the record by `computeChainHashWithoutMetadata`, so a copy with metadata and a copy without are the same record. `computeChainHash` itself is unchanged.
+
 ## 1.29.1 (2026-11-09)
 
 - README rewritten to describe verification as it runs now. No code change.
