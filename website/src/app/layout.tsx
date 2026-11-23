@@ -100,7 +100,7 @@ export const viewport: Viewport = { themeColor: "#ffffff" };
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */
 const SITE_DESCRIPTION =
-  "BitGraph instantly gives any digital file a one-of-a-kind record. No NFTs, no wallets, and no blockchain required.";
+  "BitGraph instantly gives any digital file a one-of-a-kind record. No NFTs, wallets, or blockchain required.";
 
 export const metadata: Metadata = {
   title: {
