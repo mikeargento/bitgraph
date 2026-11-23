@@ -16,7 +16,7 @@ import { TechnologyBody } from "@/components/technology-body";
 /* The tab and link-preview title is the name alone. */
 const TITLE = "BitGraph";
 const DESCRIPTION =
-  "BitGraph gives any digital record a unique position that could not have existed before. It binds the record's exact bits to that position, creating a proof anyone can verify offline, without a database.";
+  "BitGraph gives any digital file a one-of-a-kind record. No wallets, no tokens, and no blockchain required.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -29,14 +29,14 @@ export default function HomePage() {
   return (
     <>
       <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-ov">
-        {/* The hero: the page's headline (two lines on wide screens, three on phones), two sentences on what
-            BitGraph makes, ending in one bold sentence on what it does not need, and two buttons. */}
+        {/* The hero: the page's headline (two lines on wide screens, three on phones), one sentence on what
+            BitGraph gives a file and, on a line of its own, one on what it does not need; then two buttons. */}
         {/* On phones the hero's paragraph is narrowed until its lines are about the same length. */}
         <BalanceLines selector=".home-ov-hero .home-ov-sub" />
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
           <h1 id="home-h"><span className="home-h-m">Non-Fungible <br className="home-br-m" />Records <br className="home-br-d" />for the <br className="home-br-m" />artificial&nbsp;era.</span></h1>
           <p className="home-ov-sub">
-            BitGraph gives any digital record a unique position that could not have existed before. It binds the record&rsquo;s exact bits to that position, creating a proof anyone can verify offline, without a&nbsp;database. <strong>No wallets, no tokens, no blockchain required.</strong>
+            BitGraph gives any digital file a one-of-a-kind&nbsp;record.<br />No&nbsp;wallets, no&nbsp;tokens, and no&nbsp;blockchain&nbsp;required.
           </p>
           {/* The two things to do from here: make one, or see ones already made. Developers is in the bar. */}
           <div className="home-ov-actions">

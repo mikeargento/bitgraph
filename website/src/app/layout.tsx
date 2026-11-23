@@ -100,7 +100,7 @@ export const viewport: Viewport = { themeColor: "#ffffff" };
 /* The site's one-line description: what BitGraph is to the people who use it, on every page without a line of its own
    and in link previews. */
 const SITE_DESCRIPTION =
-  "BitGraph gives any digital record a unique position that could not have existed before. It binds the record's exact bits to that position, creating a proof anyone can verify offline, without a database.";
+  "BitGraph gives any digital file a one-of-a-kind record. No wallets, no tokens, and no blockchain required.";
 
 export const metadata: Metadata = {
   title: {
