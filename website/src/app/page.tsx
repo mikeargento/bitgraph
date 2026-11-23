@@ -38,10 +38,10 @@ export default function HomePage() {
           <p className="home-ov-sub">
             BitGraph gives any digital record a unique position that could not have existed before. It binds the record&rsquo;s exact bits to that position, creating a proof anyone can verify offline, without a&nbsp;database. <strong>No wallets, no tokens, no blockchain required.</strong>
           </p>
-          {/* The two things to do from here: make one, or connect a system through the API and SDK. */}
+          {/* The two things to do from here: make one, or see ones already made. Developers is in the bar. */}
           <div className="home-ov-actions">
             <Link className="bg-action-link is-make" href="/demos">Make a BitGraph</Link>
-            <Link className="bg-action-link is-plain" href="/integrate">Connect your system</Link>
+            <Link className="bg-action-link is-plain" href="/pictures">See the demos</Link>
           </div>
         </section>
       </div>
