@@ -41,7 +41,7 @@ export default function HomePage() {
           {/* The two things to do from here: make one, or see ones already made. Developers is in the bar. */}
           <div className="home-ov-actions">
             <Link className="bg-action-link is-make" href="/demos">Make a BitGraph</Link>
-            <Link className="bg-action-link is-plain" href="/pictures">See the demos</Link>
+            <Link className="bg-action-link is-plain" href="/examples">See the demos</Link>
           </div>
         </section>
       </div>
