@@ -15,7 +15,7 @@ const DEMOS: Card[] = [
   { href: "/jev", title: "Ask AI", body: "Two questions made from A’s nonce, answered by an AI, and bound as B.", live: true },
   { href: "/generate", title: "Generate image", body: "A picture drawn by code from A’s nonce and bound as B.", live: true },
   { href: "/exam", title: "Sealed exam", body: "Twenty benchmark questions made from A’s nonce, a model’s answers bound as B, checked offline.", live: false },
-  { href: "/pictures", title: "Copies", body: "One photograph saved three times. Three files that look alike, each with its own BitGraph.", live: false },
+  { href: "/pictures", title: "Copies", body: "Three files, three places in line: a photograph saved three times, a picture with its video and copy, a record in three versions.", live: false },
 ];
 const HOME = [
   { href: "/demos", title: "Drop a file", body: "Drop any file. Its hash is bound at the next place in line, and the file stays with you." },

@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
-import { CopiesTiles, HarborRow } from "@/components/demo-row";
+import { CopiesTiles, HarborRow, RecordTiles } from "@/components/demo-row";
 
 /**
- * The fourth demo: one photograph saved three times (components/demo-row.tsx), in the order the files were recorded,
- * and under it a second example where the three files differ: a picture, a video made from it and a copy of it.
+ * The fourth demo, three examples of three files in the order they were recorded (components/demo-row.tsx): one
+ * photograph saved three times; a picture, a video made from it and a copy of it; and one patient record in three
+ * versions.
  */
 export const metadata: Metadata = {
   title: "Copies",
-  description: "One photograph saved three times: three files that look alike, each with its own BitGraph.",
+  description: "Three files in three places in line: a photograph saved three times, a picture with its video and copy, and a patient record in three versions.",
 };
 
 export default function PicturesPage() {
@@ -35,6 +36,17 @@ export default function PicturesPage() {
           names come from the Content Credentials inside each file, not from the proofs.
         </p>
         <CopiesTiles />
+      </section>
+      <section className="home-section" aria-labelledby="records-h">
+        <h2 id="records-h" className="copies-h"><span className="copies-h-a">One record, three versions.</span>{" "}<span className="copies-h-b">Three places in line.</span></h2>
+        {/* The same claim as above: the order the versions were recorded in. The dates are typed in the records; the
+            patient is invented. */}
+        <p className="copies-note">
+          A patient&rsquo;s record saved three times as it changed: a first visit, an allergy added, a dose changed. Each
+          version got its own BitGraph, one right after another. The proofs show the order the three were recorded in.
+          The dates come from the records themselves, not from the proofs, and the patient is invented for this page.
+        </p>
+        <RecordTiles />
       </section>
     </div>
   );
