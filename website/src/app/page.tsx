@@ -16,7 +16,7 @@ import { TechnologyBody } from "@/components/technology-body";
 /* The tab and link-preview title is the name alone. */
 const TITLE = "BitGraph";
 const DESCRIPTION =
-  "BitGraph instantly gives any digital file a one-of-a-kind record. No NFTs, wallets, or blockchain required.";
+  "BitGraph instantly makes any digital file a one-of-a-kind record. No NFTs, wallets, or blockchain required.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -30,13 +30,13 @@ export default function HomePage() {
     <>
       <div className="frame home home-typing prose home-scroll docs-page tools-page sx-page home-ov">
         {/* The hero: the page's headline (two lines on wide screens, three on phones), one sentence on what
-            BitGraph gives a file and, on a line of its own, one on what it does not need; then two buttons. */}
+            BitGraph makes of a file and, on a line of its own, one on what it does not need; then two buttons. */}
         {/* On phones the hero's paragraph is narrowed until its lines are about the same length. */}
         <BalanceLines selector=".home-ov-hero .home-ov-sub" />
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
           <h1 id="home-h"><span className="home-h-m">Non-Fungible <br className="home-br-m" />Records <br className="home-br-d" />for the <br className="home-br-m" />artificial&nbsp;era.</span></h1>
           <p className="home-ov-sub">
-            BitGraph instantly gives any digital&nbsp;file&nbsp;a&nbsp;one-of-a-kind&nbsp;record.<br />No&nbsp;NFTs, wallets, or blockchain&nbsp;required.
+            BitGraph instantly makes any digital&nbsp;file&nbsp;a&nbsp;<span style={{ whiteSpace: "nowrap" }}>one-of-a-kind</span>&nbsp;record.<br />No&nbsp;NFTs, wallets, or blockchain&nbsp;required.
           </p>
           {/* The two things to do from here: make one, or see ones already made. Developers is in the bar. */}
           <div className="home-ov-actions">

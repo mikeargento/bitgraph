@@ -58,7 +58,7 @@ export function TechnologyBody() {
             <p>
               Software now writes notes, logs, and orders faster than anyone can review them, and every one can carry a valid
               signature. A signature doesn&rsquo;t show that a record wasn&rsquo;t written after the fact. BitGraph gives each record a
-              unique, verifiable position that cannot be created&nbsp;retroactively.
+              unique, verifiable position that no one can&nbsp;backdate.
             </p>
             <div className="home-for">
               <ul>
