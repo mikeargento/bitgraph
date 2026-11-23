@@ -16,7 +16,7 @@ import { TechnologyBody } from "@/components/technology-body";
 /* The tab and link-preview title is the name alone. */
 const TITLE = "BitGraph";
 const DESCRIPTION =
-  "BitGraph instantly gives any digital file a one-of-a-kind record. No wallets, no tokens, and no blockchain required.";
+  "BitGraph instantly gives any digital file a one-of-a-kind record. No NFTs, no wallets, and no blockchain required.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -36,7 +36,7 @@ export default function HomePage() {
         <section className="home-section home-ov-hero" aria-labelledby="home-h">
           <h1 id="home-h"><span className="home-h-m">Non-Fungible <br className="home-br-m" />Records <br className="home-br-d" />for the <br className="home-br-m" />artificial&nbsp;era.</span></h1>
           <p className="home-ov-sub">
-            BitGraph instantly gives any digital file a one-of-a-kind&nbsp;record.<br />No&nbsp;wallets, no&nbsp;tokens, and no&nbsp;blockchain&nbsp;required.
+            BitGraph instantly gives any digital file a one-of-a-kind&nbsp;record.<br />No&nbsp;NFTs, no&nbsp;wallets, and no&nbsp;blockchain&nbsp;required.
           </p>
           {/* The two things to do from here: make one, or see ones already made. Developers is in the bar. */}
           <div className="home-ov-actions">
