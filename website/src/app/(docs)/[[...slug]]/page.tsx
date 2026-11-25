@@ -22,7 +22,12 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
   return (
     <DocsPage toc={page.data.toc} full={page.data.full} tableOfContent={{ enabled: false }} tableOfContentPopover={{ enabled: false }}>
       {!slug?.length && <OldAnchors />}
-      <DocsTitle>{page.data.title}</DocsTitle>
+      {/* Home's headline breaks before "for the artificial era." on phones; one line from the md width up. */}
+      <DocsTitle>
+        {!slug?.length && page.data.title.includes(" for ")
+          ? <>{page.data.title.split(" for ")[0]} <br className="md:hidden" />for {page.data.title.split(" for ").slice(1).join(" for ")}</>
+          : page.data.title}
+      </DocsTitle>
       <DocsDescription className="whitespace-pre-line">{page.data.description}</DocsDescription>
       <DocsBody>
         <MDX components={getMDXComponents()} />
