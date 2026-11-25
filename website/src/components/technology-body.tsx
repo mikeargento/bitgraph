@@ -100,10 +100,10 @@ export function TechnologyBody() {
             <ol className="tl-steps">
               <li><strong>Gate.</strong> The enclave refuses to bind until the host has initialized it, and accepts only a canonical 32-byte&nbsp;SHA-256.</li>
               <li><strong>Nonce.</strong> 32 bytes are drawn from the Nitro Secure Module&rsquo;s hardware RNG, after the digest arrives and inside the enclave. Nobody, the host included, sees it before the proof is released.</li>
-              <li><strong>Count N: the slot.</strong> A slot record (nonce, count N, epoch, key) is signed with the enclave&rsquo;s Ed25519 key and hashed.</li>
-              <li><strong>Count N+1: the content.</strong> The commit names the digest, count N+1, the slot&rsquo;s count and hash, the epoch, and the hash of the previous proof.</li>
+              <li><strong>Count N: the position record.</strong> A position record (nonce, count N, epoch, key, and no digest) is signed with the enclave&rsquo;s Ed25519 key and hashed.</li>
+              <li><strong>Count N+1: the content.</strong> The commit names the digest, count N+1, the position record&rsquo;s count and hash, the epoch, and the hash of the previous proof.</li>
               <li><strong>Attest, then sign.</strong> The hardware is asked for an attestation whose user data is the SHA-256 of the canonical signed body; the body is then signed.</li>
-              <li><strong>Advance.</strong> Only now does the counter move to N+1 and the chain hash update. The proof is released.</li>
+              <li><strong>Advance.</strong> Only now does the counter move, by exactly two, and the chain hash update. The proof is released.</li>
             </ol>
             <p>
               Why the nonce: it is what makes the position its own. Because it is drawn after the digest arrives, a position cannot be
@@ -298,9 +298,9 @@ export function TechnologyBody() {
           <p className="home-kicker">Without disclosure</p>
           <h2 id="t-redact">Prove a record exists without showing what it bound.</h2>
           <p>
-            Each proof holds two signed records: the slot at count N, with the nonce, epoch and key and no field from the content; and the
-            binding at count N+1, which names the digest. The slot record is signed on its own. So a holder can withhold the binding and
-            the content entirely and still show the slot: an auditor checks its signature under the same key as an attested proof from
+            Each proof holds two signed records: the position record at count N, with the nonce, epoch and key and no field from the content; and the
+            binding at count N+1, which names the digest. The position record is signed on its own. So a holder can withhold the binding and
+            the content entirely and still show the position record: an auditor checks its signature under the same key as an attested proof from
             that epoch, and learns that the measured enclave established that position, without learning what was bound there.
           </p>
           <p className="sx-fine">
@@ -340,7 +340,7 @@ export function TechnologyBody() {
             <li>The PCR0 is a published image the verifier accepts.</li>
             <li>For a collection member, the data&rsquo;s hash walks up its path to the bound root.</li>
             <li>The data&rsquo;s SHA-256 matches the digest; the Ed25519 signature over the canonical body checks.</li>
-            <li>The slot record checks: its own signature, the same nonce, key and epoch, and content at exactly the slot&rsquo;s count plus one.</li>
+            <li>The position record checks: its own signature, the same nonce, key and epoch, and content at exactly its count plus one.</li>
           </ol>
           <p className="sx-fine">
             A key anyone can generate can sign a body that passes a signature check alone. It fails the attested check, because no AWS
