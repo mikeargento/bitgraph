@@ -10,7 +10,7 @@ First a number nobody could predict, then your record, bound right after it in a
 1.  **Gate.** The enclave refuses to bind until the host has initialized it, and accepts only a canonical 32-byte SHA-256.
 2.  **Nonce.** 32 bytes are drawn from the Nitro Secure Module’s hardware RNG, after the digest arrives and inside the enclave. Nobody, the host included, sees it before the proof is released.
 3.  **Count N: the position record.** A position record (nonce, count N, epoch, key, and no digest) is signed with the enclave’s Ed25519 key and hashed.
-4.  **Count N+1: the content.** The commit names the digest, count N+1, the position record’s count and hash, the epoch, and the hash of the previous proof.
+4.  **Count N+1: the content.** The commit names the digest, the same nonce, count N+1, the position record’s count and hash, the epoch, and the hash of the previous proof.
 5.  **Attest, then sign.** The hardware is asked for an attestation whose user data is the SHA-256 of the canonical signed body; the body is then signed.
 6.  **Advance.** Only now does the counter move, by exactly two, and the chain hash update. The proof is released.
 
