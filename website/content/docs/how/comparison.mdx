@@ -1,0 +1,45 @@
+---
+title: "How it\u2019s different"
+description: "A place in line, not a stamp."
+---
+
+The usual ways of showing that a record has not been changed add something to it after it exists: a signature, a timestamp, a log entry, a block. BitGraph makes the place in line first. A fresh value nobody could predict takes a count, and your file’s hash is bound at the very next count, in one step, inside measured hardware.
+
+-   **A place of its own.** Each proof has one. It is never a second or a block shared with other records.
+-   **A place in line nobody can reserve.** It starts from a value drawn the moment it is taken, so it cannot be held back and filled in afterward, or used twice.
+-   **A proof that checks on its own.** It is one file, checked offline, with no server, no account and without BitGraph.
+-   **A file that stays with you.** Only its hash is sent.
+-   **No chain to wait on, and none to pay per record.** BitGraph makes one write an hour that covers every record made in that hour, for a fraction of a cent.
+
+### Compared with the alternatives.
+
+| The alternative | What it gives you | Where it leaves you short | With BitGraph |
+| --- | --- | --- | --- |
+| A public blockchain | A hash recorded in a block that no single party can rewrite. | You wait minutes to hours for a block. Records are ordered only to the block. Each write costs a fee, from cents to dollars depending on the chain and the day, and needs a wallet. Checking a proof means reading the chain. | **Instant, with no fee per record.** Each record gets its own place in line, with no wallet or token. One write an hour covers every record made in that hour. |
+| A timestamp service | An instant signed statement that a hash existed at a stated time. | It gives a time, not an order: it does not put two records in sequence. You trust the service’s key and its clock. | **A place in line, not a time.** Records are put in order, and each proof names the published code that made it. |
+| A hash calendar | Fast signatures on hashes, in rounds of one second, checked against a published code. | Everything signed in the same second shares that second. | **One place in line for each proof.** Each comes one after another, in order. |
+| A transparency log | Numbered entries in a log that outside parties watch, so a rewrite gets caught. | Entries are added after the fact, and a full check means consulting the log or the parties watching it. | **One file that checks on its own.** Each place starts from a value nobody could predict. |
+| A cloud ledger database | Ordered records that show tampering, some kept in secure hardware, with a receipt for each write. | What you write lives in the vendor’s ledger, inside that cloud. | **Your file never leaves your device.** Only its hash is sent, and the proof is a file you keep. |
+| Locked storage | Records that cannot be changed after they are written. | It is the provider’s promise. There is no proof to hand to someone outside. | **A proof anyone can check.** It works alongside your storage and does not replace it. |
+
+### What BitGraph does not do.
+
+-   **It does not remove the operator.** A blockchain has no single one. BitGraph rests on measured hardware from one provider, AWS, and publishes its line to a blockchain every hour as an outside record.
+-   **It is not the best tool for catching an operator who shows two histories.** A transparency log is, and a BitGraph proof can be published in one.
+-   **It does not say who made a file, whether it is true, or how old it is.** A proof says where the file stands in line.
+
+### In technical terms: how each fits.
+
+The same comparison for a technical reader: what each system establishes, what you trust in it, and how BitGraph fits with it. They provide different kinds of evidence and can be used together.
+
+| System | What it establishes | What you trust | How BitGraph fits |
+| --- | --- | --- | --- |
+| [Digital signature](https://csrc.nist.gov/pubs/fips/186-5/final) | These bytes were signed with a particular private key. | The key’s security and any claimed link between that key and an identity. | BitGraph adds a counted position enforced by measured enclave code, with hardware attestation bound to each proof. |
+| [Timestamp authority (RFC 3161)](https://www.rfc-editor.org/rfc/rfc3161.html) | A TSA issued a signed token associating a digest with a stated time. | The TSA’s signing key, time source and operating practices. | BitGraph provides counted, chained records and carries Nitro’s signed attestation time. A TSA token can be bound as additional time evidence. |
+| [Transparency log (CT, Sigstore’s Rekor, SCITT)](https://docs.sigstore.dev/logging/overview/) | An entry is included in a signed log state. Consistency proofs allow checks of append-only growth. | The log’s signing key, consistency checks, and the monitors or witnesses used to detect conflicting views. | BitGraph enforces each binding inside an attested enclave. Its proofs can also be published in a transparency log. |
+| [Confidential ledger (Azure Confidential Ledger)](https://learn.microsoft.com/en-us/azure/confidential-ledger/overview) | An entry was committed to a ledger the customer creates, replicated across enclave nodes. A receipt signed by a node shows the entry is included. | The ledger’s service identity certificate, the nodes’ enclave code and Intel SGX attestation, which is fetched and checked apart from the receipt. | BitGraph keeps no entries: only a digest is sent, and order is one shared line, not a ledger per customer. Each proof carries its own hardware attestation, and the line is published on Base once an hour. |
+| [Blockchain anchoring](https://opentimestamps.org/) | A digest, directly or through a batch commitment, is linked to a commitment included in a particular block. | The chain’s consensus, finality and rules for interpreting block time. | BitGraph does this itself, once an hour, for the whole line. What BitGraph adds is the position: a counted place in line, bound with a fresh hardware nonce, made without reading a chain or waiting on one. |
+| [Content Credentials (C2PA)](https://spec.c2pa.org/specifications/specifications/2.5/specs/C2PA_Specification.html) | A signer signed assertions cryptographically bound to an asset. | The signer, certificate trust chain and any timestamp authority used. | BitGraph can bind the asset and its manifest to a counted position, adding independently verifiable recording evidence. |
+| [Remote attestation](https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html) | A platform signed evidence identifying measured software and associated attested data. | The platform’s security and the hardware vendor’s attestation root. | BitGraph uses attestation for a specific recording protocol: atomic binding, fresh nonces, consecutive counts and linked proofs. |
+
+All comparisons assume sound cryptography and correct verification. BitGraph’s own trust assumptions include AWS Nitro, the accepted enclave build and the cryptography used in its proofs.

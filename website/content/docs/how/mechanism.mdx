@@ -1,0 +1,23 @@
+---
+title: "The mechanism"
+description: "A place, not a label."
+---
+
+First a number nobody could predict, then your record, bound right after it in a single atomic action. That order is the difference: a label goes on something already made, but with BitGraph, the place exists before anything is put there.
+
+<MechanismFigure />
+
+1.  **Gate.** The enclave refuses to bind until the host has initialized it, and accepts only a canonical 32-byte SHA-256.
+2.  **Nonce.** 32 bytes are drawn from the Nitro Secure Module’s hardware RNG, after the digest arrives and inside the enclave. Nobody, the host included, sees it before the proof is released.
+3.  **Count N: the position record.** A position record (nonce, count N, epoch, key, and no digest) is signed with the enclave’s Ed25519 key and hashed.
+4.  **Count N+1: the content.** The commit names the digest, count N+1, the position record’s count and hash, the epoch, and the hash of the previous proof.
+5.  **Attest, then sign.** The hardware is asked for an attestation whose user data is the SHA-256 of the canonical signed body; the body is then signed.
+6.  **Advance.** Only now does the counter move, by exactly two, and the chain hash update. The proof is released.
+
+Why the nonce: it is what makes the position its own. Because it is drawn after the digest arrives, a position cannot be reserved in advance and filled later, and every proof carries a value no one could have known before it existed. Work made from one BitGraph’s published nonce could not have existed before that BitGraph, which is how two BitGraphs bracket work between them.
+
+## Atomic by construction
+
+Every step that can fail (the random draw, the signature, the attestation) comes before the counter moves. If any fails, nothing is released, the counter stays where it was, and the drawn nonce is discarded without ever leaving the enclave. Requests are serialized inside the enclave, so two binds cannot interleave.
+
+Tested on the unmodified enclave code with injected faults in the RNG, the signer and the attestation: `server/commit-service/src/enclave/__tests__/bind-failure.test.ts`.

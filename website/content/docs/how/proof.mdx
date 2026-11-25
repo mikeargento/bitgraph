@@ -1,0 +1,78 @@
+---
+title: "The proof and checking it"
+description: "Small, self-contained JSON, checked offline with an open verifier."
+---
+
+```
+{
+    "version": "bitgraph/1",
+    "artifact":  { "hashAlg": "sha256", "digestB64": "…" },
+    "commit": {
+      "nonceB64": "…", "counter": "16", "slotCounter": "15", "slotHashB64": "…",
+      "epochId": "…", "atomic": true, "prevB64": "…", "chainId": "bitgraph:main"
+    },
+    "signer":      { "publicKeyB64": "…", "signatureB64": "…" },
+    "environment": { "enforcement": "measured-tee", "measurement": "<PCR0>",
+                     "attestation": { "format": "aws-nitro", "reportB64": "…" } },
+    "slotAllocation": { "version": "bitgraph/slot/1", "nonceB64": "…", "counter": "15", … }
+    }
+```
+
+The signature covers a canonical serialization of the body. A collection member also carries its inclusion path, as unsigned metadata that is checked, not trusted. [See a real proof](/proof/7roNTix7clHFjNuPKoI2pEOfXcCN5seMP2JgCgTWhrg?counter=58&epoch=2EnGlBWWcEPyBfn1N2oMZgtGgxh3nQ3MD69rqDIX0Xw), or [verify it](/integrate/evaluate).
+
+## Every field
+
+| Field | What it is |
+|---|---|
+| `artifact` | `hashAlg` (`sha256`) and `digestB64`, the content’s SHA-256. |
+| `commit.nonceB64` | The nonce, revealed now that the content is bound. |
+| `commit.slotCounter` | The nonce’s count (N). |
+| `commit.counter` | The content’s count (N+1), a decimal string. |
+| `commit.slotHashB64` | The SHA-256 of the nonce’s signed position record, carried in `slotAllocation`. |
+| `commit.prevB64` | The previous BitGraph: the hash of the BitGraph before this one. Every BitGraph names the one before it inside its signed body, so the sequence is a chain that only the enclave can extend, and nothing can be inserted or removed without breaking it. |
+| `commit.epochId` | The epoch: the base64 SHA-256 of its public key and boot nonce. |
+| `commit.chainId` | `bitgraph:main`. |
+| `commit.atomic` | `true`: the nonce and the content were bound in one action. |
+| `signer` | The enclave’s Ed25519 `publicKeyB64` and `signatureB64`. |
+| `environment` | `enforcement` (`measured-tee`), `measurement` (PCR0) and the Nitro `attestation` document. |
+| `proofHash` | The SHA-256 of the signed body, added after signing; it is the attestation’s `user_data`. |
+
+The signature covers the canonical form of the body: object keys sorted by Unicode code point, serialized with no whitespace, encoded as UTF-8. The nonce’s record and the content’s commit are bound four ways: the same nonce, the same key, the record’s hash in the commit, and the nonce’s count below the content’s.
+
+## Checking it
+
+The verifier is MIT-licensed. It needs the data, the proof, and nothing of BitGraph’s running:
+
+```
+npx @mikeargento/bitgraph-sdk verify <file> --proof <file>.bitgraph.json --pcr0 adaad0bef62292d35197ae8db19e40685229f1a1e6070a7c77a148c4ada88ee66a1ca50819eebc2017c6716a49f2692f
+```
+
+1.  The attestation verifies: AWS signature, certificate chain to the pinned Nitro root, PCR0 equal to the proof’s measurement, user data equal to the hash of the proof’s signed body.
+2.  The PCR0 is a published image the verifier accepts.
+3.  For a collection member, the data’s hash walks up its path to the bound root.
+4.  The data’s SHA-256 matches the digest; the Ed25519 signature over the canonical body checks.
+5.  The position record checks: its own signature, the same nonce, key and epoch, and content at exactly its count plus one.
+
+A key anyone can generate can sign a body that passes a signature check alone. It fails the attested check, because no AWS document covers it. The verifier’s own test does exactly this: `packages/verify/src/__tests__/attested.test.ts`.
+
+## Pins
+
+The AWS Nitro root certificate’s SHA-256:
+
+```
+641a0321a3e244efe456463195d606317ed7cdcc3c1756e09893f3c68f79bb5b
+```
+
+The enclave’s published measurement (PCR0):
+
+```
+adaad0bef62292d35197ae8db19e40685229f1a1e6070a7c77a148c4ada88ee66a1ca50819eebc2017c6716a49f2692f
+```
+
+Rebuild the enclave image yourself and compare. Any linux/amd64 machine with Docker and git; no Nitro hardware needed. The image file differs between builds (its header holds the build time); PCR0 does not.
+
+```
+git clone https://github.com/mikeargento/bitgraph.git
+cd bitgraph
+./server/commit-service/reproducible-build/build-eif.sh enclave-v13
+```

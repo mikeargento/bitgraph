@@ -1,0 +1,51 @@
+---
+title: "Time and publication"
+description: "Order from the enclave. Time, and the rest, bound on top."
+---
+
+A BitGraph establishes a position in an enclave’s sequence. A trust layer is anything that says more about that position: when it happened, who stood behind it, that the public saw it. The rule for every layer is the same. It must be cryptographically bound to the position, in one direction or both: the layer’s own record bound inside the BitGraph (so the BitGraph came after it), or the BitGraph’s hash carried inside the layer (so the BitGraph existed by it). A layer placed beside a BitGraph, with neither bond, says nothing about it.
+
+The enclave adds no clock of its own. The time in a proof is the attestation’s timestamp, set and signed by the AWS Nitro Secure Module: the first layer, from the hardware itself. A timestamp authority, a certificate, a transparency log or a Content Credential can be bound the same way, by whoever already issues it.
+
+Inside an epoch the order needs nothing outside the enclave. Each BitGraph comes after the one before it, by construction, and the time in each proof is the hardware’s. An epoch is one run, from its first BitGraph to its last:
+
+-   **When an epoch opens.** The enclave starts with a new key and a counter at zero, and signs the new epoch’s id into every proof it makes.
+-   **Every file in between.** Each file is one atomic step on the next two counts: a fresh nonce at count N, the file’s SHA-256 at count N+1, attested by AWS Nitro with AWS’s signed time and linked to the proof before it. Nothing leaves the enclave but the proof.
+-   **When an epoch closes.** At the end of the UTC day the enclave makes a closing BitGraph in its own line, binding a short note naming the epoch. Nothing is bound after it, and its proof names the hash of the one before, so the whole sequence ends there.
+
+One public layer is built in: every hour the line is published on Base and that publication is bound back into the line, as the next section describes. Anyone who wants another outside anchor can add their own: an RFC 3161 timestamp authority, a transparency log, or another chain.
+
+### Your file stays with you.
+
+Only the file’s 32-byte SHA-256 reaches the enclave, and only the proof leaves it.
+
+### Time from the hardware.
+
+The time on a proof is the attestation’s timestamp, signed by AWS for that exact proof.
+
+### Independently verifiable.
+
+Check the hardware attestation, signatures and counted sequence offline, with no service and no network.
+
+## Hourly publication
+
+The enclave gives every BitGraph its place in line. Once an hour, BitGraph publishes that line on Base, a public blockchain that settles on Ethereum, so its order is also held on a record BitGraph does not run and cannot edit. The write goes out on the hour (UTC) whether or not anything was made, so a skipped hour shows.
+
+1.  **Fingerprint.** The BitGraphs made since the last write are hashed into one tree (RFC 6962, SHA-256), each leaf the hash of a whole proof. The tree’s root stands for all of them, in order.
+2.  **Write.** One small transaction on Base carries the root, the epoch, the first and last counts it covers, how many BitGraphs that is, and the hash of the write before it. An epoch’s first write also names the epoch’s public key.
+3.  **Confirm.** The write is kept once ten more blocks have been built on top of it and its block is still part of the chain.
+4.  **Bind back.** BitGraph then makes one ordinary BitGraph of a short note naming that transaction and its block. On the [Calendar](/ledger) that row reads “Published on Base”. Every BitGraph after it was made after that block.
+
+### What it gives
+
+-   **Two public marks around every BitGraph.** It was made after the Base block named by the last publication before it, and it existed by the block of the write that covers it. The two are about an hour apart. An epoch’s first BitGraphs, made before its first publication is bound, have the second mark only. Both are places on a public chain; neither is the age of the file.
+-   **The days in one line.** Each write names the one before it, and that holds across the daily change of key, so the epochs follow one another on public record.
+-   **A past that cannot be changed quietly.** An hour that was altered, forked or replaced would contradict what is already on Base, and a proof made later cannot be placed in an hour already published.
+
+### What it does not change
+
+Making a BitGraph reads nothing from a chain and waits on none. A proof still checks offline against the enclave’s measurement and AWS’s signature, and that check does not use Base. The publication answers a different question: where a BitGraph sits in the whole public line. BitGraphs made since the last write rest on the enclave alone until the next one, at most about an hour.
+
+### Checking it
+
+Once its hour is written, a proof’s page shows the block it was published in and the block it was made after, each linked to a block explorer. The downloaded proof carries the evidence with it: its path to the hour’s root, the transaction, and the block’s header. With those, anyone can check offline that the proof is in the hour’s tree, that the root is in the transaction, and that the transaction is in the block (`verifyPublication` in the open [audit package](https://github.com/mikeargento/bitgraph/blob/main/packages/audit/src/publication.ts)). Whether that block is part of Base is a question for any Base node or explorer. Every write BitGraph has made is listed at [the publisher’s address](https://basescan.org/address/0xf3972408D853c975F86351C311f4310220bbF2a3).

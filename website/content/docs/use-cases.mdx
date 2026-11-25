@@ -1,0 +1,84 @@
+---
+title: "Use cases"
+description: "Different products. One order underneath."
+---
+
+BitGraph does not replace a provenance product; it sits under one. Whatever your system already produces, an asset, a credential, a log entry, a release, its SHA-256 is bound by the enclave and the proof travels with it. These are integration patterns on the same interface. Two of them run on this site today.
+
+Patterns, not partnerships: no company named or implied here uses BitGraph.
+
+## Signed history, plus an attested recording.
+
+| | |
+|---|---|
+| **Today** | A C2PA manifest carries signed assertions about an asset: who signed it, what tool made it, the edits. |
+| **BitGraph adds** | An independent record that these exact bytes, asset and manifest together, were bound at a counted position, right after a value nobody could predict. The credential's own clock becomes one trust layer on that position, and a public witness another. |
+| **What is bound** | The asset's SHA-256, as it is. The manifest travels inside the file, so binding the file binds both, and nothing in the asset changes, so the manifest's own hashes stay valid. |
+| **What you get back** | A BitGraph proof of the asset, credential included, kept with it or referenced from your system. |
+
+Running now: [a ChatGPT image recorded as is, its OpenAI-signed credential read from the file on its proof page](/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=304&epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs).
+
+## A copy finds the record. The record proves the bytes.
+
+| | |
+|---|---|
+| **Today** | A watermark, or a perceptual search, leads from a copy back to an identity or a database entry: whatever the database says today. |
+| **BitGraph adds** | The entry becomes a verifiable recording: the original's exact bytes and a perceptual fingerprint, bound together in the original's BitGraph. A match, by watermark or by looks, says a copy resembles the original; the original's bytes are what prove it. |
+| **What is bound** | The original's SHA-256 and a fingerprint record, in one tree. A watermark can carry a pointer to that BitGraph; the fingerprint lets a copy find it with no watermark at all. |
+| **What you get back** | The original's proof, reached from any copy that still looks like it. |
+
+## How it was captured, and where it was recorded in order.
+
+| | |
+|---|---|
+| **Today** | A controlled capture pipeline produces evidence about how an image or recording was made, on what device. |
+| **BitGraph adds** | Order for the capture artifact, with time layers bound to it, none resting on the device's clock or the vendor's database. BitGraph does not see or vouch for the physical event; it fixes where the artifact's bytes stand in a counted sequence. |
+| **What is bound** | The capture artifact's SHA-256, or its signed capture record, as soon as it leaves the device. |
+| **What you get back** | A proof bound to the capture evidence; each can be checked without the other's issuer. |
+
+## Registration events anyone can check outside the registry.
+
+| | |
+|---|---|
+| **Today** | Assets and their provenance records are registered and looked up inside one ecosystem. |
+| **BitGraph adds** | Each registration, or each batch of them, gets a recording that verifies with an open tool and the published enclave measurement, independently of the registry's own servers. |
+| **What is bound** | A registration record's SHA-256, or the root of a batch of them. |
+| **What you get back** | Per-registration proofs, or one proof per batch with an inclusion path for each entry. |
+
+## What an agent did, bracketed and in order.
+
+| | |
+|---|---|
+| **Today** | Agent platforms keep logs of actions, tool calls and outputs, in their own storage. |
+| **BitGraph adds** | Two BitGraphs bracket a run: everything bound between them came after the first and before the second, in counted order. Work made from the first one's nonce could not have existed before it. |
+| **What is bound** | Each action or log segment's SHA-256, or a log root per step. An MCP server makes this one tool call for any agent. |
+| **What you get back** | A chain of proofs that orders the run and checks offline. |
+
+Running now: [The sealed exam: questions from A's nonce, answers bound as B](/exam).
+
+## Artifacts recorded at build time.
+
+| | |
+|---|---|
+| **Today** | Build systems sign artifacts and publish attestations; transparency logs make those entries public. |
+| **BitGraph adds** | An attested recording of the artifact or its bill of materials at a counted position, from hardware whose build is published. Signatures and transparency-log entries bind to it as trust layers rather than being replaced by it. |
+| **What is bound** | The artifact's SHA-256, or a release's tree of artifacts as one BitGraph. |
+| **What you get back** | A proof per release, each artifact checkable on its own. |
+
+## Large collections, one recording each.
+
+| | |
+|---|---|
+| **Today** | Lab notebooks, datasets, contracts and logs are kept in systems their own operators control. |
+| **BitGraph adds** | A whole collection, thousands of files at a time, bound as one tree in one BitGraph; any single file proves its inclusion without the others being disclosed. |
+| **What is bound** | The root of an RFC 6962 Merkle tree over the files' SHA-256s. |
+| **What you get back** | One proof for the collection and an inclusion path for each file. |
+
+## Something else in mind?
+
+Anything that can be hashed can be recorded. Tell us what your product produces and where the recording step would sit.
+
+<Cards>
+  <Card title="Evaluate the technology" href="/integrate/evaluate">Make a proof, check it offline, try to break it.</Card>
+  <Card title="Talk with us" href="/contact">A conversation about where BitGraph fits in your product.</Card>
+</Cards>

@@ -1,0 +1,89 @@
+---
+title: "Evaluate"
+description: "Check it yourself."
+---
+
+A few commands against a sample proof, with Node 20 or later. The output shown is what they print.
+
+## Verify a real proof, offline.
+
+Download a production proof and the file it covers: [chatgpt.png](/evaluate/chatgpt.png) and [chatgpt.png.bitgraph.json](/evaluate/chatgpt.png.bitgraph.json). It is BitGraph #304, the ChatGPT picture in the [Copies](/examples/copies) demo.
+
+```
+npx @mikeargento/bitgraph-sdk verify chatgpt.png --proof chatgpt.png.bitgraph.json --pcr0 adaad0bef62292d35197ae8db19e40685229f1a1e6070a7c77a148c4ada88ee66a1ca50819eebc2017c6716a49f2692f
+```
+
+```
+TRUE
+
+  These exact bytes were bound by BitGraph's published enclave image v13, as the AWS Nitro hardware
+  attests, at 2026-11-02T06:24:05.154Z. This says where and when the bytes were bound, not when or how
+  they were made.
+```
+
+Disconnect from the network after the first run, which installs the verifier; it still checks.
+
+## Try to break it.
+
+Edit the proof or the file and verify again. Each change fails, for its own reason, with exit code 2.
+
+| Attack | How | Result |
+| --- | --- | --- |
+| Different bytes | Change one byte of chatgpt.png | FALSE: the provided bytes do not match the committed digest |
+| Moved position | Edit commit.counter | FALSE: user\_data is not this proof's signed-body hash |
+| Rewritten history | Edit commit.prevB64 | FALSE: user\_data is not this proof's signed-body hash |
+| Different image claimed | Edit environment.measurement | FALSE: PCR0 … is not the proof's measurement |
+| Signature tampered | Change one character of signer.signatureB64 | FALSE: signature does not match |
+| Unaccepted image | Pin a different --pcr0 | FALSE: PCR0 … is not an image this verifier accepts |
+| Forged with a new key | Re-sign a body with a key you generate (the verifier's test) | Passes a signature-only check; FALSE with attestation |
+
+For example, moving the proof to another position:
+
+```
+node -e 'const f="chatgpt.png.bitgraph.json",p=JSON.parse(require("fs").readFileSync(f));p.commit.counter="306";require("fs").writeFileSync("moved.json",JSON.stringify(p))'
+npx @mikeargento/bitgraph-sdk verify chatgpt.png --proof moved.json
+```
+
+## Make your own BitGraph.
+
+Bind any file on the live service. It is hashed on your machine and only the digest is sent; the proof is saved beside it.
+
+```
+npx -p @mikeargento/bitgraph-sdk bitgraph record yourfile
+npx @mikeargento/bitgraph-sdk verify yourfile --proof yourfile.bitgraph.json
+```
+
+BitGraphs are permanent, and anyone who holds the same file can find its proof by its digest. Bind a file you are content to have on record, or a fresh random one. Or drop files on [Drop a file](/demos) in a browser.
+
+## Rebuild the enclave’s measurement.
+
+The PCR0 every proof is checked against comes from public source. Build it twice from a clean state and compare; Nitro hardware is not needed to build (Docker on linux/amd64 is).
+
+```
+git clone https://github.com/mikeargento/bitgraph && cd bitgraph
+./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v13 adaad0bef62292d35197ae8db19e40685229f1a1e6070a7c77a148c4ada88ee66a1ca50819eebc2017c6716a49f2692f
+```
+
+The measurement reproduces; the image file does not byte-for-byte, because its header embeds a build time. Pins and notes: `server/commit-service/reproducible-build/PINS.md`.
+
+## Run the tests.
+
+```
+npm install
+npm test --workspace=packages/verify
+```
+
+-   **Attestation.** A real production proof; wrong bytes; a forgery with an attacker’s key that passes the signature check and fails the attested one; no attestation; an unaccepted image; a changed counter.packages/verify/src/\_\_tests\_\_/attested.test.ts
+-   **Sequence.** A missing proof shows as a gap; broken links, wrong counts, another epoch or key.packages/verify/src/\_\_tests\_\_/stretch.test.ts
+-   **Collections.** Other files, outside bytes, an edited inclusion block.packages/verify/src/\_\_tests\_\_/tree-member.test.ts
+-   **Atomicity.** Faults injected into the RNG, signer and attestation of the unmodified enclave code release nothing and move nothing.server/commit-service/src/enclave/\_\_tests\_\_/bind-failure.test.ts
+
+## Go further with us.
+
+For a deeper evaluation: a proof-of-concept on your own data, keyed access above the public limits, the threat model in detail, and technical diligence materials under NDA.
+
+Read first: [the mechanism and threat model](/how/mechanism), and [the integration interface](/integrate).
+
+## Request a technical evaluation.
+
+Write through the [contact form](/contact) and choose Technical evaluation.

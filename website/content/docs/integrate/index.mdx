@@ -1,0 +1,126 @@
+---
+title: "Developers"
+description: "Send a SHA-256. Get a proof."
+---
+
+Your system hashes a file or record locally, sends its SHA-256 digest, and stores the returned proof alongside the original. Only the digest is sent to BitGraph. The proof can be verified offline with the open-source verifier.
+
+Record a single item or a collection through the HTTP API, SDK or MCP.
+
+1.  **Hash** the asset, credential, log entry or release you already have.
+2.  **Record** the digest. Several digests return one proof each; a collection returns one proof that every item verifies against.
+3.  **Store** the proof with your record, and show what it establishes in your own product.
+4.  **Verify** anywhere, with the open verifier, offline.
+
+## Nothing to install.
+
+Record one digest, or many in one request (base64 SHA-256):
+
+```
+curl -X POST https://bitgraph.ing/api/commit \
+  -H 'content-type: application/json' \
+  -d '{"digests":[{"digestB64":"<sha-256, base64>","hashAlg":"sha256"}]}'
+```
+
+The response contains one proof for each submitted digest. Each bind through this endpoint belongs to its epoch, one UTC day, which ends with a closing BitGraph in its own line. The time on each proof is the attestation’s AWS-signed time. Every proof is kept and can be fetched by the digest it bound, earliest first:
+
+```
+curl https://bitgraph.ing/api/proofs/<sha-256, base64url>
+# {"proofs":[{"proof":{…},"writeTime":…}, …]}
+
+curl -X POST https://bitgraph.ing/api/proofs/batch \
+  -H 'content-type: application/json' -d '{"digests":["<b64url>", …]}'   # up to 2,000 per call
+```
+
+A 503 with `"code":"tee-restarting"` means the enclave is starting a new epoch; retry after a few seconds. A 429 carries `Retry-After`.
+
+## Thousands of items, one bind.
+
+Build an RFC 6962 tree over your items’ SHA-256s on your side (leaf = SHA-256(0x00 ‖ digest), node = SHA-256(0x01 ‖ left ‖ right), an odd last node rises), and bind the SHA-256 of this exact text:
+
+```
+Merkle root (RFC 6962, SHA-256; each leaf is a file's SHA-256) of <N> files:
+<root, hex>
+```
+
+Keep each item’s path of sibling hashes. With it, any single item verifies against the one proof on its own, and the verifier reports which item of how many it is. Up to 1,000,000 items per tree.
+
+## JavaScript, TypeScript, or any language that runs a command.
+
+```
+npm install @mikeargento/bitgraph-sdk
+```
+
+```
+import { BitGraph } from "@mikeargento/bitgraph-sdk";
+
+const bg = new BitGraph();                        // or new BitGraph({ baseUrl, apiKey })
+const { made, files } = await bg.record("run-042.log");
+console.log(made?.number, made?.counts);          // the BitGraph's number, and its two counts [N, N+1]
+console.log(made?.nonce);                         // the fresh nonce this BitGraph made
+console.log(files[0]?.proofPath);                 // run-042.log.bitgraph.json: keep it with the file
+```
+
+Files are hashed locally; only the SHA-256 is sent. One file makes one BitGraph. Several files make one tree, bound as one BitGraph, and each file’s proof carries its place in the tree. Each file comes back with its `outcome` (`"made"`, `"on record"` or `"skipped"`), and every result returns the BitGraph’s nonce. Pass `{ write: false }` to keep proofs in memory instead of beside each file. Reading is unchanged:
+
+```
+await bg.check(["run-042.log"]);            // is this exact file on record, and where?
+await bg.proof({ path: "run-042.log" });    // the proof and every position the same bytes occupy
+await bg.verify("run-042.log", proof);      // offline: hash, signature, two counts, attestation, published image
+```
+
+```
+npx -p @mikeargento/bitgraph-sdk bitgraph record run-042.log --json
+npx -p @mikeargento/bitgraph-sdk bitgraph check run-042.log --json
+npx -p @mikeargento/bitgraph-sdk bitgraph serve   # POST /record, /check, /proof, /verify on 127.0.0.1
+```
+
+MIT licensed. `--api-key` or `BITGRAPH_API_KEY` for keyed access. In full: [Reference](/how).
+
+## One tool call from any agent.
+
+The local server hashes files where they are and saves each proof beside its file:
+
+```
+{
+  "mcpServers": {
+    "bitgraph": { "command": "npx", "args": ["-y", "@mikeargento/bitgraph-mcp"] }
+  }
+}
+```
+
+Tools: `bitgraph_record`, `bitgraph_check`, `bitgraph_get_proof`. Clients that connect by URL use `https://bitgraph.ing/mcp`, which binds digests (`bitgraph_bind`) and looks them up.
+
+## Your users can verify proofs independently, offline.
+
+The verifier is its own MIT package. In your code:
+
+```
+npm install @mikeargento/bitgraph-verify
+```
+
+```
+import { verifyAttested } from "@mikeargento/bitgraph-verify";
+
+const r = await verifyAttested({ proof, bytes });
+r.valid          // true: attestation, published image, digest, signature, slot all check
+r.attestedAtMs   // the hardware's signed time of the bind
+r.image          // { version: "v13", since: "2026-10-19" }
+r.treeMember     // { index, files } for an item of a collection
+```
+
+Or from a shell, pinning the measurement so nothing else is accepted:
+
+```
+npx @mikeargento/bitgraph-sdk verify <file> --proof <file>.bitgraph.json --pcr0 adaad0bef62292d35197ae8db19e40685229f1a1e6070a7c77a148c4ada88ee66a1ca50819eebc2017c6716a49f2692f
+```
+
+## Keys, limits and terms.
+
+The public endpoint is rate-limited per address and in total, which is plenty for evaluation. Production integrations use an API key, which lifts those limits, under managed-recording terms. For a deployment you operate yourself, see [Licensing](/licensing).
+
+<Cards>
+  <Card title="Evaluate the technology" href="/integrate/evaluate">Make a proof, check it offline, try to break it.</Card>
+  <Card title="How it works" href="/how">What a BitGraph is, and how it checks.</Card>
+  <Card title="Request an API key" href="/contact">Keyed access above the public limits.</Card>
+</Cards>

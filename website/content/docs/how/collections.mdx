@@ -1,0 +1,14 @@
+---
+title: "Collections and disclosure"
+description: "A million files, one BitGraph. A record shown without its content."
+---
+
+Many items are recorded at once as an RFC 6962 Merkle tree over their SHA-256s (leaf = SHA-256(0x00 ‖ digest), node = SHA-256(0x01 ‖ left ‖ right)). One BitGraph binds a short text naming the root and the count. Each item then proves its own inclusion with a path of sibling hashes, without the others being disclosed. The format allows up to 1,000,000 items in a tree.
+
+Measured 2026-10-28 on the current flow, in Node on an 8-core Apple M3 laptop: one million files hashed in 1.9 s, the tree built in 2.4 s, and the root bound 6.1 s after the drop. Open the result as [BitGraph #34](/proof/l4eT6Fpyu9_6YmlFOOoC9BaYrHNQLJpDsnWJJcxfgJI?counter=34&epoch=NihRUA1VRsV4cqmwWDO_4viNR7YhJRdCb75lGASeV3E), or download the run’s files: [timings](/benchmark/2026-10-28/timings.json), [corpus seed](/benchmark/2026-10-28/seed.txt), [root text](/benchmark/2026-10-28/merkle-root.txt) and [proof file](/benchmark/2026-10-28/merkle-root.txt.bitgraph.json). Reproduce it with `website/scripts/bench-million.mjs`.
+
+## Without disclosure
+
+Each proof holds two signed records: the position record at count N, with the nonce, epoch and key and no field from the content; and the binding at count N+1, which names the digest. The position record is signed on its own. So a holder can withhold the binding and the content entirely and still show the position record: an auditor checks its signature under the same key as an attested proof from that epoch, and learns that the measured enclave established that position, without learning what was bound there.
+
+Built into the proof format today. The check uses the verifier’s existing signature and canonical-encoding steps; it is not yet a one-line command.

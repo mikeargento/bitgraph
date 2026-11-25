@@ -1,0 +1,16 @@
+---
+title: "What it establishes"
+description: "Two statements, each checkable."
+---
+
+1.  **Position.** These exact bytes, by SHA-256, were bound at count N+1 of one enclave’s sequence, immediately after a fresh hardware nonce at count N, in a single signed action. Nothing was counted between them. Within an epoch, no count is assigned to more than one released record.
+2.  **Origin of the record.** The binding was performed by a specific enclave build whose measurement (PCR0) is published, as AWS Nitro hardware attests in a document signed for that exact proof.
+
+That is the whole of the mechanism: order, from attested hardware. Making a BitGraph reads no clock and no blockchain. Everything else a record can carry, a time, an identity, a public witness, is a trust layer bound on top of that position. Two come built in: the hardware’s own signed time in every attestation, and the [hourly publication](/how/time) of the line on Base. Both can be checked; neither is what a proof’s validity rests on.
+
+### What it does not establish
+
+-   **When the content was created.** An old file can be bound today. The proof fixes where in the sequence its digest was recorded; a time layer bound to that position associates it with a timestamp or a time window. Either way, that is when the digest was recorded, not when the content was made.
+-   **Who made it, or whether it is true.** It binds bytes, not authorship or meaning.
+-   **That nothing else exists.** It proves a record was made, not that no other record was.
+-   **Order across epochs** from the counts alone. Counts start again with each epoch. The hourly publication on Base puts the epochs in order, and the attested time in each proof is further evidence.

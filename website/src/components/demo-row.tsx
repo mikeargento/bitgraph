@@ -8,7 +8,7 @@ import { GoArrow } from "@/components/go-arrow";
 /**
  * Pictures with their proofs, as tiles: a caption, the picture, and a link to its proof.
  *
- * HarborRow is the fourth demo (/pictures): one photograph saved as three files, so the pictures are the same and the
+ * HarborRow is the fourth demo (/examples/copies): one photograph saved as three files, so the pictures are the same and the
  * bytes are not, and each has its own proof. CopiesTiles is the second example on that page: a picture made with
  * ChatGPT, the video Grok made of it and the copy Google made of it, recorded back to back.
  *
@@ -23,7 +23,7 @@ type Demo = { caption: string; place?: string; maker?: string; alt?: string; eag
 // Two sets, six files: the earlier three, re-recorded 2026-11-02 in the first epoch of per-record Base writes, and a
 // new picture, its copy and its video (2026-11-05, #30, #34 and #38 of one epoch). Each caption follows the Content
 // Credentials inside its file (OpenAI's, Google's with the OpenAI picture as its ingredient, xAI's). They are the
-// fourth demo (/pictures) since 2026-11-06, one set per row in the order it was made: the earlier set first, shown in
+// fourth demo (/examples/copies) since 2026-11-06, one set per row in the order it was made: the earlier set first, shown in
 // black and white (bw), then the new set in color. Black and white is a filter on the display copy; each proof covers
 // its file as it is.
 const NEW = "GCFxJ90RSg66_o4_Ri5ya4n9A626Jmp6k2zSeqxphgc";
@@ -230,7 +230,7 @@ export function CopiesTiles() {
   );
 }
 
-/** The Copies demo (/pictures): the harbor photograph in three files, each with one link, its place. The photograph
+/** The Copies demo (/examples/copies): the harbor photograph in three files, each with one link, its place. The photograph
  *  is square, so its tiles are. */
 export function HarborRow() {
   return (

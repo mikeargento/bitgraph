@@ -1,0 +1,33 @@
+---
+title: "Trust and threats"
+description: "What you rely on, and what each party can and cannot do."
+---
+
+## The measured enclave
+
+Each proof carries an AWS Nitro attestation document, signed by AWS’s hardware (ES384, certificate chain to the AWS Nitro root). It states the enclave image’s measurement, PCR0, and carries as its user data the SHA-256 of the exact signed body of that proof. The signing key is generated inside the enclave at start and never exported; it is tied to the hardware through that per-proof attestation.
+
+The current image, v13, measures:
+
+adaad0bef62292d35197ae8db19e40685229f1a1e6070a7c77a148c4ada88ee66a1ca50819eebc2017c6716a49f2692f
+
+It is reproducible: two independent builds from the `enclave-v13` branch produced this PCR0. (The image file itself differs build to build because its header holds a build time; the measurement does not.) By default the verifier accepts only published images.
+
+## What you trust
+
+-   **AWS Nitro.** The Secure Module’s RNG, clock and attestation key, and the Nitro root certificate. A flaw in Nitro is a flaw in every proof.
+-   **The enclave image.** Its source is public on the `enclave-v13` branch and its measurement reproduces, so what it does can be read and rebuilt rather than taken on trust.
+-   **SHA-256, Ed25519, ES384.**
+
+Not trusted: BitGraph’s website, its servers, its storage, or its word. A proof that checks offline against the published measurement checks whether or not BitGraph is still running.
+
+The hourly publication adds one thing to rely on, for one question only. Where a BitGraph sits among other epochs, and that its hour has not been rewritten, rests on Base’s history. Whether a proof is valid does not.
+
+## Threat model
+
+| Party | Cannot | Can |
+| --- | --- | --- |
+| The host operator (BitGraph included) | Forge a proof that passes the attested check; see or choose a nonce; reuse a count; insert or reorder proofs inside a sequence without breaking the counts and hash links; change a proof’s attested time by releasing it late; alter an hour already published on Base without contradicting that record. | Choose the order in which it submits digests; delay or refuse submissions; withhold released proofs (gaps then show to anyone holding the neighbors); restart the enclave to begin a new epoch. |
+| A client | Get a position without binding a digest; get its digest bound at a count of its choosing. | Bind any 32-byte digest, including one of content it does not own. Binding says nothing about authorship. |
+| Someone holding a proof | Edit any signed field, swap the digest, the counter, the previous-proof link or the measurement, without the check failing. | Withhold it, or show it out of context. A proof shows its own position, not what else was bound. |
+| A stolen enclave key | Pass the attested check. Keys are per epoch and live only in enclave memory. | Sign bodies that pass a signature-only check. Always verify with attestation. |

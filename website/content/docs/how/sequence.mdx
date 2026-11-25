@@ -1,0 +1,10 @@
+---
+title: "The sequence"
+description: "Counted, chained, gaps visible."
+---
+
+Every proof after an epoch’s first carries `prevB64`, the SHA-256 of the whole previous proof. Within an epoch the counts climb by two per BitGraph, nonce then content. Given a run of proofs, the verifier checks that each is atomic, that counts are consecutive and that each links to the one before; a missing proof shows as a gap (`verifyStretch`). Anything bound between BitGraph A and BitGraph B was bound after A and before B (`verifyBetween`).
+
+### Epochs
+
+The enclave’s key and counter live only in its memory, so each start is a new epoch: a new key, a counter from zero, and an `epochId` signed into every proof. No key carries over from one epoch to the next; the [hourly publication](/how/time) is what links them. On bitgraph.ing an epoch runs for one UTC day and ends with a closing BitGraph inside its own line.
