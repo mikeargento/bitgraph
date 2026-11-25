@@ -5,6 +5,7 @@ import { source } from "@/lib/source";
 import { getMDXComponents } from "@/components/mdx";
 import { ShortLink } from "@/components/short-link";
 import { OldAnchors } from "@/components/old-anchors";
+import { SiteFoot } from "@/components/site-foot";
 
 /**
  * A page of the site from content/docs. A one-segment address that is not a page is a short link
@@ -26,6 +27,7 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
       <DocsBody>
         <MDX components={getMDXComponents()} />
       </DocsBody>
+      <SiteFoot />
     </DocsPage>
   );
 }

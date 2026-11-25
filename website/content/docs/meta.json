@@ -1,14 +1,14 @@
 {
   "pages": [
-    "how",
-    "examples",
-    "integrate",
     "[Home](/)",
     "[Make a BitGraph](/demos)",
     "[Ledger](/ledger)",
     "[Calendar](/ledger/calendar)",
     "use-cases",
     "licensing",
-    "[Contact](/contact)"
+    "[Contact](/contact)",
+    "how",
+    "examples",
+    "integrate"
   ]
 }
