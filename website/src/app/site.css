@@ -365,3 +365,19 @@
 /* Home's line break before "a one-of-a-kind record." is for phones 360px and wider; narrower, the line wraps on its
    own ("…any digital / file a one-of-a-kind record."), which reads better than a lone "file". */
 @media (max-width: 359px) { #nd-page h1 + p br { display: none; } }
+
+/* The contact form (components/inquiry-form.tsx): fields in a column with an even gap, two to a row where there is
+   room, the button under them; the sent and not-sent notes. */
+.app-page .sx-form { display: flex; flex-direction: column; gap: 16px; max-width: 640px; }
+.app-page .sx-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.app-page .sx-form .field { display: flex; flex-direction: column; gap: 4px; }
+.app-page .sx-form .field > span { font-size: 14px; font-weight: 500; }
+.app-page .sx-form .field input, .app-page .sx-form .field textarea, .app-page .sx-form .field select { margin-top: 0; }
+.app-page .sx-form button[type="submit"] { align-self: flex-start; margin-top: 4px; }
+.app-page .callout { border: 1px solid var(--color-fd-border); border-radius: 8px; padding: 12px 16px; font-size: 14px; }
+.app-page .callout .kicker { display: block; font-weight: 600; margin-bottom: 4px; }
+.app-page .callout p { margin: 0; }
+.app-page .callout.is-ok { border-color: var(--ok); }
+.app-page .callout.is-err { border-color: var(--err); }
+.app-page .callout.is-err .kicker { color: var(--err); }
+@container (max-width: 520px) { .app-page .sx-form-row { grid-template-columns: minmax(0, 1fr); } }

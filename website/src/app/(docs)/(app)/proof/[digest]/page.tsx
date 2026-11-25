@@ -1362,9 +1362,10 @@ export default function ProofPage() {
 
 /* ── Collapsible card: the same face as Card, but the header is a disclosure toggle. ── */
 
+/* The site's one button: outlined in cobalt with cobalt text. */
 const btnStyle: React.CSSProperties = {
-  padding: "8px 16px", fontSize: 13, fontWeight: 600, color: "var(--panel)",
-  background: "var(--accent)", border: "1px solid var(--accent)", borderRadius: "var(--radius-card)", cursor: "pointer",
+  display: "inline-flex", alignItems: "center", height: 36, padding: "0 14px", fontSize: 14, fontWeight: 500,
+  color: "var(--link-color)", background: "transparent", border: "1px solid var(--link-color)", borderRadius: 6, cursor: "pointer",
 };
 
 /* ── Bring-your-file checker — when no artifact is cached on this device, let

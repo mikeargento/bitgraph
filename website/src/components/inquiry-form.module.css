@@ -20,32 +20,29 @@
 .choice {
   appearance: none;
   box-sizing: border-box;
-  height: 46px;
-  padding: 0 18px;
+  height: 36px;
+  padding: 0 14px;
   margin: 0;
-  border: 1px solid #c2c7ce;
-  border-radius: 0;
-  background: #fbfcfd;
-  color: var(--ink);
+  border: 1px solid var(--color-fd-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-fd-foreground);
   font: inherit;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
 }
+/* The chosen topic: outlined in cobalt with cobalt text and a faint tint, like the site's buttons. */
 .choice[aria-checked="true"] {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: #ffffff;
+  border-color: var(--link-color);
+  color: var(--link-color);
+  background: color-mix(in oklab, var(--link-color) 10%, transparent);
 }
 .choice:focus-visible {
-  outline: 2px solid var(--link);
+  outline: 2px solid var(--link-color);
   outline-offset: 2px;
 }
 @media (hover: hover) {
-  .choice[aria-checked="false"]:hover { border-color: #9aa1ab; }
-}
-@media (max-width: 640px) {
-  .choices { flex-direction: column; }
-  .choice { width: 100%; text-align: left; }
+  .choice[aria-checked="false"]:hover { background: var(--color-fd-accent); }
 }
