@@ -381,3 +381,6 @@
 .app-page .callout.is-err { border-color: var(--err); }
 .app-page .callout.is-err .kicker { color: var(--err); }
 @container (max-width: 520px) { .app-page .sx-form-row { grid-template-columns: minmax(0, 1fr); } }
+
+/* The proof's title row stands on its own: no rule above it. */
+.pv-counter-grid:has(> .pv-row-head) { border-top: 0; }
