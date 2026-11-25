@@ -28,7 +28,27 @@ const RETRY_MS = [0, 300, 1200, 3000, 6000];
 
 const hydrated = (el: Element) => Object.keys(el).some((k) => k.startsWith("__reactFiber$"));
 
+/** Terms like SHA-256 and 32-byte break at their hyphen; a hyphen next to a digit becomes a non-breaking hyphen
+ *  (U+2011, drawn the same) so the term stays on one line. Text in code is left alone. */
+const DIGIT_HYPHEN = /(?<=[A-Za-z0-9])-(?=\d)|(?<=\d)-(?=[A-Za-z])/g;
+const HAS_DIGIT_HYPHEN = /(?<=[A-Za-z0-9])-(?=\d)|(?<=\d)-(?=[A-Za-z])/;
+function keepTermsWhole() {
+  document.querySelectorAll<HTMLElement>("#nd-page, .app-page").forEach((root) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement?.closest("pre, code, svg, kbd, script, style") || !HAS_DIGIT_HYPHEN.test(n.textContent ?? "") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    const nodes: Text[] = [];
+    let n: Node | null;
+    while ((n = walker.nextNode())) nodes.push(n as Text);
+    for (const t of nodes) {
+      if (!hydrated(t.parentElement!)) continue;
+      t.data = t.data.replace(DIGIT_HYPHEN, "\u2011");
+    }
+  });
+}
+
 function pass() {
+  keepTermsWhole();
   document.querySelectorAll<HTMLElement>(SELECTOR).forEach((el) => {
     if (el.dataset.tight === "1" || !hydrated(el)) return;
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {

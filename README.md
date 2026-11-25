@@ -17,40 +17,71 @@ no blockchain is read to make a proof.
 ## The mechanism
 
 ```
-     ┌────────────────────────────────────┐
-     │              SHA-256               │
-     │            Of any data             │
-     └────────────────────────────────────┘
-                       │
-                       ▼
-┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
-┆          Measured AWS Nitro enclave          ┆
-┆    ┌────────────────────────────────────┐    ┆
-┆    │           Count N: nonce           │    ┆
-┆    │    Fresh from the hardware RNG     │    ┆
-┆    └────────────────────────────────────┘    ┆
-┆                       │                      ┆
-┆                       ▼                      ┆
-┆    ┌────────────────────────────────────┐    ┆
-┆    │         Count N+1: digest          │    ┆
-┆    │ Bound right after, signed together │    ┆
-┆    └────────────────────────────────────┘    ┆
-┆                                              ┆
-┆              One atomic action.              ┆
-└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
-                       │
-                       ▼
-     ┌────────────────────────────────────┐
-     │           Attested proof           │
-     │  Checks offline, without BitGraph  │
-     └────────────────────────────────────┘
+       ┌────────────────────────────────────────────┐
+       │            SHA-256 of any data             │
+       │          The file stays with you           │
+       └────────────────────────────────────────────┘
+                             │
+                             ▼
+┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
+┆                                                          ┆
+┆                Measured AWS Nitro enclave                ┆
+┆         One atomic action, one request at a time         ┆
+┆                                                          ┆
+┆      ┌────────────────────────────────────────────┐      ┆
+┆      │          Count N: position record          │      ┆
+┆      │                                            │      ┆
+┆      │        Nonce from the hardware RNG         │      ┆
+┆      │             Count, epoch, key              │      ┆
+┆      │                 No digest                  │      ┆
+┆      │                                            │      ┆
+┆      │                Signature 1                 │      ┆
+┆      └────────────────────────────────────────────┘      ┆
+┆                            │                             ┆
+┆                            ▼                             ┆
+┆      ┌────────────────────────────────────────────┐      ┆
+┆      │             Count N+1: commit              │      ┆
+┆      │                                            │      ┆
+┆      │       The digest and the same nonce        │      ┆
+┆      │        Hash of the position record         │      ┆
+┆      │         Hash of the previous proof         │      ┆
+┆      │                                            │      ┆
+┆      │                Signature 2                 │      ┆
+┆      └────────────────────────────────────────────┘      ┆
+┆                            │                             ┆
+┆                            ▼                             ┆
+┆      ┌────────────────────────────────────────────┐      ┆
+┆      │             Nitro attestation              │      ┆
+┆      │           Covers the SHA-256 of            │      ┆
+┆      │          the commit's signed body          │      ┆
+┆      └────────────────────────────────────────────┘      ┆
+┆                                                          ┆
+┆        If any step fails, nothing is released and        ┆
+┆         the counter does not move. Otherwise it          ┆
+┆                  moves by exactly two.                   ┆
+┆                                                          ┆
+└╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
+                             │
+                             ▼
+       ┌────────────────────────────────────────────┐
+       │               Attested proof               │
+       │      Checks offline, without BitGraph      │
+       └────────────────────────────────────────────┘
+
+┌───────────────────────────┐  ┌───────────────────────────┐
+│        Math proves        │  │     Attestation proves    │
+│                           │  │                           │
+│  The position record came │  │   The measured code drew  │
+│  first: the commit holds  │  │  the nonce, blind to the  │
+│          its hash         │  │           digest          │
+└───────────────────────────┘  └───────────────────────────┘
 ```
 
 When a digest arrives, the enclave checks its form, draws a 32-byte nonce from the Nitro Secure Module's hardware RNG
-with no input from the request, signs a position record at count N (`slotAllocation` in the proof), binds the digest at
-count N+1 with the hash of the previous proof, asks the hardware for an attestation over the exact signed body, signs
-it with its Ed25519 key, and only then advances the counter. If any step fails, nothing is released, the counter does
-not move, and the nonce never leaves the enclave
+with no input from the request, signs a position record at count N (`slotAllocation` in the proof), binds the digest
+at count N+1 with the same nonce, the position record's hash and the hash of the previous proof, asks the hardware for
+an attestation over the exact signed body, signs it with its Ed25519 key, and only then advances the counter, by
+exactly two. If any step fails, nothing is released, the counter does not move, and the nonce never leaves the enclave
 ([`app.ts`](server/commit-service/src/enclave/app.ts), tested in
 [`bind-failure.test.ts`](server/commit-service/src/enclave/__tests__/bind-failure.test.ts)).
 
