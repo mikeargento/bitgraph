@@ -82,8 +82,8 @@ export function ExamContent() {
         <p className="home-kicker">The claim</p>
         <h2 id="exam-claim">What it proves, and what it does&nbsp;not</h2>
         <ul className="facts" style={{ marginTop: 24 }}>
-          <li><b>Proves</b><span>every question is derived from BitGraph A&rsquo;s nonce, which the enclave drew and bound in one atomic action and nobody could see before A existed, so the exact questions did not exist before A, and no training set frozen before A was bound contains them; A&rsquo;s request named the bank, so the bank was fixed before that nonce; BitGraph B bound the answer sheet, which names the paper and A, at a later count in the same epoch; both proofs carry an AWS Nitro attestation of a published BitGraph enclave image, and B&rsquo;s AWS-signed attestation time is when the answers were bound.</span></li>
-          <li><b>Does not prove</b><span>that the template families are unfamiliar to the model; that the model worked alone, without tools, or quickly; that the answers came from the model the sheet names.</span></li>
+          <li><b>Proves:</b> <span>every question is derived from BitGraph A&rsquo;s nonce, which the enclave drew and bound in one atomic action and nobody could see before A existed, so the exact questions did not exist before A, and no training set frozen before A was bound contains them; A&rsquo;s request named the bank, so the bank was fixed before that nonce; BitGraph B bound the answer sheet, which names the paper and A, at a later count in the same epoch; both proofs carry an AWS Nitro attestation of a published BitGraph enclave image, and B&rsquo;s AWS-signed attestation time is when the answers were bound.</span></li>
+          <li><b>Does not prove:</b> <span>that the template families are unfamiliar to the model; that the model worked alone, without tools, or quickly; that the answers came from the model the sheet names.</span></li>
         </ul>
       </section>
 

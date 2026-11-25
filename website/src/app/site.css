@@ -7,8 +7,8 @@
    stand in .app-page (app/(docs)/(app)/layout.tsx). */
 
 /* Links and solid buttons are the site's cobalt, a lighter cobalt in dark mode so text stays readable. */
-:root, .light { --link-color: #2241c4; --color-fd-primary: #2241c4; --color-fd-primary-foreground: #ffffff; }
-.dark { --link-color: #8ea2ff; --color-fd-primary: #4a66e8; --color-fd-primary-foreground: #ffffff; }
+:root, .light { --code-tint: #e9ebef; --link-color: #2241c4; --color-fd-primary: #2241c4; --color-fd-primary-foreground: #ffffff; }
+.dark { --code-tint: #1b1c1f; --link-color: #8ea2ff; --color-fd-primary: #4a66e8; --color-fd-primary-foreground: #ffffff; }
 .prose a:not([data-card]):not(.not-prose a), .prose :where(a):not(:where([class~="not-prose"] *)) { color: var(--link-color); text-decoration-color: color-mix(in oklab, var(--link-color) 40%, transparent); }
 /* Previous and next at the foot of a page: the page name is a link, so it is cobalt; the line under it stays gray. */
 #nd-page > .grid > a > div:first-child { color: var(--link-color); }
@@ -25,11 +25,11 @@
   --link-hover: var(--color-fd-primary);
   --panel: var(--color-fd-muted);
   --sheet: var(--color-fd-background);
-  --code-bg: var(--color-fd-muted);
+  --code-bg: var(--code-tint);
   --ok: #188038;
   --warn: #8a5a00;
   --err: #b3261e;
-  --font-code: var(--default-mono-font-family, ui-monospace, monospace);
+  --font-code: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   /* Names components still use inline. */
   --bg: var(--color-fd-background); --accent: var(--ink); --text: var(--ink); --muted: var(--dim); --mute: var(--dim);
   --cobalt: var(--link); --btn-primary: var(--link); --panel-2: var(--panel); --card: var(--panel); --paper: var(--sheet);
@@ -54,23 +54,21 @@
 .app-page li { margin: 8px 0; }
 .app-page a:hover { text-decoration: underline; }
 .app-page code { font-family: var(--font-code); font-size: 0.875em; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
-.app-page pre { font-family: var(--font-code); font-size: 13px; background: var(--code-bg); padding: 12px 16px; overflow-x: auto; border-radius: 8px; margin: 0 0 20px; }
+.app-page pre { font-family: var(--font-code); font-size: 13px; line-height: 1.55; background: var(--code-bg); border: 1px solid var(--color-fd-border); padding: 12px 16px; overflow-x: auto; border-radius: 8px; margin: 0 0 20px; }
 .app-page .home-kicker, .app-page .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .app-page .sx-fine, .app-page .note { font-size: 14px; color: var(--dim); }
 .nb { white-space: nowrap; }
 
-/* Buttons on the working pages: one solid kind, one outlined kind. */
+/* Buttons on the working pages: one kind, outlined in cobalt with cobalt text, a faint cobalt tint under the pointer. */
 .app-page .bg-action-link, .app-page .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box;
-  height: 38px; padding: 0 16px; font-size: 14px; font-weight: 500; line-height: 1; border-radius: 8px;
-  color: var(--ink); background: var(--sheet); border: 1px solid var(--line); text-decoration: none; cursor: pointer;
+  height: 36px; padding: 0 14px; font-size: 14px; font-weight: 500; line-height: 1; border-radius: 6px;
+  color: var(--link-color); background: transparent; border: 1px solid var(--link-color); text-decoration: none; cursor: pointer;
 }
-.app-page .bg-action-link:hover, .app-page .btn:hover { text-decoration: none; background: var(--panel); }
-.app-page .bg-action-link.is-make { color: var(--color-fd-primary-foreground); background: var(--link); border-color: var(--link); }
-.app-page .bg-action-link.is-make:hover { opacity: 0.9; background: var(--link); }
+.app-page a.bg-action-link, .app-page a.bg-action-link:hover { color: var(--link-color); text-decoration: none; }
+.app-page .bg-action-link:hover, .app-page .btn:hover { background: color-mix(in oklab, var(--link-color) 10%, transparent); }
 .app-page .bg-action-link[disabled], .app-page button[disabled] { opacity: 0.5; cursor: default; }
 .app-page .sx-cta, .app-page .demo-bars { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
-.app-page .demo-bars { flex-direction: column; align-items: flex-start; }
 
 /* Code blocks with a Copy button. */
 .app-page .code-block { position: relative; margin: 0 0 16px; }
@@ -138,7 +136,7 @@
 .mf3-proves { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 32px; }
 .mf3-proves .mf3-lines { margin-top: 6px; text-wrap: balance; }
 
-@media (max-width: 600px) {
+@container (max-width: 620px) {
   .mf3 { --pad: 16px; }
   .mf3-feed { display: block; position: relative; padding: 0; }
   .mf3-feed span { display: none; }
@@ -251,7 +249,11 @@
 .pv-fold.is-open .pv-chevron { transform: rotate(90deg); }
 .pv-fold-body { padding-bottom: 12px; }
 .pv-details-btn { display: inline-flex; gap: 4px; }
-.pv-raw { font-family: var(--font-code); font-size: 12px; background: var(--code-bg); padding: 12px; overflow-x: auto; white-space: pre; max-height: 480px; overflow-y: auto; }
+.pv-raw { position: relative; background: var(--code-bg); border: 1px solid var(--color-fd-border); border-radius: 8px; max-height: 480px; overflow: auto; }
+.app-page .pv-raw pre { margin: 0; border: 0; border-radius: 0; background: none; padding: 12px 44px 12px 16px; font-family: var(--font-code); font-size: 12.5px; line-height: 1.55; white-space: pre; color: var(--color-fd-foreground); }
+.pv-raw .pv-copy { position: sticky; float: right; top: 8px; margin: 8px 8px 0 0; }
+.pv-copy { display: inline-flex; align-items: center; justify-content: center; padding: 4px; color: var(--color-fd-muted-foreground); background: var(--color-fd-background); border: 1px solid var(--color-fd-border); border-radius: 6px; cursor: pointer; }
+.pv-copy:hover { color: var(--color-fd-foreground); }
 .pv-reading { font-size: 14px; }
 .pv-reading.is-false { color: var(--err); }
 .pv-reading-clamp { max-height: 7.5em; overflow: hidden; }
@@ -272,28 +274,37 @@
 @media (max-width: 560px) { .pv-row { grid-template-columns: minmax(0, 1fr); } }
 .app-page .pv { margin: 0; }
 
-/* ── The small figures (components/primitive-figures.tsx): boxes in a row, A to B ── */
-.pf-figure { margin: 32px 0; max-width: 720px; line-height: 1.4; }
+/* ── The A-to-B figures on the demos (components/primitive-figures.tsx) ──
+   The mechanism figure's look: rounded boxes, BitGraph A green and BitGraph B purple, the steps between them plain,
+   thin gray arrows with open heads, and a thin bracket over the caption. Stacks on phones. */
+.pf-figure {
+  --wire: #9aa0a6; --g-bg: #e8f5ef; --g-line: #2f8f6a; --g-ink: #0b5d45; --p-bg: #efeefc; --p-line: #6f63d9; --p-ink: #3d3399;
+  margin: 32px 0; max-width: 760px; line-height: 1.4;
+}
+.dark .pf-figure { --wire: #6b7078; --g-bg: #10291f; --g-line: #3a9c76; --g-ink: #9adbbf; --p-bg: #1c1a38; --p-line: #7f75e6; --p-ink: #bdb6ff; }
 .pf-row { display: flex; align-items: stretch; }
-.pf-box { flex: 1 1 0; min-width: 0; border: 1px solid var(--color-fd-border); background: var(--sheet); padding: 10px 8px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
-.pf-box.pf-grey { border-color: var(--line); background: var(--panel); }
-.pf-title { font-size: 14px; font-weight: 600; }
-.pf-title.pf-plain { font-weight: 500; }
-.pf-sub { font-size: 13px; color: var(--dim); }
-.pf-arrow { flex: 0 0 24px; align-self: center; position: relative; height: 2px; margin: 0 4px; background: var(--ink); }
-.pf-arrow::after { content: ""; position: absolute; right: 0; top: 50%; width: 7px; height: 7px; border-right: 2px solid var(--ink); border-top: 2px solid var(--ink); transform: translateY(-50%) rotate(45deg); }
-.pf-bracket { height: 12px; margin: 6px 12% 0; border: 2px solid var(--ink); border-top: 0; }
-.pf-caption { margin-top: 8px; font-size: 14px; color: var(--dim); text-align: center; }
-.pf-enclave { border: 1px solid var(--color-fd-border); background: var(--panel); padding: 12px; }
-.pf-enclave-label { font-family: var(--font-code); font-size: 12px; text-transform: uppercase; color: var(--dim); text-align: center; margin-bottom: 8px; }
+.pf-box { flex: 1 1 0; min-width: 0; box-sizing: border-box; border: 1px solid var(--color-fd-border); border-radius: 8px; background: var(--color-fd-card); padding: 14px 10px; text-align: center; display: flex; flex-direction: column; justify-content: center; color: var(--color-fd-foreground); }
+.pf-row > .pf-end:first-child { background: var(--g-bg); border-color: var(--g-line); color: var(--g-ink); }
+.pf-row > .pf-end:last-child { background: var(--p-bg); border-color: var(--p-line); color: var(--p-ink); }
+.pf-title { font-size: 15px; font-weight: 600; }
+.pf-sub { font-size: 13px; margin-top: 2px; color: var(--color-fd-muted-foreground); }
+.pf-end .pf-sub { color: inherit; opacity: 0.85; }
+.pf-arrow { flex: 0 0 32px; align-self: center; position: relative; height: 12px; margin: 0 6px; }
+.pf-arrow::before { content: ""; position: absolute; left: 0; right: 1px; top: 50%; border-top: 1.5px solid var(--wire); }
+.pf-arrow::after { content: ""; position: absolute; right: 1px; top: 50%; width: 8px; height: 8px; border-right: 1.5px solid var(--wire); border-top: 1.5px solid var(--wire); transform: translateY(-50%) rotate(45deg); }
+.pf-bracket { height: 14px; margin: 8px 12% 0; border: 1.5px solid var(--wire); border-top: 0; border-radius: 0 0 6px 6px; }
+.pf-caption { margin-top: 10px; font-size: 14px; color: var(--color-fd-muted-foreground); text-align: center; text-wrap: balance; }
+.pf-enclave { border: 1.5px dashed var(--wire); border-radius: 12px; padding: 16px; }
+.pf-enclave-label { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
 .pf-fan, .pf-choices { display: flex; gap: 8px; margin-top: 8px; }
-.pf-choices-label { font-size: 13px; color: var(--dim); }
-.pf-box.is-active { border-color: var(--link); }
+.pf-choices-label { font-size: 13px; color: var(--color-fd-muted-foreground); }
+.pf-box.is-active { outline: 2px solid var(--link); outline-offset: 2px; }
 .pf-box.is-waiting { opacity: 0.5; }
-@media (max-width: 560px) {
+@container (max-width: 620px) {
   .pf-row { flex-direction: column; }
-  .pf-arrow { flex: 0 0 20px; width: 2px; height: 20px; margin: 4px 0; }
-  .pf-arrow::after { right: auto; left: 50%; top: auto; bottom: 0; transform: translateX(-50%) rotate(135deg); }
+  .pf-arrow { flex: 0 0 28px; height: 28px; width: 12px; margin: 2px auto; }
+  .pf-arrow::before { left: 50%; right: auto; top: 0; bottom: 6px; border-top: 0; border-left: 1.5px solid var(--wire); }
+  .pf-arrow::after { right: auto; left: 50%; top: auto; bottom: 7px; border-top: 0; border-bottom: 1.5px solid var(--wire); transform: translateX(-50%) translateX(0.75px) rotate(45deg); }
   .pf-bracket { display: none; }
 }
 
@@ -312,19 +323,28 @@
 .demo-tile figcaption { margin-top: 6px; font-size: 13px; }
 .demo-caption { color: var(--dim); }
 .demo-links { display: flex; flex-wrap: wrap; gap: 4px 10px; }
-.rec-card { display: block; border: 1px solid var(--line); padding: 10px; font-size: 12px; color: var(--ink); background: var(--sheet); }
-.app-page a.rec-card { color: var(--ink); }
-.app-page a.rec-card:hover { text-decoration: none; border-color: var(--link); }
-.rec-head { display: flex; justify-content: space-between; color: var(--dim); }
-.app-page .rec-name { font-weight: 600; margin: 6px 0 0; font-size: 13px; }
-.app-page .rec-meta { color: var(--dim); margin: 0 0 6px; font-size: 12px; }
-.rec-rows { margin: 0; }
-.rec-row { display: flex; justify-content: space-between; gap: 6px; border-top: 1px solid var(--line-2); padding: 2px 0; }
-.rec-row dt, .rec-row dd { margin: 0; }
-.rec-row.is-changed { background: #2241c41a; }
-.rec-proof { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; }
-.rec-proof.is-pending { color: var(--dim); }
-@media (max-width: 560px) { .demo-row { grid-template-columns: minmax(0, 1fr); } }
+.rec-card { display: block; border: 1px solid var(--color-fd-border); border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.45; background: var(--color-fd-card); }
+.prose a.rec-card, .prose a.rec-card * { color: var(--color-fd-foreground); text-decoration: none; }
+.prose a.rec-card:hover { border-color: var(--link-color); }
+.prose .rec-card p, .prose .rec-card dl, .prose .rec-card dd, .prose .rec-card dt { margin: 0; }
+.rec-head { display: flex; justify-content: space-between; gap: 8px; }
+.prose a.rec-card .rec-head, .prose a.rec-card .rec-meta { color: var(--color-fd-muted-foreground); }
+.prose .rec-card .rec-name { margin-top: 10px; font-size: 15px; font-weight: 600; }
+.prose .rec-card .rec-meta { margin: 2px 0 10px; }
+.rec-rows { border-top: 1px solid var(--color-fd-border); }
+.rec-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--color-fd-border); font-size: 12.5px; }
+.prose a.rec-card .rec-row dt { font-weight: 500; }
+.prose a.rec-card .rec-row dd { text-align: right; white-space: nowrap; color: var(--color-fd-muted-foreground); }
+.rec-row.is-changed { background: color-mix(in oklab, var(--link-color) 12%, transparent); }
+.prose a.rec-card .rec-row.is-changed dd { color: var(--color-fd-foreground); font-weight: 600; }
+.rec-proof { display: flex; justify-content: space-between; margin-top: 10px; }
+.prose a.rec-card .rec-proof, .prose a.rec-card .rec-proof * { color: var(--link-color); font-weight: 500; }
+.rec-proof.is-pending { opacity: 0.6; }
+/* Stack by the column's own width, not the screen's (the sidebar takes part of it): the record cards need about
+   250px each, the pictures about 150px. Stacked cards keep a readable width. */
+#nd-page .prose, .app-page { container-type: inline-size; }
+@container (max-width: 790px) { .demo-row.is-records { grid-template-columns: minmax(0, 1fr); max-width: 380px; } }
+@container (max-width: 400px) { .demo-row { grid-template-columns: minmax(0, 1fr); } }
 
 /* Form fields on the working pages (Contact). */
 .app-page input[type="text"], .app-page input[type="email"], .app-page input:not([type]), .app-page textarea, .app-page select {

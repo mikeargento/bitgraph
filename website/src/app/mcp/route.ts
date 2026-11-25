@@ -319,5 +319,5 @@ export function GET(request: Request): Response | Promise<Response> {
   if (accept.includes("text/event-stream") || accept.includes("application/json")) {
     return handler(request);
   }
-  return Response.redirect(new URL("/integrate#mcp", request.url), 302);
+  return Response.redirect(new URL("/integrate#one-tool-call-from-any-agent", request.url), 302);
 }
