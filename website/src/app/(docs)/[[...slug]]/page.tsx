@@ -28,7 +28,16 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
           ? <>{page.data.title.split(" for ")[0]} <br className="md:hidden" />for {page.data.title.split(" for ").slice(1).join(" for ")}</>
           : page.data.title}
       </DocsTitle>
-      <DocsDescription className="whitespace-pre-line">{page.data.description}</DocsDescription>
+      {/* Home's two lines: on phones the first breaks before "a one-of-a-kind record.", which never splits. */}
+      <DocsDescription className="whitespace-pre-line">
+        {!slug?.length && page.data.description?.includes(" a one-of-a-kind record.")
+          ? <>
+              {page.data.description.split(" a one-of-a-kind record.")[0]} <br className="md:hidden" />
+              <span className="whitespace-nowrap">a one-of-a-kind record.</span>
+              {page.data.description.split(" a one-of-a-kind record.").slice(1).join("")}
+            </>
+          : page.data.description}
+      </DocsDescription>
       <DocsBody>
         <MDX components={getMDXComponents()} />
       </DocsBody>

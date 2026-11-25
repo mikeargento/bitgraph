@@ -361,3 +361,7 @@
 .site-foot p { margin: 0; }
 .site-foot a { color: inherit; text-decoration: none; }
 .site-foot a:hover { color: var(--link-color); }
+
+/* Home's line break before "a one-of-a-kind record." is for phones 360px and wider; narrower, the line wraps on its
+   own ("…any digital / file a one-of-a-kind record."), which reads better than a lone "file". */
+@media (max-width: 359px) { #nd-page h1 + p br { display: none; } }
