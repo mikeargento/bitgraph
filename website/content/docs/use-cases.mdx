@@ -7,6 +7,8 @@ BitGraph does not replace a provenance product; it sits under one. Whatever your
 
 Patterns, not partnerships: no company named or implied here uses BitGraph.
 
+<Tech>Content Credentials (C2PA)</Tech>
+
 ## Signed history, plus an attested recording.
 
 | | |
@@ -18,6 +20,8 @@ Patterns, not partnerships: no company named or implied here uses BitGraph.
 
 Running now: [a ChatGPT image recorded as is, its OpenAI-signed credential read from the file on its proof page](/proof/-yO5aQPDBxTTeFvV_ObC4__SkVHUMInfOsERBQSt6HA?counter=304&epoch=KmoEizbgaaeMeM-RMn6VuHvghxj9ZfyR9MV-hEpCrbs).
 
+<Tech>Watermarks and fingerprint search</Tech>
+
 ## A copy finds the record. The record proves the bytes.
 
 | | |
@@ -26,6 +30,8 @@ Running now: [a ChatGPT image recorded as is, its OpenAI-signed credential read 
 | **BitGraph adds** | The entry becomes a verifiable recording: the original's exact bytes and a perceptual fingerprint, bound together in the original's BitGraph. A match, by watermark or by looks, says a copy resembles the original; the original's bytes are what prove it. |
 | **What is bound** | The original's SHA-256 and a fingerprint record, in one tree. A watermark can carry a pointer to that BitGraph; the fingerprint lets a copy find it with no watermark at all. |
 | **What you get back** | The original's proof, reached from any copy that still looks like it. |
+
+<Tech>Capture devices</Tech>
 
 ## How it was captured, and where it was recorded in order.
 
@@ -36,6 +42,8 @@ Running now: [a ChatGPT image recorded as is, its OpenAI-signed credential read 
 | **What is bound** | The capture artifact's SHA-256, or its signed capture record, as soon as it leaves the device. |
 | **What you get back** | A proof bound to the capture evidence; each can be checked without the other's issuer. |
 
+<Tech>Registries</Tech>
+
 ## Registration events anyone can check outside the registry.
 
 | | |
@@ -44,6 +52,8 @@ Running now: [a ChatGPT image recorded as is, its OpenAI-signed credential read 
 | **BitGraph adds** | Each registration, or each batch of them, gets a recording that verifies with an open tool and the published enclave measurement, independently of the registry's own servers. |
 | **What is bound** | A registration record's SHA-256, or the root of a batch of them. |
 | **What you get back** | Per-registration proofs, or one proof per batch with an inclusion path for each entry. |
+
+<Tech>AI agents</Tech>
 
 ## What an agent did, bracketed and in order.
 
@@ -56,6 +66,8 @@ Running now: [a ChatGPT image recorded as is, its OpenAI-signed credential read 
 
 Running now: [The sealed exam: questions from A's nonce, answers bound as B](/exam).
 
+<Tech>Software builds</Tech>
+
 ## Artifacts recorded at build time.
 
 | | |
@@ -64,6 +76,8 @@ Running now: [The sealed exam: questions from A's nonce, answers bound as B](/ex
 | **BitGraph adds** | An attested recording of the artifact or its bill of materials at a counted position, from hardware whose build is published. Signatures and transparency-log entries bind to it as trust layers rather than being replaced by it. |
 | **What is bound** | The artifact's SHA-256, or a release's tree of artifacts as one BitGraph. |
 | **What you get back** | A proof per release, each artifact checkable on its own. |
+
+<Tech>Records and datasets</Tech>
 
 ## Large collections, one recording each.
 

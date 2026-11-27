@@ -404,3 +404,12 @@
 .app-page .drop-prompt-line { font-size: 16px; text-wrap: balance; }
 .app-page .drop-prompt-quiet { max-width: 46ch; font-size: 13px; color: var(--color-fd-muted-foreground); text-wrap: balance; }
 .app-page .drop-browse { color: var(--link-color); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* Use cases: each pattern is labeled with the technology it sits beside, and in its table the row for what exists
+   today is gray while the row for what BitGraph adds is cobalt. */
+.tech { display: inline-block; margin-top: 44px; padding: 2px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; line-height: 1.6; color: var(--link-color); background: color-mix(in srgb, var(--link-color) 12%, transparent); }
+#nd-page .prose .tech + h2 { margin-top: 10px; }
+#nd-page .prose:has(.tech) tbody tr:nth-child(1) td:first-child strong { color: var(--color-fd-muted-foreground); }
+#nd-page .prose:has(.tech) tbody tr:nth-child(2) td:first-child strong { color: var(--link-color); }
+#nd-page .prose:has(.tech) tbody tr:nth-child(2) td { background: color-mix(in srgb, var(--link-color) 6%, transparent); }
+#nd-page .prose:has(.tech) thead { display: none; }
