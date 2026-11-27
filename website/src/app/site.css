@@ -44,7 +44,7 @@
 .app-page { padding-bottom: 48px; font-size: 16px; line-height: 28px; }
 .app-page h1 { font-size: 28px; font-weight: 600; line-height: 1.25; margin: 0; }
 .app-page h1 ~ .home-section:first-of-type > h2:first-of-type, .app-page h1 ~ section:first-of-type > h2:first-of-type,
-.app-page .home-hero + section > h2:first-of-type, .app-page .home-hero + div > section:first-of-type > h2:first-of-type { margin: 16px 0 48px; font-size: 18px; line-height: 28px; font-weight: 400; color: var(--color-fd-muted-foreground); }
+.app-page .home-hero + section > h2:first-of-type, .app-page .home-hero + div > section:first-of-type > h2:first-of-type { margin: 16px 0 24px; font-size: 18px; line-height: 28px; font-weight: 400; color: var(--color-fd-muted-foreground); }
 .app-page h2 { font-size: 24px; font-weight: 600; line-height: 32px; margin: 48px 0 24px; }
 .app-page h3 { font-size: 20px; font-weight: 600; line-height: 28px; margin: 32px 0 12px; }
 .app-page p { margin: 0 0 20px; }
@@ -384,3 +384,8 @@
 
 /* The proof's title row stands on its own: no rule above it. */
 .pv-counter-grid:has(> .pv-row-head) { border-top: 0; }
+
+/* A page's one-line summary under its title sits 24px above the page, not 48px. */
+#nd-page h1 + p { margin-bottom: 8px; }
+#nd-page .prose > :first-child { margin-top: 0; }
+#nd-page .prose > :is(ol, ul):first-child > li:first-child { margin-top: 0; }
