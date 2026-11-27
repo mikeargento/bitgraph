@@ -392,3 +392,15 @@
 
 /* Previous and next at the foot of a page stand apart from the text above them. */
 #nd-page > .grid:has(> a[href]) { margin-top: 24px; }
+
+/* The proof page's file box ("Have the original?", "Find this file"): the drop box's look, a dashed rounded panel
+   with its lines centered; the compact one (under "Connect the file") a quieter solid panel. */
+.app-page .dropbox { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; min-height: 120px; margin: 16px 0; padding: 28px 20px; text-align: center; cursor: pointer; border-radius: 8px !important; }
+.app-page .dropbox.is-compact { min-height: 0; padding: 16px 20px; border: 1px solid var(--color-fd-border); }
+.app-page .dropbox.is-compact.is-drag { border-color: var(--link-color); }
+.app-page .dropbox-title { font-size: 16px; font-weight: 600; text-wrap: balance; }
+.app-page .dropbox-line { font-size: 14px; color: var(--color-fd-muted-foreground); text-wrap: balance; }
+.app-page .drop-prompt { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.app-page .drop-prompt-line { font-size: 16px; text-wrap: balance; }
+.app-page .drop-prompt-quiet { max-width: 46ch; font-size: 13px; color: var(--color-fd-muted-foreground); text-wrap: balance; }
+.app-page .drop-browse { color: var(--link-color); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
