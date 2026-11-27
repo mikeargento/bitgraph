@@ -4,6 +4,8 @@
 [![npm @mikeargento/bitgraph-verify](https://img.shields.io/npm/v/@mikeargento/bitgraph-verify?label=%40mikeargento%2Fbitgraph-verify&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
 
+## Non-Fungible Records
+
 BitGraph instantly makes any digital file a one-of-a-kind record. No NFTs, wallets, or blockchain required.
 
 Each proof is a place in line, so anyone can see which record came first. The file is never uploaded:
