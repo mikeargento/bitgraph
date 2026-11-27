@@ -22,12 +22,8 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
   return (
     <DocsPage toc={page.data.toc} full={page.data.full} tableOfContent={{ enabled: false }} tableOfContentPopover={{ enabled: false }}>
       {!slug?.length && <OldAnchors />}
-      {/* Home's headline breaks before "for the artificial era." on phones; one line from the md width up. */}
-      <DocsTitle>
-        {!slug?.length && page.data.title.includes(" for ")
-          ? <>{page.data.title.split(" for ")[0]} <br className="md:hidden" />for {page.data.title.split(" for ").slice(1).join(" for ")}</>
-          : page.data.title}
-      </DocsTitle>
+      {/* A hyphenated word in a title never splits at its hyphen. */}
+      <DocsTitle>{page.data.title.replace(/-/g, "\u2011")}</DocsTitle>
       {/* Home's two sentences, the second set a little apart: on phones the first breaks before "a one-of-a-kind
           record.", which never splits. */}
       <DocsDescription className="whitespace-pre-line">
