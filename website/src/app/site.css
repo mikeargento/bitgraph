@@ -389,3 +389,6 @@
 #nd-page h1 + p { margin-bottom: 8px; }
 #nd-page .prose > :first-child { margin-top: 0; }
 #nd-page .prose > :is(ol, ul):first-child > li:first-child { margin-top: 0; }
+
+/* Previous and next at the foot of a page stand apart from the text above them. */
+#nd-page > .grid:has(> a[href]) { margin-top: 24px; }
