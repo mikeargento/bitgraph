@@ -22,16 +22,19 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
   return (
     <DocsPage toc={page.data.toc} full={page.data.full} tableOfContent={{ enabled: false }} tableOfContentPopover={{ enabled: false }}>
       {!slug?.length && <OldAnchors />}
-      {/* A hyphenated word in a title never splits at its hyphen. */}
-      <DocsTitle>{page.data.title.replace(/-/g, "\u2011")}</DocsTitle>
-      {/* Home's two sentences, the second set a little apart: on phones the first breaks before "a one-of-a-kind
-          record.", which never splits. */}
+      {/* A hyphenated word in a title never splits at its hyphen. A title of two sentences (Home's) puts the second on
+          its own line on phones; from the md width up it is one line. */}
+      <DocsTitle>
+        {page.data.title.replace(/-/g, "\u2011").split(/(?<=\.) /).map((part, i) => (
+          <span key={i}>{i > 0 && <> <br className="md:hidden" /></>}{part}</span>
+        ))}
+      </DocsTitle>
+      {/* Home's sentence breaks before "a one-of-a-kind record." on phones, and that phrase never splits. */}
       <DocsDescription className="whitespace-pre-line">
         {!slug?.length && page.data.description?.includes(" a one-of-a-kind record.")
           ? <>
               {page.data.description.split(" a one-of-a-kind record.")[0]} <br className="md:hidden" />
               <span className="whitespace-nowrap">a one-of-a-kind record.</span>
-              <span className="block mt-3">{page.data.description.split(" a one-of-a-kind record.").slice(1).join("").trim()}</span>
             </>
           : page.data.description}
       </DocsDescription>
@@ -51,6 +54,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug?: st
   const { slug } = await params;
   const page = source.getPage(slug);
   if (!page) return { title: "Not found", robots: { index: false } };
-  if (!slug?.length) return { title: { absolute: "BitGraph" }, description: page.data.description };
+  if (!slug?.length) return { title: { absolute: "BitGraph" }, description: `${page.data.title} ${page.data.description}` }; // search results show the headline too
   return { title: page.data.title, description: page.data.description };
 }
