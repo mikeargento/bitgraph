@@ -413,3 +413,7 @@
 #nd-page .prose:has(.tech) tbody tr:nth-child(2) td:first-child strong { color: var(--link-color); }
 #nd-page .prose:has(.tech) tbody tr:nth-child(2) td { background: color-mix(in srgb, var(--link-color) 6%, transparent); }
 #nd-page .prose:has(.tech) thead { display: none; }
+
+/* Home's three pillars: Fumadocs' own cards, three across from 640px of column and stacked below that. */
+.pillars { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 24px; }
+@container (min-width: 640px) { .pillars { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pillars > * { grid-column: auto; } }
