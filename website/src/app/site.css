@@ -358,7 +358,10 @@
 /* The foot of every page (components/site-foot.tsx): two small gray lines under a hairline, after the previous and
    next links (the page is a flex column, so it is ordered last). */
 .site-foot { order: 99; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--color-fd-border); font-size: 13px; line-height: 1.6; color: var(--color-fd-muted-foreground); }
-.site-foot p { margin: 0; }
+.site-foot p { margin: 0; overflow: hidden; }
+.site-foot .row { display: flex; flex-wrap: wrap; margin-left: -1.1em; }
+.site-foot .row > span { position: relative; padding-left: 1.1em; white-space: nowrap; }
+.site-foot .row > span::before { content: "\00b7"; position: absolute; left: 0.42em; }
 .site-foot a { color: inherit; text-decoration: none; }
 .site-foot a:hover { color: var(--link-color); }
 
@@ -413,3 +416,8 @@
 #nd-page .prose:has(.tech) tbody tr:nth-child(2) td:first-child strong { color: var(--link-color); }
 #nd-page .prose:has(.tech) tbody tr:nth-child(2) td { background: color-mix(in srgb, var(--link-color) 6%, transparent); }
 #nd-page .prose:has(.tech) thead { display: none; }
+
+/* Home's three pillars: on a wide page each is a label, a dash and a sentence on one line; on a narrow one the label
+   stands on its own line with the sentence under it, and the dash is dropped. */
+.pillars-list .sep { white-space: pre; }
+@container (max-width: 560px) { .pillars-list strong { display: block; } .pillars-list .sep { display: none; } }
